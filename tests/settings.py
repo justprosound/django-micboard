@@ -85,3 +85,11 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
     },
 }
+
+# Disable migrations for the micboard app during tests since the repo intentionally
+# does not include migration files. This allows Django to create tables directly
+# from the models (syncdb-style) for this app only.
+MIGRATION_MODULES = {"micboard": None}
+
+# Avoid warnings about implicit primary keys in Django 4+
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"

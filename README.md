@@ -1,5 +1,7 @@
 # django-micboard: A Reusable Django App for Shure Wireless Microphone Monitoring
 
+> **⚠️ WORK IN PROGRESS**: This project is under active development and not yet ready for production use. Features, APIs, and documentation may change without notice. Use at your own risk.
+
 `django-micboard` is a reusable Django application designed to provide comprehensive monitoring and management of Shure wireless microphone systems. Inspired by the original [micboard.io](https://micboard.io/) project, this app integrates with the **Shure System API** (typically hosted locally on a Windows system) to offer a modern, maintainable, and extensible solution for real-time device communication and data visualization.
 
 ## Architecture
@@ -60,7 +62,7 @@ pip install -e .  # Editable install for development
 3. Configure TLS certificates if accessing remotely (see Shure documentation)
 4. Start the System API server and note the URL (e.g., `http://localhost:8080`)
 
-### 2. Configure Django
+ Static assets include app icons under `micboard/static/micboard/`. Splash screens have been removed.
 
 1. Add 'micboard' to `INSTALLED_APPS` in your Django settings:
    ```python

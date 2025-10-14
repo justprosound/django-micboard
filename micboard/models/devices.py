@@ -107,6 +107,11 @@ class Transmitter(models.Model):
     battery = models.PositiveIntegerField(
         default=UNKNOWN_BYTE_VALUE, help_text="Battery level (0-255, 255=unknown)"
     )
+    battery_charge = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Battery charge percentage (0-100, optional field from newer devices)",
+    )
     audio_level = models.IntegerField(default=0, help_text="Audio level in dB")
     rf_level = models.IntegerField(default=0, help_text="RF signal level")
     frequency = models.CharField(max_length=20, blank=True, help_text="Operating frequency")
@@ -138,6 +143,70 @@ class Transmitter(models.Model):
         if self.battery == self.UNKNOWN_BYTE_VALUE:
             return None
         return min(100, max(0, self.battery * 100 // self.UNKNOWN_BYTE_VALUE))
+
+
+class TransmitterSession(models.Model):
+    """Represents a period where a transmitter is considered active.
+
+    A session starts when we first receive data for a transmitter and ends when
+    no data has been received for a configured inactivity threshold.
+    """
+
+    transmitter = models.ForeignKey(
+        Transmitter,
+        on_delete=models.CASCADE,
+        related_name="sessions",
+        help_text="The transmitter this session belongs to",
+    )
+    started_at = models.DateTimeField(help_text="When this session started")
+    last_seen = models.DateTimeField(help_text="Last time data was seen for this transmitter")
+    ended_at = models.DateTimeField(null=True, blank=True, help_text="When this session ended")
+    is_active = models.BooleanField(default=True, help_text="Whether the session is currently active")
+    last_status = models.CharField(max_length=50, blank=True, help_text="Last known transmitter status")
+    sample_count = models.PositiveIntegerField(default=0, help_text="Number of samples recorded in this session")
+
+    class Meta:
+        verbose_name = "Transmitter Session"
+        verbose_name_plural = "Transmitter Sessions"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["transmitter", "is_active"]),
+            models.Index(fields=["started_at"]),
+        ]
+
+    def __str__(self) -> str:
+        state = "active" if self.is_active else "ended"
+        return f"Session {state} for {self.transmitter} from {self.started_at}"
+
+
+class TransmitterSample(models.Model):
+    """A single data point captured during a transmitter session."""
+
+    session = models.ForeignKey(
+        TransmitterSession,
+        on_delete=models.CASCADE,
+        related_name="samples",
+        help_text="The session this sample belongs to",
+    )
+    timestamp = models.DateTimeField(default=timezone.now, help_text="When the sample was recorded")
+    battery = models.PositiveIntegerField(null=True, blank=True)
+    battery_charge = models.PositiveIntegerField(null=True, blank=True)
+    audio_level = models.IntegerField(null=True, blank=True)
+    rf_level = models.IntegerField(null=True, blank=True)
+    quality = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=50, blank=True)
+    frequency = models.CharField(max_length=20, blank=True)
+
+    class Meta:
+        verbose_name = "Transmitter Sample"
+        verbose_name_plural = "Transmitter Samples"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["timestamp"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Sample @ {self.timestamp} for {self.session.transmitter}"
 
 
 class Group(models.Model):
