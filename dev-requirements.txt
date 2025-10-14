@@ -43,7 +43,7 @@ daphne==4.2.1
     # via django-micboard (pyproject.toml)
 distlib==0.4.0
     # via virtualenv
-django==4.2.25
+django==5.2.7
     # via
     #   channels
     #   django-micboard (pyproject.toml)

@@ -35,7 +35,7 @@ cryptography==46.0.2
     #   service-identity
 daphne==4.2.1
     # via django-micboard (pyproject.toml)
-django==4.2.25
+django==5.2.7
     # via
     #   channels
     #   django-micboard (pyproject.toml)
