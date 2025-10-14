@@ -25,11 +25,11 @@ setup(
     long_description_content_type='text/markdown',
     author='Your Name',  # TODO: Update with your name
     author_email='your.email@example.com',  # TODO: Update with your email
-    url='https://github.com/yourusername/django-micboard',  # TODO: Update with your repo
+    url='https://github.com/justprosound/django-micboard',  # TODO: Update with your repo
     project_urls={
-        'Bug Reports': 'https://github.com/yourusername/django-micboard/issues',
-        'Source': 'https://github.com/yourusername/django-micboard',
-        'Documentation': 'https://github.com/yourusername/django-micboard#readme',
+        'Bug Reports': 'https://github.com/justprosound/django-micboard/issues',
+        'Source': 'https://github.com/justprosound/django-micboard',
+        'Documentation': 'https://github.com/justprosound/django-micboard#readme',
     },
     packages=find_packages(exclude=['tests', 'tests.*', 'docs', 'examples']),
     include_package_data=True,

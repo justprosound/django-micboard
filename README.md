@@ -37,16 +37,16 @@ pip install django-micboard[dev]
 
 ```bash
 # Latest from main branch
-pip install git+https://github.com/yourusername/django-micboard.git
+pip install git+https://github.com/justprosound/django-micboard.git
 
 # Specific version tag
-pip install git+https://github.com/yourusername/django-micboard.git@v2.2.0
+pip install git+https://github.com/justprosound/django-micboard.git@v2.2.0
 ```
 
 ### Option 3: Install from Source
 
 ```bash
-git clone https://github.com/yourusername/django-micboard.git
+git clone https://github.com/justprosound/django-micboard.git
 cd django-micboard
 pip install -e .  # Editable install for development
 ```

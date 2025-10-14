@@ -60,10 +60,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/django-micboard"
-Documentation = "https://github.com/yourusername/django-micboard#readme"
-Repository = "https://github.com/yourusername/django-micboard.git"
-Issues = "https://github.com/yourusername/django-micboard/issues"
+Homepage = "https://github.com/justprosound/django-micboard"
+Documentation = "https://github.com/justprosound/django-micboard#readme"
+Repository = "https://github.com/justprosound/django-micboard.git"
+Issues = "https://github.com/justprosound/django-micboard/issues"
 
 [tool.setuptools]
 packages = ["micboard"]
