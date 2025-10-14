@@ -15,7 +15,7 @@ def get_version():
         for line in f:
             if line.startswith('__version__'):
                 return line.split('=')[1].strip().strip('"').strip("'")
-    return '2.2.0'
+    return '25.10.14'
 
 setup(
     name='django-micboard',
@@ -23,9 +23,9 @@ setup(
     description='Django app for monitoring Shure wireless microphone systems via System API',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    author='Your Name',  # TODO: Update with your name
-    author_email='your.email@example.com',  # TODO: Update with your email
-    url='https://github.com/justprosound/django-micboard',  # TODO: Update with your repo
+    author='bandwith',
+    author_email='62576+bandwith@users.noreply.github.com',
+    url='https://github.com/justprosound/django-micboard',
     project_urls={
         'Bug Reports': 'https://github.com/justprosound/django-micboard/issues',
         'Source': 'https://github.com/justprosound/django-micboard',
@@ -71,7 +71,7 @@ setup(
         'Framework :: Django :: 5.1',
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
@@ -87,6 +87,6 @@ setup(
     ],
     python_requires='>=3.9',
     keywords='django shure wireless microphone monitoring audio websocket',
-    license='MIT',
+    license='AGPL-3.0-or-later',
     zip_safe=False,
 )
