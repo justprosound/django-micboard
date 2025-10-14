@@ -30,3 +30,12 @@ repos:
         args: [-c, pyproject.toml, -r, micboard/]
         additional_dependencies: ["bandit[toml]"]
         files: ^micboard/
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: pytest -q
+        language: system
+        types: [python]
+        pass_filenames: false

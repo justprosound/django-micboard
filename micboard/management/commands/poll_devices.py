@@ -7,10 +7,15 @@ import time
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.core.cache import cache
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from micboard.models import Channel, Receiver, Transmitter
+from micboard.models import (
+    Channel,
+    Receiver,
+    Transmitter,
+)
 from micboard.shure_api_client import ShureAPIError, ShureSystemAPIClient
 
 logger = logging.getLogger(__name__)
@@ -32,6 +37,17 @@ class Command(BaseCommand):
     def handle(self, *args, **options):  # noqa: ARG002 (args part of Django signature)
         initial_poll_only = options["initial_poll_only"]
         broadcast_to_frontend = not options["no_broadcast"]
+
+        # Inactivity threshold (seconds) to close a session if no samples received
+        self.inactivity_seconds = (
+            getattr(getattr(__import__("django.conf").conf, "settings"), "MICBOARD_CONFIG", {})
+            .get("TRANSMITTER_INACTIVITY_SECONDS", 10)
+        )
+
+        # Cache configuration for in-memory session tracking
+        self.session_cache_prefix = "micboard_tx_session_"
+        # Keep session state in cache for a day by default
+        self.session_cache_timeout = max(self.inactivity_seconds * 20, 60)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -182,7 +198,7 @@ class Command(BaseCommand):
         return callback
 
     def update_models(self, api_data):
-        """Update Django models with API data"""
+        \"\"\"Update Django models with API data and handle slot assignment intelligently\"\"\"
         updated_count = 0
         active_receiver_ids = []
 
@@ -192,64 +208,110 @@ class Command(BaseCommand):
                 receiver, created = Receiver.objects.update_or_create(
                     api_device_id=api_device_id,
                     defaults={
-                        "ip": device_data.get("ip", ""),
-                        "device_type": device_data.get("type", "unknown"),
-                        "name": device_data.get("name", ""),
-                        "firmware_version": device_data.get("firmware", ""),
-                        "is_active": True,
-                        "last_seen": timezone.now(),
+                        \"ip\": device_data.get(\"ip\", \"\"),
+                        \"device_type\": device_data.get(\"type\", \"unknown\"),
+                        \"name\": device_data.get(\"name\", \"\"),
+                        \"firmware_version\": device_data.get(\"firmware\", \"\"),
+                        \"is_active\": True,
+                        \"last_seen\": timezone.now(),
                     },
                 )
                 active_receiver_ids.append(receiver.id)
 
+                if created:
+                    logger.info(\"Created new receiver: %s (%s)\", receiver.name, api_device_id)
+                else:
+                    logger.debug(\"Updated receiver: %s\", api_device_id)
+
                 # Update channels and transmitters
-                for channel_info in device_data.get("channels", []):
-                    channel_num = channel_info.get("channel", 0)
-                    tx_data = channel_info.get("tx")
+                for channel_info in device_data.get(\"channels\", []):
+                    channel_num = channel_info.get(\"channel\", 0)
+                    tx_data = channel_info.get(\"tx\")
 
                     if tx_data:
                         # Create/update Channel
-                        channel, _ = Channel.objects.update_or_create(
+                        channel, ch_created = Channel.objects.update_or_create(
                             receiver=receiver,
                             channel_number=channel_num,
                         )
 
-                        # Create/update Transmitter
-                        api_slot = tx_data.get("slot")  # Assuming API provides slot
-                        if api_slot is None:
-                            # Fallback if API doesn't provide slot, generate a unique one
-                            api_slot = (
-                                hash(f"{receiver.api_device_id}-{channel_num}") % 1000000
-                            )  # Example
-                            logger.warning(
-                                f"API did not provide slot for {receiver.api_device_id}-{channel_num}. Generated: {api_slot}"
+                        if ch_created:
+                            logger.info(
+                                \"Created new channel %d for receiver %s\",
+                                channel_num,
+                                receiver.name,
                             )
 
-                        Transmitter.objects.update_or_create(
+                        # Intelligent slot assignment
+                        api_slot = tx_data.get(\"slot\")
+                        
+                        # Try to find existing transmitter for this channel
+                        try:
+                            transmitter = Transmitter.objects.get(channel=channel)
+                            target_slot = transmitter.slot  # Keep existing slot
+                            logger.debug(
+                                \"Reusing existing slot %d for %s channel %d\",
+                                target_slot,
+                                api_device_id,
+                                channel_num,
+                            )
+                        except Transmitter.DoesNotExist:
+                            # New transmitter - assign slot
+                            if api_slot is not None:
+                                target_slot = api_slot
+                            else:
+                                # Generate a deterministic slot based on receiver and channel
+                                # This ensures consistent slot assignment across restarts
+                                base_slot = hash(f\"{receiver.api_device_id}-{channel_num}\")
+                                # Use positive modulo to get a reasonable slot range
+                                target_slot = abs(base_slot) % 10000
+                                
+                                # Check for collisions and increment if needed
+                                while Transmitter.objects.filter(slot=target_slot).exists():
+                                    target_slot = (target_slot + 1) % 10000
+                                    
+                                logger.info(
+                                    \"Assigned new slot %d for %s channel %d\",
+                                    target_slot,
+                                    api_device_id,
+                                    channel_num,
+                                )
+
+                        # Update or create transmitter with all fields
+                        transmitter, _ = Transmitter.objects.update_or_create(
                             channel=channel,
-                            slot=api_slot,  # Use API provided slot or generated
                             defaults={
-                                "battery": tx_data.get("battery", 255),
-                                "audio_level": tx_data.get("audio_level", 0),
-                                "rf_level": tx_data.get("rf_level", 0),
-                                "frequency": tx_data.get("frequency", ""),
-                                "antenna": tx_data.get("antenna", ""),
-                                "tx_offset": tx_data.get("tx_offset", 255),
-                                "quality": tx_data.get("quality", 255),
-                                "runtime": tx_data.get("runtime", ""),
-                                "status": tx_data.get("status", ""),
-                                "name": tx_data.get("name", ""),
-                                "name_raw": tx_data.get("name_raw", ""),
+                                \"slot\": target_slot,
+                                \"battery\": tx_data.get(\"battery\", 255),
+                                \"battery_charge\": tx_data.get(\"battery_charge\"),
+                                \"audio_level\": tx_data.get(\"audio_level\", 0),
+                                \"rf_level\": tx_data.get(\"rf_level\", 0),
+                                \"frequency\": tx_data.get(\"frequency\", \"\"),
+                                \"antenna\": tx_data.get(\"antenna\", \"\"),
+                                \"tx_offset\": tx_data.get(\"tx_offset\", 255),
+                                \"quality\": tx_data.get(\"quality\", 255),
+                                \"runtime\": tx_data.get(\"runtime\", \"\"),
+                                \"status\": tx_data.get(\"status\", \"\"),
+                                \"name\": tx_data.get(\"name\", \"\"),
+                                \"name_raw\": tx_data.get(\"name_raw\", \"\"),
                             },
                         )
+
+                        # Track session & samples
+                        self._record_sample_and_session(transmitter, tx_data)
                 updated_count += 1
 
             except Exception:  # noqa: BLE001
-                logger.exception("Error updating device %s", api_device_id)
+                logger.exception(\"Error updating device %s\", api_device_id)
                 continue
 
         # Mark receivers that were not in the API data as offline
-        Receiver.objects.exclude(id__in=active_receiver_ids).update(is_active=False)
+        offline_count = Receiver.objects.exclude(id__in=active_receiver_ids).filter(
+            is_active=True
+        ).update(is_active=False)
+        
+        if offline_count > 0:
+            logger.warning(\"Marked %d receivers as offline\", offline_count)
 
         return updated_count
 
@@ -278,6 +340,7 @@ class Command(BaseCommand):
                     channel_data["transmitter"] = {
                         "slot": transmitter.slot,
                         "battery": transmitter.battery,
+                        "battery_charge": transmitter.battery_charge,
                         "battery_percentage": transmitter.battery_percentage,
                         "audio_level": transmitter.audio_level,
                         "rf_level": transmitter.rf_level,
@@ -294,3 +357,93 @@ class Command(BaseCommand):
                 receiver_data["channels"].append(channel_data)
             serialized_receivers.append(receiver_data)
         return {"receivers": serialized_receivers}
+
+    # --- Session & Sample Tracking (Cache-based, no DB persistence) ---
+    def _session_cache_key(self, slot: int) -> str:
+        return f"{self.session_cache_prefix}{slot}"
+
+    def _get_active_session(self, slot: int) -> dict | None:
+        session = cache.get(self._session_cache_key(slot))
+        if session and session.get("is_active"):
+            return session
+        return None
+
+    def _start_session(self, transmitter: Transmitter, status: str) -> dict:
+        now = timezone.now()
+        session = {
+            "slot": transmitter.slot,
+            "receiver": transmitter.channel.receiver.name,
+            "channel": transmitter.channel.channel_number,
+            "started_at": now,
+            "last_seen": now,
+            "ended_at": None,
+            "is_active": True,
+            "last_status": status or "",
+            "sample_count": 0,
+            # small rolling buffer of last samples for debugging/diagnostics
+            "samples": [],
+        }
+        cache.set(self._session_cache_key(transmitter.slot), session, timeout=self.session_cache_timeout)
+        logger.info(
+            "Transmitter active: slot=%s, receiver=%s, channel=%s",
+            transmitter.slot,
+            session["receiver"],
+            session["channel"],
+        )
+        return session
+
+    def _end_session(self, session: dict) -> None:
+        if not session.get("is_active"):
+            return
+        session["is_active"] = False
+        session["ended_at"] = timezone.now()
+        cache.set(self._session_cache_key(session["slot"]), session, timeout=self.session_cache_timeout)
+        duration = int((session["ended_at"] - session["started_at"]).total_seconds())
+        logger.info(
+            "Transmitter inactive: slot=%s, duration=%ss, samples=%s",
+            session["slot"],
+            duration,
+            session.get("sample_count", 0),
+        )
+
+    def _record_sample_and_session(self, transmitter: Transmitter, tx_data: dict) -> None:
+        """Record a sample in cache, manage session lifecycle, and detect outages."""
+        now = timezone.now()
+        session = self._get_active_session(transmitter.slot)
+
+        if session is None:
+            # Start a new session on first sample
+            session = self._start_session(transmitter, tx_data.get("status", ""))
+        else:
+            # If inactive for longer than threshold, close old and start new
+            gap = (now - session["last_seen"]).total_seconds()
+            if gap > self.inactivity_seconds:
+                logger.warning(
+                    "Short outage detected: slot=%s gap=%ss (> %ss)",
+                    transmitter.slot,
+                    int(gap),
+                    self.inactivity_seconds,
+                )
+                self._end_session(session)
+                session = self._start_session(transmitter, tx_data.get("status", ""))
+
+        # Record sample (rolling buffer up to 100 most-recent samples)
+        sample = {
+            "timestamp": now.isoformat(),
+            "battery": tx_data.get("battery"),
+            "battery_charge": tx_data.get("battery_charge"),
+            "audio_level": tx_data.get("audio_level"),
+            "rf_level": tx_data.get("rf_level"),
+            "quality": tx_data.get("quality"),
+            "status": tx_data.get("status", ""),
+            "frequency": str(tx_data.get("frequency", "")),
+        }
+        session["samples"].append(sample)
+        if len(session["samples"]) > 100:
+            session["samples"] = session["samples"][-100:]
+
+        session["sample_count"] = session.get("sample_count", 0) + 1
+        session["last_seen"] = now
+        session["last_status"] = tx_data.get("status", session.get("last_status", ""))
+
+        cache.set(self._session_cache_key(transmitter.slot), session, timeout=self.session_cache_timeout)

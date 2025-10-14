@@ -13,6 +13,7 @@ include .copilot-instructions.md
 
 # Include package data (now in micboard/ subdirectory)
 recursive-include micboard/static *
+recursive-exclude micboard/static/micboard/splash *
 recursive-include micboard/templates *
 recursive-include micboard/management *.py
 recursive-include micboard/migrations *.py

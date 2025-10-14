@@ -30,6 +30,7 @@ INSTALLED_APPS = [
 | `SHURE_API_RETRY_STATUS_CODES` | A list of HTTP status codes to retry on. | `[429, 500, 502, 503, 504]` |
 | `POLL_INTERVAL` | The interval in seconds between device polls. | `5` |
 | `CACHE_TIMEOUT` | The timeout in seconds for caching API responses. | `30` |
+| `TRANSMITTER_INACTIVITY_SECONDS` | Inactivity threshold (seconds) before a transmitter session is considered ended and a new session started on next sample. Used to detect short outages. | `10` |
 
 Example:
 
