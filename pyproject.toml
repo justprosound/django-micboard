@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "django-micboard"
-version = "25.10.14"
+dynamic = ["version"]
 description = "Django app for monitoring Shure wireless microphone systems via System API"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -69,6 +69,9 @@ Issues = "https://github.com/justprosound/django-micboard/issues"
 packages = ["micboard"]
 include-package-data = true
 
+[tool.setuptools.dynamic]
+version = {attr = "micboard.__version__"}
+
 [tool.setuptools.package-data]
 micboard = [
     "static/micboard/**/*",
@@ -84,7 +87,7 @@ include = ["micboard/**/*.py", "tests/**/*.py", "*.py"]
 exclude = ["migrations/"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "C90", "I", "N", "UP", "YTT", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "DJ", "EM", "EXE", "FA", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SLOT", "SIM", "TID", "TCH", "INT", "ARG", "PTH", "ERA", "PD", "PGH", "PL", "TRY", "FLY", "NPY", "AIR", "PERF", "FURB", "LOG", "RUF"]
+select = ["E", "F", "W", "C90", "I", "N", "UP", "YTT", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "DJ", "EM", "EXE", "FA", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SLOT", "SIM", "TID", "TCH", "INT", "ARG", "PTH", "ERA", "PD", "PGH", "PL", "TRY", "FLY"]
 ignore = ["E501", "S101", "S104", "COM812", "ISC001"]
 
 [tool.ruff.format]
@@ -92,11 +95,6 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "tests.settings"

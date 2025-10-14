@@ -1,6 +1,6 @@
-# Micboard Django App
+# django-micboard: A Reusable Django App for Shure Wireless Microphone Monitoring
 
-This Django app provides wireless microphone monitoring functionality, ported from the original micboard project. It uses the **Shure System API** as middleware for device communication, providing a modern, maintainable architecture.
+`django-micboard` is a reusable Django application designed to provide comprehensive monitoring and management of Shure wireless microphone systems. Inspired by the original [micboard.io](https://micboard.io/) project, this app integrates with the **Shure System API** (typically hosted locally on a Windows system) to offer a modern, maintainable, and extensible solution for real-time device communication and data visualization.
 
 ## Architecture
 
@@ -79,20 +79,20 @@ pip install -e .  # Editable install for development
        'SHURE_API_PASSWORD': None,  # If authentication required
        'SHURE_API_TIMEOUT': 10,
        'SHURE_API_VERIFY_SSL': True,
-       
+
        # Retry and rate limiting
        'SHURE_API_MAX_RETRIES': 3,
        'SHURE_API_RETRY_BACKOFF': 0.5,
        'SHURE_API_RETRY_STATUS_CODES': [429, 500, 502, 503, 504],
    }
    ```
-   
-   See `settings_template.py` for complete configuration options.
+
+   See [CONFIGURATION.md](CONFIGURATION.md) for complete configuration options.
 
 3. Configure Channels for WebSocket support in your settings:
    ```python
    ASGI_APPLICATION = 'your_project.asgi.application'
-   
+
    CHANNEL_LAYERS = {
        'default': {
            'BACKEND': 'channels.layers.InMemoryChannelLayer'
@@ -107,7 +107,7 @@ pip install -e .  # Editable install for development
    from channels.auth import AuthMiddlewareStack
    from django.core.asgi import get_asgi_application
    from micboard.routing import websocket_urlpatterns
-   
+
    application = ProtocolTypeRouter({
        "http": get_asgi_application(),
        "websocket": AuthMiddlewareStack(
@@ -119,7 +119,7 @@ pip install -e .  # Editable install for development
 5. Include the URLs in your main `urls.py`:
    ```python
    from django.urls import include, path
-   
+
    urlpatterns = [
        path('micboard/', include('micboard.urls')),
    ]
@@ -129,7 +129,7 @@ pip install -e .  # Editable install for development
    ```bash
    # Create migrations for micboard app
    python manage.py makemigrations micboard
-   
+
    # Apply migrations
    python manage.py migrate
    ```
@@ -192,6 +192,18 @@ Rate limit responses return HTTP 429 with `Retry-After` header.
 - `POST /micboard/api/config/` - Update configuration
 - `POST /micboard/api/group/` - Update group settings
 
+### New Views
+
+The app now includes several new views to filter and display devices:
+
+- **Devices by Type**: `/micboard/device-type/<device_type>/` (e.g., `/micboard/device-type/uhfr/`)
+- **Devices by Building**: `/micboard/building/<building_name>/` (e.g., `/micboard/building/Building%20A/`)
+- **Devices by User**: `/micboard/user/<username>/` (e.g., `/micboard/user/admin/`)
+- **Devices by Room**: `/micboard/room/<room_name>/` (e.g., `/micboard/room/Room%20101/`)
+- **Devices by Priority**: `/micboard/priority/<priority>/` (e.g., `/micboard/priority/high/`)
+
+These views are also accessible via dropdown menus in the main dashboard navigation.
+
 ### WebSocket Connection
 
 Connect to: `ws://your-server/micboard/ws`
@@ -213,16 +225,13 @@ Create groups in Django Admin to organize devices into logical collections.
 
 ## Dependencies
 
-Install via pip:
+### Python Dependencies
 
-```bash
-pip install django>=4.2 channels daphne requests
-```
+Python dependencies are managed using `pip-tools` and `pyproject.toml`. See [DEPENDENCY_MANAGEMENT.md](DEPENDENCY_MANAGEMENT.md) for details on how to update and manage Python dependencies.
 
-For production WebSocket support with Redis:
-```bash
-pip install channels-redis
-```
+### Frontend Dependencies
+
+Frontend dependencies (Bootstrap, Sass, IBM Plex font) are managed using `npm`. Refer to the "Frontend Development" section under "Development" for instructions on installing and building these assets.
 
 ## Development
 
@@ -243,9 +252,26 @@ micboard/
 ├── routing.py                    # WebSocket routing
 ├── shure_api_client.py          # Shure System API client
 ├── urls.py                      # URL configuration
-├── views.py                     # View functions
-└── settings_template.py         # Configuration template
+└── views.py                     # View functions
 ```
+
+### Frontend Development
+
+This project uses `npm` to manage frontend dependencies and build static assets.
+
+1.  **Install Node.js dependencies**:
+    ```bash
+    npm install
+    ```
+
+2.  **Build static assets**:
+    ```bash
+    npm run build
+    ```
+
+### Python Dependency Management
+
+Python dependencies are managed using `pip-tools` and `pyproject.toml`. See [DEPENDENCY_MANAGEMENT.md](DEPENDENCY_MANAGEMENT.md) for details on how to update and manage Python dependencies.
 
 ### Testing
 

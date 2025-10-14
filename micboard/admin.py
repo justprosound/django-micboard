@@ -1,156 +1,140 @@
 from django.contrib import admin
 
+# Updated imports
 from .models import (
-    Device, Transmitter, Group, DiscoveredDevice, MicboardConfig,
-    Location, MonitoringGroup, DeviceAssignment, UserAlertPreference, Alert
+    Alert,
+    Channel,
+    DeviceAssignment,
+    DiscoveredDevice,
+    Group,
+    Location,
+    MicboardConfig,
+    MonitoringGroup,  # Assuming MonitoringGroup and Location are defined elsewhere or will be created
+    Receiver,
+    Transmitter,
+    UserAlertPreference,
 )
 
-@admin.register(Device)
-class DeviceAdmin(admin.ModelAdmin):
-    list_display = ['ip', 'device_type', 'channel', 'slot', 'name', 'is_active', 'last_seen']
-    list_filter = ['device_type', 'is_active']
-    search_fields = ['ip', 'name', 'api_device_id']
-    readonly_fields = ['api_device_id', 'last_seen']
-    
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.select_related().prefetch_related('monitoring_groups', 'assignments')
+
+# Inline for Channels within Receiver admin
+class ChannelInline(admin.StackedInline):
+    model = Channel
+    extra = 1  # Number of empty forms to display
+
+
+# Inline for Transmitters within Channel admin
+class TransmitterInline(admin.StackedInline):
+    model = Transmitter
+    extra = 1
+
+
+@admin.register(Receiver)
+class ReceiverAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "device_type",
+        "ip",
+        "api_device_id",
+        "is_active",
+        "last_seen",
+    )
+    list_filter = ("device_type", "is_active")
+    search_fields = ("name", "ip", "api_device_id")
+    inlines = [ChannelInline]  # Add ChannelInline here
+
+
+@admin.register(Channel)
+class ChannelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "receiver", "channel_number")
+    list_filter = ("receiver__device_type", "receiver__is_active")
+    search_fields = ("receiver__name", "channel_number")
+    inlines = [TransmitterInline]  # Add TransmitterInline here
+
 
 @admin.register(Transmitter)
 class TransmitterAdmin(admin.ModelAdmin):
-    list_display = ['device', 'slot', 'battery', 'audio_level', 'frequency', 'status']
-    list_filter = ['status']
-    readonly_fields = ['updated_at']
-
-@admin.register(Group)
-class GroupAdmin(admin.ModelAdmin):
-    list_display = ['group_number', 'title']
-
-@admin.register(DiscoveredDevice)
-class DiscoveredDeviceAdmin(admin.ModelAdmin):
-    list_display = ['ip', 'device_type', 'channels', 'discovered_at']
-
-@admin.register(MicboardConfig)
-class MicboardConfigAdmin(admin.ModelAdmin):
-    list_display = ['key', 'value']
-
-
-@admin.register(Location)
-class LocationAdmin(admin.ModelAdmin):
-    list_display = ['name', 'building', 'room', 'floor', 'is_active']
-    list_filter = ['is_active', 'building']
-    search_fields = ['name', 'building', 'room', 'description']
-    readonly_fields = ['created_at', 'updated_at']
-
-
-@admin.register(MonitoringGroup)
-class MonitoringGroupAdmin(admin.ModelAdmin):
-    list_display = ['name', 'location', 'is_active', 'user_count', 'device_count']
-    list_filter = ['is_active', 'location']
-    search_fields = ['name', 'description']
-    filter_horizontal = ['users', 'devices']
-    readonly_fields = ['created_at', 'updated_at']
-    
-    def user_count(self, obj):
-        return obj.users.count()
-    user_count.short_description = 'Users'
-    
-    def device_count(self, obj):
-        return obj.devices.count()
-    device_count.short_description = 'Devices'
+    list_display = (
+        "__str__",
+        "channel",
+        "slot",
+        "battery",
+        "audio_level",
+        "rf_level",
+        "status",
+    )
+    list_filter = ("channel__receiver__device_type", "status")
+    search_fields = ("channel__receiver__name", "slot", "name")
 
 
 @admin.register(DeviceAssignment)
 class DeviceAssignmentAdmin(admin.ModelAdmin):
-    list_display = ['user', 'device', 'location', 'priority', 'is_active', 'assigned_at']
-    list_filter = ['is_active', 'priority', 'location', 'monitoring_group']
-    search_fields = ['user__username', 'user__email', 'device__name', 'device__ip', 'notes']
-    readonly_fields = ['assigned_at', 'assigned_by', 'updated_at']
-    autocomplete_fields = ['user', 'device', 'location', 'monitoring_group']
-    fieldsets = (
-        ('Assignment', {
-            'fields': ('user', 'device', 'location', 'monitoring_group', 'priority', 'is_active')
-        }),
-        ('Alert Preferences', {
-            'fields': (
-                'alert_on_battery_low',
-                'alert_on_signal_loss',
-                'alert_on_audio_low',
-                'alert_on_device_offline',
-            ),
-            'classes': ('collapse',),
-        }),
-        ('Notes', {
-            'fields': ('notes',),
-        }),
-        ('Metadata', {
-            'fields': ('assigned_at', 'assigned_by', 'updated_at'),
-            'classes': ('collapse',),
-        }),
+    list_display = (
+        "user",
+        "channel",  # Updated from device
+        "location",
+        "monitoring_group",
+        "priority",
+        "is_active",
     )
-    
-    def save_model(self, request, obj, form, change):
-        if not change:  # Only set assigned_by on creation
-            obj.assigned_by = request.user
-        super().save_model(request, obj, form, change)
+    list_filter = ("priority", "is_active", "user", "location", "monitoring_group")
+    search_fields = (
+        "user__username",
+        "channel__receiver__name",
+        "channel__channel_number",
+    )  # Updated
 
 
 @admin.register(UserAlertPreference)
 class UserAlertPreferenceAdmin(admin.ModelAdmin):
-    list_display = ['user', 'notification_method', 'battery_low_threshold', 'quiet_hours_enabled']
-    list_filter = ['notification_method', 'quiet_hours_enabled']
-    search_fields = ['user__username', 'user__email']
-    readonly_fields = ['created_at', 'updated_at']
-    fieldsets = (
-        ('User', {
-            'fields': ('user',)
-        }),
-        ('Notification Settings', {
-            'fields': ('notification_method', 'email_address', 'min_alert_interval'),
-        }),
-        ('Default Alert Types', {
-            'fields': (
-                'default_alert_battery_low',
-                'default_alert_signal_loss',
-                'default_alert_audio_low',
-                'default_alert_device_offline',
-            ),
-        }),
-        ('Battery Thresholds', {
-            'fields': ('battery_low_threshold', 'battery_critical_threshold'),
-        }),
-        ('Quiet Hours', {
-            'fields': ('quiet_hours_enabled', 'quiet_hours_start', 'quiet_hours_end'),
-            'classes': ('collapse',),
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',),
-        }),
-    )
+    list_display = ("user", "notification_method", "battery_low_threshold", "quiet_hours_enabled")
+    list_filter = ("notification_method", "quiet_hours_enabled")
+    search_fields = ("user__username",)
 
 
 @admin.register(Alert)
 class AlertAdmin(admin.ModelAdmin):
-    list_display = ['device', 'user', 'alert_type', 'status', 'created_at', 'acknowledged_at']
-    list_filter = ['alert_type', 'status', 'created_at']
-    search_fields = ['device__name', 'device__ip', 'user__username', 'message']
-    readonly_fields = ['created_at', 'sent_at', 'acknowledged_at', 'resolved_at', 'device_data']
-    date_hierarchy = 'created_at'
-    
-    fieldsets = (
-        ('Alert Information', {
-            'fields': ('device', 'user', 'assignment', 'alert_type', 'status', 'message')
-        }),
-        ('Device Context', {
-            'fields': ('device_data',),
-            'classes': ('collapse',),
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'sent_at', 'acknowledged_at', 'resolved_at'),
-        }),
-    )
-    
-    def has_add_permission(self, request):
-        # Alerts should be created programmatically, not manually
-        return False
+    list_display = ("channel", "user", "alert_type", "status", "created_at")  # Updated from device
+    list_filter = ("alert_type", "status", "user")
+    search_fields = (
+        "channel__receiver__name",
+        "channel__channel_number",
+        "user__username",
+        "message",
+    )  # Updated
+
+
+@admin.register(Group)
+class GroupAdmin(admin.ModelAdmin):
+    list_display = ("group_number", "title", "hide_charts")
+    search_fields = ("title",)
+
+
+@admin.register(MicboardConfig)
+class MicboardConfigAdmin(admin.ModelAdmin):
+    list_display = ("key", "value")
+    search_fields = ("key",)
+
+
+@admin.register(DiscoveredDevice)
+class DiscoveredDeviceAdmin(admin.ModelAdmin):
+    list_display = ("ip", "device_type", "channels", "discovered_at")
+    list_filter = ("device_type",)
+    search_fields = ("ip", "device_type")
+
+
+@admin.register(Location)
+class LocationAdmin(admin.ModelAdmin):
+    list_display = ("name", "building", "room")
+    list_filter = ("building", "room")
+    search_fields = ("name", "building", "room")
+
+
+@admin.register(MonitoringGroup)
+class MonitoringGroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "location", "is_active")
+    list_filter = ("is_active", "location")
+    search_fields = ("name", "description")
+    filter_horizontal = (
+        "users",
+        "channels",
+    )  # Use filter_horizontal for better UX with many-to-many

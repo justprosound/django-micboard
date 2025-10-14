@@ -244,7 +244,7 @@ class Location(models.Model):
         related_name='micboard_locations',
         help_text='Link to your existing location model'
     )
-    
+
     # Keep the simple fields as fallback
     building = models.CharField(max_length=100, blank=True)
     room = models.CharField(max_length=100, blank=True)
@@ -286,7 +286,7 @@ def my_devices(request):
         user=request.user,
         is_active=True
     ).select_related('device', 'location', 'monitoring_group')
-    
+
     return render(request, 'micboard/my_devices.html', {
         'assignments': assignments
     })
@@ -297,7 +297,7 @@ def my_alerts(request):
     alerts = Alert.objects.filter(
         user=request.user
     ).select_related('device', 'assignment').order_by('-created_at')[:50]
-    
+
     return render(request, 'micboard/my_alerts.html', {
         'alerts': alerts
     })
@@ -319,7 +319,7 @@ def device_assignments_json(request):
         user=request.user,
         is_active=True
     ).values('device__slot', 'device__name', 'priority', 'location__name')
-    
+
     return JsonResponse({
         'assignments': list(assignments),
         'alert_preferences': {
@@ -338,7 +338,7 @@ Update your WebSocket consumer to filter device updates based on user assignment
 class MicboardConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
-        
+
         # Get user's assigned device slots
         if self.scope['user'].is_authenticated:
             # Subscribe only to assigned devices
@@ -354,7 +354,7 @@ class MicboardConsumer(AsyncWebsocketConsumer):
                 "micboard_updates",
                 self.channel_name
             )
-    
+
     @database_sync_to_async
     def get_user_device_slots(self, user):
         from .models import DeviceAssignment

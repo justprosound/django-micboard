@@ -25,7 +25,7 @@
   - Configurable requests per second for each method
   - Token bucket algorithm using Django cache
   - Prevents overwhelming the Shure System API server
-- **Automatic retry with exponential backoff**: 
+- **Automatic retry with exponential backoff**:
   - Configurable max retries (default: 3)
   - Exponential backoff between retries (default: 0.5s base)
   - Retry on specific HTTP status codes (429, 500, 502, 503, 504)

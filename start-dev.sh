@@ -33,10 +33,10 @@ pre-commit install
 if [ ! -f "manage.py" ]; then
     echo "Creating demo Django project..."
     django-admin startproject demo .
-    
+
     # Configure settings.py
     sed -i "s/INSTALLED_APPS = \[/INSTALLED_APPS = [\n    'channels',\n    'micboard',\n/" demo/settings.py
-    
+
     cat >> demo/settings.py << EOF
 
 # Micboard configuration
@@ -54,7 +54,7 @@ CHANNEL_LAYERS = {
     },
 }
 EOF
-    
+
     # Configure asgi.py
     cat > demo/asgi.py << EOF
 import os
@@ -72,10 +72,10 @@ application = ProtocolTypeRouter({
     ),
 })
 EOF
-    
+
     mv demo/manage.py .
     rm -rf demo
-    
+
     echo "Demo project created and configured."
 fi
 

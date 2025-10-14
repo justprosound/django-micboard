@@ -20,8 +20,8 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = '25.10.14'
-__author__ = 'JustProSound'
-__license__ = 'AGPL-3.0-or-later'
+__version__ = "25.10.14"
+__author__ = "JustProSound"
+__license__ = "AGPL-3.0-or-later"
 
-default_app_config = 'micboard.apps.MicboardConfig'
+default_app_config = "micboard.apps.MicboardConfig"

@@ -65,7 +65,7 @@ client = ShureSystemAPIClient()
 client.get_devices()
 
 # Second call immediately after - sleeps 0.2s (1/5 = 0.2)
-client.get_devices()  
+client.get_devices()
 
 # Third call 0.3s later - goes immediately (>0.2s elapsed)
 client.get_devices()
@@ -179,12 +179,12 @@ MICBOARD_CONFIG = {
     # Shure System API
     'SHURE_API_BASE_URL': 'http://localhost:8080',
     'SHURE_API_TIMEOUT': 10,
-    
+
     # Retry configuration
     'SHURE_API_MAX_RETRIES': 3,
     'SHURE_API_RETRY_BACKOFF': 0.5,
     'SHURE_API_RETRY_STATUS_CODES': [429, 500, 502, 503, 504],
-    
+
     # Polling
     'POLL_INTERVAL': 5,
     'CACHE_TIMEOUT': 30,

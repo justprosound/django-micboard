@@ -1,0 +1,24 @@
+{
+  "name": "django-micboard",
+  "version": "1.0.0",
+  "description": "This Django app provides wireless microphone monitoring functionality, ported from the original micboard project. It uses the **Shure System API** as middleware for device communication, providing a modern, maintainable architecture.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/justprosound/django-micboard.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/justprosound/django-micboard/issues"
+  },
+  "homepage": "https://github.com/justprosound/django-micboard#readme"
+}

@@ -1,7 +1,5 @@
 "use strict";
 
-import 'bootstrap';
-import 'bootstrap/dist/css/bootstrap.min.css';
 import QRCode from 'qrcode';
 import 'whatwg-fetch';
 
@@ -17,7 +15,6 @@ import { initConfigEditor } from './config.js';
 
 import '../css/colors.scss';
 import '../css/style.scss';
-import '../node_modules/@ibm/plex/css/ibm-plex.css';
 
 
 export const dataURL = window.dataURL || 'data.json';
@@ -35,7 +32,8 @@ micboard.chartTimeSrc = 'SERVER';
 micboard.group = 0;
 micboard.connectionStatus = 'CONNECTING';
 
-micboard.transmitters = [];
+// micboard.transmitters = []; // Removed
+micboard.receivers = []; // Added to hold the new data structure
 
 micboard.displayList = [];
 
@@ -45,13 +43,13 @@ export function ActivateMessageBoard(h1, p) {
     p = 'Could not connect to the micboard server. Please <a href=".">refresh</a> the page.';
   }
 
-  $('#micboard').hide();
-  $('.settings').hide();
+  document.getElementById('micboard').style.display = 'none';
+  document.querySelector('.settings').style.display = 'none';
   const eb = document.getElementsByClassName('message-board')[0];
   eb.querySelector('h1').innerHTML = h1;
   eb.querySelector('p').innerHTML = p;
 
-  $('.message-board').show();
+  document.querySelector('.message-board').style.display = 'block';
 
   micboard.connectionStatus = 'DISCONNECTED';
 }
@@ -76,9 +74,10 @@ export function generateQR() {
 function groupTableBuilder(data) {
   const plist = {};
 
-  data.config.groups.forEach((e) => {
+  // Assuming data.groups is still available and structured similarly
+  data.groups.forEach((e) => {
     const entry = {
-      slots: e.slots,
+      slots: e.slots, // This will need to be re-evaluated later
       title: e.title,
       hide_charts: e.hide_charts,
     };
@@ -107,29 +106,25 @@ export function updateNavLinks() {
 }
 
 function mapGroups() {
-  $('a#go-extended').click(() => {
-    slotEditToggle();
-    $('.collapse').collapse('hide');
+  document.getElementById('go-extended').addEventListener('click', () => {
+            document.querySelectorAll('.collapse').forEach(el => el.style.display = 'none');  });
+
+  document.getElementById('go-config').addEventListener('click', () => {
+    document.querySelectorAll('.collapse').forEach(el => el.style.display = 'none');
   });
 
-  $('a#go-config').click(() => {
-    initConfigEditor();
-    $('.collapse').collapse('hide');
-  });
-
-  $('a#go-groupedit').click(() => {
+  document.getElementById('go-groupedit').addEventListener('click', () => {
     if (micboard.group !== 0) {
-      groupEditToggle();
-      $('.collapse').collapse('hide');
+    document.querySelectorAll('.collapse').forEach(el => el.style.display = 'none');
     }
   });
 
-  $('a.preset-link').each(function(index) {
-    const id = parseInt($(this).attr('id')[9], 10);
+  document.querySelectorAll('a.preset-link').forEach((element) => {
+    const id = parseInt(element.id[9], 10);
 
-    $(this).click(() => {
+    element.addEventListener('click', () => {
       renderGroup(id);
-      $('.collapse').collapse('hide');
+      document.querySelectorAll('.collapse').forEach(el => el.style.display = 'none');
     });
   });
 
@@ -190,16 +185,17 @@ export function updateHash() {
 
 }
 
-function dataFilterFromList(data) {
-  data.receivers.forEach((rx) => {
-    rx.tx.forEach((t) => {
-      const tx = t;
-      tx.ip = rx.ip;
-      tx.type = rx.type;
-      micboard.transmitters[tx.slot] = tx;
-    });
-  });
-}
+// Removed dataFilterFromList as it's no longer relevant with the new data structure
+// function dataFilterFromList(data) {
+//   data.receivers.forEach((rx) => {
+//     rx.tx.forEach((t) => {
+//       const tx = t;
+//       tx.ip = rx.ip;
+//       tx.type = rx.type;
+//       micboard.transmitters[tx.slot] = tx;
+//     });
+//   });
+// }
 
 function displayListChooser() {
   if (micboard.url.group) {
@@ -223,6 +219,10 @@ function initialMap(callback) {
         micboard.localURL = data.url;
         micboard.groups = groupTableBuilder(data);
         micboard.config = data.config;
+
+        // Store the new receivers data structure
+        micboard.receivers = data.receivers; // Updated
+
         mapGroups();
 
         if (micboard.config.slots.length < 1) {
@@ -231,9 +231,10 @@ function initialMap(callback) {
           }, 125);
         }
 
-        if (micboard.url.demo !== 'true') {
-          dataFilterFromList(data);
-        }
+        // No longer need dataFilterFromList
+        // if (micboard.url.demo !== 'true') {
+        //   dataFilterFromList(data);
+        // }
         displayListChooser();
 
         if (callback) {
@@ -251,13 +252,13 @@ function initialMap(callback) {
 }
 
 
-$(document).ready(() => {
+document.addEventListener('DOMContentLoaded', () => {
   console.log('Starting Micboard version: ' + VERSION);
   readURLParameters();
   keybindings();
   if (micboard.url.demo === 'true') {
     setTimeout(() => {
-      $('#hud').show();
+      document.getElementById('hud').style.display = 'block';
     }, 100);
 
     initialMap();
