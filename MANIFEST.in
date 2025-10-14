@@ -1,0 +1,29 @@
+# Include documentation at root level
+include README.md
+include LICENSE
+include CHANGELOG.md
+include QUICKSTART.md
+include ARCHITECTURE.md
+include USER_ASSIGNMENT.md
+include RATE_LIMITING.md
+include PACKAGING.md
+include pyproject.toml
+include requirements.txt
+include .copilot-instructions.md
+
+# Include package data (now in micboard/ subdirectory)
+recursive-include micboard/static *
+recursive-include micboard/templates *
+recursive-include micboard/management *.py
+recursive-include micboard/migrations *.py
+
+# Exclude development and cache files
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store
+recursive-exclude * .git*
+recursive-exclude tests *
+recursive-exclude docs *
+exclude .gitignore
+exclude test_package.sh
+exclude micboard_restructure.sh

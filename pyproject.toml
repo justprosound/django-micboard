@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-micboard"
+version = "2.2.0"
+description = "Django app for monitoring Shure wireless microphone systems via System API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["django", "shure", "wireless", "microphone", "monitoring", "audio", "websocket"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: System :: Monitoring",
+]
+
+dependencies = [
+    "Django>=4.2,<6.0",
+    "channels>=4.0.0",
+    "daphne>=4.0.0",
+    "requests>=2.31.0",
+    "urllib3>=2.0.0",
+    "asgiref>=3.7.0",
+]
+
+[project.optional-dependencies]
+redis = [
+    "channels-redis>=4.0.0",
+    "redis>=5.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-django>=4.5.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "pip-tools>=7.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/django-micboard"
+Documentation = "https://github.com/yourusername/django-micboard#readme"
+Repository = "https://github.com/yourusername/django-micboard.git"
+Issues = "https://github.com/yourusername/django-micboard/issues"
+
+[tool.setuptools]
+packages = ["micboard"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+micboard = [
+    "static/micboard/**/*",
+    "templates/micboard/**/*",
+    "management/**/*.py",
+    "migrations/*.py",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+include = ["micboard/**/*.py", "tests/**/*.py", "*.py"]
+exclude = ["migrations/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I", "N", "UP", "YTT", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "DJ", "EM", "EXE", "FA", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SLOT", "SIM", "TID", "TCH", "INT", "ARG", "PTH", "ERA", "PD", "PGH", "PL", "TRY", "FLY", "NPY", "AIR", "PERF", "FURB", "LOG", "RUF"]
+ignore = ["E501", "S101", "S104", "COM812", "ISC001"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
