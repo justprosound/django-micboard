@@ -1,5 +1,6 @@
 """Core device models for the micboard app."""
 from __future__ import annotations
+
 from django.db import models
 from django.utils import timezone
 
@@ -110,9 +111,7 @@ class Transmitter(models.Model):
     rf_level = models.IntegerField(default=0, help_text="RF signal level")
     frequency = models.CharField(max_length=20, blank=True, help_text="Operating frequency")
     antenna = models.CharField(max_length=10, blank=True, help_text="Antenna information")
-    tx_offset = models.IntegerField(
-        default=UNKNOWN_BYTE_VALUE, help_text="Transmitter offset"
-    )
+    tx_offset = models.IntegerField(default=UNKNOWN_BYTE_VALUE, help_text="Transmitter offset")
     quality = models.PositiveIntegerField(
         default=UNKNOWN_BYTE_VALUE, help_text="Signal quality (0-255)"
     )

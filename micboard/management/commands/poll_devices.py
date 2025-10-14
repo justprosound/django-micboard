@@ -84,9 +84,7 @@ class Command(BaseCommand):
             )
             websocket_threads.append(thread)
             thread.start()
-            self.stdout.write(
-                f"Started WebSocket subscription thread for {receiver.api_device_id}"
-            )
+            self.stdout.write(f"Started WebSocket subscription thread for {receiver.api_device_id}")
 
         # Keep the main thread alive to allow daemon threads to run
         try:
@@ -111,13 +109,9 @@ class Command(BaseCommand):
                     api_device_id, self._websocket_callback(channel_layer, broadcast_to_frontend)
                 )
             except ShureAPIError as exc:
-                logger.exception(
-                    "WebSocket subscription for %s failed: %s", api_device_id, exc
-                )
+                logger.exception("WebSocket subscription for %s failed: %s", api_device_id, exc)
             except Exception:  # noqa: BLE001
-                logger.exception(
-                    "Unhandled error in WebSocket subscription for %s", api_device_id
-                )
+                logger.exception("Unhandled error in WebSocket subscription for %s", api_device_id)
 
         asyncio.run(subscribe_and_listen())
 
@@ -181,13 +175,9 @@ class Command(BaseCommand):
                         device_id,
                     )
                 except Exception:  # noqa: BLE001
-                    logger.exception(
-                        "Error processing WebSocket message for %s", device_id
-                    )
+                    logger.exception("Error processing WebSocket message for %s", device_id)
             else:
-                logger.warning(
-                    "WebSocket message missing deviceId or channel: %s", message_data
-                )
+                logger.warning("WebSocket message missing deviceId or channel: %s", message_data)
 
         return callback
 
