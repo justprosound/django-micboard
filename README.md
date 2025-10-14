@@ -40,7 +40,7 @@ pip install django-micboard[dev]
 pip install git+https://github.com/justprosound/django-micboard.git
 
 # Specific version tag
-pip install git+https://github.com/justprosound/django-micboard.git@v2.2.0
+pip install git+https://github.com/justprosound/django-micboard.git@v25.10.14
 ```
 
 ### Option 3: Install from Source
