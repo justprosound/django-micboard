@@ -7,6 +7,9 @@ from .views.api import (
     ConfigHandler,
     GroupUpdateHandler,
     api_discover,
+    api_health,
+    api_receiver_detail,
+    api_receivers_list,
     api_refresh,
     data_json,
 )
@@ -23,6 +26,9 @@ from .views.dashboard import (
 __all__ = [
     "about",
     "api_discover",
+    "api_health",
+    "api_receiver_detail",
+    "api_receivers_list",
     "api_refresh",
     "ConfigHandler",
     "data_json",

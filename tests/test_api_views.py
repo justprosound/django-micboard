@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
-from micboard.models import Device, DiscoveredDevice, Group, MicboardConfig, Transmitter
+from micboard.models import DiscoveredDevice, Group, MicboardConfig, Receiver, Transmitter
 from micboard.views.api import (
     ConfigHandler,
     GroupUpdateHandler,
