@@ -10,7 +10,7 @@ This project uses [Calendar Versioning](https://calver.org/) (YY.MM.DD) for easi
 
 [![PyPI Version](https://img.shields.io/pypi/v/django-micboard)](https://pypi.org/project/django-micboard/)
 [![Build Status](https://github.com/justprosound/django-micboard/actions/workflows/ci.yml/badge.svg)](https://github.com/justprosound/django-micboard/actions)
-[![Coverage](https://codecov.io/gh/justprosound/django-micboard/branch/main/graph/badge.svg)](https://codecov.io/gh/justprosound/django-micboard)
+[![Coverage Status](https://coveralls.io/repos/github/justprosound/django-micboard/badge.svg?branch=main)](https://coveralls.io/github/justprosound/django-micboard?branch=main)
 [![Documentation Status](https://readthedocs.org/projects/django-micboard/badge/?version=latest)](https://django-micboard.readthedocs.io/en/latest/?badge=latest)
 
 ## Architecture
