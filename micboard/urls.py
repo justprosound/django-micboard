@@ -1,3 +1,13 @@
+"""
+URL configuration for the Micboard Django app.
+
+This module defines URL patterns for:
+- Dashboard views (index, building, room, user, device type, priority, about)
+- API endpoints (health, data, receivers, discover, refresh)
+- Configuration and group management
+"""
+from __future__ import annotations
+
 from django.urls import path
 
 from micboard.views import dashboard
