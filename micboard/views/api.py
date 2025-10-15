@@ -15,6 +15,13 @@ from micboard.decorators import rate_limit_view
 
 # Updated imports
 from micboard.models import DiscoveredDevice, Group, MicboardConfig, Receiver
+from micboard.serializers import (
+    serialize_discovered_device,
+    serialize_group,
+    serialize_receiver_detail,
+    serialize_receiver_summary,
+    serialize_receivers,
+)
 from micboard.shure_api_client import ShureSystemAPIClient
 
 logger = logging.getLogger(__name__)
@@ -29,84 +36,26 @@ def data_json(request):
         if cached_data:
             return JsonResponse(cached_data)
 
-        receivers_data = []
-        # Query the new model structure
-        for receiver in Receiver.objects.filter(is_active=True).prefetch_related(
-            "channels__transmitter"
-        ):
-            receiver_entry = {
-                "api_device_id": receiver.api_device_id,
-                "ip": receiver.ip,
-                "type": receiver.device_type,
-                "name": receiver.name,
-                "firmware": receiver.firmware_version,
-                "is_active": receiver.is_active,
-                "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
-                "health_status": receiver.health_status,
-                "channels": [],
-            }
-            for channel in receiver.channels.all():
-                channel_entry = {
-                    "channel_number": channel.channel_number,
-                }
-                if hasattr(channel, "transmitter"):
-                    transmitter = channel.transmitter
-                    channel_entry["transmitter"] = {
-                        "slot": transmitter.slot,
-                        "battery": transmitter.battery,
-                        "battery_percentage": transmitter.battery_percentage,
-                        "battery_health": transmitter.battery_health,
-                        "audio_level": transmitter.audio_level,
-                        "rf_level": transmitter.rf_level,
-                        "frequency": transmitter.frequency,
-                        "antenna": transmitter.antenna,
-                        "tx_offset": transmitter.tx_offset,
-                        "quality": transmitter.quality,
-                        "signal_quality": transmitter.get_signal_quality(),
-                        "runtime": transmitter.runtime,
-                        "status": transmitter.status,
-                        "name": transmitter.name,
-                        "name_raw": transmitter.name_raw,
-                        "updated_at": transmitter.updated_at.isoformat(),
-                        "is_active": transmitter.is_active,
-                    }
-                receiver_entry["channels"].append(channel_entry)
-            receivers_data.append(receiver_entry)
+        # Use serializer for consistent data structure
+        receivers_data = serialize_receivers(include_extra=True)
 
-        # Add offline devices if any
-        # For now, skip
+        # Serialize discovered devices
+        discovered = [
+            serialize_discovered_device(disc) for disc in DiscoveredDevice.objects.all()
+        ]
 
-        discovered = []
-        for disc in DiscoveredDevice.objects.all():
-            discovered.append(
-                {
-                    "ip": disc.ip,
-                    "type": disc.device_type,
-                    "channels": disc.channels,
-                }
-            )
+        # Serialize config
+        config = {conf.key: conf.value for conf in MicboardConfig.objects.all()}
 
-        config = {}
-        for conf in MicboardConfig.objects.all():
-            config[conf.key] = conf.value
-
-        groups = []
-        for group in Group.objects.all():
-            groups.append(
-                {
-                    "group": group.group_number,
-                    "title": group.title,
-                    "slots": group.slots,  # This will need to be re-evaluated later
-                    "hide_charts": group.hide_charts,
-                }
-            )
+        # Serialize groups
+        groups = [serialize_group(group) for group in Group.objects.all()]
 
         data = {
-            "receivers": receivers_data,  # Changed from "devices" to "receivers"
-            "url": request.build_absolute_uri("/"),  # Placeholder
-            "gif": [],  # Placeholder
-            "jpg": [],  # Placeholder
-            "mp4": [],  # Placeholder
+            "receivers": receivers_data,
+            "url": request.build_absolute_uri("/"),
+            "gif": [],  # Placeholder for future media support
+            "jpg": [],  # Placeholder for future media support
+            "mp4": [],  # Placeholder for future media support
             "config": config,
             "discovered": discovered,
             "groups": groups,
@@ -272,48 +221,7 @@ def api_receiver_detail(request, receiver_id):
         receiver = Receiver.objects.prefetch_related("channels__transmitter").get(
             api_device_id=receiver_id
         )
-
-        channels = []
-        for channel in receiver.channels.all():
-            channel_data = {
-                "channel_number": channel.channel_number,
-                "has_transmitter": channel.has_transmitter(),
-            }
-            if channel.has_transmitter():
-                tx = channel.transmitter
-                channel_data["transmitter"] = {
-                    "slot": tx.slot,
-                    "name": tx.name,
-                    "battery": tx.battery,
-                    "battery_percentage": tx.battery_percentage,
-                    "battery_health": tx.battery_health,
-                    "audio_level": tx.audio_level,
-                    "rf_level": tx.rf_level,
-                    "frequency": tx.frequency,
-                    "antenna": tx.antenna,
-                    "quality": tx.quality,
-                    "signal_quality": tx.get_signal_quality(),
-                    "status": tx.status,
-                    "runtime": tx.runtime,
-                    "is_active": tx.is_active,
-                    "updated_at": tx.updated_at.isoformat(),
-                }
-            channels.append(channel_data)
-
-        data = {
-            "api_device_id": receiver.api_device_id,
-            "ip": receiver.ip,
-            "device_type": receiver.device_type,
-            "name": receiver.name,
-            "firmware_version": receiver.firmware_version,
-            "is_active": receiver.is_active,
-            "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
-            "health_status": receiver.health_status,
-            "is_healthy": receiver.is_healthy,
-            "channel_count": receiver.get_channel_count(),
-            "channels": channels,
-        }
-
+        data = serialize_receiver_detail(receiver)
         return JsonResponse(data)
     except Receiver.DoesNotExist:
         return JsonResponse({"error": "Receiver not found"}, status=404)
@@ -326,21 +234,10 @@ def api_receiver_detail(request, receiver_id):
 def api_receivers_list(request):
     """Get list of all receivers with basic information"""
     try:
-        receivers = []
-        for receiver in Receiver.objects.all().order_by("name"):
-            receivers.append(
-                {
-                    "api_device_id": receiver.api_device_id,
-                    "name": receiver.name,
-                    "device_type": receiver.device_type,
-                    "ip": receiver.ip,
-                    "is_active": receiver.is_active,
-                    "health_status": receiver.health_status,
-                    "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
-                    "channel_count": receiver.get_channel_count(),
-                }
-            )
-
+        receivers = [
+            serialize_receiver_summary(receiver)
+            for receiver in Receiver.objects.all().order_by("name")
+        ]
         return JsonResponse({"receivers": receivers, "count": len(receivers)})
     except Exception as e:
         logger.exception(f"Error fetching receivers list: {e}")

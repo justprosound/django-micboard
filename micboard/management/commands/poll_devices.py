@@ -16,6 +16,7 @@ from micboard.models import (
     Receiver,
     Transmitter,
 )
+from micboard.serializers import serialize_receivers
 from micboard.shure_api_client import ShureAPIError, ShureSystemAPIClient
 
 logger = logging.getLogger(__name__)
@@ -316,47 +317,12 @@ class Command(BaseCommand):
         return updated_count
 
     def serialize_for_broadcast(self):
-        """Serialize all active receiver, channel, and transmitter data for WebSocket transmission"""
-        serialized_receivers = []
-        for receiver in Receiver.objects.filter(is_active=True).prefetch_related(
-            "channels__transmitter"
-        ):
-            receiver_data = {
-                "id": receiver.api_device_id,
-                "ip": receiver.ip,
-                "type": receiver.device_type,
-                "name": receiver.name,
-                "firmware": receiver.firmware_version,
-                "is_active": receiver.is_active,
-                "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
-                "channels": [],
-            }
-            for channel in receiver.channels.all():
-                channel_data = {
-                    "channel_number": channel.channel_number,
-                }
-                if hasattr(channel, "transmitter"):
-                    transmitter = channel.transmitter
-                    channel_data["transmitter"] = {
-                        "slot": transmitter.slot,
-                        "battery": transmitter.battery,
-                        "battery_charge": transmitter.battery_charge,
-                        "battery_percentage": transmitter.battery_percentage,
-                        "audio_level": transmitter.audio_level,
-                        "rf_level": transmitter.rf_level,
-                        "frequency": transmitter.frequency,
-                        "antenna": transmitter.antenna,
-                        "tx_offset": transmitter.tx_offset,
-                        "quality": transmitter.quality,
-                        "runtime": transmitter.runtime,
-                        "status": transmitter.status,
-                        "name": transmitter.name,
-                        "name_raw": transmitter.name_raw,
-                        "updated_at": transmitter.updated_at.isoformat(),
-                    }
-                receiver_data["channels"].append(channel_data)
-            serialized_receivers.append(receiver_data)
-        return {"receivers": serialized_receivers}
+        """
+        Serialize all active receiver, channel, and transmitter data for WebSocket transmission.
+
+        Uses the centralized serializers module for consistent data structure.
+        """
+        return {"receivers": serialize_receivers(include_extra=False)}
 
     # --- Session & Sample Tracking (Cache-based, no DB persistence) ---
     def _session_cache_key(self, slot: int) -> str:
