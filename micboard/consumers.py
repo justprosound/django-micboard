@@ -1,3 +1,8 @@
+"""
+Django Channels WebSocket consumers for real-time micboard updates.
+
+This module provides WebSocket consumers for broadcasting device updates to connected clients.
+"""
 from __future__ import annotations
 
 import json

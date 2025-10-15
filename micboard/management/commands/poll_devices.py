@@ -17,7 +17,7 @@ from micboard.models import (
     Transmitter,
 )
 from micboard.serializers import serialize_receivers
-from micboard.shure_api_client import ShureAPIError, ShureSystemAPIClient
+from micboard.shure import ShureAPIError, ShureSystemAPIClient
 
 logger = logging.getLogger(__name__)
 

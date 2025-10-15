@@ -1,7 +1,7 @@
 """Management command to check Shure System API health."""
 from django.core.management.base import BaseCommand
 
-from micboard.shure_api_client import ShureSystemAPIClient
+from micboard.shure import ShureSystemAPIClient
 
 
 class Command(BaseCommand):
