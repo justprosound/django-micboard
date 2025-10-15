@@ -8,7 +8,7 @@ using Django's built-in email system.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from django.conf import settings
 from django.core.mail import EmailMessage, get_connection
@@ -140,13 +140,13 @@ class EmailService:
         elif not isinstance(recipients, list):
             recipients = []
 
-        return recipients
+        return cast(list[str], recipients)
 
     def _get_from_email(self) -> str:
         """Get from email address from settings."""
         config = getattr(settings, "MICBOARD_CONFIG", {})
-        return config.get(
-            "EMAIL_FROM", getattr(settings, "DEFAULT_FROM_EMAIL", "micboard@localhost")
+        return str(
+            config.get("EMAIL_FROM", getattr(settings, "DEFAULT_FROM_EMAIL", "micboard@localhost"))
         )
 
 

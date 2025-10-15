@@ -173,9 +173,9 @@ class TestDjangoCompatibility:
                 continue
 
             content = py_file.read_text()
-            assert (
-                "from django.utils import six" not in content
-            ), f"Deprecated six import found in {py_file}"
+            assert "from django.utils import six" not in content, (
+                f"Deprecated six import found in {py_file}"
+            )
             assert "django.utils.six" not in content, f"Deprecated six reference found in {py_file}"
 
 
@@ -260,9 +260,9 @@ class TestPackageMetadata:
         assert len(parts) >= 3, f"Version '{version}' doesn't follow semver"
 
         # First three parts should be integers
-        assert all(
-            p.isdigit() or (i == 3 and "dev" in p) for i, p in enumerate(parts[:4])
-        ), f"Version '{version}' has invalid format"
+        assert all(p.isdigit() or (i == 3 and "dev" in p) for i, p in enumerate(parts[:4])), (
+            f"Version '{version}' has invalid format"
+        )
 
     def test_package_structure(self):
         """Test that package has required files for PyPI."""
@@ -307,9 +307,9 @@ class TestCodeQuality:
                 continue
 
             # Check for module docstring
-            assert content.strip().startswith('"""') or content.strip().startswith(
-                "'''"
-            ), f"Module {py_file} missing docstring"
+            assert content.strip().startswith('"""') or content.strip().startswith("'''"), (
+                f"Module {py_file} missing docstring"
+            )
 
     def test_models_have_str_methods(self):
         """Test that all models have __str__ methods."""
@@ -329,9 +329,9 @@ class TestCodeQuality:
         for model_cls in model_classes:
             assert hasattr(model_cls, "__str__"), f"{model_cls.__name__} missing __str__ method"
             # Verify it's not just inherited from Model
-            assert (
-                "__str__" in model_cls.__dict__
-            ), f"{model_cls.__name__}.__str__ not explicitly defined"
+            assert "__str__" in model_cls.__dict__, (
+                f"{model_cls.__name__}.__str__ not explicitly defined"
+            )
 
     def test_models_have_meta_verbose_names(self):
         """Test that models have proper Meta configuration."""
@@ -348,6 +348,6 @@ class TestCodeQuality:
         for model_cls in model_classes:
             assert hasattr(model_cls, "_meta"), f"{model_cls.__name__} missing _meta"
             meta = model_cls._meta
-            assert hasattr(
-                meta, "verbose_name"
-            ), f"{model_cls.__name__} missing verbose_name in Meta"
+            assert hasattr(meta, "verbose_name"), (
+                f"{model_cls.__name__} missing verbose_name in Meta"
+            )

@@ -70,14 +70,14 @@ class VersionedAPIView(APIView):
             # Extract version from Accept: application/json; version=1.1
             try:
                 version_part = accept.split("version=")[1].split(";")[0]
-                return version_part.strip()
+                return str(version_part).strip()
             except (IndexError, ValueError):
                 pass
 
         # Check query parameter
         version = request.GET.get("version")
         if version:
-            return version
+            return str(version)
 
         # Default to current version
         return self.API_VERSION

@@ -53,7 +53,7 @@ class Location(models.Model):
     def __str__(self) -> str:
         if self.building and self.room:
             return f"{self.building} - {self.room}"
-        return self.name
+        return str(self.name)
 
     @property
     def full_address(self) -> str:
@@ -65,7 +65,7 @@ class Location(models.Model):
             parts.append(f"Floor {self.floor}")
         if self.room:
             parts.append(self.room)
-        return " - ".join(parts) if parts else str(self.name)  # type: ignore
+        return " - ".join(parts) if parts else str(self.name)
 
 
 class MonitoringGroup(models.Model):
@@ -110,7 +110,7 @@ class MonitoringGroup(models.Model):
         ordering: ClassVar[list[str]] = ["name"]
 
     def __str__(self) -> str:
-        return self.name  # type: ignore
+        return str(self.name)
 
     def get_active_users(self):
         """Get all active users in this group"""
