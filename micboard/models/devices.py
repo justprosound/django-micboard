@@ -161,9 +161,15 @@ class TransmitterSession(models.Model):
     started_at = models.DateTimeField(help_text="When this session started")
     last_seen = models.DateTimeField(help_text="Last time data was seen for this transmitter")
     ended_at = models.DateTimeField(null=True, blank=True, help_text="When this session ended")
-    is_active = models.BooleanField(default=True, help_text="Whether the session is currently active")
-    last_status = models.CharField(max_length=50, blank=True, help_text="Last known transmitter status")
-    sample_count = models.PositiveIntegerField(default=0, help_text="Number of samples recorded in this session")
+    is_active = models.BooleanField(
+        default=True, help_text="Whether the session is currently active"
+    )
+    last_status = models.CharField(
+        max_length=50, blank=True, help_text="Last known transmitter status"
+    )
+    sample_count = models.PositiveIntegerField(
+        default=0, help_text="Number of samples recorded in this session"
+    )
 
     class Meta:
         verbose_name = "Transmitter Session"

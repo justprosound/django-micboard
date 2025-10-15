@@ -205,7 +205,7 @@ python manage.py poll_devices | tee poll_output.log
 ### 4. Test Different Device Types
 - ULX-D receivers
 - QLX-D receivers
-- UHF-R receivers  
+- UHF-R receivers
 - Axient Digital receivers
 - PSM 1000 (P10T) systems
 

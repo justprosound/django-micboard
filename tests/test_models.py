@@ -301,7 +301,10 @@ class DeviceAssignmentModelTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="testuser", email="test@test.com")
         self.receiver = Receiver.objects.create(
-            api_device_id="test-device-001", ip="192.168.1.100", device_type="uhfr", name="Test Receiver"
+            api_device_id="test-device-001",
+            ip="192.168.1.100",
+            device_type="uhfr",
+            name="Test Receiver",
         )
         self.channel = Channel.objects.create(receiver=self.receiver, channel_number=1)
         self.location = Location.objects.create(name="Test Location")
@@ -410,7 +413,10 @@ class AlertModelTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="testuser", email="test@test.com")
         self.receiver = Receiver.objects.create(
-            api_device_id="test-device-001", ip="192.168.1.100", device_type="uhfr", name="Test Receiver"
+            api_device_id="test-device-001",
+            ip="192.168.1.100",
+            device_type="uhfr",
+            name="Test Receiver",
         )
         self.channel = Channel.objects.create(receiver=self.receiver, channel_number=1)
         self.assignment = DeviceAssignment.objects.create(

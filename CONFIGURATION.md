@@ -100,3 +100,23 @@ LOGGING = {
     },
 }
 ```
+
+## Health Checks
+
+You can check the health of the Shure System API connection using the management command:
+
+```bash
+python manage.py check_api_health
+```
+
+For JSON output:
+
+```bash
+python manage.py check_api_health --json
+```
+
+The health check will show:
+- API connectivity status
+- Response status codes
+- Consecutive failure count
+- Last successful request timestamp

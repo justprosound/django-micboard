@@ -79,9 +79,7 @@ def rate_limit(calls_per_second: float = 10.0):
 
             if time_since_last < min_interval:
                 sleep_time = min_interval - time_since_last
-                logger.debug(
-                    "Rate limiting %s: sleeping %.3fs", func.__name__, sleep_time
-                )
+                logger.debug("Rate limiting %s: sleeping %.3fs", func.__name__, sleep_time)
                 time.sleep(sleep_time)
                 now = time.time()
 
@@ -111,17 +109,21 @@ class ShureSystemAPIClient:
             "SHURE_API_RETRY_STATUS_CODES", [429, 500, 502, 503, 504]
         )
 
-        # Create session with retry strategy
+        # Connection health tracking
+        self._last_successful_request = None
+        self._consecutive_failures = 0
+        self._is_healthy = True
+
+        # Create session with retry strategy and connection pooling
         self.session = requests.Session()
 
-        # Configure retry strategy
-        retry_strategy = Retry(
-            total=self.max_retries,
-            backoff_factor=self.retry_backoff,
-            status_forcelist=self.retry_status_codes,
-            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
+        # Connection pooling configuration
+        adapter = HTTPAdapter(
+            max_retries=self._create_retry_strategy(),
+            pool_connections=10,  # Number of connection pools to cache
+            pool_maxsize=20,  # Max connections per pool
+            pool_block=False,  # Don't block if pool is full
         )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
@@ -134,6 +136,45 @@ class ShureSystemAPIClient:
             ws_scheme = "wss" if self.base_url.startswith("https") else "ws"
             self.websocket_url = f"{ws_scheme}://{self.base_url.split('://', 1)[1]}/api/v1/subscriptions/websocket/create"
 
+    def _create_retry_strategy(self) -> Retry:
+        """Create retry strategy for HTTP requests"""
+        return Retry(
+            total=self.max_retries,
+            backoff_factor=self.retry_backoff,
+            status_forcelist=self.retry_status_codes,
+            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
+            raise_on_status=False,  # Let us handle status errors
+        )
+
+    def is_healthy(self) -> bool:
+        """Check if API client is healthy based on recent requests"""
+        return self._is_healthy and self._consecutive_failures < 5
+
+    def check_health(self) -> dict[str, Any]:
+        """Perform health check against API and return status"""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/api/v1/health",
+                timeout=5,
+                verify=self.verify_ssl,
+            )
+            is_up = response.status_code == 200
+            return {
+                "status": "healthy" if is_up else "unhealthy",
+                "base_url": self.base_url,
+                "status_code": response.status_code,
+                "consecutive_failures": self._consecutive_failures,
+                "last_successful_request": self._last_successful_request,
+            }
+        except requests.RequestException as e:
+            return {
+                "status": "unreachable",
+                "base_url": self.base_url,
+                "error": str(e),
+                "consecutive_failures": self._consecutive_failures,
+                "last_successful_request": self._last_successful_request,
+            }
+
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Any | None:
         """Make HTTP request with error handling and comprehensive logging"""
         url = f"{self.base_url}{endpoint}"
@@ -145,9 +186,16 @@ class ShureSystemAPIClient:
             response = self.session.request(method, url, **kwargs)
             response.raise_for_status()
             result = response.json() if response.content else None
+
+            # Update health tracking on success
+            self._last_successful_request = time.time()
+            self._consecutive_failures = 0
+            self._is_healthy = True
+
             logger.debug("Request successful: %s %s", method, url)
             return result
         except requests.exceptions.HTTPError as e:
+            self._consecutive_failures += 1
             if e.response.status_code == 429:
                 raise ShureAPIRateLimitError(
                     message=f"Rate limit exceeded for {method} {url}", response=e.response
@@ -165,15 +213,20 @@ class ShureSystemAPIClient:
                 response=e.response,
             ) from e
         except requests.exceptions.ConnectionError as e:
+            self._consecutive_failures += 1
+            self._is_healthy = False
             logger.error("API connection error: %s %s - %s", method, url, e)
             raise ShureAPIError(f"Connection error to {url}", response=None) from e
         except requests.exceptions.Timeout as e:
+            self._consecutive_failures += 1
             logger.error("API timeout error: %s %s - %s", method, url, e)
             raise ShureAPIError(f"Timeout error for {url}", response=None) from e
         except requests.RequestException as e:
+            self._consecutive_failures += 1
             logger.error("API request failed: %s %s - %s", method, url, e)
             raise ShureAPIError(f"Unknown request error for {url}", response=None) from e
         except json.JSONDecodeError as e:
+            self._consecutive_failures += 1
             logger.error("Failed to parse JSON response from %s %s: %s", method, url, e)
             raise ShureAPIError(f"Invalid JSON response from {url}", response=None) from e
 
@@ -365,7 +418,7 @@ class ShureSystemAPIClient:
 
     def _transform_transmitter_data(self, tx_data: dict, channel_num: int) -> dict | None:
         """Transform transmitter data from Shure API format to micboard format.
-        
+
         Handles various field name variations and provides sensible defaults.
         """
         try:
@@ -408,7 +461,9 @@ class ShureSystemAPIClient:
                 "peak": tx_data.get("peak"),
                 "battery_health": tx_data.get("battery_health", tx_data.get("batteryHealth")),
                 "battery_cycles": tx_data.get("battery_cycles", tx_data.get("batteryCycles")),
-                "battery_temperature_c": tx_data.get("battery_temperature_c", tx_data.get("batteryTemperatureC")),
+                "battery_temperature_c": tx_data.get(
+                    "battery_temperature_c", tx_data.get("batteryTemperatureC")
+                ),
             }
 
             return {
@@ -491,14 +546,14 @@ class ShureSystemAPIClient:
     @staticmethod
     def _map_device_type(api_type: str) -> str:
         """Map Shure API device types to micboard types.
-        
+
         Handles various naming conventions from the Shure System API.
         """
         if not api_type:
             return "unknown"
-        
+
         api_type_upper = api_type.upper().replace("-", "_").replace(" ", "_")
-        
+
         type_map = {
             "UHFR": "uhfr",
             "UHF_R": "uhfr",
@@ -529,11 +584,11 @@ class ShureSystemAPIClient:
 
     async def connect_and_subscribe(self, device_id: str, callback) -> None:
         """Establishes WebSocket connection and subscribes to device updates.
-        
+
         Args:
             device_id: The Shure API device ID to subscribe to
             callback: Function to call with received WebSocket messages
-            
+
         Raises:
             ShureAPIError: If connection or subscription fails
         """
@@ -548,7 +603,7 @@ class ShureSystemAPIClient:
                 # First message from WebSocket is usually the transportId
                 message = await websocket.recv()
                 logger.debug("Received initial WebSocket message: %s", message[:200])
-                
+
                 try:
                     transport_id_data = json.loads(message)
                     transport_id = transport_id_data.get("transportId")
@@ -598,8 +653,12 @@ class ShureSystemAPIClient:
         except websockets.exceptions.ConnectionClosedOK:
             logger.info("Shure API WebSocket connection closed gracefully for device %s", device_id)
         except websockets.exceptions.ConnectionClosedError:
-            logger.exception("Shure API WebSocket connection closed with error for device %s", device_id)
+            logger.exception(
+                "Shure API WebSocket connection closed with error for device %s", device_id
+            )
             raise ShureAPIError(f"WebSocket connection error for device {device_id}") from None
         except Exception:
-            logger.exception("Unhandled error in Shure API WebSocket connection for device %s", device_id)
+            logger.exception(
+                "Unhandled error in Shure API WebSocket connection for device %s", device_id
+            )
             raise ShureAPIError(f"Unhandled WebSocket error for device {device_id}") from None

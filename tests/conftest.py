@@ -3,7 +3,6 @@ import os
 
 import pytest
 
-
 # Ensure Django settings are set for pytest and VS Code discovery
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.settings")
 
