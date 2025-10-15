@@ -4,6 +4,28 @@
 
 `django-micboard` is a reusable Django application designed to provide comprehensive monitoring and management of Shure wireless microphone systems. Inspired by the original [micboard.io](https://micboard.io/) project, this app integrates with the **Shure System API** (typically hosted locally on a Windows system) to offer a modern, maintainable, and extensible solution for real-time device communication and data visualization.
 
+## Documentation
+
+Complete documentation is available in the `docs/` directory:
+
+- **[Quick Start Guide](docs/quickstart.md)** - Get up and running quickly
+- **[Configuration Guide](docs/configuration.md)** - Detailed configuration options
+- **[API Reference](docs/api-reference.md)** - Complete REST and WebSocket API documentation
+- **[Architecture Overview](docs/architecture.md)** - System design and data flow
+- **[Developer Guide](docs/development.md)** - Contributing and extending the app
+- **[User Assignments](docs/user-assignments.md)** - Managing device assignments
+- **[Rate Limiting](docs/rate-limiting.md)** - API rate limiting configuration
+- **[Changelog](docs/changelog.md)** - Version history and updates
+
+To build the documentation locally:
+
+```bash
+pip install -r docs/requirements.txt
+mkdocs serve
+```
+
+Then visit http://127.0.0.1:8000 in your browser.
+
 ## Architecture
 
 This app uses a **middleware-based architecture**:
@@ -89,7 +111,7 @@ pip install -e .  # Editable install for development
    }
    ```
 
-   See [CONFIGURATION.md](CONFIGURATION.md) for complete configuration options.
+   See [docs/configuration.md](docs/configuration.md) for complete configuration options.
 
 3. Configure Channels for WebSocket support in your settings:
    ```python
@@ -229,7 +251,7 @@ Create groups in Django Admin to organize devices into logical collections.
 
 ### Python Dependencies
 
-Python dependencies are managed using `pip-tools` and `pyproject.toml`. See [DEPENDENCY_MANAGEMENT.md](DEPENDENCY_MANAGEMENT.md) for details on how to update and manage Python dependencies.
+Python dependencies are managed using `pip-tools` and `pyproject.toml`. See [docs/dependency-management.md](docs/dependency-management.md) for details on how to update and manage Python dependencies.
 
 ### Frontend Dependencies
 
@@ -273,7 +295,7 @@ This project uses `npm` to manage frontend dependencies and build static assets.
 
 ### Python Dependency Management
 
-Python dependencies are managed using `pip-tools` and `pyproject.toml`. See [DEPENDENCY_MANAGEMENT.md](DEPENDENCY_MANAGEMENT.md) for details on how to update and manage Python dependencies.
+Python dependencies are managed using `pip-tools` and `pyproject.toml`. See [docs/dependency-management.md](docs/dependency-management.md) for details on how to update and manage Python dependencies.
 
 ### Testing
 

@@ -1,0 +1,50 @@
+/* Custom styles for Django Micboard documentation */
+
+/* Improve code block styling */
+.highlight {
+  margin: 1em 0;
+}
+
+/* Add visual distinction for API endpoints */
+h4 code {
+  background-color: var(--md-code-bg-color);
+  padding: 0.2em 0.4em;
+  border-radius: 0.2em;
+  font-size: 0.9em;
+}
+
+/* Improve table readability */
+table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Style admonitions */
+.admonition {
+  margin: 1.5em 0;
+}
+
+/* Enhance navigation */
+.md-nav__item--active > .md-nav__link {
+  font-weight: 600;
+}
+
+/* Improve inline code */
+code {
+  word-break: break-word;
+}
+
+/* Add spacing for content sections */
+article h2 {
+  margin-top: 2em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+}
+
+/* First h2 shouldn't have top border */
+article h2:first-of-type {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
