@@ -22,7 +22,7 @@ from micboard.serializers import (
     serialize_receiver_summary,
     serialize_receivers,
 )
-from micboard.shure_api_client import ShureSystemAPIClient
+from micboard.shure import ShureSystemAPIClient
 
 logger = logging.getLogger(__name__)
 
