@@ -1,8 +1,50 @@
 """Core device models for the micboard app."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.db import models
 from django.utils import timezone
+
+
+class ReceiverQuerySet(models.QuerySet):
+    """Custom queryset for Receiver model"""
+
+    def active(self):
+        """Get all active receivers"""
+        return self.filter(is_active=True)
+
+    def inactive(self):
+        """Get all inactive receivers"""
+        return self.filter(is_active=False)
+
+    def online_recently(self, minutes=30):
+        """Get receivers seen within the last N minutes"""
+        threshold = timezone.now() - timedelta(minutes=minutes)
+        return self.filter(last_seen__gte=threshold, is_active=True)
+
+    def by_type(self, device_type):
+        """Get receivers by device type"""
+        return self.filter(device_type=device_type)
+
+
+class ReceiverManager(models.Manager):
+    """Custom manager for Receiver model"""
+
+    def get_queryset(self):
+        return ReceiverQuerySet(self.model, using=self._db)
+
+    def active(self):
+        return self.get_queryset().active()
+
+    def inactive(self):
+        return self.get_queryset().inactive()
+
+    def online_recently(self, minutes=30):
+        return self.get_queryset().online_recently(minutes)
+
+    def by_type(self, device_type):
+        return self.get_queryset().by_type(device_type)
 
 
 class Receiver(models.Model):
@@ -41,6 +83,8 @@ class Receiver(models.Model):
         null=True, blank=True, help_text="Last time this device was successfully polled"
     )
 
+    objects = ReceiverManager()
+
     class Meta:
         verbose_name = "Receiver"
         verbose_name_plural = "Receivers"
@@ -63,6 +107,33 @@ class Receiver(models.Model):
         """Mark receiver as offline"""
         self.is_active = False
         self.save(update_fields=["is_active"])
+
+    def get_active_channels(self):
+        """Get all channels with active transmitters"""
+        return self.channels.filter(transmitter__isnull=False).select_related("transmitter")
+
+    def get_channel_count(self) -> int:
+        """Get total number of channels"""
+        return self.channels.count()
+
+    @property
+    def health_status(self) -> str:
+        """Get health status based on last_seen and is_active"""
+        if not self.is_active:
+            return "offline"
+        if not self.last_seen:
+            return "unknown"
+        time_since = timezone.now() - self.last_seen
+        if time_since < timedelta(minutes=5):
+            return "healthy"
+        if time_since < timedelta(minutes=30):
+            return "warning"
+        return "stale"
+
+    @property
+    def is_healthy(self) -> bool:
+        """Check if receiver is healthy"""
+        return self.health_status == "healthy"
 
 
 class Channel(models.Model):
@@ -87,6 +158,16 @@ class Channel(models.Model):
 
     def __str__(self) -> str:
         return f"{self.receiver.name} - Channel {self.channel_number}"
+
+    def has_transmitter(self) -> bool:
+        """Check if this channel has a transmitter assigned"""
+        return hasattr(self, "transmitter")
+
+    def get_transmitter_name(self) -> str:
+        """Get transmitter name or empty string"""
+        if self.has_transmitter():
+            return self.transmitter.name or f"Slot {self.transmitter.slot}"
+        return ""
 
 
 class Transmitter(models.Model):
@@ -143,6 +224,40 @@ class Transmitter(models.Model):
         if self.battery == self.UNKNOWN_BYTE_VALUE:
             return None
         return min(100, max(0, self.battery * 100 // self.UNKNOWN_BYTE_VALUE))
+
+    @property
+    def battery_health(self) -> str:
+        """Get battery health status"""
+        pct = self.battery_percentage
+        if pct is None:
+            return "unknown"
+        if pct > 50:
+            return "good"
+        if pct > 25:
+            return "fair"
+        if pct > 10:
+            return "low"
+        return "critical"
+
+    @property
+    def is_active(self) -> bool:
+        """Check if transmitter is currently active (recently updated)"""
+        if not self.updated_at:
+            return False
+        time_since = timezone.now() - self.updated_at
+        return time_since < timedelta(minutes=5)
+
+    def get_signal_quality(self) -> str:
+        """Get signal quality as text"""
+        if self.quality == self.UNKNOWN_BYTE_VALUE:
+            return "unknown"
+        if self.quality > 200:
+            return "excellent"
+        if self.quality > 150:
+            return "good"
+        if self.quality > 100:
+            return "fair"
+        return "poor"
 
 
 class TransmitterSession(models.Model):

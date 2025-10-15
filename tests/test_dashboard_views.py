@@ -4,7 +4,7 @@ Tests for micboard dashboard views.
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 
-from micboard.models import Device, DeviceAssignment, Group, Location
+from micboard.models import DeviceAssignment, Group, Location, Receiver
 
 User = get_user_model()
 

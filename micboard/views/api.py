@@ -23,91 +23,99 @@ logger = logging.getLogger(__name__)
 @rate_limit_view(max_requests=120, window_seconds=60)  # 2 requests per second
 def data_json(request):
     """API endpoint for device data, similar to micboard_json"""
-    # Try to get fresh data from cache first
-    cached_data = cache.get("micboard_device_data")
-    if cached_data:
-        return JsonResponse(cached_data)
+    try:
+        # Try to get fresh data from cache first
+        cached_data = cache.get("micboard_device_data")
+        if cached_data:
+            return JsonResponse(cached_data)
 
-    receivers_data = []
-    # Query the new model structure
-    for receiver in Receiver.objects.filter(is_active=True).prefetch_related(
-        "channels__transmitter"
-    ):
-        receiver_entry = {
-            "api_device_id": receiver.api_device_id,
-            "ip": receiver.ip,
-            "type": receiver.device_type,
-            "name": receiver.name,
-            "firmware": receiver.firmware_version,
-            "is_active": receiver.is_active,
-            "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
-            "channels": [],
-        }
-        for channel in receiver.channels.all():
-            channel_entry = {
-                "channel_number": channel.channel_number,
+        receivers_data = []
+        # Query the new model structure
+        for receiver in Receiver.objects.filter(is_active=True).prefetch_related(
+            "channels__transmitter"
+        ):
+            receiver_entry = {
+                "api_device_id": receiver.api_device_id,
+                "ip": receiver.ip,
+                "type": receiver.device_type,
+                "name": receiver.name,
+                "firmware": receiver.firmware_version,
+                "is_active": receiver.is_active,
+                "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
+                "health_status": receiver.health_status,
+                "channels": [],
             }
-            if hasattr(channel, "transmitter"):
-                transmitter = channel.transmitter
-                channel_entry["transmitter"] = {
-                    "slot": transmitter.slot,
-                    "battery": transmitter.battery,
-                    "battery_percentage": transmitter.battery_percentage,
-                    "audio_level": transmitter.audio_level,
-                    "rf_level": transmitter.rf_level,
-                    "frequency": transmitter.frequency,
-                    "antenna": transmitter.antenna,
-                    "tx_offset": transmitter.tx_offset,
-                    "quality": transmitter.quality,
-                    "runtime": transmitter.runtime,
-                    "status": transmitter.status,
-                    "name": transmitter.name,
-                    "name_raw": transmitter.name_raw,
-                    "updated_at": transmitter.updated_at.isoformat(),
+            for channel in receiver.channels.all():
+                channel_entry = {
+                    "channel_number": channel.channel_number,
                 }
-            receiver_entry["channels"].append(channel_entry)
-        receivers_data.append(receiver_entry)
+                if hasattr(channel, "transmitter"):
+                    transmitter = channel.transmitter
+                    channel_entry["transmitter"] = {
+                        "slot": transmitter.slot,
+                        "battery": transmitter.battery,
+                        "battery_percentage": transmitter.battery_percentage,
+                        "battery_health": transmitter.battery_health,
+                        "audio_level": transmitter.audio_level,
+                        "rf_level": transmitter.rf_level,
+                        "frequency": transmitter.frequency,
+                        "antenna": transmitter.antenna,
+                        "tx_offset": transmitter.tx_offset,
+                        "quality": transmitter.quality,
+                        "signal_quality": transmitter.get_signal_quality(),
+                        "runtime": transmitter.runtime,
+                        "status": transmitter.status,
+                        "name": transmitter.name,
+                        "name_raw": transmitter.name_raw,
+                        "updated_at": transmitter.updated_at.isoformat(),
+                        "is_active": transmitter.is_active,
+                    }
+                receiver_entry["channels"].append(channel_entry)
+            receivers_data.append(receiver_entry)
 
-    # Add offline devices if any
-    # For now, skip
+        # Add offline devices if any
+        # For now, skip
 
-    discovered = []
-    for disc in DiscoveredDevice.objects.all():
-        discovered.append(
-            {
-                "ip": disc.ip,
-                "type": disc.device_type,
-                "channels": disc.channels,
-            }
-        )
+        discovered = []
+        for disc in DiscoveredDevice.objects.all():
+            discovered.append(
+                {
+                    "ip": disc.ip,
+                    "type": disc.device_type,
+                    "channels": disc.channels,
+                }
+            )
 
-    config = {}
-    for conf in MicboardConfig.objects.all():
-        config[conf.key] = conf.value
+        config = {}
+        for conf in MicboardConfig.objects.all():
+            config[conf.key] = conf.value
 
-    groups = []
-    for group in Group.objects.all():
-        groups.append(
-            {
-                "group": group.group_number,
-                "title": group.title,
-                "slots": group.slots,  # This will need to be re-evaluated later
-                "hide_charts": group.hide_charts,
-            }
-        )
+        groups = []
+        for group in Group.objects.all():
+            groups.append(
+                {
+                    "group": group.group_number,
+                    "title": group.title,
+                    "slots": group.slots,  # This will need to be re-evaluated later
+                    "hide_charts": group.hide_charts,
+                }
+            )
 
-    data = {
-        "receivers": receivers_data,  # Changed from "devices" to "receivers"
-        "url": request.build_absolute_uri("/"),  # Placeholder
-        "gif": [],  # Placeholder
-        "jpg": [],  # Placeholder
-        "mp4": [],  # Placeholder
-        "config": config,
-        "discovered": discovered,
-        "groups": groups,
-    }
+        data = {
+            "receivers": receivers_data,  # Changed from "devices" to "receivers"
+            "url": request.build_absolute_uri("/"),  # Placeholder
+            "gif": [],  # Placeholder
+            "jpg": [],  # Placeholder
+            "mp4": [],  # Placeholder
+            "config": config,
+            "discovered": discovered,
+            "groups": groups,
+        }
 
-    return JsonResponse(data)
+        return JsonResponse(data)
+    except Exception as e:
+        logger.exception(f"Error fetching device data: {e}")
+        return JsonResponse({"error": "Internal server error", "detail": str(e)}, status=500)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -223,3 +231,118 @@ def api_refresh(request):
     except Exception as e:
         logger.exception(f"Error refreshing data: {e}")
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@rate_limit_view(max_requests=30, window_seconds=60)
+def api_health(request):
+    """Health check endpoint for the API and Shure System connectivity"""
+    try:
+        client = ShureSystemAPIClient()
+        health_info = {
+            "api_status": "healthy",
+            "timestamp": timezone.now().isoformat(),
+            "database": {
+                "receivers_total": Receiver.objects.count(),
+                "receivers_active": Receiver.objects.active().count(),
+                "receivers_healthy": Receiver.objects.filter(is_active=True).count(),
+            },
+        }
+
+        # Check Shure API health
+        try:
+            api_healthy = client.is_healthy()
+            health_info["shure_api"] = {
+                "status": "healthy" if api_healthy else "degraded",
+                "healthy": api_healthy,
+            }
+        except Exception as e:
+            logger.warning(f"Shure API health check failed: {e}")
+            health_info["shure_api"] = {"status": "unavailable", "error": str(e)}
+
+        return JsonResponse(health_info)
+    except Exception as e:
+        logger.exception(f"Health check error: {e}")
+        return JsonResponse({"error": "Health check failed", "detail": str(e)}, status=500)
+
+
+@rate_limit_view(max_requests=60, window_seconds=60)
+def api_receiver_detail(request, receiver_id):
+    """Get detailed information for a specific receiver"""
+    try:
+        receiver = Receiver.objects.prefetch_related("channels__transmitter").get(
+            api_device_id=receiver_id
+        )
+
+        channels = []
+        for channel in receiver.channels.all():
+            channel_data = {
+                "channel_number": channel.channel_number,
+                "has_transmitter": channel.has_transmitter(),
+            }
+            if channel.has_transmitter():
+                tx = channel.transmitter
+                channel_data["transmitter"] = {
+                    "slot": tx.slot,
+                    "name": tx.name,
+                    "battery": tx.battery,
+                    "battery_percentage": tx.battery_percentage,
+                    "battery_health": tx.battery_health,
+                    "audio_level": tx.audio_level,
+                    "rf_level": tx.rf_level,
+                    "frequency": tx.frequency,
+                    "antenna": tx.antenna,
+                    "quality": tx.quality,
+                    "signal_quality": tx.get_signal_quality(),
+                    "status": tx.status,
+                    "runtime": tx.runtime,
+                    "is_active": tx.is_active,
+                    "updated_at": tx.updated_at.isoformat(),
+                }
+            channels.append(channel_data)
+
+        data = {
+            "api_device_id": receiver.api_device_id,
+            "ip": receiver.ip,
+            "device_type": receiver.device_type,
+            "name": receiver.name,
+            "firmware_version": receiver.firmware_version,
+            "is_active": receiver.is_active,
+            "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
+            "health_status": receiver.health_status,
+            "is_healthy": receiver.is_healthy,
+            "channel_count": receiver.get_channel_count(),
+            "channels": channels,
+        }
+
+        return JsonResponse(data)
+    except Receiver.DoesNotExist:
+        return JsonResponse({"error": "Receiver not found"}, status=404)
+    except Exception as e:
+        logger.exception(f"Error fetching receiver detail: {e}")
+        return JsonResponse({"error": "Internal server error", "detail": str(e)}, status=500)
+
+
+@rate_limit_view(max_requests=60, window_seconds=60)
+def api_receivers_list(request):
+    """Get list of all receivers with basic information"""
+    try:
+        receivers = []
+        for receiver in Receiver.objects.all().order_by("name"):
+            receivers.append(
+                {
+                    "api_device_id": receiver.api_device_id,
+                    "name": receiver.name,
+                    "device_type": receiver.device_type,
+                    "ip": receiver.ip,
+                    "is_active": receiver.is_active,
+                    "health_status": receiver.health_status,
+                    "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
+                    "channel_count": receiver.get_channel_count(),
+                }
+            )
+
+        return JsonResponse({"receivers": receivers, "count": len(receivers)})
+    except Exception as e:
+        logger.exception(f"Error fetching receivers list: {e}")
+        return JsonResponse({"error": "Internal server error", "detail": str(e)}, status=500)
+
