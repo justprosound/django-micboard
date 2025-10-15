@@ -198,7 +198,7 @@ class Command(BaseCommand):
         return callback
 
     def update_models(self, api_data):
-        \"\"\"Update Django models with API data and handle slot assignment intelligently\"\"\"
+        """Update Django models with API data and handle slot assignment intelligently"""
         updated_count = 0
         active_receiver_ids = []
 
@@ -244,7 +244,7 @@ class Command(BaseCommand):
 
                         # Intelligent slot assignment
                         api_slot = tx_data.get(\"slot\")
-                        
+
                         # Try to find existing transmitter for this channel
                         try:
                             transmitter = Transmitter.objects.get(channel=channel)
@@ -265,11 +265,11 @@ class Command(BaseCommand):
                                 base_slot = hash(f\"{receiver.api_device_id}-{channel_num}\")
                                 # Use positive modulo to get a reasonable slot range
                                 target_slot = abs(base_slot) % 10000
-                                
+
                                 # Check for collisions and increment if needed
                                 while Transmitter.objects.filter(slot=target_slot).exists():
                                     target_slot = (target_slot + 1) % 10000
-                                    
+
                                 logger.info(
                                     \"Assigned new slot %d for %s channel %d\",
                                     target_slot,
@@ -309,7 +309,7 @@ class Command(BaseCommand):
         offline_count = Receiver.objects.exclude(id__in=active_receiver_ids).filter(
             is_active=True
         ).update(is_active=False)
-        
+
         if offline_count > 0:
             logger.warning(\"Marked %d receivers as offline\", offline_count)
 
