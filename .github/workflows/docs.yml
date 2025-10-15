@@ -8,6 +8,7 @@ on:
 
 jobs:
   build-docs:
+    if: "!startsWith(github.head_ref, 'renovate/') && !startsWith(github.ref, 'refs/heads/renovate/')"
     runs-on: ubuntu-latest
 
     steps:
