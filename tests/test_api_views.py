@@ -52,7 +52,7 @@ class APIViewTest(TestCase):
         # Mock the parent's dispatch method
         with patch.object(View, "dispatch", return_value=mock_response):
             request = Mock()
-            response = view.dispatch(request)
+            view.dispatch(request)
 
             # Check that headers were added to the response
             mock_response.__setitem__.assert_any_call("X-API-Version", "1.0.0")

@@ -2,6 +2,8 @@
 Location and monitoring models for the micboard app.
 """
 
+from typing import ClassVar
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -42,8 +44,8 @@ class Location(models.Model):
     class Meta:
         verbose_name = "Location"
         verbose_name_plural = "Locations"
-        ordering = ["building", "room"]
-        indexes = [
+        ordering: ClassVar[list[str]] = ["building", "room"]
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["content_type", "object_id"]),
             models.Index(fields=["building", "room"]),
         ]
@@ -105,7 +107,7 @@ class MonitoringGroup(models.Model):
     class Meta:
         verbose_name = "Monitoring Group"
         verbose_name_plural = "Monitoring Groups"
-        ordering = ["name"]
+        ordering: ClassVar[list[str]] = ["name"]
 
     def __str__(self) -> str:
         return self.name  # type: ignore

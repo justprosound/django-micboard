@@ -99,8 +99,13 @@ class DeviceAssignment(models.Model):
     class Meta:
         verbose_name = "Device Assignment"
         verbose_name_plural = "Device Assignments"
-        ordering: ClassVar[list[str]] = ["-priority", "channel"]  # Changed from 'device' to 'channel'
-        unique_together: ClassVar[list[list[str]]] = [["user", "channel"]]  # One assignment per user per channel
+        ordering: ClassVar[list[str]] = [
+            "-priority",
+            "channel",
+        ]  # Changed from 'device' to 'channel'
+        unique_together: ClassVar[list[list[str]]] = [
+            ["user", "channel"]
+        ]  # One assignment per user per channel
         indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["user", "is_active"]),
             models.Index(fields=["channel", "is_active"]),  # Changed from 'device' to 'channel'

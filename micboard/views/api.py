@@ -342,7 +342,7 @@ class HealthCheckView(VersionedAPIView):
 
         # Shure API check
         try:
-            client = ShureSystemAPIClient()
+            ShureSystemAPIClient()
             # Just check if we can create a client, don't actually call API
             health_status["checks"]["shure_api_client"] = {"status": "healthy"}
         except Exception as e:
