@@ -1,7 +1,9 @@
 """Core device models for the micboard app."""
+
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import ClassVar
 
 from django.db import models
 from django.utils import timezone
@@ -50,7 +52,7 @@ class ReceiverManager(models.Manager):
 class Receiver(models.Model):
     """Represents a physical Shure wireless receiver unit."""
 
-    DEVICE_TYPES = [
+    DEVICE_TYPES: ClassVar[list[tuple[str, str]]] = [
         ("uhfr", "UHF-R"),
         ("qlxd", "QLX-D"),
         ("ulxd", "ULX-D"),
@@ -88,8 +90,8 @@ class Receiver(models.Model):
     class Meta:
         verbose_name = "Receiver"
         verbose_name_plural = "Receivers"
-        ordering = ["name"]
-        indexes = [
+        ordering: ClassVar[list[str]] = ["name"]
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["api_device_id"]),
             models.Index(fields=["is_active", "last_seen"]),
         ]
@@ -114,7 +116,7 @@ class Receiver(models.Model):
 
     def get_channel_count(self) -> int:
         """Get total number of channels"""
-        return self.channels.count()
+        return self.channels.count()  # type: ignore
 
     @property
     def health_status(self) -> str:
@@ -150,9 +152,9 @@ class Channel(models.Model):
     class Meta:
         verbose_name = "Channel"
         verbose_name_plural = "Channels"
-        unique_together = [["receiver", "channel_number"]]
-        ordering = ["receiver__name", "channel_number"]
-        indexes = [
+        unique_together: ClassVar[list[list[str]]] = [["receiver", "channel_number"]]
+        ordering: ClassVar[list[str]] = ["receiver__name", "channel_number"]
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["receiver", "channel_number"]),
         ]
 
@@ -172,7 +174,7 @@ class Channel(models.Model):
 
 class Transmitter(models.Model):
     # Sentinel values
-    UNKNOWN_BYTE_VALUE = 255
+    UNKNOWN_BYTE_VALUE: ClassVar = 255
     """Represents the wireless transmitter data associated with a Channel."""
 
     channel = models.OneToOneField(
@@ -223,7 +225,7 @@ class Transmitter(models.Model):
         """Get battery level as percentage"""
         if self.battery == self.UNKNOWN_BYTE_VALUE:
             return None
-        return min(100, max(0, self.battery * 100 // self.UNKNOWN_BYTE_VALUE))
+        return min(100, max(0, self.battery * 100 // self.UNKNOWN_BYTE_VALUE))  # type: ignore
 
     @property
     def battery_health(self) -> str:
@@ -245,7 +247,7 @@ class Transmitter(models.Model):
         if not self.updated_at:
             return False
         time_since = timezone.now() - self.updated_at
-        return time_since < timedelta(minutes=5)
+        return time_since < timedelta(minutes=5)  # type: ignore
 
     def get_signal_quality(self) -> str:
         """Get signal quality as text"""

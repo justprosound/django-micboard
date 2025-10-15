@@ -1,42 +1,37 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
+      - id: check-toml
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
+    rev: v0.6.9
     hooks:
       - id: ruff
-        args: [--fix]
+        args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.7.1
-  #   hooks:
-  #     - id: mypy
-  #       additional_dependencies: [types-all]
-  #       args: [--ignore-missing-imports]
-
-  - repo: https://github.com/pycqa/bandit
-    rev: 1.7.6
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
     hooks:
       - id: bandit
-        args: [-c, pyproject.toml, -r, micboard/]
-        additional_dependencies: ["bandit[toml]"]
+        args: [-c, pyproject.toml]
         files: ^micboard/
 
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: bash -c 'cd /home/skuonen/django-micboard && pytest -q || true'
-        language: system
-        types: [python]
-        pass_filenames: false
-        verbose: true
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

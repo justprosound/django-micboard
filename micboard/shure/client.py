@@ -6,6 +6,7 @@ This module provides:
 - Custom exceptions for error handling
 - Rate limiting decorator
 """
+
 from __future__ import annotations
 
 import json
@@ -14,10 +15,10 @@ import time
 from functools import wraps
 from typing import Any
 
-import requests
+import requests  # type: ignore
 from django.conf import settings
 from django.core.cache import cache
-from requests.adapters import HTTPAdapter
+from requests.adapters import HTTPAdapter  # type: ignore
 from urllib3.util.retry import Retry
 
 from .transformers import ShureDataTransformer
@@ -292,9 +293,7 @@ class ShureSystemAPIClient:
             logger.debug("Status endpoint not available for device %s", device_id)
             return None
 
-    def _enrich_device_data(
-        self, device_id: str, device_data: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _enrich_device_data(self, device_id: str, device_data: dict[str, Any]) -> dict[str, Any]:
         """Best-effort enrichment of device data from optional endpoints.
 
         Merges fields like serial number, hostname, MAC, model variant, band, and location

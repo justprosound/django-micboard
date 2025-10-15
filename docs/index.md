@@ -1,18 +1,24 @@
-# Django Micboard Documentation
+# Django Micboard
 
-**Professional wireless audio monitoring for Shure systems**
+> **⚠️ ACTIVE DEVELOPMENT**: This project is under active development and has not been released. APIs and features are subject to change.
 
-Django Micboard is a comprehensive Django reusable app for monitoring Shure wireless microphone systems via the Shure System API. It provides real-time monitoring, WebSocket updates, user assignments, and alerting capabilities.
+Welcome to the django-micboard documentation!
+
+django-micboard is a Django application for real-time monitoring and management of Shure wireless microphone systems. It integrates with the **Shure System API** to provide a modern web interface for monitoring microphone status, battery levels, RF signals, and audio levels across your wireless systems.
+
+**Version**: 25.10.15 (CalVer: YY.MM.DD)
+**License**: AGPL-3.0-or-later
+**Community**: Open source, community-driven project
 
 ## Features
 
 - 🎤 **Real-time Monitoring** - Live updates via WebSocket for battery, RF levels, and audio
-- 🔌 **Shure System API Integration** - Direct integration with Shure wireless receivers
+- 🔌 **Shure System API Integration** - Integration with Shure wireless receivers
 - 👥 **User Assignments** - Assign devices to users with location tracking
 - 🚨 **Smart Alerts** - Configurable notifications for battery, RF issues, and more
 - 📊 **Dashboard Views** - Multiple view types (building, room, user, device type, priority)
 - 🔒 **Rate Limiting** - Built-in API rate limiting and connection pooling
-- 🐳 **Production Ready** - Django 4.2+/5+ compatible, fully tested
+- 🐳 **Production Ready** - Django 4.2+/5.0+ compatible, fully tested
 
 ## Supported Devices
 
@@ -24,18 +30,17 @@ Django Micboard is a comprehensive Django reusable app for monitoring Shure wire
 
 ## Quick Links
 
-- [Quick Start Guide](quickstart.md) - Get up and running in minutes
+- [Quick Start Guide](quickstart.md) - Get up and running quickly
 - [Configuration](configuration.md) - All configuration options
 - [API Reference](api-reference.md) - Complete API documentation
 - [Architecture](architecture.md) - System design and components
-- [Changelog](changelog.md) - Version history and updates
+- [Changelog](changelog.md) - Version history
 
 ## Requirements
 
 - Python 3.9+
-- Django 4.2+
+- Django 4.2+ or 5.0+
 - Django Channels
-- PostgreSQL (recommended) or SQLite
 - Redis (for WebSocket support)
 
 ## Installation
@@ -49,10 +54,9 @@ See the [Quick Start Guide](quickstart.md) for complete installation instruction
 ## Support
 
 - GitHub Issues: [github.com/justprosound/django-micboard/issues](https://github.com/justprosound/django-micboard/issues)
-- Documentation: [django-micboard.readthedocs.io](https://django-micboard.readthedocs.io)
 
 ## License
 
-Copyright (c) 2024-2025 Just ProSound LLC. All rights reserved.
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)
 
 See [LICENSE](../LICENSE) for full license text.

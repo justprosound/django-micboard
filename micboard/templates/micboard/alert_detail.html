@@ -1,0 +1,263 @@
+{% extends 'micboard/base.html' %}
+{% load static %}
+
+{% block title %}Alert Details - micboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'alerts' %}">Alerts</a></li>
+                    <li class="breadcrumb-item active">Alert #{{ alert.id }}</li>
+                </ol>
+            </nav>
+
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title mb-0">
+                                {{ alert.get_alert_type_display }} Alert
+                                {% if alert.status == "pending" %}
+                                    <span class="badge bg-warning ms-2">Pending</span>
+                                {% elif alert.status == "acknowledged" %}
+                                    <span class="badge bg-info ms-2">Acknowledged</span>
+                                {% elif alert.status == "resolved" %}
+                                    <span class="badge bg-success ms-2">Resolved</span>
+                                {% elif alert.status == "failed" %}
+                                    <span class="badge bg-danger ms-2">Failed</span>
+                                {% endif %}
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <strong>Channel:</strong><br>
+                                    {{ alert.channel }}
+                                    {% if alert.assignment %}
+                                    <br><small class="text-muted">{{ alert.assignment.location }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>User:</strong><br>
+                                    {{ alert.user.get_full_name|default:alert.user.username }}
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <strong>Created:</strong><br>
+                                    {{ alert.created_at|date:"M d, Y H:i:s" }}
+                                    <br><small class="text-muted">{{ alert.created_at|timesince }} ago</small>
+                                </div>
+                                <div class="col-md-6">
+                                    {% if alert.sent_at %}
+                                    <strong>Sent:</strong><br>
+                                    {{ alert.sent_at|date:"M d, Y H:i:s" }}
+                                    <br><small class="text-muted">{{ alert.sent_at|timesince }} ago</small>
+                                    {% else %}
+                                    <strong>Status:</strong><br>
+                                    <span class="text-muted">Not yet sent</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if alert.acknowledged_at %}
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <strong>Acknowledged:</strong><br>
+                                    {{ alert.acknowledged_at|date:"M d, Y H:i:s" }}
+                                    <br><small class="text-muted">{{ alert.acknowledged_at|timesince }} ago</small>
+                                </div>
+                                {% if alert.resolved_at %}
+                                <div class="col-md-6">
+                                    <strong>Resolved:</strong><br>
+                                    {{ alert.resolved_at|date:"M d, Y H:i:s" }}
+                                    <br><small class="text-muted">{{ alert.resolved_at|timesince }} ago</small>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <strong>Message:</strong>
+                                <div class="alert alert-light mt-2">
+                                    {{ alert.message }}
+                                </div>
+                            </div>
+
+                            {% if alert.channel_data %}
+                            <div class="mb-3">
+                                <strong>Channel Data at Alert Time:</strong>
+                                <pre class="bg-light p-3 rounded mt-2"><code>{{ alert.channel_data|safe }}</code></pre>
+                            </div>
+                            {% endif %}
+
+                            <!-- Action Buttons -->
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'alerts' %}" class="btn btn-secondary">← Back to Alerts</a>
+
+                                {% if alert.status == "pending" %}
+                                <form method="post" action="{% url 'acknowledge_alert' alert.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-info">Acknowledge Alert</button>
+                                </form>
+                                {% endif %}
+
+                                {% if alert.status in "pending,acknowledged" %}
+                                <form method="post" action="{% url 'resolve_alert' alert.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success">Mark as Resolved</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <!-- Alert Timeline -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Timeline</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline">
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-primary"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Alert Created</h6>
+                                        <p class="timeline-text">{{ alert.created_at|date:"M d, Y H:i:s" }}</p>
+                                        <small class="text-muted">{{ alert.created_at|timesince }} ago</small>
+                                    </div>
+                                </div>
+
+                                {% if alert.sent_at %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-info"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Alert Sent</h6>
+                                        <p class="timeline-text">{{ alert.sent_at|date:"M d, Y H:i:s" }}</p>
+                                        <small class="text-muted">{{ alert.sent_at|timesince }} ago</small>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if alert.acknowledged_at %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-warning"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Alert Acknowledged</h6>
+                                        <p class="timeline-text">{{ alert.acknowledged_at|date:"M d, Y H:i:s" }}</p>
+                                        <small class="text-muted">{{ alert.acknowledged_at|timesince }} ago</small>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if alert.resolved_at %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-success"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Alert Resolved</h6>
+                                        <p class="timeline-text">{{ alert.resolved_at|date:"M d, Y H:i:s" }}</p>
+                                        <small class="text-muted">{{ alert.resolved_at|timesince }} ago</small>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Related Information -->
+                    {% if alert.assignment %}
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Related Assignment</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Location:</strong> {{ alert.assignment.location }}</p>
+                            <p><strong>Priority:</strong> {{ alert.assignment.get_priority_display }}</p>
+                            {% if alert.assignment.notes %}
+                            <p><strong>Notes:</strong> {{ alert.assignment.notes }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #e9ecef;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 10px 15px;
+    border-radius: 4px;
+    border-left: 3px solid #007bff;
+}
+
+.timeline-title {
+    margin: 0 0 5px 0;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+.timeline-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+pre {
+    font-size: 0.875rem;
+}
+
+.btn {
+    margin-right: 0.5rem;
+}
+</style>
+{% endblock %}

@@ -1,14 +1,16 @@
 """
 API views for the micboard app.
 """
+
 import json
 import logging
 
 from django.core.cache import cache
-from django.http import JsonResponse
+from django.http import HttpRequest, JsonResponse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.cache import cache_page
 from django.views.decorators.csrf import csrf_exempt
 
 from micboard.decorators import rate_limit_view
@@ -23,11 +25,66 @@ from micboard.serializers import (
     serialize_receivers,
 )
 from micboard.shure import ShureSystemAPIClient
+from micboard.shure.transformers import ShureDataTransformer
 
 logger = logging.getLogger(__name__)
 
 
+class APIView(View):
+    """
+    Base API view class that adds version headers and common API functionality.
+
+    This provides a foundation for versioned API responses and consistent
+    behavior across all API endpoints.
+    """
+
+    API_VERSION = "1.0.0"
+
+    def dispatch(self, request, *args, **kwargs):
+        """Add API version headers to all responses."""
+        response = super().dispatch(request, *args, **kwargs)
+
+        # Add version headers
+        response["X-API-Version"] = self.API_VERSION
+        response["X-API-Compatible"] = "1.0.0"
+
+        # Add content type if not set
+        if not response.get("Content-Type"):
+            response["Content-Type"] = "application/json"
+
+        return response
+
+
+class VersionedAPIView(APIView):
+    """
+    Extended API view that supports version negotiation.
+
+    This can be used for future API versions that need different behavior.
+    """
+
+    def get_api_version(self, request: HttpRequest) -> str:
+        """Determine API version from request."""
+        # Check Accept header for version
+        accept = request.META.get("HTTP_ACCEPT", "")
+        if "version=" in accept:
+            # Extract version from Accept: application/json; version=1.1
+            try:
+                version_part = accept.split("version=")[1].split(";")[0]
+                return version_part.strip()
+            except (IndexError, ValueError):
+                pass
+
+        # Check query parameter
+        version = request.GET.get("version")
+        if version:
+            return version
+
+        # Default to current version
+        return self.API_VERSION
+
+
 @rate_limit_view(max_requests=120, window_seconds=60)  # 2 requests per second
+@cache_page(30)  # Cache for 30 seconds
 def data_json(request):
     """API endpoint for device data, similar to micboard_json"""
     try:
@@ -40,9 +97,7 @@ def data_json(request):
         receivers_data = serialize_receivers(include_extra=True)
 
         # Serialize discovered devices
-        discovered = [
-            serialize_discovered_device(disc) for disc in DiscoveredDevice.objects.all()
-        ]
+        discovered = [serialize_discovered_device(disc) for disc in DiscoveredDevice.objects.all()]
 
         # Serialize config
         config = {conf.key: conf.value for conf in MicboardConfig.objects.all()}
@@ -68,7 +123,7 @@ def data_json(request):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class ConfigHandler(View):
+class ConfigHandler(VersionedAPIView):
     """Handle config updates"""
 
     def post(self, request):
@@ -83,7 +138,7 @@ class ConfigHandler(View):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class GroupUpdateHandler(View):
+class GroupUpdateHandler(VersionedAPIView):
     """Handle group updates"""
 
     def post(self, request):
@@ -122,7 +177,7 @@ def api_discover(request):
             # Assuming 'type' is directly available or can be extracted.
             # Also, 'channel_count' might not be directly in the top-level device_data.
             # This part might need adjustment based on actual API response for get_devices.
-            device_type = ShureSystemAPIClient._map_device_type(device_data.get("type", "unknown"))
+            device_type = ShureDataTransformer._map_device_type(device_data.get("type", "unknown"))
 
             # Attempt to get channel_count from capabilities or other nested fields
             channels = 0
@@ -186,7 +241,6 @@ def api_refresh(request):
 def api_health(request):
     """Health check endpoint for the API and Shure System connectivity"""
     try:
-        client = ShureSystemAPIClient()
         health_info = {
             "api_status": "healthy",
             "timestamp": timezone.now().isoformat(),
@@ -199,6 +253,7 @@ def api_health(request):
 
         # Check Shure API health
         try:
+            client = ShureSystemAPIClient()
             api_healthy = client.is_healthy()
             health_info["shure_api"] = {
                 "status": "healthy" if api_healthy else "degraded",
@@ -207,6 +262,7 @@ def api_health(request):
         except Exception as e:
             logger.warning(f"Shure API health check failed: {e}")
             health_info["shure_api"] = {"status": "unavailable", "error": str(e)}
+            health_info["api_status"] = "degraded"  # API issues make overall status degraded
 
         return JsonResponse(health_info)
     except Exception as e:
@@ -243,3 +299,201 @@ def api_receivers_list(request):
         logger.exception(f"Error fetching receivers list: {e}")
         return JsonResponse({"error": "Internal server error", "detail": str(e)}, status=500)
 
+
+class HealthCheckView(VersionedAPIView):
+    """Health check endpoint for monitoring service status."""
+
+    def get(self, request):
+        """Return health status of the service and its dependencies."""
+        health_status = {
+            "status": "healthy",
+            "timestamp": timezone.now().isoformat(),
+            "version": "25.10.15",
+            "api_version": self.get_api_version(request),
+            "checks": {},
+        }
+
+        # Database check
+        try:
+            from django.db import connection
+
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            health_status["checks"]["database"] = {"status": "healthy"}
+        except Exception as e:
+            health_status["checks"]["database"] = {"status": "unhealthy", "error": str(e)}
+            health_status["status"] = "unhealthy"
+
+        # Cache check
+        try:
+            cache.set("health_check", "ok", 10)
+            cache_value = cache.get("health_check")
+            if cache_value == "ok":
+                health_status["checks"]["cache"] = {"status": "healthy"}
+            else:
+                health_status["checks"]["cache"] = {
+                    "status": "unhealthy",
+                    "error": "Cache not working",
+                }
+                health_status["status"] = "unhealthy"
+        except Exception as e:
+            health_status["checks"]["cache"] = {"status": "unhealthy", "error": str(e)}
+            health_status["status"] = "unhealthy"
+
+        # Shure API check
+        try:
+            client = ShureSystemAPIClient()
+            # Just check if we can create a client, don't actually call API
+            health_status["checks"]["shure_api_client"] = {"status": "healthy"}
+        except Exception as e:
+            health_status["checks"]["shure_api_client"] = {"status": "unhealthy", "error": str(e)}
+            health_status["status"] = "degraded"  # API issues don't make service unhealthy
+
+        status_code = 200 if health_status["status"] == "healthy" else 503
+        return JsonResponse(health_status, status=status_code)
+
+
+class ReadinessCheckView(VersionedAPIView):
+    """Readiness check endpoint for Kubernetes/load balancer health checks."""
+
+    def get(self, request):
+        """Return readiness status - simplified check for load balancers."""
+        try:
+            # Quick database check
+            from django.db import connection
+
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+
+            return JsonResponse(
+                {
+                    "status": "ready",
+                    "timestamp": timezone.now().isoformat(),
+                    "api_version": self.get_api_version(request),
+                }
+            )
+        except Exception as e:
+            logger.exception("Readiness check failed")
+            return JsonResponse(
+                {
+                    "status": "not ready",
+                    "error": str(e),
+                    "timestamp": timezone.now().isoformat(),
+                    "api_version": self.get_api_version(request),
+                },
+                status=503,
+            )
+
+
+class APIDocumentationView(VersionedAPIView):
+    """API documentation endpoint showing available endpoints and versions."""
+
+    def get(self, request):
+        """Return API documentation with available endpoints."""
+        api_version = self.get_api_version(request)
+
+        documentation = {
+            "api_version": api_version,
+            "app_version": "25.10.15",
+            "base_url": request.build_absolute_uri("/api/"),
+            "endpoints": {
+                "health": {
+                    "url": "/api/health/",
+                    "method": "GET",
+                    "description": "Basic health check",
+                    "response": {
+                        "status": "healthy|degraded",
+                        "timestamp": "ISO 8601 timestamp",
+                        "database": {"receivers_total": 0, "receivers_active": 0},
+                        "shure_api": {"status": "healthy|unavailable"},
+                    },
+                },
+                "health_detailed": {
+                    "url": "/api/health/detailed/",
+                    "method": "GET",
+                    "description": "Detailed health check with all components",
+                    "response": {
+                        "status": "healthy|unhealthy|degraded",
+                        "timestamp": "ISO 8601 timestamp",
+                        "version": "app version",
+                        "api_version": "API version",
+                        "checks": {
+                            "database": {"status": "healthy|unhealthy"},
+                            "cache": {"status": "healthy|unhealthy"},
+                            "shure_api_client": {"status": "healthy|unhealthy"},
+                        },
+                    },
+                },
+                "health_ready": {
+                    "url": "/api/health/ready/",
+                    "method": "GET",
+                    "description": "Readiness check for load balancers",
+                    "response": {
+                        "status": "ready|not ready",
+                        "timestamp": "ISO 8601 timestamp",
+                        "api_version": "API version",
+                    },
+                },
+                "data": {
+                    "url": "/api/data.json",
+                    "method": "GET",
+                    "description": "Main data endpoint with receivers, groups, and config",
+                    "response": {
+                        "receivers": [],
+                        "url": "base URL",
+                        "config": {},
+                        "discovered": [],
+                        "groups": [],
+                    },
+                },
+                "receivers": {
+                    "url": "/api/receivers/",
+                    "method": "GET",
+                    "description": "List all receivers with summary information",
+                    "response": {"receivers": [], "count": 0},
+                },
+                "receiver_detail": {
+                    "url": "/api/receivers/{id}/",
+                    "method": "GET",
+                    "description": "Detailed information for a specific receiver",
+                    "parameters": {"id": "Receiver ID"},
+                    "response": {"api_device_id": "string", "name": "string", "channels": []},
+                },
+                "discover": {
+                    "url": "/api/discover/",
+                    "method": "POST",
+                    "description": "Trigger device discovery on the network",
+                    "response": {"success": True, "discovered_count": 0, "devices": []},
+                },
+                "refresh": {
+                    "url": "/api/refresh/",
+                    "method": "POST",
+                    "description": "Force refresh of device data from Shure API",
+                    "response": {"success": True, "message": "Polling triggered"},
+                },
+                "config": {
+                    "url": "/api/config/",
+                    "method": "GET|POST",
+                    "description": "Get or update application configuration",
+                    "response": {"success": True},
+                },
+                "group_update": {
+                    "url": "/api/groups/{id}/",
+                    "method": "POST",
+                    "description": "Update group configuration",
+                    "parameters": {"id": "Group ID"},
+                    "response": {"success": True},
+                },
+            },
+            "versions": {"current": "v1", "supported": ["v1"], "deprecated": []},
+            "authentication": "None required",
+            "rate_limiting": "Varies by endpoint (see decorators)",
+            "content_type": "application/json",
+            "versioning": {
+                "url_path": "/api/v1/endpoint/",
+                "query_param": "/api/endpoint/?version=v1",
+                "accept_header": "Accept: application/json; version=1",
+            },
+        }
+
+        return JsonResponse(documentation)

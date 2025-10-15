@@ -1,15 +1,21 @@
-# Quick Start Guide - Micboard Django App
+# Quick Start Guide
+
+> **⚠️ ACTIVE DEVELOPMENT**: This project has not been released. This guide is for development and testing only.
 
 ## Prerequisites
-1. Python 3.8+ installed
+
+1. Python 3.9+ installed
 2. Shure System API server installed and running
 3. Network access to Shure devices
 
 ## Installation Steps
 
-### 1. Install Dependencies
+### 1. Clone and Install
+
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/justprosound/django-micboard.git
+cd django-micboard
+pip install -e .
 ```
 
 ### 2. Add to Django Project

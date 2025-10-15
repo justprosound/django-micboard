@@ -1,6 +1,7 @@
 """
 Views for the micboard app.
 """
+
 from .api import (
     ConfigHandler,
     GroupUpdateHandler,

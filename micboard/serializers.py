@@ -5,6 +5,7 @@ This module provides reusable serialization functions for converting
 Django model instances to dictionaries suitable for JSON responses.
 Centralizing serialization logic ensures consistency and follows DRY principles.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -13,7 +14,9 @@ if TYPE_CHECKING:
     from micboard.models import Channel, DiscoveredDevice, Group, Receiver, Transmitter
 
 
-def serialize_transmitter(transmitter: Transmitter, *, include_extra: bool = False) -> dict[str, Any]:
+def serialize_transmitter(
+    transmitter: Transmitter, *, include_extra: bool = False
+) -> dict[str, Any]:
     """
     Serialize a Transmitter instance to a dictionary.
 
@@ -71,7 +74,9 @@ def serialize_channel(channel: Channel, *, include_extra: bool = False) -> dict[
     }
 
     if hasattr(channel, "transmitter"):
-        data["transmitter"] = serialize_transmitter(channel.transmitter, include_extra=include_extra)
+        data["transmitter"] = serialize_transmitter(
+            channel.transmitter, include_extra=include_extra
+        )
 
     return data
 

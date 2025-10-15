@@ -3,6 +3,7 @@ Views for the micboard app.
 
 This module imports views from submodules for better organization.
 """
+
 from .views.api import (
     ConfigHandler,
     GroupUpdateHandler,
@@ -24,19 +25,19 @@ from .views.dashboard import (
 )
 
 __all__ = [
+    "ConfigHandler",
+    "GroupUpdateHandler",
     "about",
     "api_discover",
     "api_health",
     "api_receiver_detail",
     "api_receivers_list",
     "api_refresh",
-    "ConfigHandler",
-    "data_json",
-    "GroupUpdateHandler",
-    "index",
-    "device_type_view",
     "building_view",
-    "user_view",
-    "room_view",
+    "data_json",
+    "device_type_view",
+    "index",
     "priority_view",
+    "room_view",
+    "user_view",
 ]

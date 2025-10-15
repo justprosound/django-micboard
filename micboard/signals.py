@@ -1,6 +1,7 @@
 """
 Signals for the micboard app.
 """
+
 import logging
 from typing import Any
 

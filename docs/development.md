@@ -137,7 +137,7 @@ All functions use keyword-only parameters for clarity:
 def serialize_receiver_detail(receiver, *, include_extra=False):
     """
     Serialize receiver with keyword-only parameters.
-    
+
     Args:
         receiver: Receiver instance
         include_extra: Whether to include computed properties (keyword-only)
@@ -178,7 +178,7 @@ class ReceiverManager(models.Manager):
     def active(self) -> QuerySet[Receiver]:
         """Return active receivers."""
         return self.filter(is_active=True)
-    
+
     def online_recently(self, *, minutes: int = 30) -> QuerySet[Receiver]:
         """Return receivers seen in last N minutes."""
         threshold = timezone.now() - timedelta(minutes=minutes)
@@ -234,7 +234,7 @@ from micboard.models import Receiver
 
 class TestReceiver(TestCase):
     """Test Receiver model."""
-    
+
     def setUp(self):
         """Set up test fixtures."""
         self.receiver = Receiver.objects.create(
@@ -242,7 +242,7 @@ class TestReceiver(TestCase):
             ip="192.168.1.100",
             device_type="ulxd"
         )
-    
+
     def test_mark_online(self):
         """Test marking receiver online."""
         self.receiver.mark_online()
@@ -414,8 +414,8 @@ chore: Update dependencies
 
 - GitHub Issues: https://github.com/justprosound/django-micboard/issues
 - Documentation: https://django-micboard.readthedocs.io
-- Email: skuonen@justprosound.org
+- Community Discussions: Open an issue on GitHub
 
 ## License
 
-MIT License - see LICENSE file for details.
+AGPL-3.0-or-later - see LICENSE file for details.

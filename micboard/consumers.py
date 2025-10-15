@@ -3,6 +3,7 @@ Django Channels WebSocket consumers for real-time micboard updates.
 
 This module provides WebSocket consumers for broadcasting device updates to connected clients.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,13 +28,13 @@ class MicboardConsumer(AsyncWebsocketConsumer):
         await self.accept()
         logger.info(f"WebSocket connected: {self.channel_name}")
 
-    async def disconnect(self, code: int):  # noqa: ARG002 (signature defined by base class)
+    async def disconnect(self, code: int):
         """Handle WebSocket disconnection"""
         # Leave room group
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
         logger.info(f"WebSocket disconnected: {self.channel_name}")
 
-    async def receive(self, text_data: str | None = None, bytes_data: bytes | None = None):  # noqa: ARG002
+    async def receive(self, text_data: str | None = None, bytes_data: bytes | None = None):
         """Handle incoming messages from client"""
         if text_data:
             try:

@@ -30,7 +30,8 @@ INSTALLED_APPS = [
 | `SHURE_API_RETRY_STATUS_CODES` | A list of HTTP status codes to retry on. | `[429, 500, 502, 503, 504]` |
 | `POLL_INTERVAL` | The interval in seconds between device polls. | `5` |
 | `CACHE_TIMEOUT` | The timeout in seconds for caching API responses. | `30` |
-| `TRANSMITTER_INACTIVITY_SECONDS` | Inactivity threshold (seconds) before a transmitter session is considered ended and a new session started on next sample. Used to detect short outages. | `10` |
+| `EMAIL_RECIPIENTS` | A list of email addresses to send alerts to. | `[]` |
+| `EMAIL_FROM` | The email address to send alerts from. | `"micboard@localhost"` |
 
 Example:
 
@@ -78,6 +79,36 @@ CACHES = {
 ```
 
 For production, consider using a more robust cache backend like Redis or Memcached.
+
+## Email Configuration
+
+`django-micboard` uses Django's built-in email system for sending alert notifications. Configure your email settings in `settings.py`:
+
+```python
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "your-email@gmail.com"
+EMAIL_HOST_PASSWORD = "your-app-password"
+DEFAULT_FROM_EMAIL = "micboard@yourdomain.com"
+```
+
+For alert notifications, configure recipients in `MICBOARD_CONFIG`:
+
+```python
+MICBOARD_CONFIG = {
+    # ... other settings
+    "EMAIL_RECIPIENTS": ["admin@yourdomain.com", "tech@yourdomain.com"],
+    "EMAIL_FROM": "micboard@yourdomain.com",
+}
+```
+
+Individual users can also configure their own alert preferences through the admin interface, including:
+- Email notification method (email, WebSocket, or both)
+- Custom email address for alerts
+- Battery and signal thresholds
+- Quiet hours for notifications
 
 ## Logging
 

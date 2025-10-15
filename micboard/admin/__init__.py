@@ -6,7 +6,10 @@ This package organizes admin classes by functional area:
 - assignments: DeviceAssignment, Alert, UserAlertPreference administration
 - monitoring: Location, MonitoringGroup, Group, Config, DiscoveredDevice administration
 """
+
 from __future__ import annotations
+
+from typing import ClassVar
 
 from .assignments import (
     AlertAdmin,
@@ -22,19 +25,18 @@ from .monitoring import (
     MonitoringGroupAdmin,
 )
 
-__all__ = [
-    # Device admins
-    "ReceiverAdmin",
-    "ChannelAdmin",
-    "TransmitterAdmin",
-    # Assignment admins
-    "DeviceAssignmentAdmin",
-    "UserAlertPreferenceAdmin",
-    "AlertAdmin",
-    # Monitoring admins
-    "GroupAdmin",
-    "MicboardConfigAdmin",
-    "DiscoveredDeviceAdmin",
-    "LocationAdmin",
-    "MonitoringGroupAdmin",
-]
+__all__ = sorted(
+    [
+        "AlertAdmin",
+        "ChannelAdmin",
+        "DeviceAssignmentAdmin",
+        "DiscoveredDeviceAdmin",
+        "GroupAdmin",
+        "LocationAdmin",
+        "MicboardConfigAdmin",
+        "MonitoringGroupAdmin",
+        "ReceiverAdmin",
+        "TransmitterAdmin",
+        "UserAlertPreferenceAdmin",
+    ]
+)

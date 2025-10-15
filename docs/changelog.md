@@ -1,148 +1,111 @@
-# Micboard Changelog
+# Changelog
 
-## 2.2.0 - Rate Limiting, Retry Logic, and PyPI Packaging (Current)
+All notable changes to django-micboard are documented here.
 
-### Added
-- **Python package distribution**:
-  - `setup.py` for legacy compatibility
-  - `pyproject.toml` for modern packaging (PEP 517/518)
-  - `MANIFEST.in` for file inclusion
-  - `.gitignore` for development
-  - `LICENSE` file (MIT)
-  - `PACKAGING.md` with comprehensive distribution guide
-- **GitHub Actions workflow** for automated PyPI publishing
-- **Package metadata** in `__init__.py` (`__version__`, `__author__`, `__license__`)
-- **Test script** (`test_package.sh`) to verify package building
+**Version format:** CalVer (YY.MM.DD)
 
-### Distribution
-- **PyPI**: `pip install django-micboard`
-- **GitHub**: `pip install git+https://github.com/...`
-- **Source**: `pip install -e .`
-- **Optional dependencies**: `[redis]` for production, `[dev]` for development tools
+**Status:** Active development, not production-ready
 
-### Rate Limiting & Retry
-- **Rate limiting for API client**: Decorator-based rate limiting for Shure System API calls
-  - Configurable requests per second for each method
-  - Token bucket algorithm using Django cache
-  - Prevents overwhelming the Shure System API server
-- **Automatic retry with exponential backoff**:
-  - Configurable max retries (default: 3)
-  - Exponential backoff between retries (default: 0.5s base)
-  - Retry on specific HTTP status codes (429, 500, 502, 503, 504)
-  - Uses urllib3 Retry with requests HTTPAdapter
-- **Rate limiting for micboard API endpoints**:
-  - `/api/data/`: 120 requests/minute (2 req/sec)
-  - `/api/discover/`: 5 requests/minute (expensive operation)
-  - `/api/refresh/`: 10 requests/minute
-  - Sliding window algorithm with per-IP tracking
-  - Returns HTTP 429 with `Retry-After` header
-- **Rate limiting decorators**: `rate_limit_view` and `rate_limit_user` in `decorators.py`
-- Configuration options in `MICBOARD_CONFIG`:
-  - `SHURE_API_MAX_RETRIES`
-  - `SHURE_API_RETRY_BACKOFF`
-  - `SHURE_API_RETRY_STATUS_CODES`
+---
+
+## [25.10.15] - 2025-10-15
 
 ### Changed
-- `ShureSystemAPIClient` now uses requests Session with retry strategy
-- All public API methods decorated with `@rate_limit` for client-side limiting
-- Requirements updated to include `urllib3>=2.0.0`
+- Updated version to use CalVer (YY.MM.DD) format
+- Removed ownership claims from codebase
+- Updated to FOSS community contribution model
+- Simplified README for development-only status
+- Removed PyPI packaging documentation (never released)
+- Updated documentation to reflect active development status
 
-### Technical Details
-- **Client-side rate limiting**: Prevents micboard from overwhelming Shure API
-- **Server-side rate limiting**: Protects micboard from client abuse
-- **Graceful degradation**: Failed requests log errors but don't crash
-- **Caching integration**: Rate limit state stored in Django cache
+---
 
-## 2.1.0 - User Assignment & Monitoring System
-
-### Added
-- **Location Model**: Link devices to buildings/rooms with GenericForeignKey support for external location models
-- **MonitoringGroup Model**: Team-based device monitoring with many-to-many relationships
-- **DeviceAssignment Model**: Fine-grained user-to-device assignments with per-device alert preferences
-- **UserAlertPreference Model**: Global alert preferences per user (notification methods, battery thresholds, quiet hours)
-- **Alert Model**: Alert history tracking with status management (pending, sent, acknowledged, resolved)
-- New admin interfaces for all monitoring models with:
-  - Advanced filtering and search
-  - Custom displays showing counts and relationships
-  - Inline editing capabilities
-  - Automatic timestamp tracking
-- `USER_ASSIGNMENT.md`: Comprehensive documentation for the assignment system
-
-### Changed
-- Device model now includes helper methods: `get_assigned_users()`, `get_monitoring_groups()`
-- Admin displays enhanced with relationship counts and better organization
+## [25.10.14] - 2025-10-14
 
 ### Features
-- **Scale to hundreds of devices**: Efficient queries with proper indexing
-- **Flexible location integration**: Works with or without external location models
-- **Customizable alerts**: Per-user and per-device alert preferences
-- **Team collaboration**: Monitoring groups for organizing users
-- **Alert rate limiting**: Prevent alert spam with configurable intervals
-- **Quiet hours**: Disable alerts during specified time periods
-- **Audit trail**: Complete alert history with device state snapshots
-- **Priority-based assignments**: Low, normal, high, and critical priority levels
 
-## 2.0.0 - Django Refactoring with Shure System API
+**Core Functionality**
+- Real-time Shure wireless microphone monitoring via Django web interface
+- Shure System API integration with automatic retry and exponential backoff
+- WebSocket broadcasting via Django Channels for live updates
+- Background polling service for continuous device monitoring (`poll_devices` management command)
+- User assignment and alert notification system
+- Rate-limited REST API endpoints
 
-### Major Changes
-- **Complete Django 4.2 Refactoring**: Converted from Tornado-based architecture to Django
-- **Shure System API Integration**: Replaced direct device communication with official Shure System API middleware
-- **Async WebSocket Support**: Implemented using Django Channels 4.0+ with AsyncWebsocketConsumer
-- **Real-time Updates**: Background polling service broadcasts device status via WebSocket channels
+**Supported Devices**
+- UHF-R, QLX-D, ULX-D, Axient Digital, PSM1000
 
-### Added
-- `shure_api_client.py`: ShureSystemAPIClient class for all API communication
-- `management/commands/poll_devices.py`: Background polling service with configurable intervals
-- `consumers.py`: Async WebSocket consumer for real-time client updates
-- Enhanced models with API integration fields:
-  - Device: `api_device_id`, `last_seen`
-  - Transmitter: `slot`, `updated_at`
-- New API endpoints:
-  - `/api/discover/`: Discover new Shure devices
-  - `/api/refresh/`: Force refresh device data
-- Configuration templates:
-  - `settings_template.py`: Complete Django settings example
-  - `QUICKSTART.md`: Step-by-step installation guide
-  - `ARCHITECTURE.md`: System architecture documentation
-- Production-ready features:
-  - Redis caching for API responses
-  - Channel layers for WebSocket broadcasting
-  - systemd service configuration examples
-  - Comprehensive logging
+**Architecture**
+- Middleware-based: Shure System API (external) → Django app → WebSocket clients
+- Django 4.2+ and Django 5.0+ compatible
+- Python 3.9+ compatible
+- Async WebSocket support via Django Channels 4.0+
 
-### Removed (Legacy Tornado Code)
-- `py/` directory with all Tornado server code:
-  - `tornado_server.py`
-  - `channel.py`, `config.py`, `device_config.py`
-  - `discover.py`, `iem.py`, `micboard.py`, `mic.py`
-  - `networkdevice.py`, `offline.py`, `shure.py`, `util.py`
-- Root-level legacy files:
-  - `shure.py` (direct device communication)
-  - `networkdevice.py` (network discovery)
-  - `device_config.py` (device configuration)
-  - `discover.py` (discovery logic)
-- `views.SlotHandler`: Unused placeholder handler
+**Models & Data**
+- Receiver, Channel, Transmitter models for device tracking
+- Location and MonitoringGroup models for organization
+- DeviceAssignment model for user-to-device associations
+- Alert and UserAlertPreference models for notifications
+- Custom model managers for common query patterns
 
-### Changed
-- **Architecture**: Middleware-based (Shure System API) vs direct device communication
-- **Web Framework**: Django 4.2 instead of Tornado
-- **WebSocket**: Django Channels instead of Tornado WebSocket
-- **Database**: Django ORM instead of custom config files
-- **Admin Interface**: Full Django admin for all models
-- Views now use caching and proper error handling
-- Admin displays show new API integration fields
+**API Features**
+- Rate limiting with token bucket algorithm (Django cache-based)
+- Automatic retry with exponential backoff (0.5s, 1s, 2s)
+- Health tracking for Shure System API connection
+- Configurable timeouts and SSL verification
+- Connection pooling via requests.Session
 
-### Dependencies
-- Django >= 4.2
-- channels >= 4.0.0
-- daphne >= 4.0.0
-- channels-redis >= 4.0.0
-- requests >= 2.31.0
-- asgiref >= 3.7.0
-- redis >= 5.0.0
+**API Endpoints**
+- `/api/data/` - Get all device data (rate limited: 120 req/min)
+- `/api/receivers/` - List all receivers
+- `/api/receivers/{id}/` - Get receiver details
+- `/api/discover/` - Discover new devices (rate limited: 5 req/min)
+- `/api/refresh/` - Force refresh (rate limited: 10 req/min)
+- `/api/health/` - Check API health status
+- `/api/config/` - Get/update configuration
+- `/api/groups/{id}/` - Update group settings
 
-### Notes
-- **No backwards compatibility**: This is a complete rewrite
-- **Never deployed**: Previous version was never used in production
-- Frontend static files and templates remain unchanged
-- Requires separate Shure System API server installation
+**WebSocket**
+- Real-time device updates via `ws://server/ws/micboard/`
+- Automatic reconnection
+- Message types: device_update, alert, status
+
+**Admin Interface**
+- Full Django admin for all models
+- Advanced filtering and search
+- Custom displays with relationship counts
+- Inline editing capabilities
+
+**Rate Limiting**
+- Client-side: Prevents overwhelming Shure System API
+- Server-side: Protects app from client abuse
+- Per-IP tracking with sliding window algorithm
+- Returns HTTP 429 with Retry-After header
+
+**User Assignment System**
+- Fine-grained device-to-user assignments
+- Priority levels: low, normal, high, critical
+- Per-device alert preferences
+- Quiet hours support
+- Team-based monitoring groups
+- Alert history tracking
+
+### Requirements
+
+- Python 3.9+
+- Django 4.2+ or 5.0+
+- Shure System API server (external, installed separately)
+- Redis (recommended for production WebSocket support)
+
+### Known Limitations
+
+- Requires external Shure System API server
+- WebSocket subscriptions require manual implementation
+- No historical data retention (current state only)
+- Development-stage error handling
+
+---
+
+## Previous Development
+
+This project is a complete refactoring of the original Tornado-based micboard into a modern Django application. No prior versions were released.
