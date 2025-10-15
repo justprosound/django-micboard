@@ -1,3 +1,9 @@
+"""
+Django management command to poll Shure wireless devices and broadcast updates.
+
+This command continuously polls the Shure System API for device status updates
+and broadcasts changes to WebSocket clients via Django Channels.
+"""
 from __future__ import annotations
 
 import asyncio

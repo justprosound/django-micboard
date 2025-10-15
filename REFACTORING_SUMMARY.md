@@ -80,12 +80,8 @@ micboard/shure/
 
 **Backward Compatibility:**
 ```python
-# micboard/shure/__init__.py
-from .client import ShureSystemAPIClient
-
-# Existing imports still work
-from micboard.shure_api_client import ShureSystemAPIClient  # ✅ Still works
-```
+# New import path (recommended)
+from micboard.shure import ShureSystemAPIClient
 
 #### Priority 2: Split admin.py into Package (310 lines) 🟡
 **Why:** Improves discoverability and follows Django best practices

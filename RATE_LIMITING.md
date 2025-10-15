@@ -230,7 +230,8 @@ Rate limit state is stored in cache with these key patterns:
 
 ```python
 import time
-from micboard.shure_api_client import ShureSystemAPIClient
+```python
+from micboard.shure import ShureSystemAPIClient
 
 client = ShureSystemAPIClient()
 
