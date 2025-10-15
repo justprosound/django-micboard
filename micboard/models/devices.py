@@ -212,8 +212,8 @@ class Transmitter(models.Model):
     class Meta:
         verbose_name = "Transmitter"
         verbose_name_plural = "Transmitters"
-        ordering = ["channel__receiver__name", "channel__channel_number"]
-        indexes = [
+        ordering: ClassVar[list[str]] = ["channel__receiver__name", "channel__channel_number"]
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["channel", "slot"]),
         ]
 
@@ -291,8 +291,8 @@ class TransmitterSession(models.Model):
     class Meta:
         verbose_name = "Transmitter Session"
         verbose_name_plural = "Transmitter Sessions"
-        ordering = ["-started_at"]
-        indexes = [
+        ordering: ClassVar[list[str]] = ["-started_at"]
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["transmitter", "is_active"]),
             models.Index(fields=["started_at"]),
         ]
@@ -323,8 +323,8 @@ class TransmitterSample(models.Model):
     class Meta:
         verbose_name = "Transmitter Sample"
         verbose_name_plural = "Transmitter Samples"
-        ordering = ["-timestamp"]
-        indexes = [
+        ordering: ClassVar[list[str]] = ["-timestamp"]
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["timestamp"]),
         ]
 
@@ -348,7 +348,7 @@ class Group(models.Model):
     class Meta:
         verbose_name = "Group"
         verbose_name_plural = "Groups"
-        ordering = ["group_number"]
+        ordering: ClassVar[list[str]] = ["group_number"]
 
     def __str__(self) -> str:
         return f"Group {self.group_number}: {self.title}"
@@ -370,7 +370,7 @@ class MicboardConfig(models.Model):
     class Meta:
         verbose_name = "Micboard Configuration"
         verbose_name_plural = "Micboard Configurations"
-        ordering = ["key"]
+        ordering: ClassVar[list[str]] = ["key"]
 
     def __str__(self) -> str:
         return f"{self.key}: {self.value}"
@@ -389,7 +389,7 @@ class DiscoveredDevice(models.Model):
     class Meta:
         verbose_name = "Discovered Device"
         verbose_name_plural = "Discovered Devices"
-        ordering = ["-discovered_at"]
+        ordering: ClassVar[list[str]] = ["-discovered_at"]
 
     def __str__(self) -> str:
         return f"{self.device_type} at {self.ip}"

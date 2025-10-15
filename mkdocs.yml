@@ -3,11 +3,8 @@ site_description: Django app for real-time Shure wireless microphone monitoring
 site_url: https://django-micboard.readthedocs.io
 repo_url: https://github.com/justprosound/django-micboard
 repo_name: django-micboard
-
-# Copyright
 copyright: Licensed under AGPL-3.0-or-later | Community-driven open source project
 
-# Theme configuration
 theme:
   name: material
   features:
@@ -22,7 +19,6 @@ theme:
     - content.code.copy
     - content.code.annotate
   palette:
-    # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: indigo
@@ -30,7 +26,6 @@ theme:
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: indigo
@@ -44,7 +39,6 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
-# Navigation
 nav:
   - Home: index.md
   - Getting Started:
@@ -62,7 +56,6 @@ nav:
   - About:
       - Changelog: changelog.md
 
-# Plugins
 plugins:
   - search:
       lang: en
@@ -72,9 +65,7 @@ plugins:
       minify_js: true
       minify_css: true
 
-# Extensions
 markdown_extensions:
-  # Python Markdown
   - abbr
   - admonition
   - attr_list
@@ -84,8 +75,6 @@ markdown_extensions:
   - toc:
       permalink: true
       toc_depth: 3
-
-  # Python Markdown Extensions
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.betterem:
@@ -93,8 +82,8 @@ markdown_extensions:
   - pymdownx.caret
   - pymdownx.details
   - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+    emoji_index: "material.extensions.emoji.twemoji"
+    emoji_generator: "material.extensions.emoji.to_svg"
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
@@ -107,14 +96,13 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format: "pymdownx.superfences.fence_code_format"
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
 
-# Extra configuration
 extra:
   version:
     provider: mike
@@ -123,7 +111,6 @@ extra:
       link: https://github.com/justprosound/django-micboard
   generator: false
 
-# Custom CSS
 extra_css:
   - stylesheets/extra.css
 
