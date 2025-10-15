@@ -11,7 +11,7 @@ SECRET_KEY = "test-secret-key-not-for-production"
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS: list[str] = []
 
 INSTALLED_APPS = [
     "django.contrib.admin",

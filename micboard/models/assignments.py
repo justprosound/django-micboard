@@ -10,7 +10,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 
-User: type[AbstractUser] = get_user_model()  # type: ignore
+User: type[AbstractUser] = get_user_model()
 
 
 class DeviceAssignment(models.Model):

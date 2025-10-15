@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -192,7 +192,7 @@ class AlertManager:
 
         if recent_alert:
             logger.debug("Similar alert already exists: %s", recent_alert)
-            return recent_alert
+            return cast(Alert, recent_alert)
 
         # Create new alert
         alert = Alert.objects.create(
@@ -214,7 +214,7 @@ class AlertManager:
             alert.status = "failed"
             alert.save(update_fields=["status"])
 
-        return alert
+        return cast(Alert, alert)
 
     def _get_channel_snapshot(self, channel: Channel) -> dict[str, Any]:
         """Get a snapshot of channel state for alert context."""

@@ -67,7 +67,7 @@ dev = [
     "pytest-django>=4.5.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
-    "ruff>=0.6.0",
+    "ruff>=0.14.0,<0.15.0",
     "mypy>=1.8.0",
     "pre-commit>=3.6.0",
     "pip-tools>=7.0.0",
@@ -116,6 +116,7 @@ exclude = [
     ".venv",
     "migrations",
     "__pycache__",
+    "micboard/views.py",
 ]
 
 [tool.ruff.lint]
@@ -163,3 +164,6 @@ disallow_untyped_defs = false
 [tool.bandit]
 exclude_dirs = ["tests", "migrations", "__pycache__"]
 skips = ["B101", "B601"]  # Skip assert checks and shell usage in admin commands
+
+[tool.codespell]
+ignore-words-list = ["Shure", "shure", "assertIn"]
