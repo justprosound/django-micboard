@@ -7,6 +7,7 @@ This test module validates that the micboard package meets Django reusable app s
 - Version management
 - Django compatibility
 """
+
 from __future__ import annotations
 
 import importlib
@@ -175,9 +176,7 @@ class TestDjangoCompatibility:
             assert (
                 "from django.utils import six" not in content
             ), f"Deprecated six import found in {py_file}"
-            assert (
-                "django.utils.six" not in content
-            ), f"Deprecated six reference found in {py_file}"
+            assert "django.utils.six" not in content, f"Deprecated six reference found in {py_file}"
 
 
 class TestAppConfiguration:
@@ -215,10 +214,10 @@ class TestURLConfiguration:
 
     def test_no_deprecated_url_patterns(self):
         """Test that url() is not used (deprecated in Django 4.0)."""
-        from micboard import urls
-
         # Check source code for deprecated url() usage
         import inspect
+
+        from micboard import urls
 
         source = inspect.getsource(urls)
         assert "from django.conf.urls import url" not in source
@@ -308,8 +307,8 @@ class TestCodeQuality:
                 continue
 
             # Check for module docstring
-            assert (
-                content.strip().startswith('"""') or content.strip().startswith("'''")
+            assert content.strip().startswith('"""') or content.strip().startswith(
+                "'''"
             ), f"Module {py_file} missing docstring"
 
     def test_models_have_str_methods(self):

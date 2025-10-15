@@ -3,9 +3,11 @@ Admin configuration for device models (Receiver, Channel, Transmitter).
 
 This module provides Django admin interfaces for managing wireless audio devices.
 """
+
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 from django.contrib import admin
 from django.utils.html import format_html
@@ -36,7 +38,7 @@ class ChannelInline(admin.StackedInline):
             )
         return "No transmitter assigned"
 
-    get_transmitter_status.short_description = "Transmitter Status"
+    get_transmitter_status.short_description = "Transmitter Status"  # type: ignore
 
 
 class TransmitterInline(admin.StackedInline):
@@ -61,10 +63,10 @@ class ReceiverAdmin(admin.ModelAdmin):
     )
     list_filter = ("device_type", "is_active")
     search_fields = ("name", "ip", "api_device_id")
-    inlines = [ChannelInline]
+    inlines: ClassVar[list] = [ChannelInline]
     readonly_fields = ("last_seen",)
     date_hierarchy = "last_seen"
-    actions = ["mark_online", "mark_offline", "sync_from_api"]
+    actions: ClassVar[list[str]] = ["mark_online", "mark_offline", "sync_from_api"]
 
     def status_indicator(self, obj):
         """Display colored status indicator."""
@@ -76,8 +78,8 @@ class ReceiverAdmin(admin.ModelAdmin):
             '<span style="color: red; font-weight: bold;">● Offline</span>',
         )
 
-    status_indicator.short_description = "Status"
-    status_indicator.admin_order_field = "is_active"
+    status_indicator.short_description = "Status"  # type: ignore
+    status_indicator.admin_order_field = "is_active"  # type: ignore
 
     @admin.action(description="Mark selected receivers as online")
     def mark_online(self, request, queryset):
@@ -128,7 +130,7 @@ class ChannelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "receiver", "channel_number", "has_transmitter")
     list_filter = ("receiver__device_type", "receiver__is_active")
     search_fields = ("receiver__name", "channel_number")
-    inlines = [TransmitterInline]
+    inlines: ClassVar[list] = [TransmitterInline]
 
     def has_transmitter(self, obj):
         """Show if channel has transmitter."""
@@ -139,7 +141,7 @@ class ChannelAdmin(admin.ModelAdmin):
             )
         return format_html('<span style="color: gray;">✗ No</span>')
 
-    has_transmitter.short_description = "Has Transmitter"
+    has_transmitter.short_description = "Has Transmitter"  # type: ignore
 
 
 @admin.register(Transmitter)
@@ -185,5 +187,5 @@ class TransmitterAdmin(admin.ModelAdmin):
             pct,
         )
 
-    battery_indicator.short_description = "Battery"
-    battery_indicator.admin_order_field = "battery"
+    battery_indicator.short_description = "Battery"  # type: ignore
+    battery_indicator.admin_order_field = "battery"  # type: ignore

@@ -1,6 +1,7 @@
 """
 Tests for micboard models.
 """
+
 from datetime import time
 
 import pytest

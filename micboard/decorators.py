@@ -1,6 +1,7 @@
 """
 Rate limiting decorators for micboard views.
 """
+
 import logging
 import time
 from functools import wraps

@@ -4,9 +4,11 @@ Django application configuration for Micboard.
 This module defines the AppConfig for the Micboard reusable app, including
 default settings, signal registration, and startup configuration validation.
 """
+
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 from django.apps import AppConfig
 from django.conf import settings
@@ -21,7 +23,7 @@ class MicboardConfig(AppConfig):
     verbose_name = "Micboard - Shure Wireless Monitoring"
 
     # Default configuration
-    default_config = {
+    default_config: ClassVar[dict[str, str | int | float | bool | list[int] | None]] = {
         "SHURE_API_BASE_URL": "http://localhost:8080",
         "SHURE_API_USERNAME": None,
         "SHURE_API_PASSWORD": None,
@@ -43,7 +45,27 @@ class MicboardConfig(AppConfig):
         # Import signals to register them
         from . import signals  # noqa: F401
 
+        # Register security middleware
+        self._register_security_middleware()
+
         logger.info("Micboard app initialized")
+
+    def _register_security_middleware(self):
+        """Register security middleware if not already present"""
+        from django.conf import settings
+
+        middleware_classes = [
+            "micboard.middleware.SecurityHeadersMiddleware",
+            "micboard.middleware.RequestLoggingMiddleware",
+        ]
+
+        if not hasattr(settings, "MIDDLEWARE"):
+            settings.MIDDLEWARE = []
+
+        for middleware in middleware_classes:
+            if middleware not in settings.MIDDLEWARE:
+                settings.MIDDLEWARE.append(middleware)
+                logger.debug(f"Registered security middleware: {middleware}")
 
     def _validate_configuration(self):
         """Validate MICBOARD_CONFIG settings"""

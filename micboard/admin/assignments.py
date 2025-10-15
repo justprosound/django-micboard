@@ -3,7 +3,10 @@ Admin configuration for assignment models (DeviceAssignment, Alert, UserAlertPre
 
 This module provides Django admin interfaces for managing device-to-user assignments and alerts.
 """
+
 from __future__ import annotations
+
+from typing import ClassVar
 
 from django.contrib import admin
 from django.utils.html import format_html
@@ -62,7 +65,7 @@ class AlertAdmin(admin.ModelAdmin):
     )
     readonly_fields = ("created_at", "acknowledged_at", "resolved_at", "is_overdue")
     date_hierarchy = "created_at"
-    actions = ["acknowledge_alerts", "resolve_alerts"]
+    actions: ClassVar[list[str]] = ["acknowledge_alerts", "resolve_alerts"]
 
     def status_indicator(self, obj):
         """Display colored status indicator."""
@@ -78,8 +81,8 @@ class AlertAdmin(admin.ModelAdmin):
             obj.status.title(),
         )
 
-    status_indicator.short_description = "Status"
-    status_indicator.admin_order_field = "status"
+    status_indicator.short_description = "Status"  # type: ignore
+    status_indicator.admin_order_field = "status"  # type: ignore
 
     @admin.action(description="Acknowledge selected alerts")
     def acknowledge_alerts(self, request, queryset):

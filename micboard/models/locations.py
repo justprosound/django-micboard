@@ -1,6 +1,7 @@
 """
 Location and monitoring models for the micboard app.
 """
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -55,14 +56,14 @@ class Location(models.Model):
     @property
     def full_address(self) -> str:
         """Get full location address"""
-        parts = []
+        parts: list[str] = []
         if self.building:
             parts.append(self.building)
         if self.floor:
             parts.append(f"Floor {self.floor}")
         if self.room:
             parts.append(self.room)
-        return " - ".join(parts) if parts else self.name
+        return " - ".join(parts) if parts else str(self.name)  # type: ignore
 
 
 class MonitoringGroup(models.Model):
@@ -107,7 +108,7 @@ class MonitoringGroup(models.Model):
         ordering = ["name"]
 
     def __str__(self) -> str:
-        return self.name
+        return self.name  # type: ignore
 
     def get_active_users(self):
         """Get all active users in this group"""

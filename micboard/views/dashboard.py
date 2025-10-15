@@ -1,12 +1,15 @@
 """
 Dashboard views for the micboard app.
 """
+
+from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest
-from django.shortcuts import render
+from django.core.paginator import Paginator
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
 
 # Updated imports
-from micboard.models import Group, Location, Receiver
+from micboard.models import Alert, Group, Location, Receiver
 
 User = get_user_model()
 
@@ -87,3 +90,76 @@ def priority_view(request: HttpRequest, priority: str):
         "receivers": receivers,  # Updated
     }
     return render(request, "micboard/priority_view.html", context)
+
+
+def alerts_view(request: HttpRequest) -> HttpResponse:
+    """View to display and manage system alerts"""
+    status_filter = request.GET.get("status", "pending")
+    alert_type_filter = request.GET.get("type", "")
+    page_number = request.GET.get("page", 1)
+
+    # Base queryset
+    alerts = Alert.objects.select_related("channel", "user", "assignment").order_by("-created_at")
+
+    # Apply filters
+    if status_filter and status_filter != "all":
+        alerts = alerts.filter(status=status_filter)
+    if alert_type_filter:
+        alerts = alerts.filter(alert_type=alert_type_filter)
+
+    # Paginate results
+    paginator = Paginator(alerts, 25)  # 25 alerts per page
+    page_obj = paginator.get_page(page_number)
+
+    # Alert statistics
+    stats = {
+        "total": Alert.objects.count(),
+        "pending": Alert.objects.filter(status="pending").count(),
+        "acknowledged": Alert.objects.filter(status="acknowledged").count(),
+        "resolved": Alert.objects.filter(status="resolved").count(),
+        "failed": Alert.objects.filter(status="failed").count(),
+    }
+
+    context = {
+        "alerts": page_obj,
+        "stats": stats,
+        "status_filter": status_filter,
+        "alert_type_filter": alert_type_filter,
+        "alert_types": Alert.ALERT_TYPES,
+        "alert_statuses": Alert.ALERT_STATUS,
+    }
+    return render(request, "micboard/alerts.html", context)
+
+
+def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
+    """View to display detailed information about a specific alert"""
+    alert = get_object_or_404(
+        Alert.objects.select_related("channel", "user", "assignment"), id=alert_id
+    )
+
+    context = {
+        "alert": alert,
+    }
+    return render(request, "micboard/alert_detail.html", context)
+
+
+def acknowledge_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
+    """View to acknowledge an alert"""
+    if request.method != "POST":
+        return redirect("alert_detail", alert_id=alert_id)
+
+    alert = get_object_or_404(Alert, id=alert_id)
+    alert.acknowledge(request.user if request.user.is_authenticated else None)
+    messages.success(request, f"Alert '{alert}' has been acknowledged.")
+    return redirect("alerts")
+
+
+def resolve_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
+    """View to resolve an alert"""
+    if request.method != "POST":
+        return redirect("alert_detail", alert_id=alert_id)
+
+    alert = get_object_or_404(Alert, id=alert_id)
+    alert.resolve()
+    messages.success(request, f"Alert '{alert}' has been resolved.")
+    return redirect("alerts")

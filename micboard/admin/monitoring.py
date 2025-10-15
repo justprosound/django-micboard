@@ -3,6 +3,7 @@ Admin configuration for monitoring models (Location, MonitoringGroup, Group, Con
 
 This module provides Django admin interfaces for managing monitoring groups, locations, and system configuration.
 """
+
 from __future__ import annotations
 
 from django.contrib import admin

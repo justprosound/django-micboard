@@ -1,13 +1,16 @@
 """Assignment and alert models for the micboard app."""
+
 from __future__ import annotations
 
 from datetime import time, timedelta
+from typing import ClassVar
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 
-User = get_user_model()
+User: type[AbstractUser] = get_user_model()  # type: ignore
 
 
 class DeviceAssignment(models.Model):
@@ -16,7 +19,7 @@ class DeviceAssignment(models.Model):
     Allows fine-grained control over who monitors what.
     """
 
-    PRIORITY_CHOICES = [
+    PRIORITY_CHOICES: ClassVar[list[tuple[str, str]]] = [
         ("low", "Low"),
         ("normal", "Normal"),
         ("high", "High"),
@@ -96,9 +99,9 @@ class DeviceAssignment(models.Model):
     class Meta:
         verbose_name = "Device Assignment"
         verbose_name_plural = "Device Assignments"
-        ordering = ["-priority", "channel"]  # Changed from 'device' to 'channel'
-        unique_together = [["user", "channel"]]  # One assignment per user per channel
-        indexes = [
+        ordering: ClassVar[list[str]] = ["-priority", "channel"]  # Changed from 'device' to 'channel'
+        unique_together: ClassVar[list[list[str]]] = [["user", "channel"]]  # One assignment per user per channel
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["user", "is_active"]),
             models.Index(fields=["channel", "is_active"]),  # Changed from 'device' to 'channel'
             models.Index(fields=["priority", "is_active"]),
@@ -123,7 +126,7 @@ class UserAlertPreference(models.Model):
     Device-specific preferences override these defaults.
     """
 
-    NOTIFICATION_METHODS = [
+    NOTIFICATION_METHODS: ClassVar[list[tuple[str, str]]] = [
         ("email", "Email"),
         ("websocket", "WebSocket (Real-time)"),
         ("both", "Email + WebSocket"),
@@ -207,9 +210,9 @@ class UserAlertPreference(models.Model):
         if self.quiet_hours_start and self.quiet_hours_end:
             if self.quiet_hours_start <= self.quiet_hours_end:
                 # Same day range
-                return self.quiet_hours_start <= now <= self.quiet_hours_end
+                return self.quiet_hours_start <= now <= self.quiet_hours_end  # type: ignore
             # Overnight range
-            return now >= self.quiet_hours_start or now <= self.quiet_hours_end
+            return now >= self.quiet_hours_start or now <= self.quiet_hours_end  # type: ignore
 
         return False
 
@@ -219,7 +222,7 @@ class Alert(models.Model):
     Stores alert history for auditing and tracking.
     """
 
-    ALERT_TYPES = [
+    ALERT_TYPES: ClassVar[list[tuple[str, str]]] = [
         ("battery_low", "Battery Low"),
         ("battery_critical", "Battery Critical"),
         ("signal_loss", "Signal Loss"),
@@ -228,7 +231,7 @@ class Alert(models.Model):
         ("device_online", "Device Online"),
     ]
 
-    ALERT_STATUS = [
+    ALERT_STATUS: ClassVar[list[tuple[str, str]]] = [
         ("pending", "Pending"),
         ("sent", "Sent"),
         ("acknowledged", "Acknowledged"),
@@ -285,8 +288,8 @@ class Alert(models.Model):
     class Meta:
         verbose_name = "Alert"
         verbose_name_plural = "Alerts"
-        ordering = ["-created_at"]
-        indexes = [
+        ordering: ClassVar[list[str]] = ["-created_at"]
+        indexes: ClassVar[list[models.Index]] = [
             models.Index(
                 fields=["channel", "alert_type", "status"]
             ),  # Changed from 'device' to 'channel'
@@ -297,7 +300,7 @@ class Alert(models.Model):
     def __str__(self) -> str:
         return f"{self.alert_type} - {self.channel} ({self.status})"  # Changed from 'device' to 'channel'
 
-    def acknowledge(self, user: User) -> None:
+    def acknowledge(self, user: User) -> None:  # type: ignore
         """Mark alert as acknowledged"""
         _ = user  # Mark as intentionally unused for now
         self.status = "acknowledged"
@@ -317,4 +320,4 @@ class Alert(models.Model):
             return False
 
         # Consider overdue after 30 minutes
-        return (timezone.now() - self.created_at) > timedelta(minutes=30)
+        return (timezone.now() - self.created_at) > timedelta(minutes=30)  # type: ignore
