@@ -76,6 +76,8 @@ urllib3==2.5.0
     # via
     #   django-micboard (pyproject.toml)
     #   requests
+websockets==15.0.1
+    # via django-micboard (pyproject.toml)
 zope-interface==8.0.1
     # via twisted
 
