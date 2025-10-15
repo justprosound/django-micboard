@@ -58,7 +58,7 @@ colorama==0.4.6
     # via mkdocs-material
 constantly==23.10.4
     # via twisted
-coverage[toml]==6.5.0
+coverage[toml]==7.11.0
     # via
     #   coveralls
     #   pytest-cov
