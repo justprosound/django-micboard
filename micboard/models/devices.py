@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from django.db import models
 from django.utils import timezone
@@ -37,7 +37,7 @@ class Manufacturer(models.Model):
         ordering: ClassVar[list[str]] = ["name"]
 
     def __str__(self) -> str:
-        return self.name
+        return cast(str, self.name)
 
     def get_plugin_class(self):
         """Get the plugin class for this manufacturer."""

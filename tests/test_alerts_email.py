@@ -292,13 +292,17 @@ class AlertEmailIntegrationTest(TestCase):
                 "EMAIL_FROM": "micboard@example.com",
             },
         ):
-            # Recreate email service to pick up new settings
-            from micboard.email import email_service
-
-            email_service.__init__()
-            result = send_alert_email(alert)
-            assert result is True
-            assert len(mail.outbox) == 1
+            with patch(
+                "micboard.email.get_micboard_config",
+                return_value={
+                    "EMAIL_RECIPIENTS": ["admin@example.com"],
+                    "EMAIL_FROM": "micboard@example.com",
+                },
+            ):
+                # Recreate email service to pick up new settings
+                result = send_alert_email(alert)
+                assert result is True
+                assert len(mail.outbox) == 1
 
         # Test system email convenience function
         with override_settings(
@@ -308,8 +312,14 @@ class AlertEmailIntegrationTest(TestCase):
                 "EMAIL_FROM": "micboard@example.com",
             },
         ):
-            # Recreate email service to pick up new settings
-            email_service.__init__()
-            result = send_system_email("Test", "Message")
-            assert result is True
-            assert len(mail.outbox) == 2  # Two emails sent
+            with patch(
+                "micboard.email.get_micboard_config",
+                return_value={
+                    "EMAIL_RECIPIENTS": ["admin@example.com"],
+                    "EMAIL_FROM": "micboard@example.com",
+                },
+            ):
+                # Recreate email service to pick up new settings
+                result = send_system_email("Test", "Message")
+                assert result is True
+                assert len(mail.outbox) == 2  # Two emails sent

@@ -11,7 +11,7 @@ import importlib
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 if TYPE_CHECKING:
     from micboard.models import Manufacturer
@@ -98,7 +98,7 @@ def get_manufacturer_plugin(manufacturer_code: str) -> type[ManufacturerPlugin]:
     try:
         module = importlib.import_module(f"micboard.manufacturers.{manufacturer_code}")
         plugin_class = getattr(module, f"{manufacturer_code.capitalize()}Plugin")
-        return plugin_class
+        return cast(type[ManufacturerPlugin], plugin_class)
     except (ImportError, AttributeError) as e:
         logger.error(f"Failed to load plugin for manufacturer '{manufacturer_code}': {e}")
         raise ValueError(f"Manufacturer plugin '{manufacturer_code}' not found") from e
