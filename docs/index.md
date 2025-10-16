@@ -6,9 +6,13 @@ Welcome to the django-micboard documentation!
 
 django-micboard is a Django application for real-time monitoring and management of **multi-manufacturer wireless microphone systems**. It uses a **plugin architecture** to support different wireless microphone manufacturers, providing a modern web interface for monitoring microphone status, battery levels, RF signals, and audio levels across your wireless systems.
 
-**Version**: 25.10.15 (CalVer: YY.MM.DD)
-**License**: AGPL-3.0-or-later
-**Community**: Open source, community-driven project
+**Version**: {{ project_version() }} (CalVer: YY.MM.DD)
+**License**: {{ license_info() }}
+**Python**: {{ python_version() }}+
+**Django**: {{ django_version() }}
+**Last Updated**: {{ last_commit_date() }}
+**Contributors**: {{ contributors_count() }}
+**Files**: {{ file_count() }} Python files, {{ test_count() }} test files
 
 ## Features
 
@@ -57,4 +61,4 @@ See the [Quick Start Guide](quickstart.md) for complete installation instruction
 
 GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)
 
-See [LICENSE](../LICENSE) for full license text.
+See [LICENSE](https://github.com/justprosound/django-micboard/blob/main/LICENSE) for full license text.

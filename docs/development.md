@@ -374,9 +374,10 @@ mkdocs serve
 ```
 
 Deploy to Read the Docs:
-1. Connect GitHub repository
-2. Configure `.readthedocs.yaml`
-3. Documentation auto-builds on push
+1. Connect GitHub repository at https://readthedocs.org
+2. The `.readthedocs.yaml` configuration file handles the build automatically
+3. Documentation auto-builds on push to main branch
+4. Visit https://django-micboard.readthedocs.io to view the documentation
 
 ## Contributing
 
