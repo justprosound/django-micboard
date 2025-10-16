@@ -8,6 +8,31 @@ All notable changes to django-micboard are documented here.
 
 ---
 
+## [25.10.16] - 2025-10-16
+
+### Added
+- **Multi-Manufacturer Plugin Architecture** - Complete refactor to support multiple wireless microphone manufacturers
+- **ManufacturerPlugin Abstract Base Class** - Extensible plugin system for adding new manufacturers
+- **Manufacturer Model** - New model for tracking different microphone manufacturers
+- **Manufacturer-Aware API Views** - All API endpoints now support `?manufacturer=code` filtering
+- **Plugin Development Documentation** - Comprehensive guide for adding new manufacturer support
+- **Shure Plugin Implementation** - Concrete plugin for Shure wireless systems
+
+### Changed
+- **Receiver Model** - Added required `manufacturer` foreign key relationship
+- **DiscoveredDevice Model** - Added `manufacturer` foreign key relationship
+- **MicboardConfig Model** - Added optional `manufacturer` foreign key for manufacturer-specific settings
+- **API Views** - Updated all views to support manufacturer filtering and data isolation
+- **Serializers** - Enhanced `serialize_receivers()` with manufacturer filtering capabilities
+- **Test Suite** - Updated all 60+ tests to include manufacturer relationships and plugin mocking
+
+### Architecture
+- **Plugin-Based Design** - Dynamic plugin loading via `get_manufacturer_plugin()` function
+- **Data Isolation** - Manufacturer-specific data properly isolated and filtered
+- **Backward Compatibility** - Existing functionality preserved while adding multi-manufacturer support
+
+---
+
 ## [25.10.15] - 2025-10-15
 
 ### Changed

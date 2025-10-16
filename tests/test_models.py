@@ -17,6 +17,7 @@ from micboard.models import (
     DiscoveredDevice,
     Group,
     Location,
+    Manufacturer,
     MicboardConfig,
     MonitoringGroup,
     Receiver,
@@ -31,8 +32,13 @@ class ReceiverModelTest(TestCase):
     """Test Receiver model"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -50,7 +56,7 @@ class ReceiverModelTest(TestCase):
 
     def test_receiver_str(self):
         """Test receiver string representation"""
-        expected = "uhfr - Test Receiver (192.168.1.100)"
+        expected = "Shure Incorporated uhfr - Test Receiver (192.168.1.100)"
         assert str(self.receiver) == expected
 
     def test_receiver_mark_online(self):
@@ -67,13 +73,122 @@ class ReceiverModelTest(TestCase):
         self.receiver.mark_offline()
         assert not self.receiver.is_active
 
+    def test_receiver_with_manufacturer(self):
+        """Test receiver with manufacturer relationship"""
+        # Use the manufacturer from setUp
+        manufacturer = self.manufacturer
+        receiver = Receiver.objects.create(
+            api_device_id="device-001",
+            manufacturer=manufacturer,
+            ip="192.168.1.100",
+            device_type="uhfr",
+            name="Test Receiver",
+        )
+
+        assert receiver.manufacturer == manufacturer
+        assert receiver.manufacturer.code == "shure"
+        assert receiver in manufacturer.receiver_set.all()
+
+
+class ManufacturerModelTest(TestCase):
+    """Test Manufacturer model"""
+
+    def test_manufacturer_creation(self):
+        """Test manufacturer can be created"""
+        manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+            config={"api_url": "https://api.shure.com", "timeout": 30},
+        )
+        assert manufacturer.code == "shure"
+        assert manufacturer.name == "Shure Incorporated"
+        assert manufacturer.config == {"api_url": "https://api.shure.com", "timeout": 30}
+        assert manufacturer.is_active
+
+    def test_manufacturer_str(self):
+        """Test manufacturer string representation"""
+        manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
+        expected = "Shure Incorporated (shure)"
+        assert str(manufacturer) == expected
+
+    def test_manufacturer_unique_code(self):
+        """Test manufacturer code uniqueness"""
+        Manufacturer.objects.create(code="shure", name="Shure Incorporated")
+
+        with pytest.raises(IntegrityError):
+            Manufacturer.objects.create(code="shure", name="Another Shure")
+
+    def test_manufacturer_with_receivers(self):
+        """Test manufacturer relationship with receivers"""
+        manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
+
+        receiver1 = Receiver.objects.create(
+            api_device_id="device-001",
+            manufacturer=manufacturer,
+            ip="192.168.1.100",
+            device_type="uhfr",
+            name="Receiver 1",
+        )
+        receiver2 = Receiver.objects.create(
+            api_device_id="device-002",
+            manufacturer=manufacturer,
+            ip="192.168.1.101",
+            device_type="qlxd",
+            name="Receiver 2",
+        )
+
+        # Test reverse relationship
+        receivers = manufacturer.receivers.all()
+        assert len(receivers) == 2
+        assert receiver1 in receivers
+        assert receiver2 in receivers
+
+    def test_manufacturer_with_config(self):
+        """Test manufacturer relationship with config"""
+        manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
+
+        MicboardConfig.objects.create(
+            key="global_setting",
+            value="global_value",
+            manufacturer=None,  # Global config
+        )
+        MicboardConfig.objects.create(
+            key="shure_setting",
+            value="shure_value",
+            manufacturer=manufacturer,
+        )
+
+        # Test manufacturer-specific configs
+        manufacturer_configs = MicboardConfig.objects.filter(manufacturer=manufacturer)
+        assert len(manufacturer_configs) == 1
+        assert manufacturer_configs[0].key == "shure_setting"
+
+        # Test global configs
+        global_configs = MicboardConfig.objects.filter(manufacturer__isnull=True)
+        assert len(global_configs) == 1
+        assert global_configs[0].key == "global_setting"
+
 
 class ChannelModelTest(TestCase):
     """Test Channel model"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -96,8 +211,13 @@ class ChannelModelTest(TestCase):
     def test_unique_channel_per_receiver(self):
         """Test that channel numbers are unique per receiver"""
         # This should work - different receiver
+        manufacturer2 = Manufacturer.objects.create(
+            code="sennheiser",
+            name="Sennheiser",
+        )
         receiver2 = Receiver.objects.create(
             api_device_id="test-device-002",
+            manufacturer=manufacturer2,
             ip="192.168.1.101",
             device_type="qlxd",
         )
@@ -113,8 +233,13 @@ class TransmitterModelTest(TestCase):
     """Test Transmitter model"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -187,8 +312,15 @@ class GroupModelTest(TestCase):
 
     def test_get_channels(self):
         """Test getting channels in group"""
+        manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
         receiver = Receiver.objects.create(
-            api_device_id="test-device-001", ip="192.168.1.100", device_type="uhfr"
+            api_device_id="test-device-001",
+            manufacturer=manufacturer,
+            ip="192.168.1.100",
+            device_type="uhfr",
         )
         channel1 = Channel.objects.create(receiver=receiver, channel_number=1)
         channel2 = Channel.objects.create(receiver=receiver, channel_number=2)
@@ -256,8 +388,15 @@ class MonitoringGroupModelTest(TestCase):
         self.user1 = User.objects.create_user(username="user1", email="user1@test.com")
         self.user2 = User.objects.create_user(username="user2", email="user2@test.com")
 
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
         self.receiver = Receiver.objects.create(
-            api_device_id="test-device-001", ip="192.168.1.100", device_type="uhfr"
+            api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
+            ip="192.168.1.100",
+            device_type="uhfr",
         )
         self.channel1 = Channel.objects.create(receiver=self.receiver, channel_number=1)
         self.channel2 = Channel.objects.create(receiver=self.receiver, channel_number=2)
@@ -301,8 +440,13 @@ class DeviceAssignmentModelTest(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="testuser", email="test@test.com")
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -413,8 +557,13 @@ class AlertModelTest(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="testuser", email="test@test.com")
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -493,9 +642,44 @@ class MicboardConfigModelTest(TestCase):
         expected = "test_key: test_value"
         assert str(config) == expected
 
+    def test_config_with_manufacturer(self):
+        """Test config with manufacturer relationship"""
+        manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
+
+        global_config = MicboardConfig.objects.create(
+            key="global_setting",
+            value="global_value",
+            manufacturer=None,
+        )
+        manufacturer_config = MicboardConfig.objects.create(
+            key="shure_setting",
+            value="shure_value",
+            manufacturer=manufacturer,
+        )
+
+        assert global_config.manufacturer is None
+        assert manufacturer_config.manufacturer == manufacturer
+
+        # Test unique constraint
+        with pytest.raises(IntegrityError):
+            MicboardConfig.objects.create(
+                key="shure_setting",
+                value="duplicate_value",
+                manufacturer=manufacturer,
+            )
+
 
 class DiscoveredDeviceModelTest(TestCase):
     """Test DiscoveredDevice model"""
+
+    def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
 
     def test_discovered_device_creation(self):
         """Test discovered device can be created"""
@@ -503,10 +687,12 @@ class DiscoveredDeviceModelTest(TestCase):
             ip="192.168.1.100",
             device_type="uhfr",
             channels=2,
+            manufacturer=self.manufacturer,
         )
         assert device.ip == "192.168.1.100"
         assert device.device_type == "uhfr"
         assert device.channels == 2
+        assert device.manufacturer == self.manufacturer
 
     def test_discovered_device_str(self):
         """Test discovered device string representation"""
@@ -514,6 +700,19 @@ class DiscoveredDeviceModelTest(TestCase):
             ip="192.168.1.100",
             device_type="uhfr",
             channels=2,
+            manufacturer=self.manufacturer,
         )
-        expected = "uhfr at 192.168.1.100"
+        expected = "uhfr at 192.168.1.100 (Shure Incorporated)"
         assert str(device) == expected
+
+    def test_discovered_device_with_manufacturer(self):
+        """Test discovered device with manufacturer relationship"""
+        device = DiscoveredDevice.objects.create(
+            ip="192.168.1.100",
+            device_type="uhfr",
+            channels=2,
+            manufacturer=self.manufacturer,
+        )
+
+        assert device.manufacturer == self.manufacturer
+        assert device in self.manufacturer.discovered_devices.all()

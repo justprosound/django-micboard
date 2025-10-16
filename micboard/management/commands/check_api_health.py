@@ -2,7 +2,7 @@
 
 from django.core.management.base import BaseCommand
 
-from micboard.shure import ShureSystemAPIClient
+from micboard.manufacturers.shure.client import ShureSystemAPIClient
 
 
 class Command(BaseCommand):

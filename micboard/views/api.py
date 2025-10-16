@@ -6,6 +6,7 @@ import json
 import logging
 
 from django.core.cache import cache
+from django.db import models
 from django.http import HttpRequest, JsonResponse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -14,9 +15,10 @@ from django.views.decorators.cache import cache_page
 from django.views.decorators.csrf import csrf_exempt
 
 from micboard.decorators import rate_limit_view
+from micboard.manufacturers import get_manufacturer_plugin
 
 # Updated imports
-from micboard.models import DiscoveredDevice, Group, MicboardConfig, Receiver
+from micboard.models import DiscoveredDevice, Group, Manufacturer, MicboardConfig, Receiver
 from micboard.serializers import (
     serialize_discovered_device,
     serialize_group,
@@ -24,8 +26,6 @@ from micboard.serializers import (
     serialize_receiver_summary,
     serialize_receivers,
 )
-from micboard.shure import ShureSystemAPIClient
-from micboard.shure.transformers import ShureDataTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -88,19 +88,43 @@ class VersionedAPIView(APIView):
 def data_json(request):
     """API endpoint for device data, similar to micboard_json"""
     try:
-        # Try to get fresh data from cache first
-        cached_data = cache.get("micboard_device_data")
+        # Get manufacturer filter from query parameters
+        manufacturer_code = request.GET.get("manufacturer")
+
+        # Try to get fresh data from cache first (with manufacturer-specific cache key)
+        cache_key = f"micboard_device_data_{manufacturer_code or 'all'}"
+        cached_data = cache.get(cache_key)
         if cached_data:
             return JsonResponse(cached_data)
 
         # Use serializer for consistent data structure
-        receivers_data = serialize_receivers(include_extra=True)
+        receivers_data = serialize_receivers(
+            include_extra=True, manufacturer_code=manufacturer_code
+        )
 
-        # Serialize discovered devices
-        discovered = [serialize_discovered_device(disc) for disc in DiscoveredDevice.objects.all()]
+        # Serialize discovered devices (filter by manufacturer if specified)
+        discovered_query = DiscoveredDevice.objects.all()
+        if manufacturer_code:
+            # Filter discovered devices by manufacturer if we can determine it
+            # This might need refinement based on how discovered devices are associated with manufacturers
+            discovered_query = discovered_query.filter()  # Placeholder for future filtering logic
+
+        discovered = [serialize_discovered_device(disc) for disc in discovered_query]
 
         # Serialize config
-        config = {conf.key: conf.value for conf in MicboardConfig.objects.all()}
+        config_query = MicboardConfig.objects.all()
+
+        # Filter config by manufacturer if specified
+        if manufacturer_code:
+            # Include both global configs (manufacturer=null) and manufacturer-specific configs
+            config_query = config_query.filter(
+                models.Q(manufacturer__code=manufacturer_code) | models.Q(manufacturer__isnull=True)
+            )
+        else:
+            # For all manufacturers, include only global configs
+            config_query = config_query.filter(manufacturer__isnull=True)
+
+        config = {conf.key: conf.value for conf in config_query}
 
         # Serialize groups
         groups = [serialize_group(group) for group in Group.objects.all()]
@@ -126,11 +150,56 @@ def data_json(request):
 class ConfigHandler(VersionedAPIView):
     """Handle config updates"""
 
+    def get(self, request):
+        """Get configuration values"""
+        try:
+            manufacturer_code = request.GET.get("manufacturer")
+
+            config_query = MicboardConfig.objects.all()
+
+            # Filter config by manufacturer if specified
+            if manufacturer_code:
+                try:
+                    manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+                    # Include both global configs and manufacturer-specific configs
+                    config_query = config_query.filter(
+                        models.Q(manufacturer=manufacturer) | models.Q(manufacturer__isnull=True)
+                    )
+                except Manufacturer.DoesNotExist:
+                    return JsonResponse(
+                        {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
+                    )
+            else:
+                # For all manufacturers, include only global configs
+                config_query = config_query.filter(manufacturer__isnull=True)
+
+            config = {conf.key: conf.value for conf in config_query}
+            return JsonResponse({"config": config})
+        except Exception as e:
+            logger.exception(f"Config retrieval error: {e}")
+            return JsonResponse({"error": str(e)}, status=500)
+
     def post(self, request):
         try:
             data = json.loads(request.body)
+            manufacturer_code = request.GET.get("manufacturer")
+
+            # Get or create manufacturer if specified
+            manufacturer = None
+            if manufacturer_code:
+                try:
+                    manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+                except Manufacturer.DoesNotExist:
+                    return JsonResponse(
+                        {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
+                    )
+
+            # Update or create configs
             for key, value in data.items():
-                MicboardConfig.objects.update_or_create(key=key, defaults={"value": str(value)})
+                MicboardConfig.objects.update_or_create(
+                    key=key, manufacturer=manufacturer, defaults={"value": str(value)}
+                )
+
             return JsonResponse({"success": True})
         except Exception as e:
             logger.exception(f"Config update error: {e}")
@@ -162,44 +231,81 @@ class GroupUpdateHandler(VersionedAPIView):
 
 @rate_limit_view(max_requests=5, window_seconds=60)  # Discovery is expensive
 def api_discover(request):
-    """Trigger device discovery via Shure System API"""
+    """Trigger device discovery via manufacturer APIs"""
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
 
     try:
-        client = ShureSystemAPIClient()
-        # Use get_devices() as it's the documented way to get discovered devices
-        discovered_devices_data = client.get_devices()
+        # Get manufacturer filter from query parameters
+        manufacturer_code = request.GET.get("manufacturer")
 
-        # Save discovered devices
-        for device_data in discovered_devices_data:
-            # The 'type' field from get_devices() might be nested or different.
-            # Assuming 'type' is directly available or can be extracted.
-            # Also, 'channel_count' might not be directly in the top-level device_data.
-            # This part might need adjustment based on actual API response for get_devices.
-            device_type = ShureDataTransformer._map_device_type(device_data.get("type", "unknown"))
+        total_discovered = 0
+        all_devices = []
+        manufacturer_results = {}
 
-            # Attempt to get channel_count from capabilities or other nested fields
-            channels = 0
-            if "capabilities" in device_data and isinstance(device_data["capabilities"], list):
-                for capability in device_data["capabilities"]:
-                    if capability.get("name") == "channels":
-                        channels = capability.get("count", 0)
-                        break
+        # Get manufacturers to discover from
+        if manufacturer_code:
+            try:
+                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+                manufacturers = [manufacturer]
+            except Manufacturer.DoesNotExist:
+                return JsonResponse(
+                    {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
+                )
+        else:
+            manufacturers = Manufacturer.objects.all()
 
-            DiscoveredDevice.objects.update_or_create(
-                ip=device_data.get("ip_address", ""),  # Assuming ip_address is available
-                defaults={
-                    "device_type": device_type,
-                    "channels": channels,
-                },
-            )
+        # Discover devices from each manufacturer
+        for manufacturer in manufacturers:
+            try:
+                plugin_class = get_manufacturer_plugin(manufacturer.code)
+                plugin = plugin_class(manufacturer)
+
+                # Get devices from this manufacturer
+                devices_data = plugin.get_devices()
+                manufacturer_results[manufacturer.name] = {
+                    "count": len(devices_data),
+                    "devices": devices_data,
+                }
+
+                # Save discovered devices
+                for device_data in devices_data:
+                    # Transform device data to get consistent fields
+                    transformed_data = plugin.transform_device_data(device_data)
+                    if not transformed_data:
+                        continue
+
+                    # Extract device information for DiscoveredDevice model
+                    device_type = transformed_data.get("type", "unknown")
+                    ip_address = transformed_data.get("ip", "")
+                    channels = len(transformed_data.get("channels", []))
+
+                    DiscoveredDevice.objects.update_or_create(
+                        ip=ip_address,
+                        manufacturer=manufacturer,
+                        defaults={
+                            "device_type": device_type,
+                            "channels": channels,
+                        },
+                    )
+
+                total_discovered += len(devices_data)
+                all_devices.extend(devices_data)
+
+            except Exception as e:
+                logger.exception(f"Error discovering devices from {manufacturer.name}: {e}")
+                manufacturer_results[manufacturer.name] = {
+                    "error": str(e),
+                    "count": 0,
+                    "devices": [],
+                }
 
         return JsonResponse(
             {
                 "success": True,
-                "discovered_count": len(discovered_devices_data),
-                "devices": discovered_devices_data,
+                "total_discovered": total_discovered,
+                "manufacturers": manufacturer_results,
+                "devices": all_devices,
             }
         )
     except Exception as e:
@@ -209,26 +315,59 @@ def api_discover(request):
 
 @rate_limit_view(max_requests=10, window_seconds=60)  # Limit refresh requests
 def api_refresh(request):
-    """Force refresh device data from Shure System API"""
+    """Force refresh device data from manufacturer APIs"""
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
 
     try:
-        client = ShureSystemAPIClient()
-        # The poll_all_devices method now returns data in the new Receiver/Channel/Transmitter structure
-        # This data is then processed by the management command's update_models
-        # For api_refresh, we just need to trigger the polling and clear the cache.
-        # The actual data update happens in the poll_devices management command.
-        # So, we don't need to process the returned data here directly.
-        _ = client.poll_all_devices()  # Call to trigger polling and model updates
+        # Get manufacturer filter from query parameters
+        manufacturer_code = request.GET.get("manufacturer")
 
-        # Clear cache to force fresh data
-        cache.delete("micboard_device_data")
+        refresh_results = {}
+        total_devices = 0
+
+        # Get manufacturers to refresh from
+        if manufacturer_code:
+            try:
+                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+                manufacturers = [manufacturer]
+            except Manufacturer.DoesNotExist:
+                return JsonResponse(
+                    {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
+                )
+        else:
+            manufacturers = Manufacturer.objects.all()
+
+        # Refresh data from each manufacturer
+        for manufacturer in manufacturers:
+            try:
+                plugin_class = get_manufacturer_plugin(manufacturer.code)
+                plugin = plugin_class(manufacturer)
+
+                # Get fresh device data
+                devices_data = plugin.get_devices()
+                refresh_results[manufacturer.name] = {
+                    "status": "success",
+                    "device_count": len(devices_data),
+                }
+                total_devices += len(devices_data)
+
+            except Exception as e:
+                logger.exception(f"Error refreshing data from {manufacturer.name}: {e}")
+                refresh_results[manufacturer.name] = {
+                    "status": "error",
+                    "error": str(e),
+                }
+
+        # Clear cache to force fresh data (clear all manufacturer-specific caches)
+        cache.delete_pattern("micboard_device_data_*")
 
         return JsonResponse(
             {
                 "success": True,
-                "message": "Polling triggered, data will be refreshed soon.",
+                "message": "Data refresh triggered for manufacturers.",
+                "manufacturers": refresh_results,
+                "total_devices": total_devices,
                 "timestamp": str(timezone.now()),
             }
         )
@@ -239,8 +378,11 @@ def api_refresh(request):
 
 @rate_limit_view(max_requests=30, window_seconds=60)
 def api_health(request):
-    """Health check endpoint for the API and Shure System connectivity"""
+    """Health check endpoint for the API and manufacturer connectivity"""
     try:
+        # Get manufacturer filter from query parameters
+        manufacturer_code = request.GET.get("manufacturer")
+
         health_info = {
             "api_status": "healthy",
             "timestamp": timezone.now().isoformat(),
@@ -249,20 +391,42 @@ def api_health(request):
                 "receivers_active": Receiver.objects.active().count(),
                 "receivers_healthy": Receiver.objects.filter(is_active=True).count(),
             },
+            "manufacturers": {},
         }
 
-        # Check Shure API health
-        try:
-            client = ShureSystemAPIClient()
-            api_healthy = client.is_healthy()
-            health_info["shure_api"] = {
-                "status": "healthy" if api_healthy else "degraded",
-                "healthy": api_healthy,
-            }
-        except Exception as e:
-            logger.warning(f"Shure API health check failed: {e}")
-            health_info["shure_api"] = {"status": "unavailable", "error": str(e)}
-            health_info["api_status"] = "degraded"  # API issues make overall status degraded
+        # Get manufacturers to check
+        if manufacturer_code:
+            try:
+                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+                manufacturers = [manufacturer]
+            except Manufacturer.DoesNotExist:
+                return JsonResponse(
+                    {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
+                )
+        else:
+            manufacturers = Manufacturer.objects.all()
+
+        # Check each manufacturer's health
+        for manufacturer in manufacturers:
+            try:
+                plugin_class = get_manufacturer_plugin(manufacturer.code)
+                plugin = plugin_class(manufacturer)
+
+                # Get health status from plugin
+                plugin_health = plugin.check_health()
+                health_info["manufacturers"][manufacturer.name] = plugin_health
+
+                # If any manufacturer is unhealthy, mark overall API as degraded
+                if plugin_health.get("status") != "healthy":
+                    health_info["api_status"] = "degraded"
+
+            except Exception as e:
+                logger.warning(f"Manufacturer health check failed for {manufacturer.name}: {e}")
+                health_info["manufacturers"][manufacturer.name] = {
+                    "status": "unavailable",
+                    "error": str(e),
+                }
+                health_info["api_status"] = "degraded"
 
         return JsonResponse(health_info)
     except Exception as e:
@@ -274,9 +438,23 @@ def api_health(request):
 def api_receiver_detail(request, receiver_id):
     """Get detailed information for a specific receiver"""
     try:
-        receiver = Receiver.objects.prefetch_related("channels__transmitter").get(
-            api_device_id=receiver_id
-        )
+        # Get manufacturer filter from query parameters
+        manufacturer_code = request.GET.get("manufacturer")
+
+        # Base queryset
+        receiver_query = Receiver.objects.prefetch_related("channels__transmitter")
+
+        # Filter by manufacturer if specified
+        if manufacturer_code:
+            try:
+                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+                receiver_query = receiver_query.filter(manufacturer=manufacturer)
+            except Manufacturer.DoesNotExist:
+                return JsonResponse(
+                    {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
+                )
+
+        receiver = receiver_query.get(api_device_id=receiver_id)
         data = serialize_receiver_detail(receiver)
         return JsonResponse(data)
     except Receiver.DoesNotExist:
@@ -290,10 +468,24 @@ def api_receiver_detail(request, receiver_id):
 def api_receivers_list(request):
     """Get list of all receivers with basic information"""
     try:
-        receivers = [
-            serialize_receiver_summary(receiver)
-            for receiver in Receiver.objects.all().order_by("name")
-        ]
+        # Get manufacturer filter from query parameters
+        manufacturer_code = request.GET.get("manufacturer")
+
+        # Base queryset
+        receivers_query = Receiver.objects.all().order_by("name")
+
+        # Filter by manufacturer if specified
+        if manufacturer_code:
+            try:
+                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+                receivers_query = receivers_query.filter(manufacturer=manufacturer)
+            except Manufacturer.DoesNotExist:
+                return JsonResponse(
+                    {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
+                )
+
+        receivers = [serialize_receiver_summary(receiver) for receiver in receivers_query]
+
         return JsonResponse({"receivers": receivers, "count": len(receivers)})
     except Exception as e:
         logger.exception(f"Error fetching receivers list: {e}")
@@ -340,14 +532,33 @@ class HealthCheckView(VersionedAPIView):
             health_status["checks"]["cache"] = {"status": "unhealthy", "error": str(e)}
             health_status["status"] = "unhealthy"
 
-        # Shure API check
+            # Shure API check - now check all manufacturer plugins
         try:
-            ShureSystemAPIClient()
-            # Just check if we can create a client, don't actually call API
-            health_status["checks"]["shure_api_client"] = {"status": "healthy"}
+            manufacturers = Manufacturer.objects.all()
+            manufacturer_checks = {}
+
+            for manufacturer in manufacturers:
+                try:
+                    plugin_class = get_manufacturer_plugin(manufacturer.code)
+                    plugin = plugin_class(manufacturer)
+                    health_status = plugin.check_health()
+                    manufacturer_checks[manufacturer.code] = health_status
+
+                    # If any manufacturer plugin is unhealthy, mark overall health as degraded
+                    if health_status.get("status") != "healthy":
+                        health_status["status"] = "degraded"
+                except Exception as e:
+                    manufacturer_checks[manufacturer.code] = {
+                        "status": "unhealthy",
+                        "error": str(e),
+                    }
+                    health_status["status"] = "degraded"
+
+            health_status["checks"]["manufacturers"] = manufacturer_checks
+
         except Exception as e:
-            health_status["checks"]["shure_api_client"] = {"status": "unhealthy", "error": str(e)}
-            health_status["status"] = "degraded"  # API issues don't make service unhealthy
+            health_status["checks"]["manufacturers"] = {"status": "unhealthy", "error": str(e)}
+            health_status["status"] = "degraded"
 
         status_code = 200 if health_status["status"] == "healthy" else 503
         return JsonResponse(health_status, status=status_code)
@@ -400,12 +611,13 @@ class APIDocumentationView(VersionedAPIView):
                 "health": {
                     "url": "/api/health/",
                     "method": "GET",
-                    "description": "Basic health check",
+                    "description": "Basic health check with manufacturer status",
+                    "parameters": {"manufacturer": "Optional: Check specific manufacturer only"},
                     "response": {
-                        "status": "healthy|degraded",
+                        "api_status": "healthy|degraded",
                         "timestamp": "ISO 8601 timestamp",
                         "database": {"receivers_total": 0, "receivers_active": 0},
-                        "shure_api": {"status": "healthy|unavailable"},
+                        "manufacturers": {"ManufacturerName": {"status": "healthy", "details": {}}},
                     },
                 },
                 "health_detailed": {
@@ -438,6 +650,9 @@ class APIDocumentationView(VersionedAPIView):
                     "url": "/api/data.json",
                     "method": "GET",
                     "description": "Main data endpoint with receivers, groups, and config",
+                    "parameters": {
+                        "manufacturer": "Optional: Filter by manufacturer code (e.g., 'shure')"
+                    },
                     "response": {
                         "receivers": [],
                         "url": "base URL",
@@ -450,31 +665,58 @@ class APIDocumentationView(VersionedAPIView):
                     "url": "/api/receivers/",
                     "method": "GET",
                     "description": "List all receivers with summary information",
+                    "parameters": {
+                        "manufacturer": "Optional: Filter by manufacturer code (e.g., 'shure')"
+                    },
                     "response": {"receivers": [], "count": 0},
                 },
                 "receiver_detail": {
                     "url": "/api/receivers/{id}/",
                     "method": "GET",
                     "description": "Detailed information for a specific receiver",
-                    "parameters": {"id": "Receiver ID"},
+                    "parameters": {
+                        "id": "Receiver ID",
+                        "manufacturer": "Optional: Filter by manufacturer code (e.g., 'shure')",
+                    },
                     "response": {"api_device_id": "string", "name": "string", "channels": []},
                 },
                 "discover": {
                     "url": "/api/discover/",
                     "method": "POST",
                     "description": "Trigger device discovery on the network",
-                    "response": {"success": True, "discovered_count": 0, "devices": []},
+                    "parameters": {
+                        "manufacturer": "Optional: Discover from specific manufacturer only"
+                    },
+                    "response": {
+                        "success": True,
+                        "total_discovered": 0,
+                        "manufacturers": {"ManufacturerName": {"count": 0, "devices": []}},
+                        "devices": [],
+                    },
                 },
                 "refresh": {
                     "url": "/api/refresh/",
                     "method": "POST",
-                    "description": "Force refresh of device data from Shure API",
-                    "response": {"success": True, "message": "Polling triggered"},
+                    "description": "Force refresh of device data from manufacturer APIs",
+                    "parameters": {
+                        "manufacturer": "Optional: Refresh from specific manufacturer only"
+                    },
+                    "response": {
+                        "success": True,
+                        "message": "Data refresh triggered",
+                        "manufacturers": {
+                            "ManufacturerName": {"status": "success", "device_count": 0}
+                        },
+                        "total_devices": 0,
+                    },
                 },
                 "config": {
                     "url": "/api/config/",
                     "method": "GET|POST",
                     "description": "Get or update application configuration",
+                    "parameters": {
+                        "manufacturer": "Optional: Filter by manufacturer code for manufacturer-specific configs"
+                    },
                     "response": {"success": True},
                 },
                 "group_update": {

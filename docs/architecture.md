@@ -4,44 +4,44 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Shure Devices Network                    │
-│  (ULX-D, QLX-D, UHF-R, Axient Digital, etc.)               │
+│                 Multi-Manufacturer Device Networks          │
+│  (Shure, Sennheiser, Audio-Technica, etc.)                 │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            │ Network Communication
                            │
 ┌──────────────────────────▼──────────────────────────────────┐
-│              Shure System API Server                         │
-│  - Official Shure middleware                                 │
-│  - Handles device discovery                                  │
-│  - Provides REST API endpoints                               │
-│  - Manages device communication                              │
+│           Manufacturer API Servers/Middleware               │
+│  - Shure System API                                        │
+│  - Sennheiser API                                          │
+│  - Other manufacturer APIs                                 │
+│  - Device discovery and communication                      │
 └──────────────────────────┬──────────────────────────────────┘
                            │
-                           │ HTTP/HTTPS REST API
+                           │ HTTP/HTTPS REST APIs
                            │
 ┌──────────────────────────▼──────────────────────────────────┐
 │         Micboard Django App (This Application)               │
 │                                                              │
 │  ┌────────────────────────────────────────────────┐         │
-│  │  shure_api_client.py                           │         │
-│  │  - API request handling                        │         │
-│  │  - Data transformation                         │         │
-│  │  - Error handling                              │         │
+│  │  Plugin Architecture                           │         │
+│  │  - ManufacturerPlugin abstract base class     │         │
+│  │  - Dynamic plugin loading                      │         │
+│  │  - Manufacturer-specific implementations       │         │
 │  └────────────┬───────────────────────────────────┘         │
 │               │                                              │
 │  ┌────────────▼───────────────────────────────────┐         │
 │  │  poll_devices command                          │         │
-│  │  - Background polling                          │         │
-│  │  - Model updates                               │         │
+│  │  - Multi-manufacturer polling                  │         │
+│  │  - Model updates with manufacturer isolation   │         │
 │  │  - WebSocket broadcasting                      │         │
 │  └────────────┬───────────────────────────────────┘         │
 │               │                                              │
 │  ┌────────────▼───────────────────────────────────┐         │
 │  │  Django Models                                 │         │
-│  │  - Device, Transmitter                         │         │
-│  │  - Group, Config                               │         │
-│  │  - Database persistence                        │         │
+│  │  - Manufacturer, Receiver, Transmitter         │         │
+│  │  - Group, Config (manufacturer-aware)          │         │
+│  │  - Database persistence with data isolation    │         │
 │  └────────────┬───────────────────────────────────┘         │
 │               │                                              │
 │               ├──────────────┬─────────────────┐            │
@@ -49,7 +49,8 @@
 │  ┌────────────▼───────┐ ┌───▼────────┐ ┌──────▼──────┐     │
 │  │  Views/API         │ │ WebSocket  │ │ Django      │     │
 │  │  - REST endpoints  │ │ Consumers  │ │ Admin       │     │
-│  │  - Templates       │ │ - Real-time│ │ - Config UI │     │
+│  │  - Manufacturer    │ │ - Real-time│ │ - Config UI │     │
+│  │    filtering       │ │   updates  │ │             │     │
 │  └────────────────────┘ └────────────┘ └─────────────┘     │
 └──────────────────────────┬──────────────────────────────────┘
                            │
@@ -59,40 +60,62 @@
 │                   Web Browser / Client                       │
 │  - Dashboard UI                                              │
 │  - Real-time updates                                         │
-│  - Device management                                         │
+│  - Multi-manufacturer device management                     │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ## Component Details
 
-### 1. Shure System API Client (`shure_api_client.py`)
-**Purpose**: Abstraction layer for Shure System API communication
+### 1. Plugin Architecture (`micboard/plugins/`)
+**Purpose**: Extensible system for supporting multiple wireless microphone manufacturers
 
-**Key Methods**:
-- `get_devices()` - Fetch all devices
-- `get_device(device_id)` - Get specific device details
-- `get_device_channels(device_id)` - Get channel/transmitter data
-- `poll_all_devices()` - Full data poll with transformation
-- `discover_devices()` - Network device discovery
+**Key Components**:
+- `ManufacturerPlugin` - Abstract base class defining plugin interface
+- `get_manufacturer_plugin()` - Dynamic plugin loading function
+- Manufacturer-specific plugins (e.g., `ShurePlugin`, `SennheiserPlugin`)
+
+**Plugin Interface**:
+```python
+class ManufacturerPlugin(ABC):
+    @property
+    @abstractmethod
+    def manufacturer_code(self) -> str: ...
+
+    @property
+    @abstractmethod
+    def manufacturer_name(self) -> str: ...
+
+    @abstractmethod
+    def get_devices(self) -> List[Dict[str, Any]]: ...
+
+    @abstractmethod
+    def transform_device_data(self, device_data: Dict[str, Any]) -> Dict[str, Any]: ...
+
+    @abstractmethod
+    def check_health(self) -> Dict[str, Any]: ...
+```
 
 **Features**:
-- Automatic data transformation from Shure API format to micboard format
-- Built-in error handling and retry logic
-- Session management with authentication
-- Configurable timeouts and SSL verification
+- Dynamic plugin discovery and loading
+- Manufacturer data isolation
+- Standardized API interface across manufacturers
+- Easy extensibility for new manufacturers
 
 ### 2. Polling Service (`poll_devices.py`)
-**Purpose**: Background service that continuously fetches data
+**Purpose**: Background service that continuously fetches data from multiple manufacturers
 
 **Workflow**:
-1. Poll Shure System API at regular intervals
-2. Transform and validate data
-3. Update Django models (Device, Transmitter)
-4. Broadcast updates via WebSocket to connected clients
-5. Cache data for quick API responses
+1. Iterate through configured manufacturers
+2. Load appropriate plugin for each manufacturer
+3. Poll manufacturer API at regular intervals
+4. Transform and validate data using plugin
+5. Update Django models with manufacturer relationships
+6. Broadcast updates via WebSocket to connected clients
+7. Cache data for quick API responses
 
 **Configuration**:
-- Polling interval (default: 10 seconds)
+- Per-manufacturer polling intervals
+- Manufacturer-specific settings
 - WebSocket broadcasting enable/disable
 - Logging and error handling
 
@@ -104,19 +127,25 @@
 - Channel layer integration for broadcasting
 - Client command handling (ping/pong)
 - Automatic reconnection support
+- Manufacturer-aware message filtering
 
 **Message Types**:
-- `device_update` - Full device data updates
+- `device_update` - Full device data updates (manufacturer-filtered)
 - `status_update` - Status messages
 - `ping/pong` - Connection health checks
 
 ### 4. Django Models
 
-#### Device
-- Represents a Shure receiver
+#### Manufacturer
+- Represents a wireless microphone manufacturer
+- Stores manufacturer code, name, and configuration
+- Central point for manufacturer-specific settings
+
+#### Receiver
+- Represents a wireless receiver (manufacturer-aware)
+- Foreign key to Manufacturer model
 - Tracks API device ID, IP, type, slot
 - Records last seen timestamp
-- One-to-one with Transmitter
 
 #### Transmitter
 - Transmitter/microphone data
@@ -124,15 +153,31 @@
 - Frequency, antenna, quality info
 - Auto-updated by polling service
 
-#### Group
-- Logical grouping of devices
-- Custom slot arrangements
-- Chart visibility settings
+#### DiscoveredDevice
+- Network-discovered devices before registration
+- Manufacturer relationship for proper categorization
+- Temporary storage during device discovery
 
-#### MicboardConfig
+#### Group & MicboardConfig
+- Logical grouping of devices
 - Key-value configuration storage
-- UI customization
-- Feature flags
+- Optional manufacturer relationships for manufacturer-specific settings
+
+### 5. Views and API Endpoints
+
+**Dashboard Views**:
+- `/` - Main monitoring dashboard (manufacturer-filtered)
+- `/about/` - About page
+
+**API Endpoints** (all support `?manufacturer=code` filtering):
+- `GET /api/data/` - Current device data (cached, manufacturer-filtered)
+- `POST /api/discover/` - Trigger device discovery (manufacturer-specific)
+- `POST /api/refresh/` - Force data refresh (manufacturer-specific)
+- `POST /api/config/` - Update global/manufacturer-specific config
+- `POST /api/group/` - Manage groups
+- `GET /api/receivers/` - List receivers (manufacturer-filtered)
+- `GET /api/receivers/{id}/` - Get receiver details
+- `GET /api/health/` - Check API health (per-manufacturer)
 
 ### 5. Views and API Endpoints
 
@@ -153,15 +198,14 @@
 ### Normal Operation (Polling)
 ```
 1. poll_devices timer triggers
-2. ShureSystemAPIClient.poll_all_devices()
-3. For each device:
-   a. Fetch device info
-   b. Fetch channel data
-   c. Transform to micboard format
-4. Update Django models
-5. Cache data
-6. Broadcast to WebSocket clients
-7. Sleep until next interval
+2. For each configured manufacturer:
+   a. Load manufacturer plugin
+   b. Call plugin.get_devices()
+   c. Transform data using plugin.transform_device_data()
+   d. Update Django models with manufacturer relationships
+3. Cache manufacturer-filtered data
+4. Broadcast updates to WebSocket clients
+5. Sleep until next interval
 ```
 
 ### Real-time Updates (WebSocket)
@@ -169,54 +213,99 @@
 1. Client connects to WebSocket
 2. Client joins 'micboard_updates' group
 3. When data updates:
-   a. poll_devices broadcasts to group
+   a. poll_devices broadcasts manufacturer-filtered updates
    b. Consumer receives message
    c. Consumer forwards to client
-4. Client updates UI
+4. Client updates UI with manufacturer-specific data
 ```
 
 ### API Request Flow
 ```
-1. Client requests /api/data/
-2. Check cache
+1. Client requests /api/data/?manufacturer=shure
+2. Check manufacturer-filtered cache
 3. If cached: return immediately
-4. If not: query models
-5. Transform to JSON
-6. Cache result
+4. If not: query models with manufacturer filter
+5. Transform to JSON using manufacturer-aware serializers
+6. Cache result with manufacturer key
 7. Return to client
 ```
 
+## Plugin System
+
+### Plugin Discovery
+Plugins are automatically discovered through the `get_manufacturer_plugin()` function:
+
+```python
+def get_manufacturer_plugin(manufacturer: Manufacturer) -> ManufacturerPlugin:
+    """Load and return the appropriate plugin for a manufacturer"""
+    plugin_class = _PLUGIN_CLASSES.get(manufacturer.code)
+    if not plugin_class:
+        raise ValueError(f"No plugin found for manufacturer: {manufacturer.code}")
+    return plugin_class(manufacturer)
+```
+
+### Adding New Manufacturers
+1. Create a new plugin class inheriting from `ManufacturerPlugin`
+2. Implement required methods and properties
+3. Register the plugin in `micboard/plugins/__init__.py`
+4. Configure the manufacturer in the database
+5. Restart the application
+
+### Data Isolation
+- Each manufacturer's data is stored with manufacturer relationships
+- API responses are filtered by manufacturer code
+- Configuration can be global or manufacturer-specific
+- WebSocket broadcasts include manufacturer context
+
 ## Configuration Management
+
+### Manufacturer Configuration
+Each manufacturer is configured in the database with:
+
+- **code**: Unique identifier (e.g., 'shure', 'sennheiser')
+- **name**: Human-readable name
+- **config**: JSON configuration object with API credentials and settings
 
 ### Settings Integration
 All configuration is centralized in Django settings:
 
 ```python
 MICBOARD_CONFIG = {
-    'SHURE_API_BASE_URL': 'http://localhost:8080',
-    'SHURE_API_USERNAME': None,
-    'SHURE_API_PASSWORD': None,
-    'SHURE_API_TIMEOUT': 10,
-    'SHURE_API_VERIFY_SSL': True,
+    'DEFAULT_POLLING_INTERVAL': 10,
+    'WEBSOCKET_BROADCASTING': True,
+    'CACHE_TIMEOUT': 30,
 }
+```
+
+### Manufacturer-Specific Settings
+Manufacturer configurations are stored in the database:
+
+```python
+# Shure manufacturer configuration
+manufacturer = Manufacturer.objects.create(
+    code='shure',
+    name='Shure Incorporated',
+    config={
+        'api_url': 'http://shure-api.example.com',
+        'api_key': 'your-api-key',
+        'timeout': 30,
+        'polling_interval': 10,
+    }
+)
 ```
 
 ### Environment Variables (Recommended for Production)
 ```bash
-export SHURE_API_BASE_URL="https://api.example.com"
-export SHURE_API_USERNAME="admin"
-export SHURE_API_PASSWORD="secret"
+export SHURE_API_URL="https://api.shure.com"
+export SHURE_API_KEY="secret-key"
+export SENNHEISER_API_URL="https://api.sennheiser.com"
+export SENNHEISER_API_KEY="another-secret"
 ```
 
-Then in settings:
-```python
-import os
-MICBOARD_CONFIG = {
-    'SHURE_API_BASE_URL': os.getenv('SHURE_API_BASE_URL'),
-    'SHURE_API_USERNAME': os.getenv('SHURE_API_USERNAME'),
-    'SHURE_API_PASSWORD': os.getenv('SHURE_API_PASSWORD'),
-}
-```
+### Global vs Manufacturer-Specific Config
+- **Global Config**: Stored in `MicboardConfig` with `manufacturer=None`
+- **Manufacturer Config**: Stored in `MicboardConfig` with `manufacturer` set
+- **Plugin Config**: Stored in `Manufacturer.config` JSON field
 
 ## Deployment Architecture
 
@@ -303,18 +392,19 @@ Multi-Process:
 ## Future Enhancements
 
 ### Planned Features
-- Historical data storage and graphing
-- Alert system for battery/RF issues
-- Mobile app support
-- Multi-site deployment
-- Advanced reporting
+- **Additional Manufacturer Plugins** - Sennheiser, Audio-Technica, Lectrosonics
+- **Historical Data Storage** - Time-series data for trending and analytics
+- **Advanced Alert System** - Battery/RF issues with manufacturer-specific thresholds
+- **Mobile App Support** - Native apps for iOS/Android
+- **Multi-Site Deployment** - Centralized monitoring across multiple locations
+- **Advanced Reporting** - Manufacturer-specific analytics and reports
 
 ### Integration Opportunities
-- Slack/Teams notifications
-- Grafana dashboards
-- Prometheus metrics
-- Syslog integration
-- Calendar integration for events
+- **Notification Systems** - Slack/Teams integrations with manufacturer context
+- **Monitoring Dashboards** - Grafana/Prometheus with manufacturer filtering
+- **Syslog Integration** - Centralized logging with manufacturer tags
+- **Calendar Integration** - Event-based monitoring schedules
+- **Asset Management** - Integration with IT asset management systems
 
 ## Migration from Original Micboard
 

@@ -1,7 +1,7 @@
 """
-Django management command to poll Shure wireless devices and broadcast updates.
+Django management command to poll wireless devices and broadcast updates.
 
-This command continuously polls the Shure System API for device status updates
+This command continuously polls manufacturer APIs for device status updates
 and broadcasts changes to WebSocket clients via Django Channels.
 """
 
@@ -20,19 +20,20 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from micboard.alerts import check_device_offline_alerts, check_transmitter_alerts
+from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import (
     Channel,
+    Manufacturer,
     Receiver,
     Transmitter,
 )
 from micboard.serializers import serialize_receivers
-from micboard.shure.client import ShureAPIError, ShureSystemAPIClient
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Poll Shure devices via System API and broadcast updates"
+    help = "Poll wireless devices via manufacturer APIs and broadcast updates"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -43,10 +44,16 @@ class Command(BaseCommand):
         parser.add_argument(
             "--no-broadcast", action="store_true", help="Disable WebSocket broadcasting to frontend"
         )
+        parser.add_argument(
+            "--manufacturer",
+            type=str,
+            help="Poll only devices from specified manufacturer code",
+        )
 
     def handle(self, *args, **options):
         initial_poll_only = options["initial_poll_only"]
         broadcast_to_frontend = not options["no_broadcast"]
+        manufacturer_filter = options.get("manufacturer")
 
         # Inactivity threshold (seconds) to close a session if no samples received
         self.inactivity_seconds = getattr(
@@ -60,32 +67,79 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "Starting device management via Shure System API (initial poll + WebSocket subscriptions)"
+                "Starting device management via manufacturer APIs (initial poll + WebSocket subscriptions)"
             )
         )
 
-        client = ShureSystemAPIClient()
         channel_layer = get_channel_layer() if broadcast_to_frontend else None
+
+        if not broadcast_to_frontend:
+            self.stdout.write("Broadcasting disabled.")
+
+        # Get manufacturers to poll
+        if manufacturer_filter:
+            try:
+                manufacturers = [Manufacturer.objects.get(code=manufacturer_filter)]
+                self.stdout.write(f"Polling only manufacturer: {manufacturer_filter}")
+            except Manufacturer.DoesNotExist:
+                self.stderr.write(
+                    self.style.ERROR(f"Manufacturer '{manufacturer_filter}' not found")
+                )
+                return
+        else:
+            manufacturers = Manufacturer.objects.all()
+            self.stdout.write(f"Polling {manufacturers.count()} manufacturers")
+
+        # Initialize plugins for each manufacturer
+        manufacturer_plugins = {}
+        for manufacturer in manufacturers:
+            try:
+                plugin_class = get_manufacturer_plugin(manufacturer.code)
+                plugin = plugin_class(manufacturer)
+                manufacturer_plugins[manufacturer] = plugin
+                self.stdout.write(f"Initialized plugin for {manufacturer.name}")
+            except Exception as e:
+                self.stderr.write(
+                    self.style.ERROR(f"Failed to initialize plugin for {manufacturer.name}: {e}")
+                )
+                continue
+
+        if not manufacturer_plugins:
+            self.stderr.write(self.style.ERROR("No manufacturer plugins could be initialized"))
+            return
 
         # --- Initial Data Load (Polling) ---
         self.stdout.write(self.style.SUCCESS("Performing initial data poll..."))
-        try:
-            initial_data = client.poll_all_devices()
-            if initial_data:
-                self.stdout.write(f"Polled {len(initial_data)} devices initially.")
-                self.update_models(initial_data)
-                if channel_layer:
-                    serialized_data = self.serialize_for_broadcast()
-                    async_to_sync(channel_layer.group_send)(
-                        "micboard_updates",
-                        {"type": "device_update", "data": serialized_data},
+        total_devices = 0
+        for manufacturer, plugin in manufacturer_plugins.items():
+            try:
+                self.stdout.write(f"Polling {manufacturer.name} devices...")
+                api_data = plugin.get_devices()
+                if api_data:
+                    device_count = self.update_models(api_data, manufacturer, plugin)
+                    total_devices += device_count
+                    self.stdout.write(f"Polled {device_count} devices from {manufacturer.name}")
+                else:
+                    self.stdout.write(
+                        self.style.WARNING(f"No device data received from {manufacturer.name}")
                     )
-            else:
-                self.stdout.write(self.style.WARNING("No initial device data received."))
-        except ShureAPIError as exc:
-            self.stderr.write(self.style.ERROR(f"Initial poll failed: {exc}"))
-            logger.exception("Initial polling error")
-            return  # Exit if initial poll fails
+            except Exception as exc:
+                self.stderr.write(
+                    self.style.ERROR(f"Initial poll failed for {manufacturer.name}: {exc}")
+                )
+                logger.exception("Initial polling error for %s", manufacturer.name)
+
+        if total_devices > 0:
+            if channel_layer:
+                serialized_data = self.serialize_for_broadcast()
+                async_to_sync(channel_layer.group_send)(
+                    "micboard_updates",
+                    {"type": "device_update", "data": serialized_data},
+                )
+        else:
+            self.stdout.write(
+                self.style.WARNING("No initial device data received from any manufacturer.")
+            )
 
         if initial_poll_only:
             self.stdout.write(self.style.SUCCESS("Initial poll complete. Exiting."))
@@ -101,15 +155,18 @@ class Command(BaseCommand):
         # A more advanced solution would use a single WebSocket connection for multiple subscriptions.
 
         websocket_threads = []
-        for receiver in Receiver.objects.filter(is_active=True):
-            thread = threading.Thread(
-                target=self._run_websocket_subscription,
-                args=(client, receiver.api_device_id, channel_layer, broadcast_to_frontend),
-                daemon=True,  # Allow main program to exit even if threads are running
-            )
-            websocket_threads.append(thread)
-            thread.start()
-            self.stdout.write(f"Started WebSocket subscription thread for {receiver.api_device_id}")
+        for manufacturer, plugin in manufacturer_plugins.items():
+            for receiver in Receiver.objects.filter(manufacturer=manufacturer, is_active=True):
+                thread = threading.Thread(
+                    target=self._run_websocket_subscription,
+                    args=(plugin, receiver.api_device_id, channel_layer, broadcast_to_frontend),
+                    daemon=True,  # Allow main program to exit even if threads are running
+                )
+                websocket_threads.append(thread)
+                thread.start()
+                self.stdout.write(
+                    f"Started WebSocket subscription thread for {manufacturer.name} {receiver.api_device_id}"
+                )
 
         # Keep the main thread alive to allow daemon threads to run
         try:
@@ -121,7 +178,7 @@ class Command(BaseCommand):
 
     def _run_websocket_subscription(
         self,
-        client: ShureSystemAPIClient,
+        plugin,
         api_device_id: str,
         channel_layer,
         broadcast_to_frontend: bool,
@@ -130,13 +187,11 @@ class Command(BaseCommand):
 
         async def subscribe_and_listen():
             try:
-                await client.connect_and_subscribe(
+                await plugin.connect_and_subscribe(
                     api_device_id, self._websocket_callback(channel_layer, broadcast_to_frontend)
                 )
-            except ShureAPIError as exc:
+            except Exception as exc:
                 logger.exception("WebSocket subscription for %s failed: %s", api_device_id, exc)
-            except Exception:
-                logger.exception("Unhandled error in WebSocket subscription for %s", api_device_id)
 
         asyncio.run(subscribe_and_listen())
 
@@ -150,7 +205,7 @@ class Command(BaseCommand):
                 message_data,
             )
             # Process the WebSocket message and update models
-            # This part needs to be carefully implemented based on Shure API WebSocket message format
+            # This part needs to be carefully implemented based on manufacturer API WebSocket message format
             # For now, let's assume the message_data contains enough info to update a Transmitter
 
             # Example: Assuming message_data contains 'envelope' and 'payload'
@@ -167,7 +222,7 @@ class Command(BaseCommand):
                     transmitter, _ = Transmitter.objects.get_or_create(channel=channel)
 
                     # Update transmitter fields based on payload
-                    # This mapping needs to be precise based on Shure API WebSocket payload structure
+                    # This mapping needs to be precise based on manufacturer API WebSocket payload structure
                     transmitter.battery = payload.get("battery_bars", transmitter.battery)
                     transmitter.audio_level = payload.get("audio_level", transmitter.audio_level)
                     transmitter.rf_level = payload.get("rf_level", transmitter.rf_level)
@@ -206,21 +261,29 @@ class Command(BaseCommand):
 
         return callback
 
-    def update_models(self, api_data):
+    def update_models(self, api_data, manufacturer, plugin):
         """Update Django models with API data and handle slot assignment intelligently"""
         updated_count = 0
         active_receiver_ids = []
 
-        for api_device_id, device_data in api_data.items():
+        for device_data in api_data:
             try:
+                # Transform API data to micboard format
+                transformed_data = plugin.transform_device_data(device_data)
+                if not transformed_data:
+                    continue
+
+                api_device_id = transformed_data["api_device_id"]
+
                 # Create/update Receiver
                 receiver, created = Receiver.objects.update_or_create(
                     api_device_id=api_device_id,
+                    manufacturer=manufacturer,
                     defaults={
-                        "ip": device_data.get("ip", ""),
-                        "device_type": device_data.get("type", "unknown"),
-                        "name": device_data.get("name", ""),
-                        "firmware_version": device_data.get("firmware", ""),
+                        "ip": transformed_data.get("ip", ""),
+                        "device_type": transformed_data.get("type", "unknown"),
+                        "name": transformed_data.get("name", ""),
+                        "firmware_version": transformed_data.get("firmware", ""),
                         "is_active": True,
                         "last_seen": timezone.now(),
                     },
@@ -233,11 +296,17 @@ class Command(BaseCommand):
                     logger.debug("Updated receiver: %s", api_device_id)
 
                 # Update channels and transmitters
-                for channel_info in device_data.get("channels", []):
+                channels_data = plugin.get_device_channels(api_device_id)
+                for channel_info in channels_data:
                     channel_num = channel_info.get("channel", 0)
                     tx_data = channel_info.get("tx")
 
                     if tx_data:
+                        # Transform transmitter data
+                        transformed_tx = plugin.transform_transmitter_data(tx_data, channel_num)
+                        if not transformed_tx:
+                            continue
+
                         # Create/update Channel
                         channel, ch_created = Channel.objects.update_or_create(
                             receiver=receiver,
@@ -252,7 +321,7 @@ class Command(BaseCommand):
                             )
 
                         # Intelligent slot assignment
-                        api_slot = tx_data.get("slot")
+                        api_slot = transformed_tx.get("slot")
 
                         # Try to find existing transmitter for this channel
                         try:
@@ -291,18 +360,18 @@ class Command(BaseCommand):
                             channel=channel,
                             defaults={
                                 "slot": target_slot,
-                                "battery": tx_data.get("battery", 255),
-                                "battery_charge": tx_data.get("battery_charge"),
-                                "audio_level": tx_data.get("audio_level", 0),
-                                "rf_level": tx_data.get("rf_level", 0),
-                                "frequency": tx_data.get("frequency", ""),
-                                "antenna": tx_data.get("antenna", ""),
-                                "tx_offset": tx_data.get("tx_offset", 255),
-                                "quality": tx_data.get("quality", 255),
-                                "runtime": tx_data.get("runtime", ""),
-                                "status": tx_data.get("status", ""),
-                                "name": tx_data.get("name", ""),
-                                "name_raw": tx_data.get("name_raw", ""),
+                                "battery": transformed_tx.get("battery", 255),
+                                "battery_charge": transformed_tx.get("battery_charge"),
+                                "audio_level": transformed_tx.get("audio_level", 0),
+                                "rf_level": transformed_tx.get("rf_level", 0),
+                                "frequency": transformed_tx.get("frequency", ""),
+                                "antenna": transformed_tx.get("antenna", ""),
+                                "tx_offset": transformed_tx.get("tx_offset", 255),
+                                "quality": transformed_tx.get("quality", 255),
+                                "runtime": transformed_tx.get("runtime", ""),
+                                "status": transformed_tx.get("status", ""),
+                                "name": transformed_tx.get("name", ""),
+                                "name_raw": transformed_tx.get("name_raw", ""),
                             },
                         )
 
@@ -310,7 +379,7 @@ class Command(BaseCommand):
                         check_transmitter_alerts(transmitter)
 
                         # Track session & samples
-                        self._record_sample_and_session(transmitter, tx_data)
+                        self._record_sample_and_session(transmitter, transformed_tx)
                 updated_count += 1
 
             except Exception:
@@ -319,16 +388,19 @@ class Command(BaseCommand):
 
         # Mark receivers that were not in the API data as offline
         offline_count = (
-            Receiver.objects.exclude(id__in=active_receiver_ids)
+            Receiver.objects.filter(manufacturer=manufacturer)
+            .exclude(id__in=active_receiver_ids)
             .filter(is_active=True)
             .update(is_active=False)
         )
 
         if offline_count > 0:
-            logger.warning("Marked %d receivers as offline", offline_count)
+            logger.warning(
+                "Marked %d receivers as offline for %s", offline_count, manufacturer.name
+            )
 
             # Check for offline alerts on all channels of offline receivers
-            offline_receivers = Receiver.objects.filter(is_active=False)
+            offline_receivers = Receiver.objects.filter(manufacturer=manufacturer, is_active=False)
             for receiver in offline_receivers:
                 for channel in receiver.channels.all():
                     check_device_offline_alerts(channel)

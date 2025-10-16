@@ -13,7 +13,6 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from micboard.models import Channel, Receiver, Transmitter
-from micboard.shure import ShureSystemAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -99,28 +98,32 @@ class ReceiverAdmin(admin.ModelAdmin):
             updated += 1
         self.message_user(request, f"{updated} receiver(s) marked as offline.")
 
-    @admin.action(description="Sync selected receivers from Shure API")
+    @admin.action(description="Sync selected receivers from API")
     def sync_from_api(self, request, queryset):
-        """Sync selected receivers from Shure System API."""
-        try:
-            client = ShureSystemAPIClient()
-            synced = 0
-            for receiver in queryset:
-                try:
-                    device_data = client.get_device(receiver.api_device_id)
-                    if device_data:
-                        # Update receiver fields
-                        receiver.name = device_data.get("name", receiver.name)
-                        receiver.firmware_version = device_data.get(
-                            "firmware", receiver.firmware_version
-                        )
-                        receiver.mark_online()
-                        synced += 1
-                except Exception as e:
-                    logger.error("Failed to sync %s: %s", receiver.api_device_id, e)
+        """Sync selected receivers from manufacturer API."""
+        synced = 0
+        for receiver in queryset:
+            try:
+                plugin_class = receiver.manufacturer.get_plugin_class()
+                plugin = plugin_class(receiver.manufacturer)
+                device_data = plugin.get_device(receiver.api_device_id)
+                if device_data:
+                    transformed_data = plugin.transform_device_data(device_data)
+                    receiver.name = transformed_data.get("name", receiver.name)
+                    receiver.firmware_version = transformed_data.get(
+                        "firmware", receiver.firmware_version
+                    )
+                    receiver.mark_online()
+                    synced += 1
+            except Exception as e:
+                logger.error("Failed to sync %s: %s", receiver.api_device_id, e)
+                self.message_user(
+                    request,
+                    f"Error syncing {receiver.name}: {e}",
+                    level="error",
+                )
+        if synced > 0:
             self.message_user(request, f"{synced} receiver(s) synced from API.")
-        except Exception as e:
-            self.message_user(request, f"Error syncing: {e}", level="error")
 
 
 @admin.register(Channel)

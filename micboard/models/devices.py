@@ -9,6 +9,44 @@ from django.db import models
 from django.utils import timezone
 
 
+class Manufacturer(models.Model):
+    """Represents a device manufacturer."""
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Manufacturer name (e.g., 'Shure', 'Sennheiser')",
+    )
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text="Short code for the manufacturer (e.g., 'shure', 'sennheiser')",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this manufacturer is currently supported",
+    )
+    config = models.JSONField(
+        default=dict,
+        help_text="Manufacturer-specific configuration",
+    )
+
+    class Meta:
+        verbose_name = "Manufacturer"
+        verbose_name_plural = "Manufacturers"
+        ordering: ClassVar[list[str]] = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def get_plugin_class(self):
+        """Get the plugin class for this manufacturer."""
+        # Import here to avoid circular imports
+        from micboard.manufacturers import get_manufacturer_plugin
+
+        return get_manufacturer_plugin(self.code)
+
+
 class ReceiverQuerySet(models.QuerySet):
     """Custom queryset for Receiver model"""
 
@@ -29,6 +67,12 @@ class ReceiverQuerySet(models.QuerySet):
         """Get receivers by device type"""
         return self.filter(device_type=device_type)
 
+    def by_manufacturer(self, manufacturer):
+        """Get receivers by manufacturer"""
+        if isinstance(manufacturer, str):
+            return self.filter(manufacturer__code=manufacturer)
+        return self.filter(manufacturer=manufacturer)
+
 
 class ReceiverManager(models.Manager):
     """Custom manager for Receiver model"""
@@ -48,9 +92,12 @@ class ReceiverManager(models.Manager):
     def by_type(self, device_type):
         return self.get_queryset().by_type(device_type)
 
+    def by_manufacturer(self, manufacturer):
+        return self.get_queryset().by_manufacturer(manufacturer)
+
 
 class Receiver(models.Model):
-    """Represents a physical Shure wireless receiver unit."""
+    """Represents a physical wireless receiver unit."""
 
     DEVICE_TYPES: ClassVar[list[tuple[str, str]]] = [
         ("uhfr", "UHF-R"),
@@ -61,16 +108,18 @@ class Receiver(models.Model):
         # "offline" is a status, not a type. Removed from here.
     ]
 
-    # Shure System API fields
+    # Manufacturer and API fields
+    manufacturer = models.ForeignKey(
+        "Manufacturer",
+        on_delete=models.CASCADE,
+        help_text="The manufacturer of this device",
+    )
     api_device_id = models.CharField(
         max_length=100,
-        unique=True,
-        help_text="Unique identifier from Shure System API",
+        help_text="Unique identifier from the manufacturer's API",
     )
     ip = models.GenericIPAddressField(protocol="both", help_text="IP address of the device")
-    device_type = models.CharField(
-        max_length=10, choices=DEVICE_TYPES, help_text="Type of Shure device"
-    )
+    device_type = models.CharField(max_length=10, choices=DEVICE_TYPES, help_text="Type of device")
     name = models.CharField(
         max_length=100, blank=True, help_text="Human-readable name for the device"
     )
@@ -90,14 +139,15 @@ class Receiver(models.Model):
     class Meta:
         verbose_name = "Receiver"
         verbose_name_plural = "Receivers"
-        ordering: ClassVar[list[str]] = ["name"]
+        ordering: ClassVar[list[str]] = ["manufacturer__name", "name"]
         indexes: ClassVar[list[models.Index]] = [
-            models.Index(fields=["api_device_id"]),
+            models.Index(fields=["manufacturer", "api_device_id"]),
             models.Index(fields=["is_active", "last_seen"]),
         ]
+        unique_together: ClassVar[list[list[str]]] = [["manufacturer", "api_device_id"]]
 
     def __str__(self) -> str:
-        return f"{self.device_type} - {self.name} ({self.ip})"
+        return f"{self.manufacturer.name} {self.device_type} - {self.name} ({self.ip})"
 
     def mark_online(self) -> None:
         """Mark receiver as online"""
@@ -364,16 +414,25 @@ class Group(models.Model):
 class MicboardConfig(models.Model):
     """Global configuration settings"""
 
-    key = models.CharField(max_length=100, unique=True, help_text="Configuration key")
+    key = models.CharField(max_length=100, help_text="Configuration key")
     value = models.TextField(help_text="Configuration value")
+    manufacturer = models.ForeignKey(
+        "Manufacturer",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Manufacturer this config applies to (null for global configs)",
+    )
 
     class Meta:
         verbose_name = "Micboard Configuration"
         verbose_name_plural = "Micboard Configurations"
-        ordering: ClassVar[list[str]] = ["key"]
+        ordering: ClassVar[list[str]] = ["manufacturer__name", "key"]
+        unique_together: ClassVar[list[list[str]]] = [["key", "manufacturer"]]
 
     def __str__(self) -> str:
-        return f"{self.key}: {self.value}"
+        manufacturer_name = self.manufacturer.name if self.manufacturer else "Global"
+        return f"{manufacturer_name}: {self.key}: {self.value}"
 
 
 class DiscoveredDevice(models.Model):
@@ -382,6 +441,11 @@ class DiscoveredDevice(models.Model):
     ip = models.GenericIPAddressField(unique=True, help_text="IP address of the discovered device")
     device_type = models.CharField(max_length=20, help_text="Type of discovered device")
     channels = models.PositiveIntegerField(default=0, help_text="Number of channels on the device")
+    manufacturer = models.ForeignKey(
+        "Manufacturer",
+        on_delete=models.CASCADE,
+        help_text="The manufacturer of this discovered device",
+    )
     discovered_at = models.DateTimeField(
         auto_now_add=True, help_text="When this device was first discovered"
     )
@@ -390,6 +454,7 @@ class DiscoveredDevice(models.Model):
         verbose_name = "Discovered Device"
         verbose_name_plural = "Discovered Devices"
         ordering: ClassVar[list[str]] = ["-discovered_at"]
+        unique_together: ClassVar[list[list[str]]] = [["ip", "manufacturer"]]
 
     def __str__(self) -> str:
-        return f"{self.device_type} at {self.ip}"
+        return f"{self.device_type} at {self.ip} ({self.manufacturer.name})"

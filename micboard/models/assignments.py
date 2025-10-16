@@ -326,3 +326,12 @@ class Alert(models.Model):
 
         # Consider overdue after 30 minutes
         return (timezone.now() - self.created_at) > timedelta(minutes=30)  # type: ignore
+
+    @property
+    def severity(self) -> str:
+        """Return severity level based on alert type"""
+        if self.alert_type in ["battery_critical", "device_offline"]:
+            return "High"
+        if self.alert_type in ["signal_loss"]:
+            return "Medium"
+        return "Low"

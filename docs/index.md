@@ -4,7 +4,7 @@
 
 Welcome to the django-micboard documentation!
 
-django-micboard is a Django application for real-time monitoring and management of Shure wireless microphone systems. It integrates with the **Shure System API** to provide a modern web interface for monitoring microphone status, battery levels, RF signals, and audio levels across your wireless systems.
+django-micboard is a Django application for real-time monitoring and management of **multi-manufacturer wireless microphone systems**. It uses a **plugin architecture** to support different wireless microphone manufacturers, providing a modern web interface for monitoring microphone status, battery levels, RF signals, and audio levels across your wireless systems.
 
 **Version**: 25.10.15 (CalVer: YY.MM.DD)
 **License**: AGPL-3.0-or-later
@@ -13,25 +13,23 @@ django-micboard is a Django application for real-time monitoring and management 
 ## Features
 
 - 🎤 **Real-time Monitoring** - Live updates via WebSocket for battery, RF levels, and audio
-- 🔌 **Shure System API Integration** - Integration with Shure wireless receivers
+- 🔌 **Multi-Manufacturer Support** - Plugin architecture supporting Shure, Sennheiser, and other manufacturers
 - 👥 **User Assignments** - Assign devices to users with location tracking
 - 🚨 **Smart Alerts** - Configurable notifications for battery, RF issues, and more
 - 📊 **Dashboard Views** - Multiple view types (building, room, user, device type, priority)
 - 🔒 **Rate Limiting** - Built-in API rate limiting and connection pooling
 - 🐳 **Production Ready** - Django 4.2+/5.0+ compatible, fully tested
 
-## Supported Devices
+## Supported Manufacturers
 
-- UHF-R (Shure UHF-R series)
-- QLX-D (Shure QLX-D series)
-- ULX-D (Shure ULX-D series)
-- Axient Digital (AD series)
-- P10T (PSM1000)
+- **Shure** - UHF-R, QLX-D, ULX-D, Axient Digital (AD), PSM1000 series
+- **Extensible** - Plugin architecture for adding new manufacturers
 
 ## Quick Links
 
 - [Quick Start Guide](quickstart.md) - Get up and running quickly
 - [Configuration](configuration.md) - All configuration options
+- [Plugin Development](plugin-development.md) - Add support for new manufacturers
 - [API Reference](api-reference.md) - Complete API documentation
 - [Architecture](architecture.md) - System design and components
 - [Changelog](changelog.md) - Version history

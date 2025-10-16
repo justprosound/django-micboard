@@ -2,6 +2,7 @@
 {% load static %}
 
 {% block content %}
+<div class="container-fluid">
     <section id="hud" class="hud-overlay">
       <div class="hud-content">
         <section class="hud-section">
@@ -76,44 +77,42 @@
       </div>
       <button id="hud-button" class="button">Close</button>
     </section>
-    <div id="container">
-
-
-      <aside class="sidebar-nav">
+    <div id="container" class="row">
+      <aside class="sidebar-nav col-md-3 col-lg-2">
         <h1 id='sidebarTitle'>Group 4</h1>
         <div class="slot-prototype-list" id="eslotlist">
 
         </div>
         <div class="sidebar-controls">
-          <input type="text" id="groupTitle" placeholder="title" class="text-input">
-          <div class="checkbox-group">
+          <input type="text" id="groupTitle" placeholder="title" class="form-control">
+          <div class="checkbox-group form-check">
             <div class="checkbox-item">
               <span>Hide inactive charts</span>
             </div>
 
             <div class="checkbox-item">
-              <input type="checkbox" id="chartCheck">
+              <input type="checkbox" id="chartCheck" class="form-check-input">
             </div>
           </div>
 
-          <button type="button" id="editorSave" class="button">Save</button>
-          <button type="button" id="editorClose" class="button">Close</button>
-          <button type="button" id="editorClear" class="button">Clear</button>
+          <button type="button" id="editorSave" class="btn btn-primary">Save</button>
+          <button type="button" id="editorClose" class="btn btn-secondary">Close</button>
+          <button type="button" id="editorClear" class="btn btn-danger">Clear</button>
         </div>
       </aside>
-      <div id="micboard">
+      <div id="micboard" class="col-md-9 col-lg-10">
 
       </div>
 
-      <section class="message-board">
+      <section class="message-board col-12">
         <h1>Connection Error!</h1>
         <p>Could not connect to the micboard server. Please refresh the page.</p>
       </section>
-      <section class="settings">
+      <section class="settings col-12">
 
-        <div class="settings-content">
+        <div class="settings-content row">
 
-          <section id="cfg-discovered-col" class="settings-column">
+          <section id="cfg-discovered-col" class="settings-column col-md-6">
             <div class="settings-header">
               <h3>Discovered Devices</h3>
             </div>
@@ -122,13 +121,13 @@
             <div class="settings-actions">
               <div class="settings-action-group">
                 <div class="settings-action-item">
-                  <button id="add-discovered" class="button">Add All Discovered Devices</button>
+                  <button id="add-discovered" class="btn btn-primary">Add All Discovered Devices</button>
                 </div>
               </div>
             </div>
           </section>
 
-          <section id="cfg-slot-col" class="settings-column">
+          <section id="cfg-slot-col" class="settings-column col-md-6">
             <div class="settings-header">
               <h3>Slot Configuration</h3>
             </div>
@@ -136,13 +135,13 @@
             <div class="settings-actions">
               <div class="settings-action-group">
                 <div class="settings-action-item">
-                  <button id="clear-config" class="button">Clear</button>
+                  <button id="clear-config" class="btn btn-danger">Clear</button>
                 </div>
                 <div class="settings-action-item">
-                  <button id="add-config-row" class="button">Add Row</button>
+                  <button id="add-config-row" class="btn btn-secondary">Add Row</button>
                 </div>
                 <div class="settings-action-item">
-                  <button id="save" class="button">Save</button>
+                  <button id="save" class="btn btn-primary">Save</button>
                 </div>
               </div>
             </div>
@@ -151,11 +150,53 @@
 
         <div class="settings-spacer"></div>
       </section>
-      <nav class="main-nav">
+      <nav class="main-nav col-12">
         <div id="navbar-content">
           <ul id="grouplist">
             <li><h4><a href='/'>micboard</a></h4></li>
             <li><a id="go-group-0">all devices</a></li>
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Manufacturers</a>
+              <ul class="dropdown-menu">
+                {% for manufacturer in manufacturers %}
+                  <li><a class="dropdown-item" href="{% url 'micboard:index' %}?manufacturer={{ manufacturer.code }}">{{ manufacturer.name }}</a></li>
+                {% endfor %}
+              </ul>
+            </li>
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Buildings</a>
+              <ul class="dropdown-menu">
+                {% for building in buildings %}
+                  <li><a class="dropdown-item" href="{% url 'micboard:building_view' building_name=building %}">{{ building }}</a></li>
+                {% endfor %}
+              </ul>
+            </li>
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Rooms</a>
+              <ul class="dropdown-menu">
+                {% for room in rooms %}
+                  <li><a class="dropdown-item" href="{% url 'micboard:room_view' room_name=room %}">{{ room }}</a></li>
+                {% endfor %}
+              </ul>
+            </li>
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Users</a>
+              <ul class="dropdown-menu">
+                {% for user in users %}
+                  <li><a class="dropdown-item" href="{% url 'micboard:user_view' username=user.username %}">{{ user.username }}</a></li>
+                {% endfor %}
+              </ul>
+            </li>
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-bs-toggle="dropdown">Alerts</a>
+              <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{% url 'micboard:alerts' %}">All Alerts</a></li>
+                {% for alert_type_code, alert_type_name in alert_types %}
+                  <li><a class="dropdown-item" href="{% url 'micboard:alerts' %}?type={{ alert_type_code }}">{{ alert_type_name }}</a></li>
+                {% endfor %}
+              </ul>
+            </li>
+
             <li><a id="go-extended" href="#">edit extended names</a></li>
             <li><a id="go-config">edit config</a></li>
             <li><a id="go-groupedit" href="#">edit group</a></li>
@@ -174,7 +215,7 @@
             </li>
           </ul>
         </div>
-        <button type="button" id="navbar-toggle" class="button">
+        <button type="button" id="navbar-toggle" class="btn btn-primary">
           <span></span>
         </button>
       </nav>
@@ -212,10 +253,10 @@
           <div class="editzone">
             <div class="form-group">
               <div class="form-field">
-                <input type="text" class="text-input ext-id" aria-label="Default" aria-describedby="inputGroup-sizing-" autocomplete="off" placeholder="ID">
+                <input type="text" class="form-control ext-id" aria-label="Default" aria-describedby="inputGroup-sizing-" autocomplete="off" placeholder="ID">
               </div>
               <div class="form-field">
-                <input type="text" class="text-input ext-name" aria-label="Default" aria-describedby="inputGroup-sizing-" autocomplete="off" placeholder="Name">
+                <input type="text" class="form-control ext-name" aria-label="Default" aria-describedby="inputGroup-sizing-" autocomplete="off" placeholder="Name">
               </div>
             </div>
           </div>
@@ -232,28 +273,28 @@
       <div class="micboard-column" id="paste-box">
         <div class="form-group">
           <div class="form-field">
-            <textarea class="text-input" id="bulkbox" rows="3"></textarea>
+            <textarea class="form-control" id="bulkbox" rows="3"></textarea>
           </div>
         </div>
         <div class="form-group">
           <div class="form-field">
-            <button type="button" class="button button-success button-block" id="bulk-name-loader">Load Bulk Names</button>
+            <button type="button" class="btn btn-success btn-block" id="bulk-name-loader">Load Bulk Names</button>
           </div>
         </div>
       </div>
       <div class="micboard-column" id="save-box">
         <div class="form-group">
           <div class="form-field">
-            <button type="button" class="button button-success button-block" id="slotSave">Save</button>
+            <button type="button" class="btn btn-success btn-block" id="slotSave">Save</button>
           </div>
         </div>
 
         <div class="form-group">
           <div class="form-field">
-            <button type="button" class="button button-secondary button-warning button-block" id="clear-id">Clear IDs</button>
+            <button type="button" class="btn btn-danger btn-block" id="clear-id">Clear IDs</button>
           </div>
           <div class="form-field">
-            <button type="button" class="button button-secondary button-warning button-block" id="clear-name">Clear Names</button>
+            <button type="button" class="btn btn-warning btn-block" id="clear-name">Clear Names</button>
           </div>
         </div>
       </div>
@@ -267,15 +308,15 @@
         <div class="form-field slot-number text-center cfg-row-form"><label class="form-label"></label></div>
 
         <div class="form-field del-btn cfg-row-form">
-          <button type="button" class="button button-block button-right button-danger"><span aria-hidden="true">&times;</span></button>
+          <button type="button" class="btn btn-danger"><span aria-hidden="true">&times;</span></button>
         </div>
 
         <div class="form-field cfg-row-form">
-          <input type="text" class="text-input cfg-ip" placeholder="IP Address">
+          <input type="text" class="form-control cfg-ip" placeholder="IP Address">
         </div>
 
         <div class="form-field cfg-row-form">
-          <select class="select-input cfg-type">
+          <select class="form-select cfg-type">
             <option></option>
             <option>axtd</option>
             <option>ulxd</option>
@@ -287,7 +328,7 @@
         </div>
 
         <div class="form-field cfg-row-form">
-          <select class="select-input cfg-channel">
+          <select class="form-select cfg-channel">
             <option>1</option>
             <option>2</option>
             <option>3</option>
@@ -297,6 +338,7 @@
 
       </div>
     </template>
+</div>
 {% endblock %}
 
 {% block javascript %}

@@ -2,7 +2,7 @@
 
 > **⚠️ ACTIVE DEVELOPMENT**: This project is under active development and not yet ready for production use. Features, APIs, and documentation may change without notice.
 
-A community-driven open source Django app for real-time monitoring and management of Shure wireless microphone systems. Integrates with external Shure System API middleware for device communication.
+A community-driven open source Django app for real-time monitoring and management of wireless microphone systems. Integrates with external Shure System API middleware for device communication.
 
 ## Version: 25.10.15
 

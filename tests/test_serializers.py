@@ -11,6 +11,7 @@ from micboard.models import (
     Channel,
     DiscoveredDevice,
     Group,
+    Manufacturer,
     Receiver,
     Transmitter,
 )
@@ -30,8 +31,12 @@ class TransmitterSerializerTest(TestCase):
     """Test the serialize_transmitter function"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure", name="Shure Incorporated", config={"api_url": "http://test.com"}
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -151,8 +156,12 @@ class ChannelSerializerTest(TestCase):
     """Test the serialize_channel function"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure", name="Shure Incorporated", config={"api_url": "http://test.com"}
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -206,8 +215,12 @@ class ReceiverSerializerTest(TestCase):
     """Test the serialize_receiver function"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure", name="Shure Incorporated", config={"api_url": "http://test.com"}
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -308,8 +321,12 @@ class ReceiversSerializerTest(TestCase):
     """Test the serialize_receivers function"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure", name="Shure Incorporated", config={"api_url": "http://test.com"}
+        )
         self.receiver1 = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Receiver A",
@@ -317,6 +334,7 @@ class ReceiversSerializerTest(TestCase):
         )
         self.receiver2 = Receiver.objects.create(
             api_device_id="test-device-002",
+            manufacturer=self.manufacturer,
             ip="192.168.1.101",
             device_type="qlxd",
             name="Receiver B",
@@ -324,6 +342,7 @@ class ReceiversSerializerTest(TestCase):
         )
         self.receiver3 = Receiver.objects.create(
             api_device_id="test-device-003",
+            manufacturer=self.manufacturer,
             ip="192.168.1.102",
             device_type="ulxd",
             name="Receiver C",
@@ -356,6 +375,50 @@ class ReceiversSerializerTest(TestCase):
         self.assertEqual(len(data), 2)
         for receiver_data in data:
             self.assertIn("health_status", receiver_data)
+
+    def test_serialize_receivers_manufacturer_filtering(self):
+        """Test serialize_receivers with manufacturer filtering"""
+        # Create manufacturers
+        manufacturer1 = Manufacturer.objects.create(
+            code="shure",
+            name="Shure Incorporated",
+        )
+        manufacturer2 = Manufacturer.objects.create(
+            code="sennheiser",
+            name="Sennheiser",
+        )
+
+        # Update receivers with manufacturers
+        self.receiver1.manufacturer = manufacturer1
+        self.receiver1.save()
+        self.receiver2.manufacturer = manufacturer2
+        self.receiver2.save()
+        self.receiver3.manufacturer = manufacturer1
+        self.receiver3.save()
+
+        # Test filtering by manufacturer
+        data = serialize_receivers(manufacturer_code="shure")
+
+        self.assertEqual(len(data), 2)  # receiver1 and receiver3 (both active)
+        names = [r["name"] for r in data]
+        self.assertIn("Receiver A", names)
+        self.assertNotIn("Receiver B", names)  # Different manufacturer
+        self.assertIn("Receiver C", names)  # Even though inactive, should be included if specified
+
+        # Check manufacturer code in serialized data
+        for receiver_data in data:
+            self.assertEqual(receiver_data["manufacturer_code"], "shure")
+
+    def test_serialize_receivers_manufacturer_filtering_no_match(self):
+        """Test serialize_receivers with manufacturer filtering when no receivers match"""
+        # Create manufacturer but don't assign to receivers
+        Manufacturer.objects.create(
+            code="unknown",
+            name="Unknown Manufacturer",
+        )
+
+        data = serialize_receivers(manufacturer_code="unknown")
+        self.assertEqual(len(data), 0)
 
 
 class DiscoveredDeviceSerializerTest(TestCase):
@@ -413,8 +476,12 @@ class ReceiverSummarySerializerTest(TestCase):
     """Test the serialize_receiver_summary function"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure", name="Shure Incorporated", config={"api_url": "http://test.com"}
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
@@ -457,8 +524,12 @@ class ReceiverDetailSerializerTest(TestCase):
     """Test the serialize_receiver_detail function"""
 
     def setUp(self):
+        self.manufacturer = Manufacturer.objects.create(
+            code="shure", name="Shure Incorporated", config={"api_url": "http://test.com"}
+        )
         self.receiver = Receiver.objects.create(
             api_device_id="test-device-001",
+            manufacturer=self.manufacturer,
             ip="192.168.1.100",
             device_type="uhfr",
             name="Test Receiver",
