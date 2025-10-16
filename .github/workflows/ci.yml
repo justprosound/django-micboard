@@ -51,7 +51,7 @@ jobs:
       run: safety check --full-report
 
     - name: Run tests with coverage
-      run: pytest tests/ -v --tb=short --cov=micboard --cov-report=lcov
+      run: pytest tests/ -v --tb=short --cov=micboard --cov-report=lcov --timeout=300
 
     - name: Upload coverage to Coveralls
       uses: coverallsapp/github-action@v2
