@@ -79,6 +79,7 @@ dev = [
     "bandit>=1.7.0",
     "safety>=2.3.0",
     "coveralls>=3.3.1",
+    "types-requests",
 ]
 
 [project.urls]
