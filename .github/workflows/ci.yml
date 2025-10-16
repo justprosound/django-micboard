@@ -1,4 +1,8 @@
+
 name: CI
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   push:
@@ -31,6 +35,7 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.generate-matrix.outputs.matrix).include }}
+      max-parallel: 2
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
