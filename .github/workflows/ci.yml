@@ -18,10 +18,19 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+      - name: Cache matrix.json
+        uses: actions/cache@v4
+        with:
+          path: matrix.json
+          key: matrix-${{ github.ref }}-${{ github.run_id }}
+          restore-keys: |
+            matrix-${{ github.ref }}-
       - name: Generate matrix
         id: gen-matrix
         run: |
-          python3 .github/workflows/generate-matrix.py > matrix.json
+          if [ ! -f matrix.json ] || [ $(find matrix.json -mtime +0) ]; then
+            python3 .github/workflows/generate-matrix.py > matrix.json
+          fi
       - name: Show generated matrix
         run: cat matrix.json
       - name: Set matrix output
