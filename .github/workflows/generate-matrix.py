@@ -35,6 +35,10 @@ def get_supported_django_python_pairs():
 
 def main():
     matrix = get_supported_django_python_pairs()
+    # Fallback: if matrix is empty, add a default supported combo
+    if not matrix:
+        # Safe fallback: Django 4.2 and Python 3.11 (both LTS and widely supported)
+        matrix = [{"django-version": "4.2", "python-version": "3.11"}]
     print(json.dumps({"include": matrix}))
 
 
