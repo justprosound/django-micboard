@@ -20,7 +20,9 @@ echo "Installing pip-tools..."
 pip install pip-tools
 
 echo "Updating requirements files..."
-pip-compile --upgrade --output-file=dev-requirements.txt dev-requirements.in
+pip-compile --upgrade pyproject.toml -o requirements.txt
+pip-compile --upgrade pyproject.toml --extra dev -o dev-requirements.txt
+pip-compile --upgrade pyproject.toml --extra docs -o docs/requirements.txt
 
 echo "Installing dependencies..."
 pip install -r dev-requirements.txt
