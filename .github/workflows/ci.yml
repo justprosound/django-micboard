@@ -22,6 +22,8 @@ jobs:
         id: gen-matrix
         run: |
           python3 .github/workflows/generate-matrix.py > matrix.json
+      - name: Show generated matrix
+        run: cat matrix.json
       - name: Set matrix output
         id: set-matrix
         run: |
