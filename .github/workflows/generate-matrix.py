@@ -12,6 +12,8 @@ def get_supported_django_python_pairs():
     today = datetime.datetime.now(tz=datetime.timezone.utc).date()
     matrix = []
     for v in versions:
+        if not isinstance(v, dict):
+            continue
         # Only consider supported Django releases
         if (
             v.get("eol")
