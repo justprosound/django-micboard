@@ -21,9 +21,8 @@ repos:
     hooks:
       - id: pip-compile
         name: pip-compile
-        entry: bash -c 'pip-compile --upgrade --output-file=requirements.txt requirements.in && pip-compile --upgrade --output-file=dev-requirements.txt dev-requirements.in && git add requirements.txt dev-requirements.txt'
+        entry: bash -c 'pip-compile --upgrade --output-file=requirements.txt pyproject.toml && pip-compile --upgrade --extra dev --output-file=dev-requirements.txt pyproject.toml && git add requirements.txt dev-requirements.txt'
         language: system
-        files: ^(requirements|dev-requirements)\.in$
         stages: [manual]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
