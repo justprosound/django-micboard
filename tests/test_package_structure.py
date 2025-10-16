@@ -120,13 +120,13 @@ class TestPackageStructure:
 
     def test_shure_api_imports(self):
         """Test that Shure API client can be imported."""
-        from micboard.manufacturers.shure import (
+        from micboard.manufacturers.shure.client import (
             ShureAPIError,
             ShureAPIRateLimitError,
-            ShureDataTransformer,
             ShureSystemAPIClient,
-            ShureWebSocketError,
         )
+        from micboard.manufacturers.shure.transformers import ShureDataTransformer
+        from micboard.manufacturers.shure.websocket import ShureWebSocketError
 
         # Verify all classes are present
         expected_classes = [

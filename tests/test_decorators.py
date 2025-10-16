@@ -22,7 +22,7 @@ class RateLimitDecoratorTest(TestCase):
         """Test that requests under the limit are allowed"""
 
         @rate_limit_view(max_requests=5, window_seconds=60)
-        def test_view(request):  # type: ignore
+        def test_view(request):
             return JsonResponse({"status": "ok"})
 
         # Make requests under the limit
@@ -39,7 +39,7 @@ class RateLimitDecoratorTest(TestCase):
         """Test that requests over the limit are blocked"""
 
         @rate_limit_view(max_requests=2, window_seconds=60)
-        def test_view(request):  # type: ignore
+        def test_view(request):
             return JsonResponse({"status": "ok"})
 
         request = self.factory.get("/test/")
@@ -64,7 +64,7 @@ class RateLimitDecoratorTest(TestCase):
     def test_rate_limit_view_custom_key_func(self):
         """Test rate limiting with custom key function"""
 
-        def custom_key_func(request):  # type: ignore
+        def custom_key_func(request):
             return f"custom_{request.META.get('HTTP_USER_AGENT', 'unknown')}"
 
         @rate_limit_view(max_requests=1, window_seconds=60, key_func=custom_key_func)
@@ -109,7 +109,7 @@ class RateLimitDecoratorTest(TestCase):
             return JsonResponse({"status": "ok"})
 
         request = self.factory.get("/test/")
-        request.user = type("MockUser", (), {"id": 123, "is_authenticated": True})()  # type: ignore
+        request.user = type("MockUser", (), {"id": 123, "is_authenticated": True})()
 
         # First request should succeed
         response1 = test_view(request)
@@ -127,7 +127,7 @@ class RateLimitDecoratorTest(TestCase):
             return JsonResponse({"status": "ok"})
 
         request = self.factory.get("/test/")
-        request.user = type("MockUser", (), {"is_authenticated": False})()  # type: ignore
+        request.user = type("MockUser", (), {"is_authenticated": False})()
         request.META["REMOTE_ADDR"] = "192.168.1.200"
 
         # First request should succeed
@@ -155,7 +155,7 @@ class RateLimitDecoratorTest(TestCase):
         self.assertEqual(get_client_ip(request), "10.0.0.1")
 
     @patch("micboard.decorators.cache")
-    def test_rate_limit_view_cache_error(self, mock_cache):  # type: ignore
+    def test_rate_limit_view_cache_error(self, mock_cache):
         """Test that cache errors don't break the view"""
 
         # Mock cache to raise an exception
@@ -163,7 +163,7 @@ class RateLimitDecoratorTest(TestCase):
         mock_cache.set.side_effect = Exception("Cache error")
 
         @rate_limit_view(max_requests=1, window_seconds=60)
-        def test_view(request):  # type: ignore
+        def test_view(request):
             return JsonResponse({"status": "ok"})
 
         request = self.factory.get("/test/")

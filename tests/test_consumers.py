@@ -221,7 +221,7 @@ class MicboardConsumerIntegrationTest(TestCase):
 
         for event in events:
             consumer.send.reset_mock()
-            await consumer.device_update(event)
+            await consumer.device_update(event)  # type: ignore
             consumer.send.assert_called_once()
 
         # Test status_update with various messages
@@ -233,5 +233,5 @@ class MicboardConsumerIntegrationTest(TestCase):
 
         for event in status_events:
             consumer.send.reset_mock()
-            await consumer.status_update(event)
+            await consumer.status_update(event)  # type: ignore
             consumer.send.assert_called_once()

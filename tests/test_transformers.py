@@ -2,7 +2,7 @@
 Tests for Shure data transformers.
 """
 
-from typing import Union
+from typing import Any, Union
 
 from django.test import TestCase
 
@@ -269,7 +269,7 @@ class ShureDataTransformerTest(TestCase):
 
     def test_transform_transmitter_data_exception_handling(self):
         """Test transmitter data transformation with exception handling."""
-        tx_data = {}  # Pass an empty dict to trigger internal exception handling
+        tx_data: dict[str, Any] = {}  # Pass an empty dict to trigger internal exception handling
 
         result = ShureDataTransformer.transform_transmitter_data(tx_data, 1)
         self.assertIsNone(result)

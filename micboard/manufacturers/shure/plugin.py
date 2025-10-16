@@ -5,7 +5,7 @@ Shure manufacturer plugin for django-micboard.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, Union, cast
 
 from micboard.manufacturers import ManufacturerPlugin
 
@@ -33,15 +33,15 @@ class ShurePlugin(ManufacturerPlugin):
 
     def get_devices(self) -> list[dict[str, Any]]:
         """Get list of all devices from Shure System API."""
-        return self.client.get_devices()
+        return cast(list[dict[str, Any]], self.client.get_devices())
 
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get detailed data for a specific device."""
-        return self.client.get_device(device_id)
+        return cast(Union[dict[str, Any], None], self.client.get_device(device_id))
 
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Get channel data for a device."""
-        return self.client.get_device_channels(device_id)
+        return cast(list[dict[str, Any]], self.client.get_device_channels(device_id))
 
     def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
         """Transform Shure API data to micboard format."""

@@ -15,10 +15,10 @@ import time
 from functools import wraps
 from typing import Any
 
-import requests  # type: ignore
+import requests
 from django.conf import settings
 from django.core.cache import cache
-from requests.adapters import HTTPAdapter  # type: ignore
+from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from .transformers import ShureDataTransformer
