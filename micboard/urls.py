@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from django.urls import include, path
 
-from micboard.views import dashboard
+from micboard.views import charger_display, dashboard
 from micboard.views.api import (
     APIDocumentationView,
     ConfigHandler,
@@ -31,7 +31,7 @@ urlpatterns = [
     path("", dashboard.index, name="index"),
     path("building/<str:building>/", dashboard.building_view, name="building_view"),
     path("room/<str:building>/<str:room>/", dashboard.room_view, name="room_view"),
-    path("user/<int:user_id>/", dashboard.user_view, name="user_view"),
+    path("user/<str:username>/", dashboard.user_view, name="user_view"),
     path("type/<str:device_type>/", dashboard.device_type_view, name="device_type_view"),
     path("priority/<str:priority>/", dashboard.priority_view, name="priority_view"),
     path("alerts/", dashboard.alerts_view, name="alerts"),
@@ -43,6 +43,7 @@ urlpatterns = [
     ),
     path("alerts/<int:alert_id>/resolve/", dashboard.resolve_alert_view, name="resolve_alert"),
     path("about/", dashboard.about, name="about"),
+    path("chargers/", charger_display.charger_display, name="charger_display"),
     # API endpoints (current version - v1)
     path("api/health/", api_health, name="api_health"),
     path("api/health/detailed/", HealthCheckView.as_view(), name="api_health_detailed"),

@@ -2,14 +2,14 @@
 {% load static %}
 
 {% block content %}
-	<main class="about-page">
-		<div class="about-content">
-			<div class="about-card">
-				<img src="{% static 'micboard/logo.png' %}" class="about-card-img" alt="Micboard Logo">
-				<h3 class="about-card-title text-center" id="version"></h3>
-				<div class="about-card-body">
-					<p class="about-card-text"><a href="https://github.com/justprosound/django-micboard" class="button button-secondary button-block">django-micboard on GitHub</a></p>
-					<p class="about-card-text text-center">Open Source Software<br>Licensed under AGPL-3.0-or-later</p>
+	<main class="container my-5">
+		<div class="row justify-content-center">
+			<div class="card col-md-6 col-lg-4">
+				<img src="{% static 'micboard/logo.png' %}" class="card-img-top" alt="Micboard Logo">
+				<h3 class="card-title text-center" id="version"></h3>
+				<div class="card-body">
+					<p class="card-text"><a href="https://github.com/justprosound/django-micboard" class="btn btn-secondary w-100">django-micboard on GitHub</a></p>
+					<p class="card-text text-center">Open Source Software<br>Licensed under AGPL-3.0-or-later</p>
 				</div>
 			</div>
 		</div>

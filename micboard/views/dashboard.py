@@ -9,7 +9,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 # Updated imports
-from micboard.models import Alert, Group, Location, Receiver
+from micboard.models import Alert, Group, Location, Manufacturer, Receiver
 
 User = get_user_model()
 
@@ -19,12 +19,16 @@ def index(request: HttpRequest):
     buildings = Location.objects.values_list("building", flat=True).distinct()
     rooms = Location.objects.values_list("room", flat=True).distinct()
     users = User.objects.all()
+    manufacturers = Manufacturer.objects.filter(is_active=True)
+    alert_types = Alert.ALERT_TYPES
     context = {
-        "device_count": Receiver.objects.filter(is_active=True).count(),  # Updated
+        "device_count": Receiver.objects.filter(is_active=True).count(),
         "group_count": Group.objects.count(),
         "buildings": buildings,
         "rooms": rooms,
         "users": users,
+        "manufacturers": manufacturers,
+        "alert_types": alert_types,
     }
     return render(request, "micboard/index.html", context)
 
@@ -36,7 +40,15 @@ def about(request: HttpRequest):
 
 def device_type_view(request: HttpRequest, device_type: str):
     """View to display receivers of a specific type"""
-    receivers = Receiver.objects.filter(device_type=device_type, is_active=True)  # Updated
+    manufacturer_code = request.GET.get("manufacturer")
+
+    receivers_query = Receiver.objects.filter(device_type=device_type, is_active=True)
+
+    # Filter by manufacturer if specified
+    if manufacturer_code:
+        receivers_query = receivers_query.filter(manufacturer__code=manufacturer_code)
+
+    receivers = receivers_query  # Updated
     context = {
         "device_type": device_type,
         "receivers": receivers,  # Updated
@@ -46,9 +58,17 @@ def device_type_view(request: HttpRequest, device_type: str):
 
 def building_view(request: HttpRequest, building_name: str):
     """View to display receivers in a specific building"""
-    receivers = Receiver.objects.filter(
+    manufacturer_code = request.GET.get("manufacturer")
+
+    receivers_query = Receiver.objects.filter(
         channels__assignments__location__building=building_name, is_active=True
-    ).distinct()  # Updated
+    ).distinct()
+
+    # Filter by manufacturer if specified
+    if manufacturer_code:
+        receivers_query = receivers_query.filter(manufacturer__code=manufacturer_code)
+
+    receivers = receivers_query  # Updated
     context = {
         "building_name": building_name,
         "receivers": receivers,  # Updated
@@ -58,9 +78,17 @@ def building_view(request: HttpRequest, building_name: str):
 
 def user_view(request: HttpRequest, username: str):
     """View to display receivers assigned to a specific user"""
-    receivers = Receiver.objects.filter(
+    manufacturer_code = request.GET.get("manufacturer")
+
+    receivers_query = Receiver.objects.filter(
         channels__assignments__user__username=username, is_active=True
-    ).distinct()  # Updated
+    ).distinct()
+
+    # Filter by manufacturer if specified
+    if manufacturer_code:
+        receivers_query = receivers_query.filter(manufacturer__code=manufacturer_code)
+
+    receivers = receivers_query  # Updated
     context = {
         "username": username,
         "receivers": receivers,  # Updated
@@ -70,9 +98,17 @@ def user_view(request: HttpRequest, username: str):
 
 def room_view(request: HttpRequest, room_name: str):
     """View to display receivers in a specific room"""
-    receivers = Receiver.objects.filter(
+    manufacturer_code = request.GET.get("manufacturer")
+
+    receivers_query = Receiver.objects.filter(
         channels__assignments__location__room=room_name, is_active=True
-    ).distinct()  # Updated
+    ).distinct()
+
+    # Filter by manufacturer if specified
+    if manufacturer_code:
+        receivers_query = receivers_query.filter(manufacturer__code=manufacturer_code)
+
+    receivers = receivers_query  # Updated
     context = {
         "room_name": room_name,
         "receivers": receivers,  # Updated
@@ -82,9 +118,17 @@ def room_view(request: HttpRequest, room_name: str):
 
 def priority_view(request: HttpRequest, priority: str):
     """View to display receivers with a specific assignment priority"""
-    receivers = Receiver.objects.filter(
+    manufacturer_code = request.GET.get("manufacturer")
+
+    receivers_query = Receiver.objects.filter(
         channels__assignments__priority=priority, is_active=True
-    ).distinct()  # Updated
+    ).distinct()
+
+    # Filter by manufacturer if specified
+    if manufacturer_code:
+        receivers_query = receivers_query.filter(manufacturer__code=manufacturer_code)
+
+    receivers = receivers_query  # Updated
     context = {
         "priority": priority,
         "receivers": receivers,  # Updated
@@ -99,7 +143,7 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
     page_number = request.GET.get("page", 1)
 
     # Base queryset
-    alerts = Alert.objects.select_related("channel", "user", "assignment").order_by("-created_at")
+    alerts = Alert.objects.select_related("channel", "user").order_by("-created_at")
 
     # Apply filters
     if status_filter and status_filter != "all":
@@ -133,9 +177,7 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
 
 def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """View to display detailed information about a specific alert"""
-    alert = get_object_or_404(
-        Alert.objects.select_related("channel", "user", "assignment"), id=alert_id
-    )
+    alert = get_object_or_404(Alert.objects.select_related("channel", "user"), id=alert_id)
 
     context = {
         "alert": alert,

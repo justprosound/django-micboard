@@ -120,7 +120,7 @@ class TestPackageStructure:
 
     def test_shure_api_imports(self):
         """Test that Shure API client can be imported."""
-        from micboard.shure import (
+        from micboard.manufacturers.shure import (
             ShureAPIError,
             ShureAPIRateLimitError,
             ShureDataTransformer,

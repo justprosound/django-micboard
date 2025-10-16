@@ -104,6 +104,12 @@ async def connect_and_subscribe(
             "Shure API WebSocket connection closed with error for device %s", device_id
         )
         raise ShureWebSocketError(f"WebSocket connection error for device {device_id}") from None
+    except ShureWebSocketError:
+        # Re-raise ShureWebSocketError exceptions (they're already properly formatted)
+        raise
+    except ShureAPIError:
+        # Re-raise ShureAPIError exceptions (they should propagate up)
+        raise
     except Exception:
         logger.exception(
             "Unhandled error in Shure API WebSocket connection for device %s",

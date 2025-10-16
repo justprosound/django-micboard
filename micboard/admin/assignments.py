@@ -26,7 +26,14 @@ class DeviceAssignmentAdmin(admin.ModelAdmin):
         "priority",
         "is_active",
     )
-    list_filter = ("priority", "is_active", "user", "location", "monitoring_group")
+    list_filter = (
+        "priority",
+        "is_active",
+        "user",
+        "location",
+        "monitoring_group",
+        "channel__receiver__manufacturer",
+    )
     search_fields = (
         "user__username",
         "channel__receiver__name",
@@ -56,7 +63,7 @@ class AlertAdmin(admin.ModelAdmin):
         "is_overdue",
         "created_at",
     )
-    list_filter = ("alert_type", "status", "severity", "created_at")
+    list_filter = ("alert_type", "status", "created_at", "channel__receiver__manufacturer")
     search_fields = (
         "channel__receiver__name",
         "channel__channel_number",

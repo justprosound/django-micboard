@@ -41,7 +41,12 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
             # Get current request timestamps
             now = time.time()
             window_key = f"{cache_key}_window"
-            request_times = cache.get(window_key, [])
+            try:
+                request_times = cache.get(window_key, [])
+            except Exception:
+                # If cache fails, allow the request (fail open)
+                logger.debug("Cache read failed, allowing request: %s", cache_key)
+                request_times = []
 
             # Remove timestamps outside the current window
             request_times = [t for t in request_times if now - t < window_seconds]
@@ -71,7 +76,11 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
 
             # Add current request timestamp
             request_times.append(now)
-            cache.set(window_key, request_times, timeout=window_seconds + 1)
+            try:
+                cache.set(window_key, request_times, timeout=window_seconds + 1)
+            except Exception:
+                # If cache write fails, log but allow the request
+                logger.debug("Cache write failed, but allowing request: %s", cache_key)
 
             # Call the view
             return view_func(request, *args, **kwargs)

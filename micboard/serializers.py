@@ -113,7 +113,10 @@ def serialize_receiver(receiver: Receiver, *, include_extra: bool = False) -> di
 
 
 def serialize_receivers(
-    receivers: list[Receiver] | None = None, *, include_extra: bool = False
+    receivers: list[Receiver] | None = None,
+    *,
+    include_extra: bool = False,
+    manufacturer_code: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Serialize multiple Receiver instances.
@@ -121,6 +124,7 @@ def serialize_receivers(
     Args:
         receivers: List of Receiver instances. If None, fetches all active receivers.
         include_extra: If True, includes extra computed properties (keyword-only)
+        manufacturer_code: If provided, filter receivers by manufacturer code (keyword-only)
 
     Returns:
         List of serialized receiver dictionaries
@@ -129,9 +133,13 @@ def serialize_receivers(
     from micboard.models import Receiver
 
     if receivers is None:
-        receivers = list(
-            Receiver.objects.filter(is_active=True).prefetch_related("channels__transmitter")
-        )
+        queryset = Receiver.objects.filter(is_active=True).prefetch_related("channels__transmitter")
+
+        # Filter by manufacturer if specified
+        if manufacturer_code:
+            queryset = queryset.filter(manufacturer__code=manufacturer_code)
+
+        receivers = list(queryset)
 
     return [serialize_receiver(receiver, include_extra=include_extra) for receiver in receivers]
 
