@@ -120,7 +120,10 @@ class RateLimitDecoratorTest(TestCase):
         mock_time.return_value = 1000.1  # 0.1 seconds later
         result = test_func(self)
         self.assertEqual(result, "called")
-        mock_sleep.assert_called_once_with(0.4)  # 0.5 - 0.1 = 0.4
+        # Floating point math can introduce tiny rounding differences; assert close
+        mock_sleep.assert_called_once()
+        called_arg = mock_sleep.call_args[0][0]
+        self.assertAlmostEqual(called_arg, 0.4, places=6)
 
     @patch("time.time")
     def test_rate_limit_no_delay_needed(self, mock_time):
@@ -430,7 +433,7 @@ class ShureSystemAPIClientTest(TestCase):
 
         self.assertIsNone(result)
 
-    @patch("micboard.shure.client.ShureSystemAPIClient._make_request")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._make_request")
     def test_enrich_device_data(self, mock_make_request):
         """Test device data enrichment"""
         client = ShureSystemAPIClient()
@@ -528,7 +531,13 @@ class ShureSystemAPIClientTest(TestCase):
         mock_connect.return_value = "connection_result"
 
         client = ShureSystemAPIClient()
-        result = await client.connect_and_subscribe("device1", lambda x: None)
+
+        # Capture the callback in a variable so the same function object
+        # is used when asserting the mock was called with it.
+        def callback(x):
+            pass
+
+        result = await client.connect_and_subscribe("device1", callback)
 
         self.assertEqual(result, "connection_result")
-        mock_connect.assert_called_once_with(client, "device1", lambda x: None)
+        mock_connect.assert_called_once_with(client, "device1", callback)
