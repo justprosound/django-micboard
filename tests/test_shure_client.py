@@ -356,7 +356,7 @@ class ShureSystemAPIClientTest(TestCase):
         self.assertIn("Invalid JSON response", str(cm.exception))
         self.assertEqual(client._consecutive_failures, 1)
 
-    @patch("micboard.shure.client.ShureSystemAPIClient._make_request")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._make_request")
     def test_get_devices_success(self, mock_make_request):
         """Test successful get_devices"""
         mock_make_request.return_value = [{"id": "device1"}, {"id": "device2"}]
@@ -367,7 +367,7 @@ class ShureSystemAPIClientTest(TestCase):
         self.assertEqual(result, [{"id": "device1"}, {"id": "device2"}])
         mock_make_request.assert_called_once_with("GET", "/api/v1/devices")
 
-    @patch("micboard.shure.client.ShureSystemAPIClient._make_request")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._make_request")
     def test_get_devices_invalid_response(self, mock_make_request):
         """Test get_devices with invalid response"""
         mock_make_request.return_value = "invalid"
@@ -377,7 +377,7 @@ class ShureSystemAPIClientTest(TestCase):
 
         self.assertEqual(result, [])
 
-    @patch("micboard.shure.client.ShureSystemAPIClient._make_request")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._make_request")
     def test_get_device_success(self, mock_make_request):
         """Test successful get_device"""
         mock_make_request.return_value = {"id": "device1", "name": "Test Device"}
@@ -388,7 +388,7 @@ class ShureSystemAPIClientTest(TestCase):
         self.assertEqual(result, {"id": "device1", "name": "Test Device"})
         mock_make_request.assert_called_once_with("GET", "/api/v1/devices/device1")
 
-    @patch("micboard.shure.client.ShureSystemAPIClient._make_request")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._make_request")
     def test_get_device_channels_success(self, mock_make_request):
         """Test successful get_device_channels"""
         mock_make_request.return_value = [{"channel": 1}, {"channel": 2}]
@@ -399,7 +399,7 @@ class ShureSystemAPIClientTest(TestCase):
         self.assertEqual(result, [{"channel": 1}, {"channel": 2}])
         mock_make_request.assert_called_once_with("GET", "/api/v1/devices/device1/channels")
 
-    @patch("micboard.shure.client.ShureSystemAPIClient._make_request")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._make_request")
     def test_get_transmitter_data_success(self, mock_make_request):
         """Test successful get_transmitter_data"""
         mock_make_request.return_value = {"battery": 80, "rf_level": -50}
@@ -410,7 +410,7 @@ class ShureSystemAPIClientTest(TestCase):
         self.assertEqual(result, {"battery": 80, "rf_level": -50})
         mock_make_request.assert_called_once_with("GET", "/api/v1/devices/device1/channels/1/tx")
 
-    @patch("micboard.shure.client.ShureSystemAPIClient._make_request")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._make_request")
     def test_get_device_identity_success(self, mock_make_request):
         """Test successful get_device_identity"""
         mock_make_request.return_value = {"serialNumber": "ABC123"}
@@ -420,7 +420,7 @@ class ShureSystemAPIClientTest(TestCase):
 
         self.assertEqual(result, {"serialNumber": "ABC123"})
 
-    @patch("micboard.shure.client.ShureSystemAPIClient._make_request")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._make_request")
     def test_get_device_identity_not_available(self, mock_make_request):
         """Test get_device_identity when endpoint not available"""
         mock_make_request.side_effect = ShureAPIError("Not found")
@@ -457,11 +457,11 @@ class ShureSystemAPIClientTest(TestCase):
         self.assertEqual(result["frequency_band"], "H50")
         self.assertEqual(result["location"], "Studio A")
 
-    @patch("micboard.shure.client.ShureSystemAPIClient.get_devices")
-    @patch("micboard.shure.client.ShureSystemAPIClient.get_device")
-    @patch("micboard.shure.client.ShureSystemAPIClient.get_device_channels")
-    @patch("micboard.shure.client.ShureSystemAPIClient._enrich_device_data")
-    @patch("micboard.shure.transformers.ShureDataTransformer.transform_device_data")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient.get_devices")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient.get_device")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient.get_device_channels")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient._enrich_device_data")
+    @patch("micboard.manufacturers.shure.transformers.ShureDataTransformer.transform_device_data")
     def test_poll_all_devices_success(
         self, mock_transform, mock_enrich, mock_get_channels, mock_get_device, mock_get_devices
     ):
@@ -482,7 +482,7 @@ class ShureSystemAPIClientTest(TestCase):
             result["device1"], {"id": "device1", "name": "Device 1", "transformed": True}
         )
 
-    @patch("micboard.shure.client.ShureSystemAPIClient.get_devices")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient.get_devices")
     def test_poll_all_devices_get_devices_failure(self, mock_get_devices):
         """Test poll_all_devices when get_devices fails"""
         mock_get_devices.side_effect = ShureAPIError("API unavailable")
@@ -492,8 +492,8 @@ class ShureSystemAPIClientTest(TestCase):
 
         self.assertEqual(result, {})
 
-    @patch("micboard.shure.client.ShureSystemAPIClient.get_devices")
-    @patch("micboard.shure.client.ShureSystemAPIClient.get_device")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient.get_devices")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient.get_device")
     def test_poll_all_devices_device_failure(self, mock_get_device, mock_get_devices):
         """Test poll_all_devices when individual device fails"""
         mock_get_devices.return_value = [{"id": "device1"}, {"id": "device2"}]
@@ -505,9 +505,9 @@ class ShureSystemAPIClientTest(TestCase):
         # Should return empty dict when devices fail
         self.assertEqual(result, {})
 
-    @patch("micboard.shure.client.ShureSystemAPIClient.get_devices")
-    @patch("micboard.shure.client.ShureSystemAPIClient.get_device")
-    @patch("micboard.shure.transformers.ShureDataTransformer.transform_device_data")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient.get_devices")
+    @patch("micboard.manufacturers.shure.client.ShureSystemAPIClient.get_device")
+    @patch("micboard.manufacturers.shure.transformers.ShureDataTransformer.transform_device_data")
     def test_poll_all_devices_transform_failure(
         self, mock_transform, mock_get_device, mock_get_devices
     ):
@@ -522,7 +522,7 @@ class ShureSystemAPIClientTest(TestCase):
         # Should not include failed transformations
         self.assertEqual(result, {})
 
-    @patch("micboard.shure.websocket.connect_and_subscribe")
+    @patch("micboard.manufacturers.shure.websocket.connect_and_subscribe")
     async def test_connect_and_subscribe(self, mock_connect):
         """Test WebSocket connection and subscription"""
         mock_connect.return_value = "connection_result"

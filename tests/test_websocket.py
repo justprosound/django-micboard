@@ -226,7 +226,9 @@ class ShureWebSocketTest(TestCase):
 
         callback = Mock()
 
-        with patch("micboard.shure.websocket.websockets.connect", return_value=mock_websocket):
+        with patch(
+            "micboard.manufacturers.shure.websocket.websockets.connect", return_value=mock_websocket
+        ):
             with patch.object(self.client, "_make_request") as mock_request:
                 mock_request.return_value = {"status": "success"}
 
@@ -252,7 +254,9 @@ class ShureWebSocketTest(TestCase):
 
         callback = Mock()
 
-        with patch("micboard.shure.websocket.websockets.connect", return_value=mock_websocket):
+        with patch(
+            "micboard.manufacturers.shure.websocket.websockets.connect", return_value=mock_websocket
+        ):
             with patch.object(self.client, "_make_request") as mock_request:
                 mock_request.return_value = {"status": "success"}
 
@@ -273,7 +277,8 @@ class ShureWebSocketTest(TestCase):
         callback = Mock()
 
         with patch(
-            "micboard.shure.websocket.websockets.connect", side_effect=Exception("Network error")
+            "micboard.manufacturers.shure.websocket.websockets.connect",
+            side_effect=Exception("Network error"),
         ):
             with pytest.raises(
                 ShureWebSocketError, match="Unhandled WebSocket error for device device1"
