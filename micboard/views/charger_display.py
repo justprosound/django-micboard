@@ -1,9 +1,16 @@
+"""Views for charger display UI and helpers.
+
+This module provides the `charger_display` view which renders a page
+showing the status of networked charging stations and docked microphones.
+It queries the Shure System API via the manufacturers shure client.
+"""
+
 import logging
 
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
-from micboard.shure.client import ShureAPIError, ShureSystemAPIClient
+from micboard.manufacturers.shure.client import ShureAPIError, ShureSystemAPIClient
 
 logger = logging.getLogger(__name__)
 

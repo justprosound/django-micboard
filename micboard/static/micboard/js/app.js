@@ -223,6 +223,22 @@ function initialMap(callback) {
         // Store the new receivers data structure
         micboard.receivers = data.receivers; // Updated
 
+        // Rebuild legacy transmitters mapping expected by other modules.
+        // Some parts of the frontend still expect `micboard.transmitters`.
+        micboard.transmitters = [];
+        if (Array.isArray(micboard.receivers)) {
+          micboard.receivers.forEach((rx) => {
+            if (!rx || !Array.isArray(rx.tx)) return;
+            rx.tx.forEach((t) => {
+              const tx = t;
+              // carry over some receiver properties to transmitter for compatibility
+              tx.ip = rx.ip;
+              tx.type = rx.type;
+              micboard.transmitters[tx.slot] = tx;
+            });
+          });
+        }
+
         mapGroups();
 
         if (micboard.config.slots.length < 1) {
