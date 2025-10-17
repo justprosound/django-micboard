@@ -49,7 +49,7 @@ urlpatterns = [
     path("api/health/detailed/", HealthCheckView.as_view(), name="api_health_detailed"),
     path("api/health/ready/", ReadinessCheckView.as_view(), name="api_health_ready"),
     path("api/docs/", APIDocumentationView.as_view(), name="api_docs"),
-    path("api/data.json", data_json, name="data_json"),
+    path("api/data/", data_json, name="data"),
     path("api/receivers/", api_receivers_list, name="api_receivers_list"),
     path("api/receivers/<int:receiver_id>/", api_receiver_detail, name="api_receiver_detail"),
     path("api/discover/", api_discover, name="api_discover"),
@@ -66,7 +66,7 @@ urlpatterns = [
                 path("health/detailed/", HealthCheckView.as_view(), name="api_v1_health_detailed"),
                 path("health/ready/", ReadinessCheckView.as_view(), name="api_v1_health_ready"),
                 path("docs/", APIDocumentationView.as_view(), name="api_v1_docs"),
-                path("data.json", data_json, name="api_v1_data_json"),
+                path("data/", data_json, name="api_v1_data"),
                 path("receivers/", api_receivers_list, name="api_v1_receivers_list"),
                 path(
                     "receivers/<int:receiver_id>/",

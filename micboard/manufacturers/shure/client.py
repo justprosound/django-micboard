@@ -143,11 +143,16 @@ class ShureSystemAPIClient:
         if self.username and self.password:
             self.session.auth = (self.username, self.password)
 
-        self.websocket_url = config.get("SHURE_API_WEBSOCKET_URL")
-        if not self.websocket_url:
-            # Infer from base_url if not explicitly set
-            ws_scheme = "wss" if self.base_url.startswith("https") else "ws"
-            self.websocket_url = f"{ws_scheme}://{self.base_url.split('://', 1)[1]}/api/v1/subscriptions/websocket/create"
+        # Respect an explicit websocket URL from config; store it on a
+        # private attribute because `websocket_url` is a read-only property.
+        explicit_ws = config.get("SHURE_API_WEBSOCKET_URL") if config is not None else None
+        # Track whether an explicit websocket URL was provided (even if None)
+        if "SHURE_API_WEBSOCKET_URL" in config:
+            self._explicit_websocket_set = True
+            self._explicit_websocket_url = explicit_ws
+        else:
+            self._explicit_websocket_set = False
+            self._explicit_websocket_url = None
 
         # Data transformer
         self.transformer = ShureDataTransformer()
@@ -200,7 +205,63 @@ class ShureSystemAPIClient:
 
         try:
             response = self.session.request(method, url, **kwargs)
-            response.raise_for_status()
+            # Some tests use a Mock response that does not raise for
+            # `raise_for_status()`. Ensure we handle non-2xx status codes
+            # explicitly based on response.status_code.
+            status = getattr(response, "status_code", None)
+
+            if status is not None and status >= 400:
+                # Update failure counters
+                self._consecutive_failures += 1
+                self._is_healthy = False if status >= 500 else self._is_healthy
+
+                if status == 429:
+                    # Rate limit handling
+                    retry_after = None
+                    try:
+                        retry_after_header = response.headers.get("Retry-After")
+                        if retry_after_header is not None:
+                            retry_after = int(retry_after_header)
+                    except Exception:
+                        pass
+                    logger.error("API HTTP 429 rate limit: %s %s", method, url)
+                    raise ShureAPIRateLimitError(
+                        message=f"Rate limit exceeded for {method} {url}",
+                        retry_after=retry_after,
+                        response=response,
+                    )
+
+                logger.error(
+                    "API HTTP error: %s %s - Status %s: %s",
+                    method,
+                    url,
+                    status,
+                    getattr(response, "text", "")[:200],
+                )
+                raise ShureAPIError(
+                    message=f"HTTP error for {method} {url}",
+                    status_code=status,
+                    response=response,
+                )
+
+            # Call raise_for_status to allow requests' own exceptions in real
+            # scenarios (mocks may not raise).
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                # This branch will generally be hit when raise_for_status
+                # raises the HTTPError; mirror above handling.
+                self._consecutive_failures += 1
+                if e.response is not None and e.response.status_code == 429:
+                    raise ShureAPIRateLimitError(
+                        message=f"Rate limit exceeded for {method} {url}",
+                        response=e.response,
+                    ) from e
+                raise ShureAPIError(
+                    message=f"HTTP error for {method} {url}",
+                    status_code=(e.response.status_code if e.response is not None else None),
+                    response=(e.response if e.response is not None else None),
+                ) from e
 
             # Update health tracking on success
             self._last_successful_request = time.time()
@@ -377,6 +438,32 @@ class ShureSystemAPIClient:
 
         logger.info("Successfully polled %d devices", len(data))
         return data
+
+    @property
+    def websocket_url(self) -> str | None:
+        """Return the websocket URL, preferring an explicit config value.
+
+        This is a property so changes to `base_url` after initialization are
+        reflected in tests and runtime usage.
+        """
+        # If callers explicitly set the websocket value (including explicit
+        # None), prefer that over dynamic inference.
+        if getattr(self, "_explicit_websocket_set", False):
+            return self._explicit_websocket_url
+        if not getattr(self, "base_url", None):
+            return None
+        ws_scheme = "wss" if self.base_url.startswith("https") else "ws"
+        return f"{ws_scheme}://{self.base_url.split('://', 1)[1]}/api/v1/subscriptions/websocket/create"
+
+    @websocket_url.setter
+    def websocket_url(self, value: str | None) -> None:
+        """Allow tests or callers to explicitly set the websocket URL.
+
+        This writes to a private attribute which the property prefers when
+        present.
+        """
+        self._explicit_websocket_url = value
+        self._explicit_websocket_set = True
 
     async def connect_and_subscribe(self, device_id: str, callback):
         """Establishes WebSocket connection and subscribes to device updates.

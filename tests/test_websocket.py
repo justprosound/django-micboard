@@ -135,9 +135,8 @@ class ShureWebSocketTest(TestCase):
         ):
             with patch.object(self.client, "_make_request") as mock_request:
                 mock_request.side_effect = ShureAPIError("Subscription failed")
-
-            with pytest.raises(ShureAPIError, match="Subscription failed"):
-                await connect_and_subscribe(self.client, "device1", callback)
+                with pytest.raises(ShureAPIError, match="Subscription failed"):
+                    await connect_and_subscribe(self.client, "device1", callback)
 
     async def test_connect_and_subscribe_invalid_device_message(self):
         """Test WebSocket connection with invalid device message JSON."""
@@ -148,14 +147,16 @@ class ShureWebSocketTest(TestCase):
         # Mock transport message and invalid device message
         # messages = [json.dumps({"transportId": "test-transport-123"}), "invalid json message"]
 
-        # Create a proper async iterator for the websocket
-        async def mock_anext(self):
-            try:
-                return await self.recv()
-            except ConnectionClosedOK as err:
-                raise StopAsyncIteration from err
+        # Provide an initial valid transportId, then an invalid device message
+        transport_message = {"transportId": "test-transport-123"}
+        messages = [json.dumps(transport_message), "invalid json message"]
 
-        mock_websocket.__anext__ = mock_anext
+        async def mock_recv():
+            if not messages:
+                raise ConnectionClosedOK(None, None)
+            return messages.pop(0)
+
+        mock_websocket.recv = mock_recv
 
         callback = Mock()
 

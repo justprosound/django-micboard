@@ -17,12 +17,13 @@ import '../css/colors.scss';
 import '../css/style.scss';
 
 
-export const dataURL = window.dataURL || 'data.json';
+export const dataURL = window.dataURL || '/api/data/';
 
-export const micboard = [];
+// Use object shape for micboard to hold named properties used across modules
+export const micboard = {};
 micboard.MIC_MODELS = ['uhfr', 'qlxd', 'ulxd', 'axtd'];
 micboard.IEM_MODELS = ['p10t'];
-micboard.url = [];
+micboard.url = {};
 micboard.displayMode = 'deskmode';
 micboard.infoDrawerMode = 'elinfo11';
 micboard.backgroundMode = 'NONE';
@@ -33,7 +34,7 @@ micboard.group = 0;
 micboard.connectionStatus = 'CONNECTING';
 
 // micboard.transmitters = []; // Removed
-micboard.receivers = []; // Added to hold the new data structure
+micboard.receivers = [];
 
 micboard.displayList = [];
 

@@ -39,16 +39,16 @@ class MicboardConfig(AppConfig):
 
     def ready(self):
         """Initialize app when Django starts"""
-        # Validate configuration
+        # Validate configuration without mutating project settings
         self._validate_configuration()
 
         # Import signals to register them
         from . import signals  # noqa: F401
 
-        # Register security middleware
+        # Advise about recommended middleware (do not modify settings)
         self._register_security_middleware()
 
-        logger.info("Micboard app initialized")
+        logger.info("Micboard app initialized (configuration validated)")
 
     def _register_security_middleware(self):
         """Register security middleware if not already present"""
@@ -60,12 +60,20 @@ class MicboardConfig(AppConfig):
         ]
 
         if not hasattr(settings, "MIDDLEWARE"):
-            settings.MIDDLEWARE = []
+            logger.warning(
+                "Project settings has no MIDDLEWARE configured; Micboard recommends the following middleware but will not modify your settings automatically."
+            )
 
-        for middleware in middleware_classes:
-            if middleware not in settings.MIDDLEWARE:
-                settings.MIDDLEWARE.append(middleware)
-                logger.debug(f"Registered security middleware: {middleware}")
+        missing = [
+            m
+            for m in middleware_classes
+            if not hasattr(settings, "MIDDLEWARE") or m not in settings.MIDDLEWARE
+        ]
+        if missing:
+            logger.info(
+                "Micboard recommends adding the following middleware to your project settings.MIDDLEWARE:\n"
+                + "\n".join(f"    {m}" for m in missing)
+            )
 
     def _validate_configuration(self):
         """Validate MICBOARD_CONFIG settings"""

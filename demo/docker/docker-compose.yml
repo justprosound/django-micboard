@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  micboard-demo:
+    build:
+      context: ../..
+      dockerfile: demo/docker/Dockerfile
+    image: micboard-demo:latest
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000", "--settings=demo.settings"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ..:/app:cached
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_SETTINGS_MODULE=demo.settings
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    tty: true

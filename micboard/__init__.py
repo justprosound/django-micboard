@@ -21,4 +21,5 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 __version__ = "25.10.15"  # CalVer: YY.MM.DD
 __license__ = "AGPL-3.0-or-later"
 
+# Modern Django automatically discovers AppConfig classes; no default_app_config needed
 default_app_config = "micboard.apps.MicboardConfig"
