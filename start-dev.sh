@@ -25,10 +25,17 @@ pip-compile --upgrade pyproject.toml --extra dev -o dev-requirements.txt
 pip-compile --upgrade pyproject.toml --extra docs -o docs/requirements.txt
 
 echo "Installing dependencies..."
+echo "Installing dev dependencies..."
 pip install -r dev-requirements.txt
+echo "Installing docs dependencies..."
+pip install -r docs/requirements.txt
+
 
 echo "Setting up pre-commit hooks..."
 pre-commit install
+
+echo "Validating Django system configuration..."
+python manage.py check
 
 if [ ! -f "manage.py" ]; then
     echo "Creating demo Django project..."
@@ -83,5 +90,5 @@ echo "Running migrations..."
 python manage.py makemigrations micboard
 python manage.py migrate
 
-echo "Starting development server..."
-python manage.py runserver
+# echo "Starting development server..."
+# python manage.py runserver

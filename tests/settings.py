@@ -88,4 +88,4 @@ CHANNEL_LAYERS = {
 }
 
 # Avoid warnings about implicit primary keys in Django 4+
-DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
