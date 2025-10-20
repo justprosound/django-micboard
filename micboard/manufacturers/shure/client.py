@@ -142,7 +142,15 @@ class ShureSystemAPIClient:
         if not self.shared_key:
             raise ValueError("SHURE_API_SHARED_KEY is required for Shure System API authentication")
 
-        self.session.headers.update({"Authorization": f"Bearer {self.shared_key}"})
+        # The Shure System API supports a shared-secret style authentication.
+        # Prefer the explicit API key header (x-api-key) per Swagger definition
+        # while keeping Authorization: Bearer for backward compatibility.
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {self.shared_key}",
+                "x-api-key": str(self.shared_key),
+            }
+        )
 
         # Respect an explicit websocket URL from config; store it on a
         # private attribute because `websocket_url` is a read-only property.
@@ -315,6 +323,21 @@ class ShureSystemAPIClient:
         result = self._make_request("GET", "/api/v1/devices")
         return result if isinstance(result, list) else []
 
+    @rate_limit(calls_per_second=5.0)
+    def get_supported_device_models(self) -> list[str]:
+        """Fetch the list of supported device models from Shure System API.
+
+        Returns:
+            A list of model identifiers (strings). If the endpoint is not
+            available or fails, an empty list is returned.
+        """
+        try:
+            result = self._make_request("GET", "/api/v1/devices/models")
+            return result if isinstance(result, list) else []
+        except ShureAPIError:
+            logger.debug("Supported device models endpoint not available or failed")
+            return []
+
     @rate_limit(calls_per_second=10.0)
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get detailed data for a specific device."""
@@ -355,6 +378,34 @@ class ShureSystemAPIClient:
         except ShureAPIError:
             logger.debug("Status endpoint not available for device %s", device_id)
             return None
+
+    def add_discovery_ips(self, ips: list[str]) -> bool:
+        """Add IP addresses to the Shure System API manual discovery list.
+
+        Args:
+            ips: List of IPv4 address strings
+
+        Returns:
+            True if the request was accepted (202), False otherwise
+        """
+        try:
+            # Retrieve existing discovery IPs
+            existing = []
+            try:
+                # Shure API uses /api/v1/ base path in this deployment
+                res = self._make_request("GET", "/api/v1/config/discovery/ips")
+                if res and isinstance(res, dict):
+                    existing = res.get("ips", [])
+            except ShureAPIError:
+                logger.debug("No existing discovery IPs returned; starting fresh")
+
+            combined = list(dict.fromkeys(list(existing) + list(ips)))
+            # Replace discovery list via PUT
+            self._make_request("PUT", "/api/v1/config/discovery/ips", json={"ips": combined})
+            return True
+        except ShureAPIError:
+            logger.exception("Failed to add discovery IPs: %s", ips)
+            return False
 
     def _enrich_device_data(self, device_id: str, device_data: dict[str, Any]) -> dict[str, Any]:
         """Best-effort enrichment of device data from optional endpoints.

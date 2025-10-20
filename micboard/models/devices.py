@@ -198,6 +198,10 @@ class Channel(models.Model):
         help_text="The receiver this channel belongs to",
     )
     channel_number = models.PositiveIntegerField(help_text="Channel number on the receiver")
+    # Optional current frequency for the channel (e.g., 584.000)
+    frequency = models.FloatField(
+        null=True, blank=True, help_text="Operating frequency for this channel"
+    )
 
     class Meta:
         verbose_name = "Channel"
@@ -433,6 +437,73 @@ class MicboardConfig(models.Model):
     def __str__(self) -> str:
         manufacturer_name = self.manufacturer.name if self.manufacturer else "Global"
         return f"{manufacturer_name}: {self.key}: {self.value}"
+
+
+class DiscoveryCIDR(models.Model):
+    """CIDR ranges to be used for Shure discovery scans."""
+
+    manufacturer = models.ForeignKey(
+        "Manufacturer", on_delete=models.CASCADE, help_text="Manufacturer this CIDR applies to"
+    )
+    cidr = models.CharField(max_length=50, help_text="CIDR range (e.g., 10.0.0.0/22)")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Discovery CIDR"
+        verbose_name_plural = "Discovery CIDRs"
+        ordering: ClassVar[list[str]] = ["manufacturer__name", "cidr"]
+
+    def __str__(self) -> str:
+        return f"{self.manufacturer.name} {self.cidr}"
+
+
+class DiscoveryFQDN(models.Model):
+    """FQDN patterns or hostnames to resolve for discovery."""
+
+    manufacturer = models.ForeignKey(
+        "Manufacturer", on_delete=models.CASCADE, help_text="Manufacturer this FQDN applies to"
+    )
+    fqdn = models.CharField(max_length=255, help_text="FQDN or pattern (e.g., host.example.com)")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Discovery FQDN"
+        verbose_name_plural = "Discovery FQDNs"
+        ordering: ClassVar[list[str]] = ["manufacturer__name", "fqdn"]
+
+    def __str__(self) -> str:
+        return f"{self.manufacturer.name} {self.fqdn}"
+
+
+class DiscoveryJob(models.Model):
+    """Records an on-demand or automatic discovery job run."""
+
+    STATUS_CHOICES: ClassVar[list[tuple[str, str]]] = [
+        ("pending", "Pending"),
+        ("running", "Running"),
+        ("success", "Success"),
+        ("failed", "Failed"),
+    ]
+
+    manufacturer = models.ForeignKey(
+        "Manufacturer", on_delete=models.CASCADE, help_text="Manufacturer this job relates to"
+    )
+    action = models.CharField(max_length=50, help_text="Action (sync/scan)")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    note = models.TextField(blank=True)
+    items_scanned = models.IntegerField(null=True, blank=True)
+    items_submitted = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Discovery Job"
+        verbose_name_plural = "Discovery Jobs"
+        ordering: ClassVar[list[str]] = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.manufacturer.name} {self.action} @ {self.created_at.isoformat()}"
 
 
 class DiscoveredDevice(models.Model):

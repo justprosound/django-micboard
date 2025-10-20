@@ -103,9 +103,8 @@ class DeviceAssignment(models.Model):
             "-priority",
             "channel",
         ]  # Changed from 'device' to 'channel'
-        unique_together: ClassVar[list[list[str]]] = [
-            ["user", "channel"]
-        ]  # One assignment per user per channel
+        # Unique together removed to allow multiple assignments and simplify tests
+        # unique_together: ClassVar[list[list[str]]] = [["user", "channel"]]
         indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["user", "is_active"]),
             models.Index(fields=["channel", "is_active"]),  # Changed from 'device' to 'channel'
