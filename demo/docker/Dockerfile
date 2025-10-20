@@ -8,9 +8,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-venv \
     python3-pip \
-    build-essential \
     ca-certificates \
-    git \
  && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -20,11 +18,10 @@ WORKDIR /app
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Upgrade pip and install dependencies from requirements (copied at build time)
+# Upgrade pip and install production dependencies
 COPY requirements.txt requirements.txt
-COPY dev-requirements.txt dev-requirements.txt
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt -r dev-requirements.txt || true
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy the project into the image. In compose we'll mount the repo over /app for development.
 COPY . /app

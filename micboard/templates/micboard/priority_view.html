@@ -1,9 +1,26 @@
+
 {% extends 'micboard/base.html' %}
 {% load static %}
 
 {% block content %}
-    <div class="container-fluid my-3">
-        <h1 class="mb-3">Priority View</h1>
-        <p class="lead">This view will display information based on priority.</p>
-    </div>
+<div class="container my-5">
+    <h1 class="mb-4">Priority Overview</h1>
+    {% if priorities %}
+        <div class="row">
+            {% for priority in priorities %}
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ priority.name }}</h5>
+                            <p class="card-text">{{ priority.description|default:"No description." }}</p>
+                            <a href="{% url 'micboard:priority_view' priority=priority.code %}" class="btn btn-primary btn-sm">View Assignments</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted">No priorities found.</p>
+    {% endif %}
+</div>
 {% endblock %}

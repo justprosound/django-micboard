@@ -110,8 +110,7 @@ class ShureSystemAPIClient:
     def __init__(self):
         config = getattr(settings, "MICBOARD_CONFIG", {})
         self.base_url = config.get("SHURE_API_BASE_URL", "http://localhost:8080").rstrip("/")
-        self.username = config.get("SHURE_API_USERNAME")
-        self.password = config.get("SHURE_API_PASSWORD")
+        self.shared_key = config.get("SHURE_API_SHARED_KEY")
         self.timeout = config.get("SHURE_API_TIMEOUT", 10)
         self.verify_ssl = config.get("SHURE_API_VERIFY_SSL", True)
 
@@ -140,8 +139,10 @@ class ShureSystemAPIClient:
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
-        if self.username and self.password:
-            self.session.auth = (self.username, self.password)
+        if not self.shared_key:
+            raise ValueError("SHURE_API_SHARED_KEY is required for Shure System API authentication")
+
+        self.session.headers.update({"Authorization": f"Bearer {self.shared_key}"})
 
         # Respect an explicit websocket URL from config; store it on a
         # private attribute because `websocket_url` is a read-only property.
@@ -222,7 +223,8 @@ class ShureSystemAPIClient:
                         retry_after_header = response.headers.get("Retry-After")
                         if retry_after_header is not None:
                             retry_after = int(retry_after_header)
-                    except Exception:
+                    except ValueError:
+                        # Retry-After header is not a valid integer, ignore it
                         pass
                     logger.error("API HTTP 429 rate limit: %s %s", method, url)
                     raise ShureAPIRateLimitError(

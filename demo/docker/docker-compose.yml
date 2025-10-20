@@ -9,15 +9,25 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ..:/app:cached
+      - ../..:/app:cached
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
       - DJANGO_SETTINGS_MODULE=demo.settings
+      # For Windows Docker Desktop - connect to host Shure API
+      - MICBOARD_SHURE_API_BASE_URL=http://host.docker.internal:10000
+      # SSL verification (set to 'false' for self-signed certificates)
+      - MICBOARD_SHURE_API_VERIFY_SSL=true
+      # Shared key (passed from environment or .env file)
+      - MICBOARD_SHURE_API_SHARED_KEY
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
+    restart: unless-stopped
     tty: true
+    # Required for host.docker.internal on Windows
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

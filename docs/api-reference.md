@@ -89,7 +89,7 @@ Check API and Shure System API health status.
   "status": "healthy",
   "shure_api": {
     "status": "healthy",
-    "base_url": "http://192.168.1.50:8080",
+    "base_url": "http://192.168.1.50:10000",
     "consecutive_failures": 0
   },
   "timestamp": "2025-10-15T10:30:00Z"

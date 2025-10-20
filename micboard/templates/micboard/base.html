@@ -49,6 +49,45 @@
 
     {% block content %}{% endblock %}
 
+    <!-- Footer -->
+    <footer class="bg-light mt-5 py-3">
+      <div class="container">
+        <div class="row align-items-center">
+          <div class="col-md-8">
+            <small class="text-muted">
+              micboard - Real-time Wireless Microphone Monitoring
+            </small>
+          </div>
+          <div class="col-md-4 text-end">
+            {% if api_health %}
+              <small>
+                <span class="badge
+                  {% if api_health.status == 'healthy' %}bg-success
+                  {% elif api_health.status == 'partial' %}bg-warning
+                  {% elif api_health.status == 'unhealthy' %}bg-danger
+                  {% else %}bg-secondary{% endif %}">
+                  {% if api_health.status == 'healthy' %}
+                    <i class="bi bi-check-circle-fill"></i> APIs Healthy
+                  {% elif api_health.status == 'partial' %}
+                    <i class="bi bi-exclamation-triangle-fill"></i> APIs Partial
+                  {% elif api_health.status == 'unhealthy' %}
+                    <i class="bi bi-x-circle-fill"></i> APIs Unhealthy
+                  {% else %}
+                    <i class="bi bi-dash-circle-fill"></i> APIs Unconfigured
+                  {% endif %}
+                </span>
+                {% if api_health.details %}
+                  <span class="ms-2 text-muted">
+                    ({{ api_health.healthy_manufacturers }}/{{ api_health.total_manufacturers }})
+                  </span>
+                {% endif %}
+              </small>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </footer>
+
     <script>if (typeof module === 'object') {window.module = module; module = undefined;}</script>
     {% block javascript %}{% endblock %}
     <script>if (window.module) module = window.module;</script>

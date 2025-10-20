@@ -68,8 +68,7 @@ CACHES = {
 # Micboard settings
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": "http://localhost:8080",
-    "SHURE_API_USERNAME": None,
-    "SHURE_API_PASSWORD": None,
+    "SHURE_API_SHARED_KEY": "test-shared-key",
     "SHURE_API_TIMEOUT": 10,
     "SHURE_API_VERIFY_SSL": True,
     "SHURE_API_MAX_RETRIES": 3,

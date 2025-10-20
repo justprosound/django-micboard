@@ -30,9 +30,9 @@ INSTALLED_APPS = [
 
 # Micboard configuration
 MICBOARD_CONFIG = {
-    'SHURE_API_BASE_URL': 'http://localhost:8080',
-    'SHURE_API_USERNAME': None,
-    'SHURE_API_PASSWORD': None,
+    'SHURE_API_BASE_URL': 'http://localhost:10000',  # or https:// for SSL
+    'SHURE_API_SHARED_KEY': 'your-shared-secret-here',  # Required: from Shure System API
+    'SHURE_API_VERIFY_SSL': True,  # Set to False only for self-signed certificates
 }
 
 # Channels configuration
@@ -86,14 +86,32 @@ Terminal 2 - Device Polling:
 python manage.py poll_devices
 ```
 
+Optional: Run the demo instance with Docker (see demo/docker). The demo compose includes the Django app and a minimal database and exposes port 8000. If you run the demo Docker container locally, consider using a restart policy in the compose or a simple watchdog to ensure the Django container is restarted automatically if it crashes.
+
+Example (docker-compose):
+```yaml
+services:
+    micboard-demo:
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+```
+
 ### 7. Access the Dashboard
 Open browser to: `http://localhost:8000/micboard/`
+
+Admin Hardware Layout:
+
+In the Django admin you can now access a compact hardware-focused layout at: Admin -> Receivers -> Hardware Layout Overview. This shows per-manufacturer groupings and lists receiver -> channel number -> frequency mappings, making it easy to see channel assignments in the venue.
 
 ## Testing the Installation
 
 1. Check API connection:
 ```bash
-curl http://localhost:8080/api/v1/devices
+curl http://localhost:10000/api/v1/devices
 ```
 
 2. Discover devices:
@@ -109,7 +127,7 @@ curl http://localhost:8000/micboard/api/data/
 ## Troubleshooting
 
 **Problem**: No devices showing
-- Check Shure System API is running: `curl http://localhost:8080/api/v1/devices`
+- Check Shure System API is running: `curl http://localhost:10000/api/v1/devices`
 - Verify devices are powered on and connected
 - Check network connectivity
 
@@ -117,6 +135,15 @@ curl http://localhost:8000/micboard/api/data/
 - Ensure Daphne is running (not standard Django server)
 - Check browser console for errors
 - Verify WebSocket URL: `ws://localhost:8000/micboard/ws`
+
+**Problem**: SSL certificate errors
+- If using HTTPS with self-signed certificates, disable SSL verification:
+  ```python
+  MICBOARD_CONFIG = {
+      'SHURE_API_VERIFY_SSL': False,  # ⚠️ Only for self-signed certificates
+  }
+  ```
+- For production, use valid SSL certificates and keep verification enabled
 
 **Problem**: Polling not updating
 - Check polling service is running

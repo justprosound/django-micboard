@@ -6,10 +6,19 @@ It creates a small set of Locations, Receivers, and Transmitters so the UI shows
 It's safe to re-run (it will avoid creating duplicates by name).
 """
 
+from typing import Optional
+
 from django.db import transaction
 
 from micboard.models.devices import Receiver, Transmitter
 from micboard.models.locations import Location
+
+try:
+    from micboard.manufacturers.shure.client import ShureSystemAPIClient
+
+    ShureSystemAPIClientType: Optional[type] = ShureSystemAPIClient
+except Exception:
+    ShureSystemAPIClientType = None
 
 SAMPLE_LOCATIONS = [
     ("Main Hall", "First floor main hall"),
@@ -29,6 +38,17 @@ SAMPLE_TRANSMITTERS = [
 
 @transaction.atomic
 def run():
+    # If a live Shure API is configured and healthy, avoid inserting mock data
+    if ShureSystemAPIClientType is not None:
+        try:
+            client = ShureSystemAPIClientType()
+            health = client.check_health()
+            if health.get("status") == "healthy":
+                print("Live Shure API detected and healthy - skipping mock data population.")
+                return
+        except Exception:
+            # Fall through to populate mock data
+            pass
     # create locations
     locations = {}
     for name, desc in SAMPLE_LOCATIONS:
@@ -38,17 +58,24 @@ def run():
     # create receivers
     receivers = {}
     for code, desc in SAMPLE_RECEIVERS:
-        rx, _ = Receiver.objects.get_or_create(code=code, defaults={"name": desc})
+        rx, _ = Receiver.objects.get_or_create(api_device_id=code, defaults={"name": desc})
         receivers[code] = rx
 
     # create transmitters and link to receivers
-    for code, name, rx_code in SAMPLE_TRANSMITTERS:
+    for _code, name, rx_code in SAMPLE_TRANSMITTERS:
         rx = receivers.get(rx_code)
         if not rx:
             continue
-        tx, created = Transmitter.objects.get_or_create(code=code, defaults={"name": name})
+        tx, created = Transmitter.objects.get_or_create(
+            channel__receiver=rx, defaults={"name": name}
+        )
         if created:
-            tx.receiver = rx
+            # For demo, associate transmitter with a channel; create a channel if needed
+            # Find or create channel 1 for this receiver
+            from micboard.models import Channel
+
+            channel, _ = Channel.objects.get_or_create(receiver=rx, channel_number=1)
+            tx.channel = channel
             tx.save()
 
 

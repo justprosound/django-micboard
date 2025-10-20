@@ -67,7 +67,9 @@ INSTALLED_APPS = [
 2. Configure Shure System API connection:
 ```python
 MICBOARD_CONFIG = {
-    'SHURE_API_BASE_URL': 'http://localhost:8080',
+    'SHURE_API_BASE_URL': 'http://localhost:10000',  # or https:// for SSL
+    'SHURE_API_SHARED_KEY': 'your-shared-secret-here',  # Required: from Shure System API
+    'SHURE_API_VERIFY_SSL': True,  # Set to False only for self-signed certificates
 }
 ```
 

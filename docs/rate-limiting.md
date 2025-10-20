@@ -177,7 +177,7 @@ CACHES = {
 ```python
 MICBOARD_CONFIG = {
     # Shure System API
-    'SHURE_API_BASE_URL': 'http://localhost:8080',
+    'SHURE_API_BASE_URL': 'http://localhost:10000',
     'SHURE_API_TIMEOUT': 10,
 
     # Retry configuration

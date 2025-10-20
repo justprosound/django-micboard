@@ -46,6 +46,24 @@ class ManufacturerPlugin(ABC):
     def check_health(self) -> Dict[str, Any]:
         """Check the health/status of the manufacturer's API"""
         pass
+
+### Health Check Contract
+
+Plugins must implement `check_health()` returning a dictionary with at least the `status` key. Example:
+
+```python
+return {
+    'status': 'healthy'|'unhealthy',
+    'status_code': 200,
+    'error': None,
+}
+```
+
+This contract is used by the UI and the admin context processor to show per-manufacturer health in the footer and in administrative dashboards.
+
+### Admin Hardware Layout Implications
+
+Plugins should ensure device discovery and channel data include frequency information when available. The Admin hardware layout view focuses on `Receiver -> Channel -> Frequency`, so plugin transformers should populate `frequency` and `channels` fields in transformed data where possible.
 ```
 
 ### Plugin Registration

@@ -35,7 +35,7 @@ cp .env .env.local
 
 ## Integrating with External Shure System API
 
-The demo container can connect to an external Shure System API running on your host or another platform. By default, it uses `http://host.docker.internal:8080` to reach services on the host machine.
+The demo container can connect to an external Shure System API running on your host or another platform. By default, it uses `http://host.docker.internal:10000` to reach services on the host machine.
 
 To override the API URL:
 
