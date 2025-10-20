@@ -32,34 +32,4 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # Optional Windows Service: Shure System API
-  # This service builds a Windows Server 2025 image that installs the Shure System API.
-  # NOTE: Requires a Windows Docker host (Windows Server 2025 or Windows 11/10 with Containers enabled).
-  # The service is included here for reference. Uncomment and use on Windows hosts or in CI with Windows runners.
-  # Example usage on Windows:
-  #   docker-compose -f demo/docker/docker-compose.yml up --build shure-system-api-windows
-  # You may need to pass build-args in CI to provide an installer URL and silent args.
-  # e.g., docker build --build-arg SHURE_INSTALLER_URL="https://.../SystemAPI-Windows-6.6.0.exe" ...
-  # Keep the service commented out on Linux hosts to avoid build failures.
-  shure-system-api-windows:
-    # uncomment the following build block when using Windows build host
-    build:
-      context: ../../
-      dockerfile: demo/windows/Dockerfile
-      args:
-        SHURE_INSTALLER_URL: ""
-        SHURE_INSTALLER_FILE: "SystemAPI-Windows-6.6.0.exe"
-        SHURE_INSTALLER_SILENT_ARGS: "/S /quiet"
-    image: micboard-shure-demo:win
-    # When running on Windows, you can mount the local installers folder for builds
-    # volumes:
-    #   - ../windows/installers/:/build/installers/:ro
-    # Expose API port
-    ports:
-      - "10000:10000"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:10000/api/health/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 6
-    restart: unless-stopped
+  # NOTE: Windows-only Windows System API container was removed; install locally per docs.
