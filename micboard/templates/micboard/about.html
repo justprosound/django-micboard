@@ -1,21 +1,26 @@
+
 {% extends 'micboard/base.html' %}
 {% load static %}
 
 {% block content %}
-	<main class="container my-5">
-		<div class="row justify-content-center">
-			<div class="card col-md-6 col-lg-4">
-				<img src="{% static 'micboard/logo.png' %}" class="card-img-top" alt="Micboard Logo">
-				<h3 class="card-title text-center" id="version"></h3>
-				<div class="card-body">
-					<p class="card-text"><a href="https://github.com/justprosound/django-micboard" class="btn btn-secondary w-100">django-micboard on GitHub</a></p>
-					<p class="card-text text-center">Open Source Software<br>Licensed under AGPL-3.0-or-later</p>
+<div class="container my-5">
+	<div class="row justify-content-center">
+		<div class="col-md-8 col-lg-6">
+			<div class="card shadow-sm">
+				<div class="card-body text-center">
+					<img src="{% static 'micboard/logo.png' %}" class="mb-3" alt="Micboard Logo" style="height: 80px;">
+					<h2 class="card-title mb-2">django-micboard</h2>
+					<h5 class="text-muted mb-3">Open Source Wireless Microphone Monitoring</h5>
+					<p class="mb-2">Version: <strong>{{ version|default:'(dev)' }}</strong></p>
+					<p class="mb-3">A Django-based reimagining of the original <a href="https://github.com/karlcswanson/micboard" target="_blank">micboard</a> project, supporting real-time monitoring for Shure, Sennheiser, and more.</p>
+					<a href="https://github.com/justprosound/django-micboard" class="btn btn-dark mb-2" target="_blank">View on GitHub</a>
+					<div class="mt-3">
+						<span class="badge bg-success">AGPL-3.0-or-later</span>
+						<span class="badge bg-primary">Open Source</span>
+					</div>
 				</div>
 			</div>
 		</div>
-	</main>
-{% endblock %}
-
-{% block javascript %}
-<script src="{% static 'micboard/js/about.js' %}"></script>
+	</div>
+</div>
 {% endblock %}

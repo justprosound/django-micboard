@@ -56,12 +56,12 @@ def device_type_view(request: HttpRequest, device_type: str):
     return render(request, "micboard/device_type_view.html", context)
 
 
-def building_view(request: HttpRequest, building_name: str):
+def building_view(request: HttpRequest, building: str):
     """View to display receivers in a specific building"""
     manufacturer_code = request.GET.get("manufacturer")
 
     receivers_query = Receiver.objects.filter(
-        channels__assignments__location__building=building_name, is_active=True
+        channels__assignments__location__building=building, is_active=True
     ).distinct()
 
     # Filter by manufacturer if specified
@@ -70,7 +70,7 @@ def building_view(request: HttpRequest, building_name: str):
 
     receivers = receivers_query  # Updated
     context = {
-        "building_name": building_name,
+        "building_name": building,
         "receivers": receivers,  # Updated
     }
     return render(request, "micboard/building_view.html", context)
@@ -96,12 +96,14 @@ def user_view(request: HttpRequest, username: str):
     return render(request, "micboard/user_view.html", context)
 
 
-def room_view(request: HttpRequest, room_name: str):
+def room_view(request: HttpRequest, building: str, room: str):
     """View to display receivers in a specific room"""
     manufacturer_code = request.GET.get("manufacturer")
 
     receivers_query = Receiver.objects.filter(
-        channels__assignments__location__room=room_name, is_active=True
+        channels__assignments__location__building=building,
+        channels__assignments__location__room=room,
+        is_active=True,
     ).distinct()
 
     # Filter by manufacturer if specified
@@ -110,7 +112,8 @@ def room_view(request: HttpRequest, room_name: str):
 
     receivers = receivers_query  # Updated
     context = {
-        "room_name": room_name,
+        "building": building,
+        "room_name": room,
         "receivers": receivers,  # Updated
     }
     return render(request, "micboard/room_view.html", context)

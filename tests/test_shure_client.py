@@ -153,8 +153,7 @@ class ShureSystemAPIClientTest(TestCase):
     @override_settings(
         MICBOARD_CONFIG={
             "SHURE_API_BASE_URL": "http://test.example.com",
-            "SHURE_API_USERNAME": "testuser",
-            "SHURE_API_PASSWORD": "testpass",
+            "SHURE_API_SHARED_KEY": "test-shared-key",
             "SHURE_API_TIMEOUT": 30,
             "SHURE_API_VERIFY_SSL": False,
             "SHURE_API_MAX_RETRIES": 5,
@@ -166,24 +165,18 @@ class ShureSystemAPIClientTest(TestCase):
         client = ShureSystemAPIClient()
 
         self.assertEqual(client.base_url, "http://test.example.com")
-        self.assertEqual(client.username, "testuser")
-        self.assertEqual(client.password, "testpass")
+        self.assertEqual(client.shared_key, "test-shared-key")
         self.assertEqual(client.timeout, 30)
         self.assertFalse(client.verify_ssl)
         self.assertEqual(client.max_retries, 5)
         self.assertEqual(client.retry_backoff, 1.0)
 
+    @override_settings(MICBOARD_CONFIG={"SHURE_API_SHARED_KEY": None})
     def test_client_initialization_defaults(self):
         """Test client initialization with defaults"""
-        client = ShureSystemAPIClient()
-
-        self.assertEqual(client.base_url, "http://localhost:8080")
-        self.assertIsNone(client.username)
-        self.assertIsNone(client.password)
-        self.assertEqual(client.timeout, 10)
-        self.assertTrue(client.verify_ssl)
-        self.assertEqual(client.max_retries, 3)
-        self.assertEqual(client.retry_backoff, 0.5)
+        # This should raise ValueError since shared_key is required but None
+        with self.assertRaises(ValueError):
+            ShureSystemAPIClient()
 
     def test_websocket_url_inference(self):
         """Test WebSocket URL inference from base URL"""
@@ -199,7 +192,12 @@ class ShureSystemAPIClientTest(TestCase):
         expected_ws_url = "ws://api.example.com/api/v1/subscriptions/websocket/create"
         self.assertEqual(client.websocket_url, expected_ws_url)
 
-    @override_settings(MICBOARD_CONFIG={"SHURE_API_WEBSOCKET_URL": "ws://custom.websocket.url"})
+    @override_settings(
+        MICBOARD_CONFIG={
+            "SHURE_API_WEBSOCKET_URL": "ws://custom.websocket.url",
+            "SHURE_API_SHARED_KEY": "test-key",
+        }
+    )
     def test_websocket_url_explicit_config(self):
         """Test explicit WebSocket URL configuration"""
         client = ShureSystemAPIClient()

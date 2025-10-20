@@ -37,6 +37,23 @@ pip install -r dev-requirements.txt
 pytest tests/ -v
 ```
 
+### Demo and Local Docker
+
+The repository includes a demo Docker Compose configuration under `demo/docker/docker-compose.yml` for local testing. It runs the Django app and a demo database and is configured with a healthcheck. To improve resilience during development, consider enabling a `restart:` policy for the Django service in the compose file (for example `restart: unless-stopped`) or using a small watchdog script that probes `/api/health/` and restarts the service/container when unhealthy. This is helpful when testing integrations that may cause the process to exit unexpectedly.
+
+Example watchdog (simple):
+
+```bash
+# Simple loop to restart a container if health endpoint is failing (demo only)
+while true; do
+  if ! curl -fsS http://localhost:8000/api/health/ >/dev/null; then
+    echo "Service unhealthy - restarting container"
+    docker-compose -f demo/docker/docker-compose.yml restart micboard-demo
+  fi
+  sleep 30
+done
+```
+
 ### Project Structure
 
 ```

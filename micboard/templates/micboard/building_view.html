@@ -1,9 +1,26 @@
+
 {% extends 'micboard/base.html' %}
 {% load static %}
 
 {% block content %}
-    <div class="container-fluid my-3">
-        <h1 class="mb-3">Building View</h1>
-        <p class="lead">This view will display information based on building.</p>
-    </div>
+<div class="container my-5">
+    <h1 class="mb-4">Building Overview</h1>
+    {% if buildings %}
+        <div class="row">
+            {% for building in buildings %}
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ building.name }}</h5>
+                            <p class="card-text">{{ building.description|default:"No description." }}</p>
+                            <a href="{% url 'room_view' building_name=building.name room='all' %}" class="btn btn-primary btn-sm">View Rooms</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted">No buildings found.</p>
+    {% endif %}
+</div>
 {% endblock %}

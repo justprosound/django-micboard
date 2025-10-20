@@ -19,11 +19,11 @@ def charger_display(request: HttpRequest) -> HttpResponse:
     """
     View to display the status of networked charging stations and microphones.
     """
-    client = ShureSystemAPIClient()
     charging_stations_data = []
     error_message = None
 
     try:
+        client = ShureSystemAPIClient()
         all_devices = client.poll_all_devices()
 
         # Filter for charging stations (example device types, adjust as needed)
@@ -96,9 +96,11 @@ def charger_display(request: HttpRequest) -> HttpResponse:
                     }
                 )
 
-    except ShureAPIError as e:
-        logger.error("Error fetching Shure API data for charger display: %s", e)
-        error_message = f"Failed to connect to Shure API: {e.message}"
+    except (ShureAPIError, ValueError) as e:
+        logger.error("Error with Shure API for charger display: %s", e)
+        error_message = (
+            "Shure System API is not configured or unavailable. Please check your API settings."
+        )
     except Exception as e:
         logger.error("An unexpected error occurred in charger display: %s", e)
         error_message = "An unexpected error occurred while fetching charger data."

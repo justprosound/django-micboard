@@ -1,0 +1,108 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls static %}
+
+{% block content %}
+<div id="content-main">
+    <div class="module">
+        <h1>Hardware Layout Overview</h1>
+        <p class="help">Physical receiver layout by building/room with channel frequencies.</p>
+
+        {% for manufacturer, locations in grouped_receivers.items %}
+        <div class="manufacturer-section">
+            <h2>{{ manufacturer }}</h2>
+            {% for location, receivers in locations.items %}
+            <div class="location-section">
+                <h3>{{ location }}</h3>
+                <div class="channels-frequency-grid">
+                    {% for r in receivers %}
+                        {% for channel in r.channels %}
+                        <div class="channel-frequency-card">
+                            <div class="channel-number">CH {{ channel.channel_number }}</div>
+                            {% if channel.frequency %}
+                            <div class="frequency">{{ channel.frequency }}</div>
+                            {% else %}
+                            <div class="no-frequency">-</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+
+        {% if not receivers %}
+        <p>No active receivers found.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extrastyle %}
+<style>
+.manufacturer-section {
+    margin-bottom: 40px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.manufacturer-section h2 {
+    background: #f8f9fa;
+    margin: 0;
+    padding: 15px 20px;
+    border-bottom: 1px solid #ddd;
+    font-size: 1.4em;
+    color: #495057;
+}
+
+.location-section {
+    margin: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.location-section h3 {
+    margin: 0 0 15px 0;
+    font-size: 1.2em;
+    color: #6c757d;
+    font-weight: normal;
+}
+
+.channels-frequency-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.channel-frequency-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.channel-number {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #007bff;
+    margin-bottom: 5px;
+}
+
+.frequency {
+    font-family: monospace;
+    font-size: 1em;
+    color: #28a745;
+    font-weight: bold;
+}
+
+.no-frequency {
+    color: #6c757d;
+    font-style: italic;
+}
+</style>
+{% endblock %}

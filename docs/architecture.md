@@ -163,6 +163,12 @@ class ManufacturerPlugin(ABC):
 - Key-value configuration storage
 - Optional manufacturer relationships for manufacturer-specific settings
 
+### Admin Hardware Layout & Health
+
+The Django admin includes a "Hardware Layout Overview" to provide a compact, hardware-first view of receivers grouped by manufacturer and location. It focuses on the mapping Receiver -> Channel -> Frequency and optionally the assigned user. This view is useful for site technicians to quickly confirm physical configurations.
+
+API health is aggregated per-manufacturer and surfaced in the public UI as a footer indicator; each plugin exposes a `check_health()` method and the application aggregates these results via a context processor to show overall and per-manufacturer statuses.
+
 ### 5. Views and API Endpoints
 
 **Dashboard Views**:
@@ -346,7 +352,7 @@ Multi-Process:
 ## Security
 
 ### Authentication
-- Optional Shure System API authentication
+- Required Shure System API authentication (shared secret)
 - Django session-based auth for admin
 - WebSocket authentication via Django middleware
 

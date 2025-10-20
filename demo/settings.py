@@ -41,6 +41,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "micboard.context_processors.api_health",
             ],
         },
     },
@@ -68,9 +69,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Micboard config sample
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": "http://localhost:8080",
-    "SHURE_API_USERNAME": None,
-    "SHURE_API_PASSWORD": None,
+    "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "http://localhost:10000"),
+    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
+    "SHURE_API_VERIFY_SSL": os.environ.get("MICBOARD_SHURE_API_VERIFY_SSL", "true").lower()
+    == "true",
 }
 
 # Channels layer for demo

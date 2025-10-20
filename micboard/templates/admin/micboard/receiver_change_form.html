@@ -1,0 +1,239 @@
+{% extends "admin/change_form.html" %}
+{% load admin_urls static %}
+
+{% block content %}
+<div id="content-main">
+    <div class="module">
+        <h2>Hardware Layout - {{ original.name }}</h2>
+        <div class="hardware-layout">
+            <div class="receiver-info">
+                <h3>Receiver Details</h3>
+                <table class="receiver-table">
+                    <tr><th>Manufacturer:</th><td>{{ original.manufacturer.name }}</td></tr>
+                    <tr><th>Device Type:</th><td>{{ original.device_type }}</td></tr>
+                    <tr><th>IP Address:</th><td>{{ original.ip }}</td></tr>
+                    <tr><th>API ID:</th><td>{{ original.api_device_id }}</td></tr>
+                    <tr><th>Firmware:</th><td>{{ original.firmware_version }}</td></tr>
+                    <tr><th>Status:</th><td>
+                        {% if original.is_active %}
+                            <span style="color: green; font-weight: bold;">● Online</span>
+                        {% else %}
+                            <span style="color: red; font-weight: bold;">● Offline</span>
+                        {% endif %}
+                        (Last seen: {{ original.last_seen|date:"M j, Y H:i" }})
+                    </td></tr>
+                </table>
+            </div>
+
+            <div class="channels-layout">
+                <h3>Channel Configuration</h3>
+                {% for channel in original.channels.all %}
+                <div class="channel-card">
+                    <div class="channel-header">
+                        <h4>Channel {{ channel.channel_number }}</h4>
+                    </div>
+                    <div class="channel-content">
+                        {% if channel.transmitter %}
+                            <div class="transmitter-info">
+                                <h5>Transmitter (Slot {{ channel.transmitter.slot }})</h5>
+                                <div class="transmitter-details">
+                                    <div class="detail-row">
+                                        <span class="label">Name:</span>
+                                        <span class="value">{{ channel.transmitter.name|default:"Unnamed" }}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">Battery:</span>
+                                        <span class="value battery-{{ channel.transmitter.battery_percentage|default:0|floatformat:0 }}">
+                                            {{ channel.transmitter.battery_percentage|default:"?" }}%
+                                        </span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">Audio Level:</span>
+                                        <span class="value">{{ channel.transmitter.audio_level }} dB</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">RF Level:</span>
+                                        <span class="value">{{ channel.transmitter.rf_level }} dBm</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">Status:</span>
+                                        <span class="value">{{ channel.transmitter.status|default:"Unknown" }}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">Last Update:</span>
+                                        <span class="value">{{ channel.transmitter.updated_at|date:"H:i:s" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="no-transmitter">
+                                <em>No transmitter assigned</em>
+                            </div>
+                        {% endif %}
+
+                        {% with assignments=channel.assignments.filter(is_active=True) %}
+                        {% if assignments %}
+                            {% for assignment in assignments %}
+                            <div class="assignment-info">
+                                <h5>Assignment</h5>
+                                <div class="assignment-details">
+                                    <div class="detail-row">
+                                        <span class="label">User:</span>
+                                        <span class="value">{{ assignment.user.username }}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">Priority:</span>
+                                        <span class="value priority-{{ assignment.priority }}">{{ assignment.priority|title }}</span>
+                                    </div>
+                                    {% if assignment.location %}
+                                    <div class="detail-row">
+                                        <span class="label">Location:</span>
+                                        <span class="value">{{ assignment.location.full_address }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if assignment.monitoring_group %}
+                                    <div class="detail-row">
+                                        <span class="label">Group:</span>
+                                        <span class="value">{{ assignment.monitoring_group.name }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if assignment.notes %}
+                                    <div class="detail-row">
+                                        <span class="label">Notes:</span>
+                                        <span class="value">{{ assignment.notes }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="no-assignment">
+                                <em>No active assignment</em>
+                            </div>
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+                </div>
+                {% empty %}
+                <p>No channels configured for this receiver.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {% for inline_admin in inline_admin_formsets %}
+        {% include inline_admin.opts.template %}
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extrastyle %}
+<style>
+.hardware-layout {
+    margin: 20px 0;
+}
+
+.receiver-info {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.receiver-table {
+    width: 100%;
+}
+
+.receiver-table th {
+    text-align: left;
+    padding: 5px 10px 5px 0;
+    width: 150px;
+}
+
+.channels-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+}
+
+.channel-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+}
+
+.channel-header {
+    background: #007bff;
+    color: white;
+    padding: 10px 15px;
+    margin: 0;
+}
+
+.channel-header h4 {
+    margin: 0;
+    font-size: 1.1em;
+}
+
+.channel-content {
+    padding: 15px;
+}
+
+.transmitter-info, .assignment-info {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+
+.transmitter-info h5, .assignment-info h5 {
+    margin: 0 0 10px 0;
+    color: #495057;
+    font-size: 1em;
+}
+
+.detail-row {
+    display: flex;
+    margin-bottom: 5px;
+}
+
+.detail-row .label {
+    font-weight: bold;
+    width: 120px;
+    flex-shrink: 0;
+}
+
+.detail-row .value {
+    flex: 1;
+}
+
+.battery-100, .battery-9, .battery-8, .battery-7, .battery-6, .battery-5 {
+    color: green;
+}
+
+.battery-4, .battery-3, .battery-2 {
+    color: orange;
+}
+
+.battery-1, .battery-0 {
+    color: red;
+}
+
+.priority-high {
+    color: red;
+    font-weight: bold;
+}
+
+.priority-critical {
+    color: darkred;
+    font-weight: bold;
+}
+
+.no-transmitter, .no-assignment {
+    padding: 20px;
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+}
+</style>
+{% endblock %}

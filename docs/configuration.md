@@ -18,16 +18,68 @@ INSTALLED_APPS = [
 
 `django-micboard` is configured through a single dictionary in your `settings.py` called `MICBOARD_CONFIG`. The following keys are available:
 
-| Key | Description | Default |
-| --- | --- | --- |
-| `SHURE_API_BASE_URL` | The base URL of the Shure System API. | `"http://localhost:8080"` |
-| `SHURE_API_USERNAME` | The username for the Shure System API (optional). | `None` |
-| `SHURE_API_PASSWORD` | The password for the Shure System API (optional). | `None` |
+| `SHURE_API_BASE_URL` | The base URL of the Shure System API. | `"http://localhost:10000"` |
+| `SHURE_API_SHARED_KEY` | The shared secret API key for the Shure System API (required). | `None` |
 | `SHURE_API_TIMEOUT` | The timeout in seconds for API requests. | `10` |
 | `SHURE_API_VERIFY_SSL` | Whether to verify SSL certificates for the API. | `True` |
 | `SHURE_API_MAX_RETRIES` | The maximum number of retries for failed API requests. | `3` |
 | `SHURE_API_RETRY_BACKOFF` | The backoff factor for retries (in seconds). | `0.5` |
 | `SHURE_API_RETRY_STATUS_CODES` | A list of HTTP status codes to retry on. | `[429, 500, 502, 503, 504]` |
+
+## Authentication
+
+The Shure System API requires authentication using a shared secret API key. This key is automatically generated when the Shure System API runs for the first time.
+
+### API Key Authentication (Shared Secret)
+
+Configure the shared secret in your settings:
+
+```python
+MICBOARD_CONFIG = {
+    "SHURE_API_BASE_URL": "http://my-shure-api.local:10000",
+    "SHURE_API_SHARED_KEY": "your-shared-secret-here",
+}
+```
+
+The shared secret is automatically generated when the Shure System API runs for the first time. On Windows systems, it can be found at:
+```
+C:\ProgramData\Shure\SystemAPI\Standalone\Security\sharedkey.txt
+```
+
+**Note**: The shared secret is required for all API requests to the Shure System API.
+
+## SSL/TLS Configuration
+
+The Shure System API supports both HTTP and HTTPS connections. When using HTTPS, SSL certificate verification is enabled by default for security.
+
+### Self-Signed Certificates
+
+⚠️ **Security Warning**: If your Shure System API uses self-signed certificates, you must disable SSL verification. This reduces security but is necessary for self-signed certificates.
+
+To disable SSL verification:
+
+```python
+MICBOARD_CONFIG = {
+    "SHURE_API_BASE_URL": "https://my-shure-api.local:10000",
+    "SHURE_API_VERIFY_SSL": False,  # ⚠️ Only use with self-signed certificates
+}
+```
+
+### Production Recommendations
+
+For production deployments:
+- Use valid SSL certificates from a trusted Certificate Authority
+- Keep `SHURE_API_VERIFY_SSL: True` (default)
+- Consider using mutual TLS authentication if supported by your Shure System API
+
+Example with HTTPS:
+
+```python
+MICBOARD_CONFIG = {
+    "SHURE_API_BASE_URL": "https://my-shure-api.local:10000",
+    "SHURE_API_VERIFY_SSL": True,  # Recommended for production
+}
+```
 | `POLL_INTERVAL` | The interval in seconds between device polls. | `5` |
 | `CACHE_TIMEOUT` | The timeout in seconds for caching API responses. | `30` |
 | `EMAIL_RECIPIENTS` | A list of email addresses to send alerts to. | `[]` |
@@ -37,7 +89,7 @@ Example:
 
 ```python
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": "http://my-shure-api.local:8080",
+    "SHURE_API_BASE_URL": "http://my-shure-api.local:10000",
     "POLL_INTERVAL": 10,
 }
 ```

@@ -18,7 +18,16 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         json_output = options["json"]
 
-        client = ShureSystemAPIClient()
+        try:
+            client = ShureSystemAPIClient()
+        except ValueError as e:
+            if json_output:
+                import json
+
+                self.stdout.write(json.dumps({"status": "unconfigured", "error": str(e)}, indent=2))
+            else:
+                self.stdout.write(self.style.ERROR(f"✗ API is not configured: {e}"))
+            return
 
         if json_output:
             import json
