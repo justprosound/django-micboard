@@ -15,7 +15,15 @@ from django.shortcuts import render
 from django.urls import path
 from django.utils.html import format_html
 
-from micboard.models import Channel, DeviceAssignment, Receiver, Transmitter
+from micboard.models import (
+    Channel,
+    DeviceAssignment,
+    DiscoveryCIDR,
+    DiscoveryFQDN,
+    DiscoveryJob,
+    Receiver,
+    Transmitter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +291,24 @@ class ReceiverAdmin(admin.ModelAdmin):
     @admin.action(description="Sync selected receivers from API")
     def sync_from_api(self, request, queryset):
         """Sync selected receivers from manufacturer API."""
+        # If all selected receivers belong to the same manufacturer, run
+        # centralized discovery sync which will import/update receivers.
+        manufacturers = queryset.values_list("manufacturer__code", flat=True).distinct()
+        if manufacturers.count() == 1:
+            m_code = manufacturers.first()
+            try:
+                from micboard.manufacturers.shure.discovery_sync import run_discovery_sync
+
+                result = run_discovery_sync(m_code)
+                if result.get("status") == "success":
+                    self.message_user(request, "Discovery sync completed successfully")
+                else:
+                    self.message_user(request, f"Discovery sync failed: {result.get('errors')}")
+                return
+            except Exception as e:
+                logger.exception("Error running discovery sync from admin: %s", e)
+                self.message_user(request, f"Error: {e}", level="error")
+                # fall back to per-receiver sync after logging
         synced = 0
         for receiver in queryset:
             try:
@@ -374,3 +400,31 @@ class TransmitterAdmin(admin.ModelAdmin):
 
     battery_indicator.short_description = "Battery"  # type: ignore
     battery_indicator.admin_order_field = "battery"  # type: ignore
+
+
+@admin.register(DiscoveryCIDR)
+class DiscoveryCIDRAdmin(admin.ModelAdmin):
+    list_display = ("manufacturer", "cidr", "created_at")
+    list_filter = ("manufacturer",)
+    search_fields = ("cidr",)
+
+
+@admin.register(DiscoveryFQDN)
+class DiscoveryFQDNAdmin(admin.ModelAdmin):
+    list_display = ("manufacturer", "fqdn", "created_at")
+    list_filter = ("manufacturer",)
+    search_fields = ("fqdn",)
+
+
+@admin.register(DiscoveryJob)
+class DiscoveryJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "manufacturer",
+        "action",
+        "status",
+        "created_at",
+        "started_at",
+        "finished_at",
+    )
+    list_filter = ("manufacturer", "status", "action")
+    readonly_fields = ("created_at", "started_at", "finished_at")

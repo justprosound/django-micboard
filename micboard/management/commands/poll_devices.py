@@ -13,7 +13,6 @@ import threading
 import time
 from typing import Any
 
-from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.core.cache import cache
 from django.core.management.base import BaseCommand
@@ -130,12 +129,12 @@ class Command(BaseCommand):
                 logger.exception("Initial polling error for %s", manufacturer.name)
 
         if total_devices > 0:
-            if channel_layer:
-                serialized_data = self.serialize_for_broadcast()
-                async_to_sync(channel_layer.group_send)(
-                    "micboard_updates",
-                    {"type": "device_update", "data": serialized_data},
-                )
+            serialized_data = self.serialize_for_broadcast()
+            # Emit a centralized devices_polled signal so broadcasting is handled
+            # by the signals module. This avoids duplicated Channels interaction.
+            from micboard.signals import devices_polled
+
+            devices_polled.send(self.__class__, manufacturer=None, data=serialized_data)
         else:
             self.stdout.write(
                 self.style.WARNING("No initial device data received from any manufacturer.")
@@ -236,15 +235,12 @@ class Command(BaseCommand):
                         channel_num,
                     )
 
-                    # Broadcast update to frontend
+                    # Broadcast update to frontend via centralized signal
                     if channel_layer and broadcast_to_frontend:
-                        serialized_data = (
-                            self.serialize_for_broadcast()
-                        )  # Re-serialize all active devices
-                        async_to_sync(channel_layer.group_send)(
-                            "micboard_updates",
-                            {"type": "device_update", "data": serialized_data},
-                        )
+                        serialized_data = self.serialize_for_broadcast()
+                        from micboard.signals import devices_polled
+
+                        devices_polled.send(self.__class__, manufacturer=None, data=serialized_data)
 
                 except Receiver.DoesNotExist:
                     logger.warning("Receiver %s not found for WebSocket update.", device_id)

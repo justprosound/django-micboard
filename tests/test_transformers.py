@@ -268,8 +268,12 @@ class ShureDataTransformerTest(TestCase):
         self.assertEqual(result["slot"], 1)  # Uses channel_num
 
     def test_transform_transmitter_data_exception_handling(self):
-        """Test transmitter data transformation with exception handling."""
-        tx_data: dict[str, Any] = {}  # Pass an empty dict to trigger internal exception handling
+        """Test transmitter data transformation with exception handling.
+
+        Provide a non-dict input (None) to force an internal exception and verify
+        the transformer returns None in that case.
+        """
+        tx_data: Any = None  # Non-dict input to trigger internal exception handling
 
         result = ShureDataTransformer.transform_transmitter_data(tx_data, 1)
         self.assertIsNone(result)
