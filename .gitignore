@@ -91,3 +91,9 @@ node_modules
 # MkDocs build output
 site/
 coverage.lcov
+
+# Windows installer binaries for demo (ignore only binaries; keep README.md tracked)
+/demo/windows/installers/*.msi
+/demo/windows/installers/*.exe
+# Keep README in repo
+!/demo/windows/installers/README.md
