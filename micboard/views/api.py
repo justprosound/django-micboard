@@ -4,6 +4,7 @@ API views for the micboard app.
 
 import json
 import logging
+from typing import Any
 
 from django.core.cache import cache
 from django.db import models
@@ -26,6 +27,7 @@ from micboard.serializers import (
     serialize_receiver_summary,
     serialize_receivers,
 )
+from micboard.signals import discover_requested, refresh_requested
 
 logger = logging.getLogger(__name__)
 
@@ -240,65 +242,40 @@ def api_discover(request):
         manufacturer_code = request.GET.get("manufacturer")
 
         total_discovered = 0
-        all_devices = []
+        all_devices: list[dict[str, Any]] = []
         manufacturer_results = {}
 
-        # Get manufacturers to discover from
+        # Get manufacturers to discover from (not used here; handlers manage selection)
         if manufacturer_code:
             try:
-                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
-                manufacturers = [manufacturer]
+                _ = Manufacturer.objects.get(code=manufacturer_code)
+                # selection validated; handlers will perform the discovery
             except Manufacturer.DoesNotExist:
                 return JsonResponse(
                     {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
                 )
         else:
-            manufacturers = Manufacturer.objects.all()
+            # Not used in view because discovery is performed in signal handlers
+            pass
 
-        # Discover devices from each manufacturer
-        for manufacturer in manufacturers:
-            try:
-                plugin_class = get_manufacturer_plugin(manufacturer.code)
-                plugin = plugin_class(manufacturer)
-
-                # Get devices from this manufacturer
-                devices_data = plugin.get_devices()
-                manufacturer_results[manufacturer.name] = {
-                    "count": len(devices_data),
-                    "devices": devices_data,
-                }
-
-                # Save discovered devices
-                for device_data in devices_data:
-                    # Transform device data to get consistent fields
-                    transformed_data = plugin.transform_device_data(device_data)
-                    if not transformed_data:
-                        continue
-
-                    # Extract device information for DiscoveredDevice model
-                    device_type = transformed_data.get("type", "unknown")
-                    ip_address = transformed_data.get("ip", "")
-                    channels = len(transformed_data.get("channels", []))
-
-                    DiscoveredDevice.objects.update_or_create(
-                        ip=ip_address,
-                        manufacturer=manufacturer,
-                        defaults={
-                            "device_type": device_type,
-                            "channels": channels,
-                        },
-                    )
-
-                total_discovered += len(devices_data)
-                all_devices.extend(devices_data)
-
-            except Exception as e:
-                logger.exception(f"Error discovering devices from {manufacturer.name}: {e}")
-                manufacturer_results[manufacturer.name] = {
-                    "error": str(e),
-                    "count": 0,
-                    "devices": [],
-                }
+        # Emit a signal to perform discovery logic in signal handlers.
+        # Handlers will return a dict mapping manufacturer code -> result.
+        try:
+            responses = discover_requested.send_robust(
+                api_discover, manufacturer=manufacturer_code, request=request
+            )
+            # responses is list of (receiver, result)
+            for _, resp in responses:
+                if isinstance(resp, dict):
+                    for code, details in resp.items():
+                        manufacturer_results[code] = details
+                        total_discovered += details.get("count", details.get("device_count", 0))
+                else:
+                    # Handler returned non-dict (usually error message)
+                    manufacturer_results[str(_)] = {"error": str(resp)}
+        except Exception as e:
+            logger.exception("Error dispatching discover_requested signal: %s", e)
+            return JsonResponse({"error": str(e)}, status=500)
 
         return JsonResponse(
             {
@@ -326,41 +303,40 @@ def api_refresh(request):
         refresh_results = {}
         total_devices = 0
 
-        # Get manufacturers to refresh from
+        # Get manufacturers to refresh from (handlers manage selection)
         if manufacturer_code:
             try:
-                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
-                manufacturers = [manufacturer]
+                _ = Manufacturer.objects.get(code=manufacturer_code)
+                # selection validated; handlers will perform the refresh
             except Manufacturer.DoesNotExist:
                 return JsonResponse(
                     {"error": f"Manufacturer '{manufacturer_code}' not found"}, status=404
                 )
         else:
-            manufacturers = Manufacturer.objects.all()
+            # Not used in view because refresh is performed in signal handlers
+            pass
 
-        # Refresh data from each manufacturer
-        for manufacturer in manufacturers:
-            try:
-                plugin_class = get_manufacturer_plugin(manufacturer.code)
-                plugin = plugin_class(manufacturer)
-
-                # Get fresh device data
-                devices_data = plugin.get_devices()
-                refresh_results[manufacturer.name] = {
-                    "status": "success",
-                    "device_count": len(devices_data),
-                }
-                total_devices += len(devices_data)
-
-            except Exception as e:
-                logger.exception(f"Error refreshing data from {manufacturer.name}: {e}")
-                refresh_results[manufacturer.name] = {
-                    "status": "error",
-                    "error": str(e),
-                }
+        # Emit a signal to perform refresh logic in signal handlers.
+        try:
+            responses = refresh_requested.send_robust(
+                api_refresh, manufacturer=manufacturer_code, request=request
+            )
+            for _, resp in responses:
+                if isinstance(resp, dict):
+                    for code, details in resp.items():
+                        refresh_results[code] = details
+                        total_devices += details.get("device_count", details.get("count", 0))
+                else:
+                    refresh_results[str(_)] = {"status": "error", "error": str(resp)}
+        except Exception as e:
+            logger.exception("Error dispatching refresh_requested signal: %s", e)
+            return JsonResponse({"error": str(e)}, status=500)
 
         # Clear cache to force fresh data (clear all manufacturer-specific caches)
-        cache.delete_pattern("micboard_device_data_*")
+        if hasattr(cache, "delete_pattern"):
+            cache.delete_pattern("micboard_device_data_*")
+        else:
+            cache.clear()
 
         return JsonResponse(
             {
@@ -462,6 +438,66 @@ def api_receiver_detail(request, receiver_id):
     except Exception as e:
         logger.exception(f"Error fetching receiver detail: {e}")
         return JsonResponse({"error": "Internal server error", "detail": str(e)}, status=500)
+
+
+@rate_limit_view(max_requests=30, window_seconds=60)
+def api_device_detail(request, device_id):
+    """On-demand fetch of a device's current data from the manufacturer API.
+
+    Delegates to device_detail_requested signal to keep views thin.
+    """
+    if request.method != "GET":
+        return JsonResponse({"error": "GET required"}, status=405)
+
+    manufacturer_code = request.GET.get("manufacturer")
+    try:
+        from micboard.signals import device_detail_requested
+
+        responses = device_detail_requested.send_robust(
+            api_device_detail, manufacturer=manufacturer_code, device_id=device_id, request=request
+        )
+        for _, resp in responses:
+            if isinstance(resp, dict):
+                return JsonResponse({"success": True, "result": resp})
+        return JsonResponse({"error": "No data found"}, status=404)
+    except Exception as e:
+        logger.exception("Error fetching device detail: %s", e)
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@rate_limit_view(max_requests=10, window_seconds=60)
+def api_add_discovery_ips(request):
+    """Add IP addresses to the manufacturer's discovery list (POST).
+
+    Delegates to add_discovery_ips_requested signal.
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except ValueError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    ips = payload.get("ips")
+    if not ips or not isinstance(ips, list):
+        return JsonResponse({"error": "'ips' must be a list of IPv4 addresses"}, status=400)
+
+    manufacturer_code = request.GET.get("manufacturer")
+    try:
+        from micboard.signals import add_discovery_ips_requested
+
+        responses = add_discovery_ips_requested.send_robust(
+            api_add_discovery_ips, manufacturer=manufacturer_code, ips=ips, request=request
+        )
+        results = {}
+        for _, resp in responses:
+            if isinstance(resp, dict):
+                results.update(resp)
+        return JsonResponse({"success": True, "results": results})
+    except Exception as e:
+        logger.exception("Error adding discovery ips: %s", e)
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @rate_limit_view(max_requests=60, window_seconds=60)
