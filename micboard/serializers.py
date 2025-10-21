@@ -97,6 +97,7 @@ def serialize_receiver(receiver: Receiver, *, include_extra: bool = False) -> di
         "ip": receiver.ip,
         "type": receiver.device_type,
         "name": receiver.name,
+        "manufacturer_code": receiver.manufacturer.code if receiver.manufacturer else None,
         "firmware": receiver.firmware_version,
         "is_active": receiver.is_active,
         "last_seen": receiver.last_seen.isoformat() if receiver.last_seen else None,
@@ -196,6 +197,7 @@ def serialize_receiver_summary(receiver: Receiver) -> dict[str, Any]:
         "api_device_id": receiver.api_device_id,
         "name": receiver.name,
         "device_type": receiver.device_type,
+        "manufacturer_code": receiver.manufacturer.code if receiver.manufacturer else None,
         "ip": receiver.ip,
         "is_active": receiver.is_active,
         "health_status": receiver.health_status,
@@ -229,6 +231,7 @@ def serialize_receiver_detail(receiver: Receiver) -> dict[str, Any]:
     return {
         "api_device_id": receiver.api_device_id,
         "ip": receiver.ip,
+        "manufacturer_code": receiver.manufacturer.code if receiver.manufacturer else None,
         "device_type": receiver.device_type,
         "name": receiver.name,
         "firmware_version": receiver.firmware_version,
