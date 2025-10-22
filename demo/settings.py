@@ -16,6 +16,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "channels",
     "micboard",
+    "rest_framework",
+    "django_q",
 ]
 
 MIDDLEWARE = [
@@ -67,9 +69,20 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Django Q configuration
+Q_CLUSTER = {
+    "name": "micboard_tasks",
+    "workers": 4,
+    "timeout": 90,
+    "retry": 120,
+    "queue_limit": 50,
+    "bulk": 10,
+    "orm": "default",
+}
+
 # Micboard config sample
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "http://localhost:10000"),
+    "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"),
     "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
     "SHURE_API_VERIFY_SSL": os.environ.get("MICBOARD_SHURE_API_VERIFY_SSL", "true").lower()
     == "true",

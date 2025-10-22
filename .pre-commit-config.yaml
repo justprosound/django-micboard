@@ -34,6 +34,29 @@ repos:
           - types-requests
         args: [--ignore-missing-imports]
 
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        args: ["-r", "micboard/", "-c", "pyproject.toml"]
+        pass_filenames: false
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.4.2
+    hooks:
+      - id: python-safety-dependencies-check
+        args: ["--full-report", "--groups=dev,docs"]
+        exclude: ^pyproject.toml$
+
+  - repo: local
+    hooks:
+      - id: django-check
+        name: Django Check
+        entry: bash -c 'DJANGO_SETTINGS_MODULE=demo.settings python manage.py check'
+        language: system
+        types: [python]
+        pass_filenames: false
+
 ci:
   autofix_commit_msg: |
     [pre-commit.ci] auto fixes from pre-commit hooks

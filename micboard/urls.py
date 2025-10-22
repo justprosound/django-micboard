@@ -11,22 +11,10 @@ from __future__ import annotations
 
 from django.urls import include, path
 
-from micboard.views import charger_display, dashboard
-from micboard.views.api import (
-    APIDocumentationView,
-    ConfigHandler,
-    GroupUpdateHandler,
-    HealthCheckView,
-    ReadinessCheckView,
-    api_add_discovery_ips,
-    api_device_detail,
-    api_discover,
-    api_health,
-    api_receiver_detail,
-    api_receivers_list,
-    api_refresh,
-    data_json,
-)
+from micboard.chargers import views as charger_views
+from micboard.views import alerts
+from micboard.views.dashboard import dashboard
+from micboard.views.user_views import RecordUserView
 
 urlpatterns = [
     # Dashboard views
@@ -36,58 +24,18 @@ urlpatterns = [
     path("user/<str:username>/", dashboard.user_view, name="user_view"),
     path("type/<str:device_type>/", dashboard.device_type_view, name="device_type_view"),
     path("priority/<str:priority>/", dashboard.priority_view, name="priority_view"),
-    path("alerts/", dashboard.alerts_view, name="alerts"),
-    path("alerts/<int:alert_id>/", dashboard.alert_detail_view, name="alert_detail"),
+    path("alerts/", alerts.alerts_view, name="alerts"),
+    path("alerts/<int:alert_id>/", alerts.alert_detail_view, name="alert_detail"),
     path(
         "alerts/<int:alert_id>/acknowledge/",
-        dashboard.acknowledge_alert_view,
+        alerts.acknowledge_alert_view,
         name="acknowledge_alert",
     ),
-    path("alerts/<int:alert_id>/resolve/", dashboard.resolve_alert_view, name="resolve_alert"),
+    path("alerts/<int:alert_id>/resolve/", alerts.resolve_alert_view, name="resolve_alert"),
     path("about/", dashboard.about, name="about"),
-    path("chargers/", charger_display.charger_display, name="charger_display"),
+    path("chargers/", charger_views.charger_display, name="charger_display"),
+    path("record-view/", RecordUserView.as_view(), name="record-view"),
     # API endpoints (current version - v1)
-    path("api/health/", api_health, name="api_health"),
-    path("api/health/detailed/", HealthCheckView.as_view(), name="api_health_detailed"),
-    path("api/health/ready/", ReadinessCheckView.as_view(), name="api_health_ready"),
-    path("api/docs/", APIDocumentationView.as_view(), name="api_docs"),
-    path("api/data/", data_json, name="data"),
-    path("api/receivers/", api_receivers_list, name="api_receivers_list"),
-    path("api/receivers/<int:receiver_id>/", api_receiver_detail, name="api_receiver_detail"),
-    path("api/devices/<str:device_id>/", api_device_detail, name="api_device_detail"),
-    path("api/discovery/ips/", api_add_discovery_ips, name="api_add_discovery_ips"),
-    path("api/discover/", api_discover, name="api_discover"),
-    path("api/refresh/", api_refresh, name="api_refresh"),
-    # Class-based API views
-    path("api/config/", ConfigHandler.as_view(), name="api_config"),
-    path("api/groups/<int:group_id>/", GroupUpdateHandler.as_view(), name="api_group_update"),
-    # Versioned API (explicit v1)
-    path(
-        "api/v1/",
-        include(
-            [
-                path("health/", api_health, name="api_v1_health"),
-                path("health/detailed/", HealthCheckView.as_view(), name="api_v1_health_detailed"),
-                path("health/ready/", ReadinessCheckView.as_view(), name="api_v1_health_ready"),
-                path("docs/", APIDocumentationView.as_view(), name="api_v1_docs"),
-                path("data/", data_json, name="api_v1_data"),
-                path("receivers/", api_receivers_list, name="api_v1_receivers_list"),
-                path(
-                    "receivers/<int:receiver_id>/",
-                    api_receiver_detail,
-                    name="api_v1_receiver_detail",
-                ),
-                path("devices/<str:device_id>/", api_device_detail, name="api_v1_device_detail"),
-                path("discovery/ips/", api_add_discovery_ips, name="api_v1_add_discovery_ips"),
-                path("discover/", api_discover, name="api_v1_discover"),
-                path("refresh/", api_refresh, name="api_v1_refresh"),
-                path("config/", ConfigHandler.as_view(), name="api_v1_config"),
-                path(
-                    "groups/<int:group_id>/",
-                    GroupUpdateHandler.as_view(),
-                    name="api_v1_group_update",
-                ),
-            ]
-        ),
-    ),
+    path("api/v1/", include("micboard.api.v1.urls")),
+    # Note: legacy compatibility routes removed. Use API v1 endpoints under /api/v1/.
 ]

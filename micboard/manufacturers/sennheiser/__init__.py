@@ -1,9 +1,13 @@
-"""Sennheiser manufacturer plugin package for django-micboard.
-
-This package exposes the SennheiserPlugin implementation used by the
-micboard manufacturers plugin system.
+"""Shim package for `micboard.manufacturers.sennheiser` that forwards to
+`micboard.integrations.sennheiser` so legacy imports continue to resolve.
 """
 
-from .plugin import SennheiserPlugin
+from __future__ import annotations
 
-__all__ = ["SennheiserPlugin"]
+import importlib
+import sys
+
+_target = importlib.import_module("micboard.integrations.sennheiser")
+__path__ = list(_target.__path__)
+__package__ = "micboard.manufacturers.sennheiser"
+sys.modules[__package__] = _target

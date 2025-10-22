@@ -2,7 +2,9 @@
 Django admin configuration package for micboard.
 
 This package organizes admin classes by functional area:
-- devices: Receiver, Channel, Transmitter administration
+- receivers: Receiver administration
+- channels: Channel, Transmitter administration
+- discovery: DiscoveryCIDR, DiscoveryFQDN, DiscoveryJob administration
 - assignments: DeviceAssignment, Alert, UserAlertPreference administration
 - monitoring: Location, MonitoringGroup, Group, Config, DiscoveredDevice administration
 """
@@ -16,7 +18,9 @@ from .assignments import (
     DeviceAssignmentAdmin,
     UserAlertPreferenceAdmin,
 )
-from .devices import ChannelAdmin, ReceiverAdmin, TransmitterAdmin
+from .channels import ChannelAdmin, TransmitterAdmin
+from .discovery import DiscoveryCIDRAdmin, DiscoveryFQDNAdmin, DiscoveryJobAdmin
+from .manufacturers import ManufacturerAdmin
 from .monitoring import (
     DiscoveredDeviceAdmin,
     GroupAdmin,
@@ -24,12 +28,16 @@ from .monitoring import (
     MicboardConfigAdmin,
     MonitoringGroupAdmin,
 )
+from .receivers import ReceiverAdmin
 
 __all__ = sorted(
     [
         "AlertAdmin",
         "ChannelAdmin",
         "DeviceAssignmentAdmin",
+        "DiscoveryCIDRAdmin",
+        "DiscoveryFQDNAdmin",
+        "DiscoveryJobAdmin",
         "DiscoveredDeviceAdmin",
         "GroupAdmin",
         "LocationAdmin",
@@ -38,5 +46,6 @@ __all__ = sorted(
         "ReceiverAdmin",
         "TransmitterAdmin",
         "UserAlertPreferenceAdmin",
+        "ManufacturerAdmin",
     ]
 )

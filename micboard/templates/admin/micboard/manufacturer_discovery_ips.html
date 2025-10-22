@@ -1,0 +1,229 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls %}
+
+{% block content %}
+<div id="content-main">
+  <div class="module">
+    <h1>Discovery IPs for {{ manufacturer.name }}</h1>
+    <p class="help">Manual discovery IP list fetched from the manufacturer's API. Use the remove button to delete unwanted entries.</p>
+
+    {% if messages %}
+      <div class="messagelist">
+        {% for message in messages %}
+          <div class="{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if ips %}
+      <form method="post" action="">
+        {% csrf_token %}
+        <table class="adminlist">
+          <thead>
+            <tr>
+              <th>IP Address</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ip in ips %}
+            <tr>
+              <td>{{ ip }}</td>
+              <td>
+                <button class="button" type="submit" name="remove_ip" value="{{ ip }}">Remove</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </form>
+    {% else %}
+      <p>No manual discovery IPs configured.</p>
+    {% endif %}
+
+    <p><a href="{% url 'admin:micboard_manufacturer_change' manufacturer.id %}">Back to Manufacturer</a></p>
+    <hr />
+    <h2>Candidates</h2>
+    <p class="help">Potential discovery candidate IPs (combined from manual list, local receivers, and optional CIDR/FQDN resolution).</p>
+    <div id="discovery-candidates-controls">
+      <label><input type="checkbox" id="scan-cidrs" /> Expand CIDRs</label>
+      &nbsp;
+      <label><input type="checkbox" id="scan-fqdns" /> Resolve FQDNs</label>
+      &nbsp;
+      <button class="button" id="refresh-candidates">Refresh Candidates</button>
+      &nbsp;
+      {% if show_refresh %}
+      <button class="button" id="force-refresh-candidates">Force Server Refresh</button>
+      {% else %}
+      <button class="button" id="force-refresh-candidates" disabled title="Staff only">Force Server Refresh</button>
+      {% endif %}
+      &nbsp;
+      <span id="refresh-spinner" style="display:none;">⏳ Refreshing...</span>
+      <div id="refresh-progress" style="display:none; margin-top:8px;">
+        <div style="width:100%; background:#eee; height:14px; border-radius:3px; overflow:hidden;">
+          <div id="refresh-progress-bar" style="width:0%; height:14px; background:#2a7ae2;"></div>
+        </div>
+        <div id="refresh-progress-text" style="font-size:12px; margin-top:4px;">0 / 0</div>
+      </div>
+    </div>
+    <div id="discovery-candidates">
+      <p class="help">Click "Refresh Candidates" to load candidate IPs.</p>
+    </div>
+
+    <script>
+      (function(){
+        const manufacturerCode = '{{ manufacturer.code }}';
+        const resultContainer = document.getElementById('discovery-candidates');
+        const refreshButton = document.getElementById('refresh-candidates');
+        const scanCidrs = document.getElementById('scan-cidrs');
+        const scanFqdns = document.getElementById('scan-fqdns');
+
+        async function loadCandidates(){
+          resultContainer.innerHTML = '<p>Loading candidates...</p>';
+          const params = new URLSearchParams({manufacturer: manufacturerCode});
+          if (scanCidrs && scanCidrs.checked) params.set('scan_cidrs', '1');
+          if (scanFqdns && scanFqdns.checked) params.set('scan_fqdns', '1');
+          try{
+            const res = await fetch(`/api/discovery/candidates/?${params.toString()}`);
+            if (!res.ok) throw new Error('Failed to load');
+            const data = await res.json();
+            if (data && data.results && data.results[manufacturerCode] && data.results[manufacturerCode].ips){
+              const ips = data.results[manufacturerCode].ips;
+              if (ips.length === 0){
+                resultContainer.innerHTML = '<p>No candidate IPs returned.</p>';
+                return;
+              }
+              let html = '<table class="adminlist"><thead><tr><th>IP</th></tr></thead><tbody>';
+              ips.forEach(ip => html += `<tr><td>${ip}</td></tr>`);
+              html += '</tbody></table>';
+              resultContainer.innerHTML = html;
+            } else {
+              resultContainer.innerHTML = '<p>No candidate IPs returned.</p>';
+            }
+          } catch (err){
+            resultContainer.innerHTML = `<p>Error loading candidates: ${err.message}</p>`;
+          }
+        }
+
+        refreshButton.addEventListener('click', function(e){
+          e.preventDefault();
+          loadCandidates();
+        });
+
+        const forceRefreshButton = document.getElementById('force-refresh-candidates');
+        const spinner = document.getElementById('refresh-spinner');
+
+        async function pollStatus(manufacturerCode, scanCidrsVal, scanFqdnsVal, statusKey){
+          const statusUrl = "/api/discovery/candidates/refresh/status/?manufacturer=" + encodeURIComponent(manufacturerCode) + "&scan_cidrs=" + (scanCidrsVal ? '1' : '0') + "&scan_fqdns=" + (scanFqdnsVal ? '1' : '0');
+          spinner.style.display = '';
+          const progressBox = document.getElementById('refresh-progress');
+          const progressBar = document.getElementById('refresh-progress-bar');
+          const progressText = document.getElementById('refresh-progress-text');
+          progressBox.style.display = '';
+          try{
+            let done = false;
+            while(!done){
+              const res = await fetch(statusUrl);
+              if (!res.ok) throw new Error('Status fetch failed');
+              const d = await res.json();
+              const s = d.status || d;
+              if (s && s.status === 'done'){
+                done = true;
+                spinner.style.display = 'none';
+                progressBar.style.width = '100%';
+                progressText.innerText = (s.count || 0) + ' / ' + (s.items_total || 0);
+                await loadCandidates();
+                break;
+              }
+              if (s && s.status === 'error'){
+                spinner.style.display = 'none';
+                progressBox.style.display = 'none';
+                resultContainer.innerHTML = '<p>Error during refresh: ' + (s.error || 'unknown') + '</p>';
+                return;
+              }
+              // Update progress if available
+              if (s && s.items_total){
+                const total = s.items_total;
+                const processed = s.items_processed || 0;
+                const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+                progressBar.style.width = pct + "%";
+                progressText.innerText = processed + ' / ' + total;
+              }
+              // Wait before polling again
+              await new Promise(r => setTimeout(r, 1500));
+            }
+          } catch(err){
+            spinner.style.display = 'none';
+            progressBox.style.display = 'none';
+            resultContainer.innerHTML = `<p>Error fetching status: ${err.message}</p>`;
+          }
+        }
+
+        forceRefreshButton.addEventListener('click', async function(e){
+          // If button is disabled, do nothing
+          if (forceRefreshButton.disabled) return;
+          e.preventDefault();
+          const scanCidrsVal = (scanCidrs && scanCidrs.checked);
+          const scanFqdnsVal = (scanFqdns && scanFqdns.checked);
+          spinner.style.display = '';
+          try{
+            const res = await fetch('/api/discovery/candidates/refresh/', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({manufacturer: manufacturerCode, scan_cidrs: scanCidrsVal, scan_fqdns: scanFqdnsVal}),
+            });
+            if (!res.ok) throw new Error('Refresh request failed');
+            const data = await res.json();
+            const statusKey = data.status_key;
+            // Start polling
+            await pollStatus(manufacturerCode, scanCidrsVal, scanFqdnsVal, statusKey);
+          } catch(err){
+            spinner.style.display = 'none';
+            resultContainer.innerHTML = `<p>Error starting refresh: ${err.message}</p>`;
+          }
+        });
+
+        // Setup WebSocket for real-time progress updates
+        try{
+          const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+          // Note: routing.py maps re_path r"ws$" to the consumer, the path may be '/ws'
+          const wsUrl = `${wsScheme}://${window.location.host}/ws`;
+          const socket = new WebSocket(wsUrl);
+
+          socket.onopen = function(){
+            console.debug('Progress WebSocket connected');
+          };
+
+          socket.onmessage = function(e){
+            try{
+              const payload = JSON.parse(e.data);
+              if (payload.type === 'progress' && payload.status){
+                const s = payload.status;
+                if (s.items_total){
+                  const pct = s.items_total > 0 ? Math.round((s.items_processed || 0) / s.items_total * 100) : 0;
+                  document.getElementById('refresh-progress-bar').style.width = pct + '%';
+                  document.getElementById('refresh-progress-text').innerText = (s.items_processed || 0) + ' / ' + (s.items_total || 0);
+                }
+                if (s.status === 'done'){
+                  document.getElementById('refresh-spinner').style.display = 'none';
+                  document.getElementById('refresh-progress').style.display = 'none';
+                  loadCandidates();
+                }
+              }
+            } catch(err){
+              console.debug('Invalid WS message', err);
+            }
+          };
+
+          socket.onerror = function(e){
+            console.debug('WS error', e);
+          };
+        } catch(err){
+          // WebSocket not available; rely on polling
+          console.debug('WS not available for progress updates');
+        }
+      })();
+    </script>
+  </div>
+</div>
+{% endblock %}
