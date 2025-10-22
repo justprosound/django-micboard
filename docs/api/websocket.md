@@ -48,7 +48,7 @@ ws.onmessage = function(event) {
 
 ## Python WebSocket Consumer
 
-::: micboard.consumers
+::: micboard.websockets.consumers
     options:
       show_signature: true
       show_signature_annotations: true

@@ -32,4 +32,4 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # NOTE: Windows-only Windows System API container was removed; install locally per docs.
+  # NOTE: Django-Q cluster runs in the same container as the web app for demo simplicity

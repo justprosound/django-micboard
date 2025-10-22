@@ -56,6 +56,9 @@ dependencies = [
     "asgiref>=3.7.0",
     "urllib3>=2.0.0",
     "websockets>=12.0.0",
+    "djangorestframework>=3.14.0",
+    "django-q2[sentry]>=1.4.0",
+    "Pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]
@@ -117,9 +120,13 @@ micboard = [
 ]
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "tests.settings"
+# DJANGO_SETTINGS_MODULE = "tests.settings"
+# testpaths = ["tests"]
+# "tests/**/*.py" = ["ARG", "S"]  # Allow unused args and security issues in tests
+# module = "tests.*"
+# exclude_dirs = ["tests", "migrations", "__pycache__"]
 python_files = ["test_*.py", "*_test.py"]
-testpaths = ["tests"]
+# testpaths = ["tests"]
 addopts = [
     "--verbose",
     "--strict-markers",
@@ -159,7 +166,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Unused imports in __init__
-"tests/**/*.py" = ["ARG", "S"]  # Allow unused args and security issues in tests
+# "tests/**/*.py" = ["ARG", "S"]  # Allow unused args and security issues in tests
 
 [tool.mypy]
 python_version = "3.9"
@@ -175,12 +182,11 @@ warn_no_return = true
 strict_optional = true
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false
+
 
 [tool.bandit]
-exclude_dirs = ["tests", "migrations", "__pycache__"]
+exclude_dirs = ["migrations", "__pycache__"]
+# exclude_dirs = ["tests", "migrations", "__pycache__"]
 skips = ["B101", "B601"]  # Skip assert checks and shell usage in admin commands
 
 [tool.codespell]

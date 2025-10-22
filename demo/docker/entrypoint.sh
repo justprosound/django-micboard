@@ -25,6 +25,13 @@ else:
 # Populate data
 python manage.py shell --settings=demo.settings < demo/populate_demo.py || true
 
+# Start Django Q cluster in background if not already running
+if ! pgrep -f "qcluster" > /dev/null; then
+    echo "Starting Django Q cluster..."
+    python manage.py qcluster --settings=demo.settings &
+    sleep 2
+fi
+
 # Default command: runserver
 if [ "$#" -eq 0 ]; then
   exec python manage.py runserver 0.0.0.0:8000 --settings=demo.settings

@@ -9,8 +9,8 @@ It's safe to re-run (it will avoid creating duplicates by name).
 from typing import Optional
 
 from django.db import transaction
-
 from micboard.models.devices import Receiver, Transmitter
+
 from micboard.models.locations import Location
 
 try:

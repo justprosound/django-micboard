@@ -34,110 +34,84 @@ micboard/
 └── decorators.py           # Rate limiting decorators
 ```
 
-## Key Patterns
+Always use context7 when I need code generation, setup or configuration steps, or
+library/API documentation. This means you should automatically use the Context7 MCP
+tools to resolve library id and get library docs without me having to explicitly ask.
 
-### 1. Plugin Architecture
-Use manufacturer plugins for extensibility:
+## Refactor Roadmap
 
-```python
-from micboard.manufacturers import get_manufacturer_plugin
+### Phase 1: Codebase Audit & Modularization
+Refactor the current django-micboard codebase to improve modularity and maintainability.
 
-# Get plugin for a manufacturer
-plugin = get_manufacturer_plugin(manufacturer.code)
-devices = plugin.get_devices()
-```
+Audit for large, monolithic files and repeated logic.
+Apply DRY principles.
+Split logic into folders:
 
-### 2. Serialization (DRY Principle)
-Always use `serializers.py` functions:
+integrations/{manufacturer} – vendor API connectivity (e.g., Shure, Sennheiser)
+discovery/ – CIDR, FQDN, IP logic
+signals/ – Django signal handlers
+websockets/ – Django Channels consumers
+permissions/ – user group access logic
+views/ – general Django views
+chargers/ – charger-specific views, models, templates
+tasks/ – Django-Q background jobs
+api/ – DRF views, routers, permissions
+serializers/ – DRF serializers
 
-```python
-from micboard.serializers import serialize_receivers
-data = serialize_receivers(include_extra=True)  # Keyword-only params
-```
 
-### 3. Keyword-Only Parameters
-Use `*` for optional/boolean parameters:
+Do not include or update tests in this phase.
+Do not maintain backward compatibility.
 
-```python
-def serialize_receiver(receiver, *, include_extra=False):
-    pass
-```
+### Phase 2: Core Feature Implementation
+Implement core features for django-micboard:
+# Django Micboard — AI agent instructions (concise)
 
-### 4. Rate Limiting
-All API views must be rate-limited:
+This file gives actionable, repo-specific guidance for automated coding agents working on django-micboard. Keep instructions short and strictly tied to discoverable project patterns.
 
-```python
-from micboard.decorators import rate_limit_view
+1. Big picture
+    - Micboard is a Django app for real-time, multi-vendor wireless microphone monitoring. Data flows: vendor API clients -> manufacturer plugins (micboard/manufacturers) -> polling command (`micboard/management/commands/poll_devices.py`) -> models (`micboard/models/*`) -> WebSocket broadcasts (Django Channels in `micboard/websockets/`).
 
-@rate_limit_view(max_requests=120, window_seconds=60)
-def data_view(request):
-    return JsonResponse(data)
-```
+2. Key directories & files to consult (fast)
+    - `micboard/manufacturers/` — plugin registration and per-vendor implementations (see `shure/`, `sennheiser/`).
+    - `micboard/management/commands/poll_devices.py` — polling orchestration; updating models and broadcasting.
+    - `micboard/serializers.py` — central serializers; prefer these for API and WS payloads.
+    - `micboard/decorators.py` — rate-limiting utilities used by API views.
+    - `micboard/models/` — domain models and custom managers (e.g., active/online helpers).
+    - `micboard/websockets/` and `micboard/signals/` — real-time update handlers.
 
-### 5. Custom Model Managers
-Use custom managers for common queries:
+3. Project-specific conventions (do not invent alternatives)
+    - Use manufacturer plugins via the registered factory (`micboard.manufacturers.get_manufacturer_plugin`). Example: plugin.get_devices()
+    - Serialization is centralized. Always call functions in `micboard/serializers.py` instead of ad-hoc dicts.
+    - Optional/boolean args use keyword-only params (use `*` in signatures).
+    - API views must use rate limiting decorators from `micboard.decorators`.
+    - Long-running tasks and polling are expected to run via management commands or Django-Q tasks; avoid synchronous blocking in views.
 
-```python
-receivers = Receiver.objects.active()
-recent = Receiver.objects.online_recently(minutes=30)
-```
+4. Developer workflows and commands (verified from repo)
+    - Run tests: `pytest tests/ -v` (many tests depend on settings in `tests/settings.py`).
+    - Start polling locally (for integration behavior): `python manage.py poll_devices`.
+    - Docker demo available in `demo/docker/` (use that to reproduce environment).
 
-## Development Workflows
+5. Integration points & external dependencies
+    - Vendor APIs: shure and sennheiser integrations under `micboard/integrations` and `micboard/manufacturers`.
+    - Django Channels used for WS broadcasts; inspect `micboard/websockets` and ASGI config under `demo/asgi.py`.
+    - Optional task queue: project expects Django-Q patterns in `micboard/tasks` (search for `django_q` usage).
 
-### Running Tests
-```bash
-pytest tests/ -v  # 60 tests total
-```
+6. Concrete examples to copy when coding
+    - Fetch plugin devices: `from micboard.manufacturers import get_manufacturer_plugin; plugin = get_manufacturer_plugin(code); devices = plugin.get_devices()`
+    - Use serializer helper: `from micboard.serializers import serialize_receivers; payload = serialize_receivers(receivers, include_extra=True)`
+    - Decorate views: `@rate_limit_view(max_requests=120, window_seconds=60)` (see `micboard/decorators.py`).
 
-### Running Polling Service
-```bash
-python manage.py poll_devices  # Required for app to function
-```
+7. What to avoid / common pitfalls (observed in tests/docs)
+    - Don't bypass `serializers.py`.
+    - Don't call device hardware directly — always go through the manufacturer plugin.
+    - Missing docstrings and typing may fail CI/tests; follow existing style (`from __future__ import annotations`).
 
-### Adding New Manufacturers
-1. Create plugin class inheriting from `ManufacturerPlugin`
-2. Implement required methods (`get_devices`, `transform_device_data`, etc.)
-3. Register in `manufacturers/__init__.py`
-4. Configure manufacturer in database
+8. When to run tests / linting
+    - After any behavioral change run `pytest tests/ -q` and fix failing tests. Tests are authoritative.
 
-### Building Documentation
-```bash
-pip install -r docs/requirements.txt
-mkdocs serve
-```
+9. If uncertain
+    - Prefer small, localized changes and add or update tests under `tests/` that demonstrate intended behavior.
+    - If a plugin/market-specific behavior is unclear, open a short PR or issue referencing `micboard/manufacturers/*` and `micboard/management/commands/poll_devices.py`.
 
-## Code Quality
-
-### Required
-- Type hints with `from __future__ import annotations`
-- Docstrings for all modules/classes/public functions
-- Keyword-only parameters for optional args
-- All tests must pass (`pytest tests/ -v`)
-
-## Common Pitfalls
-
-1. Don't bypass serializers - use `serializers.py` functions
-2. Always use keyword-only params (`*`)
-3. `poll_devices` must run for app to function
-4. Never communicate with devices directly - use manufacturer APIs
-5. All public API endpoints need rate limiting
-6. Missing docstrings fail tests
-7. Manufacturer data must be isolated by manufacturer relationships
-
-## Contributing
-
-This is a community-driven open source project:
-- No specific ownership claims
-- Welcome contributions from anyone
-- Follow existing code patterns and quality standards
-- Run tests before submitting changes
-
-## Key Files
-
-- **Serializers**: `micboard/serializers.py` (8 reusable functions)
-- **Rate Limiting**: `micboard/decorators.py`
-- **Polling**: `micboard/management/commands/poll_devices.py`
-- **Plugins**: `micboard/manufacturers/__init__.py`
-- **Models**: `micboard/models/devices.py` (custom managers)
-- **Architecture**: `docs/architecture.md`
-- **API Reference**: `docs/api-reference.md`
+Please review — if anything is unclear or you want a stricter style (e.g., stricter typing, test templates, or more examples), tell me which sections to expand.
+Do not include or update tests in this phase.

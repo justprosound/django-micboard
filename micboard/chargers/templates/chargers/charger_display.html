@@ -1,0 +1,44 @@
+
+{% extends 'micboard/base.html' %}
+{% load static %}
+
+{% block title %}Charger Display - micboard{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-4">Charger Display</h1>
+    {% if charging_stations %}
+        <div class="row">
+            {% for station in charging_stations %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-{{ station.status|yesno:'success,danger' }} text-white">
+                            <h5 class="mb-0">{{ station.name }} ({{ station.status|capfirst }})</h5>
+                        </div>
+                        <div class="card-body">
+                                <ul class="list-group list-group-flush">
+                                    {% for slot in station.slots %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            {% if slot.image %}
+                                                <img src="{{ slot.image }}" alt="Channel Image" style="width: 50px; height: 50px; margin-right: 10px;">
+                                            {% endif %}
+                                            Slot {{ slot.slot_number }}: {{ slot.mic_name|default:'Empty' }}
+                                            <span class="badge bg-primary rounded-pill">
+                                                {{ slot.battery_level|default:'N/A' }}% {% if slot.charging %}<i class="bi bi-lightning-fill"></i>{% endif %}
+                                            </span>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="card-text text-muted">No microphones in this charging station.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="lead text-center">No charging stations found.</p>
+    {% endif %}
+</div>
+{% endblock %}

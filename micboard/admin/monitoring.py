@@ -49,8 +49,8 @@ class LocationAdmin(admin.ModelAdmin):
 class MonitoringGroupAdmin(admin.ModelAdmin):
     """Admin configuration for MonitoringGroup model."""
 
-    list_display = ("name", "location", "is_active")
-    list_filter = ("is_active", "location")
+    list_display = ("name", "is_active")
+    list_filter = ("is_active",)
     search_fields = ("name", "description")
     filter_horizontal = (
         "users",

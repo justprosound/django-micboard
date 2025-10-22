@@ -1,131 +1,94 @@
-"""
-Manufacturer plugin system for django-micboard.
+"""Compatibility shim package for manufacturer plugins.
 
-This package provides a plugin architecture for supporting multiple wireless
-microphone manufacturers in the micboard system.
+This package preserves the historic `micboard.manufacturers` import paths while
+delegating implementations to `micboard.integrations`. It exposes a
+`get_manufacturer_plugin(code)` helper and re-maps available integration
+packages so imports like `micboard.manufacturers.shure.client` continue to work.
+
+Don't add new manufacturer implementations here — place them under
+`micboard.integrations.<manufacturer>`.
 """
 
 from __future__ import annotations
 
 import importlib
-import logging
-import os
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable, cast
+import pkgutil
+import sys
+from types import ModuleType
+from typing import Any, cast
 
-if TYPE_CHECKING:
-    from micboard.models import Manufacturer
+from .base import BaseAPIClient, BasePlugin, ManufacturerPlugin
 
-logger = logging.getLogger(__name__)
-
-
-class ManufacturerPlugin(ABC):
-    """Abstract base class for manufacturer plugins."""
-
-    def __init__(self, manufacturer: Manufacturer):
-        self.manufacturer = manufacturer
-        self.config = manufacturer.config
-
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Human-readable name of the manufacturer."""
-        pass
-
-    @property
-    @abstractmethod
-    def code(self) -> str:
-        """Short code identifier for the manufacturer."""
-        pass
-
-    @abstractmethod
-    def get_devices(self) -> list[dict[str, Any]]:
-        """Get list of all devices from the manufacturer's API."""
-        pass
-
-    @abstractmethod
-    def get_device(self, device_id: str) -> dict[str, Any] | None:
-        """Get detailed data for a specific device."""
-        pass
-
-    @abstractmethod
-    def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
-        """Get channel data for a device."""
-        pass
-
-    @abstractmethod
-    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
-        """Transform manufacturer API data to micboard format."""
-        pass
-
-    @abstractmethod
-    def transform_transmitter_data(
-        self, tx_data: dict[str, Any], channel_num: int
-    ) -> dict[str, Any] | None:
-        """Transform transmitter data from manufacturer format to micboard format."""
-        pass
-
-    def get_device_identity(self, device_id: str) -> dict[str, Any] | None:
-        """Fetch device identity info if available."""
-        return None
-
-    def get_device_network(self, device_id: str) -> dict[str, Any] | None:
-        """Fetch device network info if available."""
-        return None
-
-    def get_device_status(self, device_id: str) -> dict[str, Any] | None:
-        """Fetch device status info if available."""
-        return None
-
-    def connect_and_subscribe(self, device_id: str, callback: Callable[[dict[str, Any]], None]):
-        """Establish WebSocket connection and subscribe to device updates."""
-        raise NotImplementedError("WebSocket support not implemented for this manufacturer")
-
-    def is_healthy(self) -> bool:
-        """Check if the manufacturer plugin is healthy."""
-        return True
-
-    def check_health(self) -> dict[str, Any]:
-        """Perform health check and return status."""
-        return {
-            "status": "healthy" if self.is_healthy() else "unhealthy",
-            "manufacturer": self.name,
-        }
+__all__ = ["BaseAPIClient", "BasePlugin", "ManufacturerPlugin", "get_manufacturer_plugin"]
 
 
-def get_manufacturer_plugin(manufacturer_code: str) -> type[ManufacturerPlugin]:
-    """Get the plugin class for a manufacturer."""
-    try:
-        module = importlib.import_module(f"micboard.manufacturers.{manufacturer_code}")
-        plugin_class = getattr(module, f"{manufacturer_code.capitalize()}Plugin")
-        return cast(type[ManufacturerPlugin], plugin_class)
-    except (ImportError, AttributeError) as e:
-        logger.error(f"Failed to load plugin for manufacturer '{manufacturer_code}': {e}")
-        raise ValueError(f"Manufacturer plugin '{manufacturer_code}' not found") from e
+def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
+    """Return the plugin class for a manufacturer code.
+
+    This function attempts to import `micboard.integrations.<code>.plugin` and
+    locate the plugin class. It prefers a class named <CodeTitle>Plugin, then
+    falls back to the first exported class whose name ends with 'Plugin' or
+    which implements a `get_devices` method.
+    """
+    code = str(code)
+    # Try to import the plugin module under integrations
+    module_paths = [f"micboard.integrations.{code}.plugin", f"micboard.integrations.{code}"]
+    mod = None
+    for path in module_paths:
+        try:
+            mod = importlib.import_module(path)
+            break
+        except ModuleNotFoundError:
+            continue
+
+    if mod is None:
+        raise ModuleNotFoundError(f"No integration module found for manufacturer '{code}'")
+
+    # Common class name: ShurePlugin, SennheiserPlugin, etc.
+    candidate_name = "".join(part.capitalize() for part in code.split("_")) + "Plugin"
+    if hasattr(mod, candidate_name):
+        cls = getattr(mod, candidate_name)
+        if isinstance(cls, type):
+            return cls
+
+    # Otherwise, search for a class that looks like a Plugin
+    for attr in dir(mod):
+        obj = getattr(mod, attr)
+        if isinstance(obj, type) and attr.endswith("Plugin"):
+            return obj
+
+    # Last-resort heuristic: any class that defines get_devices
+    for attr in dir(mod):
+        obj = getattr(mod, attr)
+        if isinstance(obj, type) and hasattr(obj, "get_devices"):
+            return obj
+
+    raise ImportError(f"No plugin class found in micboard.integrations.{code}")
 
 
-def get_available_manufacturers() -> list[str]:
-    """Get list of available manufacturer codes by scanning the manufacturers directory."""
-    manufacturers_dir = os.path.dirname(__file__)
-    manufacturers = []
+# Mirror integration packages under micboard.manufacturers so existing imports
+# like `micboard.manufacturers.shure.client` continue to resolve. We import
+# the integration package and inject it into sys.modules under the
+# `micboard.manufacturers.<name>` key.
+integrations_pkg: ModuleType | None = None
+try:
+    integrations_pkg = importlib.import_module("micboard.integrations")
+except ModuleNotFoundError:
+    integrations_pkg = None
 
-    for item in os.listdir(manufacturers_dir):
-        if os.path.isdir(os.path.join(manufacturers_dir, item)) and not item.startswith("__"):
-            # Check if the plugin module exists and has the expected plugin class
-            try:
-                module = importlib.import_module(f"micboard.manufacturers.{item}")
-                plugin_class = getattr(module, f"{item.capitalize()}Plugin")
-                if issubclass(plugin_class, ManufacturerPlugin):
-                    manufacturers.append(item)
-            except (ImportError, AttributeError):
-                # Skip directories that don't contain valid plugins
-                continue
+if integrations_pkg is not None:
+    for _finder, name, _ispkg in pkgutil.iter_modules(integrations_pkg.__path__):
+        try:
+            pkg = importlib.import_module(f"micboard.integrations.{name}")
+        except Exception:
+            # If importing an individual integration fails, skip it. Tests may
+            # explicitly import the module they need and will report failures.
+            continue
 
-    return sorted(manufacturers)
-
-
-__all__ = [
-    "ManufacturerPlugin",
-    "get_available_manufacturers",
-    "get_manufacturer_plugin",
-]
+        mapped_name = f"{__name__}.{name}"
+        # Place the integration package object into sys.modules under the
+        # manufacturers subpackage name so that submodule imports resolve.
+        if isinstance(pkg, ModuleType):
+            sys.modules[mapped_name] = pkg
+            # Also expose as attribute on this package for convenience
+            setattr(sys.modules[__name__], name, pkg)

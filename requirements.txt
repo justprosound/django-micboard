@@ -19,7 +19,9 @@ autobahn==25.10.1
 automat==25.4.16
     # via twisted
 certifi==2025.10.5
-    # via requests
+    # via
+    #   requests
+    #   sentry-sdk
 cffi==2.0.0
     # via cryptography
 channels==4.3.1
@@ -39,6 +41,17 @@ django==5.2.7
     # via
     #   channels
     #   django-micboard (pyproject.toml)
+    #   django-picklefield
+    #   django-q2
+    #   djangorestframework
+django-picklefield==3.3
+    # via django-q2
+django-q-sentry==0.1.6
+    # via django-q2
+django-q2[sentry]==1.8.0
+    # via django-micboard (pyproject.toml)
+djangorestframework==3.16.1
+    # via django-micboard (pyproject.toml)
 hyperlink==21.0.0
     # via
     #   autobahn
@@ -50,6 +63,8 @@ idna==3.11
     #   twisted
 incremental==24.7.2
     # via twisted
+pillow==12.0.0
+    # via django-micboard (pyproject.toml)
 pyasn1==0.6.1
     # via
     #   pyasn1-modules
@@ -62,6 +77,8 @@ pyopenssl==25.3.0
     # via twisted
 requests==2.32.5
     # via django-micboard (pyproject.toml)
+sentry-sdk==2.42.1
+    # via django-q-sentry
 service-identity==24.2.0
     # via twisted
 sqlparse==0.5.3
@@ -76,6 +93,7 @@ urllib3==2.5.0
     # via
     #   django-micboard (pyproject.toml)
     #   requests
+    #   sentry-sdk
 websockets==15.0.1
     # via django-micboard (pyproject.toml)
 zope-interface==8.0.1

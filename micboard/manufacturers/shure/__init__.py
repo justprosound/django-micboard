@@ -1,7 +1,17 @@
-"""
-Shure manufacturer plugin for django-micboard.
+"""Shim package for `micboard.manufacturers.shure` that forwards to
+`micboard.integrations.shure` so legacy imports continue to resolve.
 """
 
-from .plugin import ShurePlugin
+from __future__ import annotations
 
-__all__ = ["ShurePlugin"]
+import importlib
+import sys
+
+_target = importlib.import_module("micboard.integrations.shure")
+# Use the integrations package path so submodule imports (e.g. .client)
+# continue to work when imported via micboard.manufacturers.shure.*
+__path__ = list(_target.__path__)
+__package__ = "micboard.manufacturers.shure"
+
+# Ensure sys.modules contains the target under both names
+sys.modules[__package__] = _target
