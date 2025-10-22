@@ -200,7 +200,7 @@ pytest==8.4.2
     #   pytest-django
 pytest-asyncio==1.2.0
     # via django-micboard (pyproject.toml)
-pytest-cov==5.0.0
+pytest-cov==7.0.0
     # via django-micboard (pyproject.toml)
 pytest-django==4.11.1
     # via django-micboard (pyproject.toml)
