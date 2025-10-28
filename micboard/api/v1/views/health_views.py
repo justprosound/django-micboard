@@ -67,7 +67,8 @@ class HealthCheckAPIView(APIView):
                 try:
                     plugin_class = get_manufacturer_plugin(manufacturer.code)
                     plugin = plugin_class(manufacturer)
-                    plugin_health = plugin.check_health()
+                    client = plugin.get_client()
+                    plugin_health = client.check_health()
                     manufacturer_checks[manufacturer.code] = plugin_health
 
                     if plugin_health.get("status") != "healthy":

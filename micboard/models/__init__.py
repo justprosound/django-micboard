@@ -5,6 +5,7 @@ Models for the micboard app.
 # Import all models to make them available at the package level
 from .assignments import Alert, DeviceAssignment, UserAlertPreference
 from .channel import Channel
+from .charger import Charger, ChargerSlot
 from .discovery import (
     DiscoveredDevice,
     DiscoveryCIDR,
@@ -26,6 +27,8 @@ __all__ = [
     "Alert",
     "Building",
     "Channel",
+    "Charger",
+    "ChargerSlot",
     "DeviceAssignment",
     "DiscoveredDevice",
     "DiscoveryCIDR",

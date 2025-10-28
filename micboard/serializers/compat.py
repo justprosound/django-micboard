@@ -10,9 +10,11 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, cast
 
-from micboard.models import Channel, DiscoveredDevice, Group, Receiver, Transmitter
+from micboard.models import Channel, Charger, DiscoveredDevice, Group, Receiver, Transmitter
 from micboard.serializers.serializers import (
     ChannelSerializer,
+    ChargerDetailSerializer,
+    ChargerSummarySerializer,
     DiscoveredDeviceSerializer,
     GroupSerializer,
     ReceiverDetailSerializer,
@@ -141,8 +143,51 @@ def serialize_group(group: Group) -> dict[str, Any]:
     return cast(dict[str, Any], GroupSerializer(group).data)
 
 
+def serialize_charger(charger: Charger, include_extra: bool = False) -> dict[str, Any]:
+    # Use detail serializer when include_extra True to include slots
+    if include_extra:
+        data = ChargerDetailSerializer(charger).data
+    else:
+        data = ChargerSummarySerializer(charger).data
+    return cast(dict[str, Any], data)
+
+
+def serialize_charger_summary(charger: Charger) -> dict[str, Any]:
+    return cast(dict[str, Any], ChargerSummarySerializer(charger).data)
+
+
+def serialize_charger_detail(charger: Charger) -> dict[str, Any]:
+    return cast(dict[str, Any], ChargerDetailSerializer(charger).data)
+
+
+def serialize_chargers(
+    chargers: Iterable[Charger] | None = None,
+    *,
+    include_extra: bool = False,
+    manufacturer_code: str | None = None,
+) -> list[dict[str, Any]]:
+    if chargers is None:
+        # Default behaviour: if a manufacturer_code is provided, return all
+        # chargers for that manufacturer (including inactive). Otherwise
+        # return only active chargers.
+        if manufacturer_code:
+            qs = Charger.objects.filter(manufacturer__code=manufacturer_code)
+        else:
+            qs = Charger.objects.filter(is_active=True)
+        chargers = qs
+
+    chargers = list(chargers)
+    if include_extra:
+        return cast(list[dict[str, Any]], [ChargerDetailSerializer(c).data for c in chargers])
+    return cast(list[dict[str, Any]], [ChargerSummarySerializer(c).data for c in chargers])
+
+
 __all__ = [
     "serialize_channel",
+    "serialize_charger",
+    "serialize_charger_detail",
+    "serialize_charger_summary",
+    "serialize_chargers",
     "serialize_discovered_device",
     "serialize_group",
     "serialize_receiver",

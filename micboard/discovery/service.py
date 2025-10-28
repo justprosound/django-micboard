@@ -1,6 +1,6 @@
 import ipaddress
 import logging
-from typing import Union
+from typing import Union, cast
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -32,10 +32,11 @@ class DiscoveryService:
     ) -> bool:
         """Check if an IP address is already managed by another manufacturer."""
         # Check if any Receiver object already exists with this IP and a different manufacturer
-        return (
+        return cast(
+            bool,
             Receiver.objects.filter(ip=ip_address)
             .exclude(manufacturer=current_manufacturer)
-            .exists()
+            .exists(),
         )
 
     def add_discovery_candidate(
@@ -43,14 +44,15 @@ class DiscoveryService:
         ip_address: str,
         manufacturer: Manufacturer,
         source: str = "manual",
-    ) -> bool:  # type: ignore
+    ) -> bool:
         """Adds an IP address to a manufacturer's discovery list, enforcing exclusivity."""
         if self._is_ip_managed_by_another_manufacturer(ip_address, manufacturer):
             logger.warning(
                 "IP %s is already managed by another manufacturer. Skipping for %s.",
                 ip_address,
                 manufacturer.code,
-        client = cast(BaseAPIClient, self._get_manufacturer_client(manufacturer))
+            )
+        client = self._get_manufacturer_client(manufacturer)
         try:
             success = client.add_discovery_ips([ip_address])
             if success:
@@ -282,41 +284,57 @@ class DiscoveryService:
             )
             return []
 
-        candidates: list[str] = []
+        candidates = self._collect_base_candidates(manufacturer)
 
-        # remote ips
-        try:
-            client = self._get_manufacturer_client(manufacturer)
-            remote_ips = []
-            if client and hasattr(client, "get_discovery_ips"):
-                try:
-                    remote_ips = client.get_discovery_ips() or []
-                except Exception:
-                    remote_ips = []
-            candidates.extend([ip for ip in remote_ips if isinstance(ip, str)])
-        except Exception:
-            cache.set(
-                status_key, {"status": "error", "error": "failed fetching remote ips"}, timeout=3600
-            )
-            return []
+        # Prepare scanning data
+        cidr_hosts_map, fqdns_map, total_to_scan = self._prepare_scanning_data(
+            manufacturer, scan_cidrs, scan_fqdns, max_hosts
+        )
 
-        # local receivers
+        # Initialize progress tracking
+        self._init_progress_tracking(status_key, total_to_scan)
+
+        # Perform scanning with progress updates
+        processed = self._perform_scanning_with_progress(
+            status_key, candidates, cidr_hosts_map, fqdns_map, total_to_scan
+        )
+
+        # Finalize and return deduplicated candidates
+        return self._finalize_candidates(status_key, candidates, total_to_scan, processed)
+
+    def _collect_base_candidates(self, manufacturer: Manufacturer) -> list[str]:
+        """Collect base candidates from remote discovery IPs and local receivers."""
+        candidates = []
+
+        # Remote discovery IPs
+        client = self._get_manufacturer_client(manufacturer)
+        if client and hasattr(client, "get_discovery_ips"):
+            try:
+                remote_ips = client.get_discovery_ips() or []
+                candidates.extend([ip for ip in remote_ips if isinstance(ip, str)])
+            except Exception:
+                logger.debug("Could not fetch remote discovery IPs for %s", manufacturer.code)
+
+        # Local receiver IPs
         try:
             for rx in Receiver.objects.filter(manufacturer=manufacturer):
                 if rx.ip:
                     candidates.append(rx.ip)
         except Exception:
-            cache.set(
-                status_key, {"status": "error", "error": "failed fetching receivers"}, timeout=3600
-            )
-            return []
+            logger.exception("Error fetching local receiver IPs for discovery candidates")
 
-        # prepare scanning maps
+        return candidates
+
+    def _prepare_scanning_data(
+        self, manufacturer: Manufacturer, scan_cidrs: bool, scan_fqdns: bool, max_hosts: int
+    ) -> tuple[dict[str, list[str]], dict[str, list[str]], int]:
+        """Prepare CIDR and FQDN scanning data."""
         total_to_scan = 0
-        cidr_hosts_map: dict[str, list[str]] = {}
+        cidr_hosts_map = {}
+        fqdns_map = {}
+
         if scan_cidrs:
             cidrs = [dc.cidr for dc in DiscoveryCIDR.objects.filter(manufacturer=manufacturer)]
-
             for cidr in cidrs:
                 try:
                     net = ipaddress.ip_network(cidr, strict=False)
@@ -328,10 +346,8 @@ class DiscoveryService:
                 except Exception:
                     cidr_hosts_map[cidr] = []
 
-        fqdns_map: dict[str, list[str]] = {}
         if scan_fqdns:
             fqdns = [df.fqdn for df in DiscoveryFQDN.objects.filter(manufacturer=manufacturer)]
-
             try:
                 resolved = resolve_fqdns(fqdns)
                 for f, ips in resolved.items():
@@ -341,130 +357,108 @@ class DiscoveryService:
             except Exception:
                 fqdns_map = {f: [] for f in fqdns}
 
-        cache.set(
-            status_key,
-            {
-                "status": "running",
-                "phase": "scanning",
-                "items_total": total_to_scan,
-                "items_processed": 0,
-                "started_at": str(timezone.now()),
-            },
-            timeout=3600,
-        )
-        # Broadcast initial progress via Channels
+        return cidr_hosts_map, fqdns_map, total_to_scan
+
+    def _init_progress_tracking(self, status_key: str, total_to_scan: int) -> None:
+        """Initialize progress tracking in cache and broadcast initial status."""
+        status_data = {
+            "status": "running",
+            "phase": "scanning",
+            "items_total": total_to_scan,
+            "items_processed": 0,
+            "started_at": str(timezone.now()),
+        }
+        cache.set(status_key, status_data, timeout=3600)
+
+        # Broadcast initial progress
         try:
             channel_layer = get_channel_layer()
             if channel_layer:
                 async_to_sync(channel_layer.group_send)(
                     "micboard_updates",
-                    {"type": "progress_update", "status": cache.get(status_key)},
+                    {"type": "progress_update", "status": status_data},
                 )
         except Exception:
             logger.debug("Channels layer not available for progress updates")
 
+    def _perform_scanning_with_progress(
+        self,
+        status_key: str,
+        candidates: list[str],
+        cidr_hosts_map: dict[str, list[str]],
+        fqdns_map: dict[str, list[str]],
+        total_to_scan: int,
+    ) -> int:
+        """Perform CIDR and FQDN scanning while updating progress."""
         processed = 0
-        try:
-            for cidr, hosts in cidr_hosts_map.items():
-                cache.set(
+        channel_layer = get_channel_layer()
+
+        # Scan CIDRs
+        for cidr, hosts in cidr_hosts_map.items():
+            self._update_progress(status_key, "scanning", total_to_scan, processed, current_cidr=cidr)
+            processed = self._scan_hosts(hosts, candidates, processed, total_to_scan, status_key, channel_layer, cidr=cidr)
+
+        # Resolve FQDNs
+        for f, ips in fqdns_map.items():
+            self._update_progress(status_key, "resolving", total_to_scan, processed, current_fqdn=f)
+            processed = self._scan_hosts(ips, candidates, processed, total_to_scan, status_key, channel_layer, fqdn=f)
+
+        return processed
+
+    def _scan_hosts(
+        self,
+        hosts: list[str],
+        candidates: list[str],
+        processed: int,
+        total_to_scan: int,
+        status_key: str,
+        channel_layer,
+        *,
+        cidr: str = None,
+        fqdn: str = None,
+    ) -> int:
+        """Scan a list of hosts, adding to candidates and updating progress."""
+        for ip in hosts:
+            if str(ip) not in candidates:
+                candidates.append(str(ip))
+            processed += 1
+            if processed % 50 == 0:
+                self._update_progress(
                     status_key,
-                    {
-                        "status": "running",
-                        "phase": "scanning",
-                        "items_total": total_to_scan,
-                        "items_processed": processed,
-                        "current_cidr": cidr,
-                        "started_at": str(timezone.now()),
-                    },
-                    timeout=3600,
+                    "scanning" if cidr else "resolving",
+                    total_to_scan,
+                    processed,
+                    current_cidr=cidr,
+                    current_fqdn=fqdn,
                 )
-                for ip in hosts:
-                    if str(ip) not in candidates:
-                        candidates.append(str(ip))
-                    processed += 1
-                    if processed % 50 == 0:
-                        cache.set(
-                            status_key,
-                            {
-                                "status": "running",
-                                "phase": "scanning",
-                                "items_total": total_to_scan,
-                                "items_processed": processed,
-                                "current_cidr": cidr,
-                                "started_at": str(timezone.now()),
-                            },
-                            timeout=3600,
-                        )
-                        try:
-                            if channel_layer:
-                                async_to_sync(channel_layer.group_send)(
-                                    "micboard_updates",
-                                    {"type": "progress_update", "status": cache.get(status_key)},
-                                )
-                        except Exception:
-                            logger.debug("Failed to send progress update for %s", cidr)
+                self._broadcast_progress(status_key, channel_layer)
+        return processed
 
-            for f, ips in fqdns_map.items():
-                cache.set(
-                    status_key,
-                    {
-                        "status": "running",
-                        "phase": "resolving",
-                        "items_total": total_to_scan,
-                        "items_processed": processed,
-                        "current_fqdn": f,
-                        "started_at": str(timezone.now()),
-                    },
-                    timeout=3600,
-                )
-                for ip in ips:
-                    if str(ip) not in candidates:
-                        candidates.append(str(ip))
-                    processed += 1
-                    if processed % 50 == 0:
-                        cache.set(
-                            status_key,
-                            {
-                                "status": "running",
-                                "phase": "resolving",
-                                "items_total": total_to_scan,
-                                "items_processed": processed,
-                                "current_fqdn": f,
-                                "started_at": str(timezone.now()),
-                            },
-                            timeout=3600,
-                        )
-                        try:
-                            if channel_layer:
-                                async_to_sync(channel_layer.group_send)(
-                                    "micboard_updates",
-                                    {"type": "progress_update", "status": cache.get(status_key)},
-                                )
-                        except Exception:
-                            logger.debug("Failed to send progress update for fqdn %s", f)
+    def _update_progress(
+        self,
+        status_key: str,
+        phase: str,
+        total: int,
+        processed: int,
+        current_cidr: str = None,
+        current_fqdn: str = None,
+    ) -> None:
+        """Update progress status in cache."""
+        status_data = {
+            "status": "running",
+            "phase": phase,
+            "items_total": total,
+            "items_processed": processed,
+            "started_at": str(timezone.now()),
+        }
+        if current_cidr:
+            status_data["current_cidr"] = current_cidr
+        if current_fqdn:
+            status_data["current_fqdn"] = current_fqdn
+        cache.set(status_key, status_data, timeout=3600)
 
-        except Exception as exc:
-            cache.set(status_key, {"status": "error", "error": str(exc)}, timeout=3600)
-            return []
-
-        seen = set()
-        deduped: list[str] = []
-        for ip in candidates:
-            if ip not in seen:
-                seen.add(ip)
-                deduped.append(ip)
-
-        cache.set(
-            status_key,
-            {
-                "status": "done",
-                "count": len(deduped),
-                "items_total": total_to_scan,
-                "items_processed": processed,
-                "finished_at": str(timezone.now()),
-            },
-            timeout=3600,
-        )
+    def _broadcast_progress(self, status_key: str, channel_layer) -> None:
+        """Broadcast progress update via Channels."""
         try:
             if channel_layer:
                 async_to_sync(channel_layer.group_send)(
@@ -472,5 +466,39 @@ class DiscoveryService:
                     {"type": "progress_update", "status": cache.get(status_key)},
                 )
         except Exception:
+            logger.debug("Failed to send progress update")
+
+    def _finalize_candidates(
+        self, status_key: str, candidates: list[str], total_to_scan: int, processed: int
+    ) -> list[str]:
+        """Finalize candidates by deduplicating and updating final status."""
+        # Deduplicate
+        seen = set()
+        deduped = []
+        for ip in candidates:
+            if ip not in seen:
+                seen.add(ip)
+                deduped.append(ip)
+
+        # Update final status
+        final_status = {
+            "status": "done",
+            "count": len(deduped),
+            "items_total": total_to_scan,
+            "items_processed": processed,
+            "finished_at": str(timezone.now()),
+        }
+        cache.set(status_key, final_status, timeout=3600)
+
+        # Broadcast final status
+        try:
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    "micboard_updates",
+                    {"type": "progress_update", "status": final_status},
+                )
+        except Exception:
             logger.debug("Failed to send final progress update")
+
         return deduped

@@ -5,7 +5,7 @@ Shure manufacturer plugin for django-micboard.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from micboard.manufacturers.base import BasePlugin
 
@@ -39,7 +39,7 @@ class ShurePlugin(BasePlugin):
 
     def get_devices(self) -> list[dict[str, Any]]:
         """Get list of all devices from Shure System API."""
-        return self.get_client().devices.get_devices()
+        return cast(list[dict[str, Any]], self.get_client().devices.get_devices())
 
     def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
         """Transform Shure API data to micboard format."""
@@ -81,12 +81,12 @@ class ShurePlugin(BasePlugin):
 
     def add_discovery_ips(self, ips: list[str]) -> bool:
         """Add IP addresses to the Shure System API manual discovery list."""
-        return self.get_client().discovery.add_discovery_ips(ips)
+        return cast(bool, self.get_client().discovery.add_discovery_ips(ips))
 
     def get_discovery_ips(self) -> list[str]:
         """Retrieve the current manual discovery IPs from Shure System API."""
-        return self.get_client().discovery.get_discovery_ips()
+        return cast(list[str], self.get_client().discovery.get_discovery_ips())
 
     def remove_discovery_ips(self, ips: list[str]) -> bool:
         """Remove IP addresses from the Shure System API manual discovery list."""
-        return self.get_client().discovery.remove_discovery_ips(ips)
+        return cast(bool, self.get_client().discovery.remove_discovery_ips(ips))

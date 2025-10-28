@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from micboard.api.utils import _get_manufacturer_code
+from micboard.api.base_views import ManufacturerFilterMixin
 from micboard.models import (
     Group,
     Manufacturer,
@@ -15,28 +15,21 @@ from micboard.models import (
 logger = logging.getLogger(__name__)
 
 
-class ConfigAPIView(APIView):
+class ConfigAPIView(ManufacturerFilterMixin, APIView):
     """
     API endpoint to handle application configuration.
     Replaces micboard.api.core_views.ConfigHandler.
     """
 
     def get(self, request, *args, **kwargs):
-        manufacturer_code = _get_manufacturer_code(request)
+        manufacturer_code = request.GET.get("manufacturer")
 
         config_queryset = MicboardConfig.objects.all()
 
         if manufacturer_code:
-            try:
-                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
-                config_queryset = config_queryset.filter(
-                    models.Q(manufacturer=manufacturer) | models.Q(manufacturer__isnull=True)
-                )
-            except Manufacturer.DoesNotExist:
-                return Response(
-                    {"error": f"Manufacturer '{manufacturer_code}' not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+            config_queryset = config_queryset.filter(
+                models.Q(manufacturer__code=manufacturer_code) | models.Q(manufacturer__isnull=True)
+            )
         else:
             config_queryset = config_queryset.filter(manufacturer__isnull=True)
 
@@ -46,7 +39,7 @@ class ConfigAPIView(APIView):
     def post(self, request, *args, **kwargs):
         try:
             data = request.data  # DRF automatically parses JSON
-            manufacturer_code = _get_manufacturer_code(request)
+            manufacturer_code = request.GET.get("manufacturer")
 
             manufacturer = None
             if manufacturer_code:

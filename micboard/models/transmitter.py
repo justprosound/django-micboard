@@ -42,6 +42,7 @@ class Transmitter(models.Model):
     status = models.CharField(max_length=50, blank=True, help_text="Transmitter status")
     name = models.CharField(max_length=100, blank=True, help_text="Transmitter name")
     name_raw = models.CharField(max_length=100, blank=True, help_text="Raw transmitter name")
+    charging_status = models.BooleanField(default=False, help_text="Whether the transmitter is currently charging")
     updated_at = models.DateTimeField(auto_now=True, help_text="Last update timestamp")
 
     class Meta:

@@ -5,38 +5,35 @@ from typing import Any, Optional, cast
 
 from micboard.manufacturers.base import BaseAPIClient
 
-from .exceptions import ShureAPIError
+from .exceptions import SennheiserAPIError
 from .rate_limiter import rate_limit
-from .transformers import ShureDataTransformer
+from .transformers import SennheiserDataTransformer
 
 logger = logging.getLogger(__name__)
 
 
-class ShureDeviceClient:
-    """Client for interacting with Shure System API for device data."""
+class SennheiserDeviceClient:
+    """Client for interacting with Sennheiser SSCv2 API for device data."""
 
     def __init__(self, api_client: BaseAPIClient):
         self.api_client = api_client
-        self.transformer = ShureDataTransformer()
+        self.transformer = SennheiserDataTransformer()
 
     @rate_limit(calls_per_second=5.0)
     def get_devices(self) -> list[dict[str, Any]]:
-        """Get list of all devices from Shure System API."""
-        result = self.api_client._make_request("GET", "/api/v1/devices")
+        """Get list of all devices from Sennheiser SSCv2 API."""
+        # Placeholder endpoint - needs to be verified from OpenAPI specs
+        result = self.api_client._make_request("GET", "/api/devices")
         return result if isinstance(result, list) else []
 
     @rate_limit(calls_per_second=5.0)
     def get_supported_device_models(self) -> list[str]:
-        """Fetch the list of supported device models from Shure System API.
-
-        Returns:
-            A list of model identifiers (strings). If the endpoint is not
-            available or fails, an empty list is returned.
-        """
+        """Fetch the list of supported device models from Sennheiser SSCv2 API."""
         try:
-            result = self.api_client._make_request("GET", "/api/v1/devices/models")
+            # Placeholder endpoint
+            result = self.api_client._make_request("GET", "/api/devices/models")
             return result if isinstance(result, list) else []
-        except ShureAPIError:
+        except SennheiserAPIError:
             logger.debug("Supported device models endpoint not available or failed")
             return []
 
@@ -45,13 +42,13 @@ class ShureDeviceClient:
         """Get detailed data for a specific device."""
         return cast(
             Optional[dict[str, Any]],
-            self.api_client._make_request("GET", f"/api/v1/devices/{device_id}"),
+            self.api_client._make_request("GET", f"/api/devices/{device_id}"),
         )
 
     @rate_limit(calls_per_second=10.0)
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Get channel data for a device."""
-        result = self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/channels")
+        result = self.api_client._make_request("GET", f"/api/devices/{device_id}/channels")
         return result if isinstance(result, list) else []
 
     @rate_limit(calls_per_second=10.0)
@@ -60,18 +57,18 @@ class ShureDeviceClient:
         return cast(
             Optional[dict[str, Any]],
             self.api_client._make_request(
-                "GET", f"/api/v1/devices/{device_id}/channels/{channel}/tx"
+                "GET", f"/api/devices/{device_id}/channels/{channel}/tx"
             ),
         )
 
     def get_device_identity(self, device_id: str) -> dict[str, Any] | None:
-        """Fetch device identity info from Shure API."""
+        """Fetch device identity info from Sennheiser API."""
         try:
             return cast(
                 Optional[dict[str, Any]],
-                self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/identify"),
+                self.api_client._make_request("GET", f"/api/devices/{device_id}/identify"),
             )
-        except ShureAPIError:
+        except SennheiserAPIError:
             logger.debug("Identity endpoint not available for device %s", device_id)
             return None
 
@@ -80,9 +77,9 @@ class ShureDeviceClient:
         try:
             return cast(
                 Optional[dict[str, Any]],
-                self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/network"),
+                self.api_client._make_request("GET", f"/api/devices/{device_id}/network"),
             )
-        except ShureAPIError:
+        except SennheiserAPIError:
             logger.debug("Network endpoint not available for device %s", device_id)
             return None
 
@@ -91,25 +88,14 @@ class ShureDeviceClient:
         try:
             return cast(
                 Optional[dict[str, Any]],
-                self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/status"),
+                self.api_client._make_request("GET", f"/api/devices/{device_id}/status"),
             )
-        except ShureAPIError:
+        except SennheiserAPIError:
             logger.debug("Status endpoint not available for device %s", device_id)
             return None
 
     def _enrich_device_data(self, device_id: str, device_data: dict[str, Any]) -> dict[str, Any]:
-        """Best-effort enrichment of device data from optional endpoints.
-
-        Merges fields like serial number, hostname, MAC, model variant, band, and location
-        when available.
-
-        Args:
-            device_id: Device ID
-            device_data: Base device data to enrich
-
-        Returns:
-            Enriched device data
-        """
+        """Best-effort enrichment of device data from optional endpoints."""
         identity = self.get_device_identity(device_id)
         if identity and isinstance(identity, dict):
             device_data.setdefault("serial_number", identity.get("serialNumber"))
@@ -134,8 +120,8 @@ class ShureDeviceClient:
         """Poll all devices and return aggregated data with transmitter info."""
         try:
             devices = self.get_devices()
-            logger.info("Polling %d devices from Shure System API", len(devices))
-        except ShureAPIError:
+            logger.info("Polling %d devices from Sennheiser SSCv2 API", len(devices))
+        except SennheiserAPIError:
             logger.exception("Failed to get device list")
             return {}
 
@@ -152,27 +138,23 @@ class ShureDeviceClient:
                     logger.warning("No data returned for device %s", device_id)
                     continue
 
-                # Optional enrichment from additional endpoints (best-effort)
                 try:
                     device_data = self._enrich_device_data(device_id, device_data)
                 except Exception:
                     logger.debug("Enrichment failed for device %s", device_id)
 
-                # Get channel/transmitter data
                 channels = self.get_device_channels(device_id)
                 device_data["channels"] = channels
 
-                # Transform to micboard format
                 transformed = self.transformer.transform_device_data(device_data)
                 if transformed:
                     data[device_id] = transformed
                 else:
                     logger.warning("Failed to transform data for device %s", device_id)
-            except ShureAPIError:
+            except SennheiserAPIError:
                 logger.exception("Error polling device %s", device_id)
                 continue
 
-        # Firmware coverage validation
         missing_fw = [d for d in data.values() if not d.get("firmware")]
         if missing_fw:
             logger.warning("%d devices missing firmware info", len(missing_fw))

@@ -12,14 +12,15 @@ from __future__ import annotations
 from django.urls import include, path
 
 from micboard.chargers import views as charger_views
-from micboard.views import alerts
+from micboard.services import alerts
 from micboard.views.dashboard import dashboard
 from micboard.views.user_views import RecordUserView
 
 urlpatterns = [
     # Dashboard views
     path("", dashboard.index, name="index"),
-    path("building/<str:building>/", dashboard.building_view, name="building_view"),
+    path("buildings/", dashboard.all_buildings_view, name="all_buildings_view"),
+    path("building/<str:building>/", dashboard.single_building_view, name="single_building_view"),
     path("room/<str:building>/<str:room>/", dashboard.room_view, name="room_view"),
     path("user/<str:username>/", dashboard.user_view, name="user_view"),
     path("type/<str:device_type>/", dashboard.device_type_view, name="device_type_view"),

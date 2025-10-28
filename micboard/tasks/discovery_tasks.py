@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from django.core.cache import cache
 from django.utils import timezone
@@ -49,7 +50,7 @@ def run_manufacturer_discovery_task(manufacturer_id: int, scan_cidrs: bool, scan
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
         discovery_service = DiscoveryService()
         discovery_service._run_manufacturer_discovery(
-            manufacturer, scan_cidrs=scan_cidrs, scan_fqdns=scan_fqdns
+            manufacturer, scan_cidrs=scan_cidrs, scan_fqdns=scan_fqdns, max_hosts=1024
         )
         logger.info(
             "Discovery scan triggered for %s (CIDRs: %s, FQDNs: %s)",
@@ -97,7 +98,7 @@ def run_discovery_sync_task(
     """
     Task to run a discovery synchronization for the given manufacturer.
     """
-    summary = {
+    summary: dict[str, Any] = {
         "manufacturer": manufacturer_id,
         "status": "running",
         "created_receivers": 0,
@@ -119,11 +120,63 @@ def run_discovery_sync_task(
         manufacturer=manufacturer, action="sync", status="running", started_at=timezone.now()
     )
 
-    # Optionally add CIDR and FQDN entries to config
+    try:
+        discovery_service = DiscoveryService()
+
+        # Optionally add CIDR and FQDN entries to config
+        _add_config_entries(manufacturer, add_cidrs, add_fqdns)
+
+        # Initialize plugin and client
+        plugin, client = _initialize_plugin_client(manufacturer, summary)
+        if not plugin or not client:
+            return summary
+
+        # 0. Fetch and persist supported device models for this manufacturer
+        _persist_supported_models(manufacturer, client)
+
+        # 1) Poll API for devices and create/update receivers
+        api_devices = _poll_and_create_receivers(manufacturer, plugin, summary)
+        if api_devices is None:
+            return summary
+
+        discovered_ips = {d.get("ip") or d.get("ipAddress") for d in api_devices or []}
+
+        # Read CIDR/FQDN config
+        cidrs = [dc.cidr for dc in DiscoveryCIDR.objects.filter(manufacturer=manufacturer)]
+        fqdns = [df.fqdn for df in DiscoveryFQDN.objects.filter(manufacturer=manufacturer)]
+
+        # 2) Submit missing local receiver IPs to discovery
+        _submit_missing_ips(manufacturer, discovered_ips, discovery_service, summary)
+
+        # 3) Optionally expand CIDRs and resolve FQDNs and submit candidates
+        _submit_scanned_candidates(
+            manufacturer, cidrs, fqdns, discovered_ips, scan_cidrs, scan_fqdns, max_hosts, discovery_service, summary
+        )
+
+        # Finalize job
+        _finalize_job(job, summary)
+
+        # Broadcast updated device list to frontend via signals for consistency
+        _broadcast_results(manufacturer)
+
+        return summary
+
+    except Exception as exc:
+        logger.exception("Error in discovery sync task: %s", exc)
+        job.status = "failed"
+        job.note = str(exc)
+        job.finished_at = timezone.now()
+        job.save()
+        summary["status"] = "failed"
+        summary["errors"].append(str(exc))
+        return summary
+
+
+def _add_config_entries(manufacturer: Manufacturer, add_cidrs: list[str] | None, add_fqdns: list[str] | None) -> None:
+    """Add CIDR and FQDN entries to config."""
     if add_cidrs:
         for c in add_cidrs:
             try:
-                # ipaddress.ip_network(c) # Validation should happen before enqueuing task
                 DiscoveryCIDR.objects.get_or_create(manufacturer=manufacturer, cidr=c)
             except Exception:
                 logger.warning("Invalid CIDR ignored: %s", c)
@@ -133,30 +186,28 @@ def run_discovery_sync_task(
             if f:
                 DiscoveryFQDN.objects.get_or_create(manufacturer=manufacturer, fqdn=f)
 
-    # Initialize plugin and client
+
+def _initialize_plugin_client(manufacturer: Manufacturer, summary: dict[str, Any]) -> tuple[Any, Any] | tuple[None, None]:
+    """Initialize plugin and client, return (plugin, client) or (None, None) on failure."""
     try:
         from micboard.manufacturers import get_manufacturer_plugin
 
         plugin_class = get_manufacturer_plugin(manufacturer.code)
         plugin = plugin_class(manufacturer)
         client = plugin.get_client()
+        return plugin, client
     except Exception as exc:
         logger.exception("Failed to initialize plugin: %s", exc)
-        job.status = "failed"
-        job.note = str(exc)
-        job.finished_at = timezone.now()
-        job.save()
         summary["status"] = "failed"
         summary["errors"].append(str(exc))
-        return summary
+        return None, None
 
-    discovery_service = DiscoveryService()
 
-    # 0. Fetch and persist supported device models for this manufacturer
+def _persist_supported_models(manufacturer: Manufacturer, client: Any) -> None:
+    """Fetch and persist supported device models."""
     try:
         models = []
         try:
-            # Assuming client has get_supported_device_models method
             if hasattr(client, "get_supported_device_models"):
                 models = client.get_supported_device_models()
         except Exception:
@@ -168,15 +219,15 @@ def run_discovery_sync_task(
                 key=key, manufacturer=manufacturer, defaults={"value": json.dumps(models)}
             )
             if not created:
-                # Overwrite with latest list
                 cfg_obj.value = json.dumps(models)
                 cfg_obj.save()
             logger.info("Persisted %d supported models for %s", len(models), manufacturer.code)
-
     except Exception as exc:
         logger.exception("Error persisting supported device models: %s", exc)
 
-    # 1) Poll API for devices and create/update receivers
+
+def _poll_and_create_receivers(manufacturer: Manufacturer, plugin: Any, summary: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Poll API for devices and create/update receivers. Return api_devices or None on failure."""
     api_devices = []
     try:
         api_devices = plugin.get_devices() or []
@@ -199,23 +250,16 @@ def run_discovery_sync_task(
                 )
                 if created:
                     summary["created_receivers"] += 1
+        return api_devices
     except Exception as exc:
         logger.exception("Error polling API: %s", exc)
-        job.status = "failed"
-        job.note = str(exc)
-        job.finished_at = timezone.now()
-        job.save()
         summary["status"] = "failed"
         summary["errors"].append(str(exc))
-        return summary
+        return None
 
-    discovered_ips = {d.get("ip") or d.get("ipAddress") for d in api_devices or []}
 
-    # Read CIDR/FQDN config
-    cidrs = [dc.cidr for dc in DiscoveryCIDR.objects.filter(manufacturer=manufacturer)]
-    fqdns = [df.fqdn for df in DiscoveryFQDN.objects.filter(manufacturer=manufacturer)]
-
-    # 2) Submit missing local receiver IPs to discovery
+def _submit_missing_ips(manufacturer: Manufacturer, discovered_ips: set[str], discovery_service: DiscoveryService, summary: dict[str, Any]) -> None:
+    """Submit missing local receiver IPs to discovery."""
     missing_ips = []
     for rx in Receiver.objects.filter(manufacturer=manufacturer):
         if not rx.ip:
@@ -225,14 +269,24 @@ def run_discovery_sync_task(
 
     if missing_ips:
         for ip in missing_ips:
-            if discovery_service.add_discovery_candidate(
-                ip, manufacturer, source="missing_receiver"
-            ):
+            if discovery_service.add_discovery_candidate(ip, manufacturer, source="missing_receiver"):
                 summary["missing_ips_submitted"] += 1
             else:
                 summary["errors"].append(f"Failed to submit missing IP {ip}")
 
-    # 3) Optionally expand CIDRs and resolve FQDNs and submit candidates
+
+def _submit_scanned_candidates(
+    manufacturer: Manufacturer,
+    cidrs: list[str],
+    fqdns: list[str],
+    discovered_ips: set[str],
+    scan_cidrs: bool,
+    scan_fqdns: bool,
+    max_hosts: int,
+    discovery_service: DiscoveryService,
+    summary: dict[str, Any],
+) -> None:
+    """Expand CIDRs and resolve FQDNs and submit candidates."""
     ips_to_submit: list[str] = []
     if scan_cidrs and cidrs:
         from micboard.discovery.legacy import expand_cidrs
@@ -254,39 +308,35 @@ def run_discovery_sync_task(
     ips_to_submit = list(dict.fromkeys(ips_to_submit))
     if ips_to_submit:
         for ip in ips_to_submit:
-            if discovery_service.add_discovery_candidate(
-                ip, manufacturer, source="scanned_candidate"
-            ):
+            if discovery_service.add_discovery_candidate(ip, manufacturer, source="scanned_candidate"):
                 summary["scanned_ips_submitted"] += 1
             else:
                 summary["errors"].append(f"Failed to submit scanned IP {ip}")
 
+
+def _finalize_job(job: DiscoveryJob, summary: dict[str, Any]) -> None:
+    """Finalize the discovery job with status and metrics."""
     job.status = "success" if not summary["errors"] else "failed"
     job.finished_at = timezone.now()
-    job.items_scanned = len(ips_to_submit)
-    job.items_submitted = summary.get("scanned_ips_submitted", 0) + summary.get(
-        "missing_ips_submitted", 0
-    )
+    job.items_scanned = summary.get("scanned_ips_submitted", 0) + summary.get("missing_ips_submitted", 0)
+    job.items_submitted = job.items_scanned
     if summary["errors"]:
         job.note = "; ".join(summary["errors"])[:1024]
     job.save()
-
     summary["status"] = job.status
-    # Broadcast updated device list to frontend via signals for consistency
+
+
+def _broadcast_results(manufacturer: Manufacturer) -> None:
+    """Broadcast updated device list via signals."""
     try:
         from micboard.serializers import ReceiverSummarySerializer
         from micboard.signals.broadcast_signals import devices_polled
 
-        # data = {"receivers": serialize_receivers(include_extra=False)}
-        # devices_polled.send(run_discovery_sync, manufacturer=manufacturer, data=data)
-        # Re-serialize all receivers for the manufacturer and broadcast
         serialized_data = {
             "receivers": ReceiverSummarySerializer(
                 Receiver.objects.filter(manufacturer=manufacturer), many=True
             ).data
         }
         devices_polled.send(sender=None, manufacturer=manufacturer, data=serialized_data)
-
     except Exception:
         logger.debug("Failed to emit devices_polled signal from discovery_sync")
-    return summary

@@ -25,50 +25,47 @@ class SennheiserPlugin(ManufacturerPlugin):
 
     def __init__(self, manufacturer: Any):
         super().__init__(manufacturer)
-        # self.client = SennheiserClient()  # To be implemented
-        # self.transformer = SennheiserDataTransformer()  # To be implemented
+        from .client import SennheiserSystemAPIClient
+
+        self.client = SennheiserSystemAPIClient()
+        from .transformers import SennheiserDataTransformer
+
+        self.transformer = SennheiserDataTransformer()
 
     def get_devices(self) -> list[dict[str, Any]]:
-        """Get list of all devices from Sennheiser API."""
-        # To be implemented
-        return []
+        """Get list of all devices from Sennheiser SSCv2 API."""
+        return self.client.devices.get_devices()
 
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get detailed data for a specific device."""
-        # To be implemented
-        return None
+        return self.client.devices.get_device(device_id)
 
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Get channel data for a device."""
-        # To be implemented
-        return []
+        return self.client.devices.get_device_channels(device_id)
 
     def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
-        """Transform Sennheiser API data to micboard format."""
-        # To be implemented
-        return None
+        """Transform Sennheiser SSCv2 API data to micboard format."""
+        return self.transformer.transform_device_data(api_data)
 
     def transform_transmitter_data(
         self, tx_data: dict[str, Any], channel_num: int
     ) -> dict[str, Any] | None:
         """Transform transmitter data from Sennheiser format to micboard format."""
-        # To be implemented
-        return None
+        return self.transformer.transform_transmitter_data(tx_data, channel_num)
 
     def connect_and_subscribe(
         self, device_id: str, callback: Callable[[dict[str, Any]], None]
     ) -> None:
-        """Establish WebSocket connection and subscribe to Sennheiser device updates."""
-        raise NotImplementedError(
-            "WebSocket support not yet implemented for Sennheiser manufacturer"
-        )
+        """Establish SSE connection and subscribe to Sennheiser device updates."""
+        from .sse_client import connect_and_subscribe
+
+        connect_and_subscribe(self.client, device_id, callback)
 
     def is_healthy(self) -> bool:
-        """Check if the Sennheiser API client is healthy."""
-        # To be implemented
-        return True
+        """Check if the Sennheiser SSCv2 API client is healthy."""
+        return self.client.is_healthy()
 
     def check_health(self) -> dict[str, Any]:
-        """Perform health check against Sennheiser API."""
-        # To be implemented
-        return {"status": "healthy", "manufacturer": self.name}
+        """Perform health check against Sennheiser SSCv2 API."""
+        return self.client.check_health()

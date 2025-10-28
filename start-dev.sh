@@ -16,18 +16,22 @@ fi
 echo "Activating virtual environment..."
 source .venv/bin/activate
 
-echo "Installing pip-tools..."
-pip install pip-tools
+echo "Upgrading pip..."
+.venv/bin/pip3 install --upgrade 'pip<=25.3' setuptools wheel
+
+echo "Installing uv..."
+pip install uv
 
 echo "Updating requirements files..."
-pip-compile --upgrade pyproject.toml -o requirements.txt
-pip-compile --upgrade pyproject.toml --extra dev -o dev-requirements.txt
-pip-compile --upgrade pyproject.toml --extra docs -o docs/requirements.txt
+uv pip compile --upgrade pyproject.toml -o requirements.txt
+uv pip compile --upgrade pyproject.toml --extra dev -o dev-requirements.txt
+uv pip compile --upgrade pyproject.toml --extra docs -o docs/requirements.txt
 
 echo "Installing dev dependencies..."
-pip install -r dev-requirements.txt
+uv pip sync dev-requirements.txt
 
 echo "Validating Django system configuration..."
+unset DJANGO_SETTINGS_MODULE
 python manage.py check
 
 echo "Running migrations..."
@@ -68,7 +72,7 @@ echo ""
 if [ -n "$SHARED_KEY" ]; then
     echo "✓ Shared key detected for this session"
     echo "Starting container with shared key..."
-    MICBOARD_SHURE_API_SHARED_KEY="$SHARED_KEY" docker-compose up
+    MICBOARD_SHURE_API_SHARED_KEY="$SHARED_KEY" docker-compose up -d
 else
     echo "⚠  WARNING: Shared key not available!"
     echo ""
@@ -89,5 +93,5 @@ else
     echo "Starting container anyway (will fail to connect without shared key)..."
     echo "Press Ctrl+C to stop and configure, or wait for connection errors..."
     echo ""
-    docker-compose up
+    docker-compose up -d
 fi

@@ -4,6 +4,8 @@ from rest_framework import serializers
 
 from micboard.models import (
     Channel,
+    Charger,
+    ChargerSlot,
     DeviceAssignment,
     DiscoveredDevice,
     Group,
@@ -108,6 +110,77 @@ class ReceiverDetailSerializer(serializers.ModelSerializer):
             "is_healthy",
             "channel_count",
             "channels",
+        ]
+
+
+class ChargerSlotSerializer(serializers.ModelSerializer):
+    transmitter_name = serializers.SerializerMethodField()
+    battery_level = serializers.SerializerMethodField()
+    charging = serializers.BooleanField(source="charging_status", read_only=True)
+
+    class Meta:
+        model = ChargerSlot
+        fields: ClassVar[list[str]] = [
+            "slot_number",
+            "is_occupied",
+            "transmitter_name",
+            "battery_level",
+            "charging",
+        ]
+
+    def get_transmitter_name(self, obj):
+        if obj.transmitter:
+            return obj.transmitter.name
+        return None
+
+    def get_battery_level(self, obj):
+        if obj.transmitter:
+            return obj.transmitter.battery_percentage
+        return None
+
+
+class ChargerSummarySerializer(serializers.ModelSerializer):
+    manufacturer_code = serializers.CharField(source="manufacturer.code", read_only=True)
+    health_status = serializers.CharField(read_only=True)
+    slot_count = serializers.IntegerField(source="get_slot_count", read_only=True)
+
+    class Meta:
+        model = Charger
+        fields: ClassVar[list[str]] = [
+            "api_device_id",
+            "name",
+            "device_type",
+            "manufacturer_code",
+            "ip",
+            "is_active",
+            "health_status",
+            "last_seen",
+            "slot_count",
+        ]
+
+
+class ChargerDetailSerializer(serializers.ModelSerializer):
+    manufacturer_code = serializers.CharField(source="manufacturer.code", read_only=True)
+    health_status = serializers.CharField(read_only=True)
+    is_healthy = serializers.BooleanField(read_only=True)
+    slot_count = serializers.IntegerField(source="get_slot_count", read_only=True)
+    slots = ChargerSlotSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Charger
+        fields: ClassVar[list[str]] = [
+            "api_device_id",
+            "ip",
+            "manufacturer_code",
+            "device_type",
+            "name",
+            "firmware_version",
+            "is_active",
+            "last_seen",
+            "health_status",
+            "is_healthy",
+            "slot_count",
+            "slots",
         ]
 
 
