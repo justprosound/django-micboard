@@ -9,6 +9,10 @@ import logging
 
 from django.http import HttpRequest
 from django.views import View
+from rest_framework import status
+from rest_framework.response import Response
+
+from micboard.api.utils import _get_manufacturer_code
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +40,37 @@ class APIView(View):
             response["Content-Type"] = "application/json"
 
         return response
+
+
+class ManufacturerFilterMixin:
+    """
+    Mixin to handle manufacturer filtering in API views.
+
+    Provides methods to filter querysets by manufacturer code from request.
+    """
+
+    def filter_queryset_by_manufacturer(self, queryset, request):
+        """
+        Filter queryset by manufacturer if specified in request.
+
+        Returns (filtered_queryset, error_response) tuple.
+        If error_response is not None, the view should return it.
+        """
+        from micboard.models import Manufacturer
+
+        manufacturer_code = _get_manufacturer_code(request)
+        if manufacturer_code:
+            try:
+                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+                queryset = queryset.filter(manufacturer=manufacturer)
+            except Manufacturer.DoesNotExist:
+                error_response = Response(
+                    {"error": f"Manufacturer '{manufacturer_code}' not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+                return queryset, error_response
+
+        return queryset, None
 
 
 class VersionedAPIView(APIView):

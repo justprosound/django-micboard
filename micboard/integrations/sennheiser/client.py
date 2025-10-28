@@ -1,5 +1,5 @@
 """
-Core HTTP client for Shure System API with connection pooling and retry logic.
+Core HTTP client for Sennheiser SSCv2 API with connection pooling and retry logic.
 """
 
 from __future__ import annotations
@@ -16,28 +16,30 @@ from urllib3.util.retry import Retry
 
 from micboard.manufacturers.base import BaseAPIClient
 
-from .device_client import ShureDeviceClient
-from .discovery_client import ShureDiscoveryClient
-from .exceptions import ShureAPIError, ShureAPIRateLimitError
+from .device_client import SennheiserDeviceClient
+from .discovery_client import SennheiserDiscoveryClient
+from .exceptions import SennheiserAPIError, SennheiserAPIRateLimitError
+from .transformers import SennheiserDataTransformer
 
 logger = logging.getLogger(__name__)
 
 
-class ShureSystemAPIClient(BaseAPIClient):
-    """Client for interacting with Shure System API with connection pooling and retry logic."""
+class SennheiserSystemAPIClient(BaseAPIClient):
+    """Client for interacting with Sennheiser SSCv2 API with connection pooling and retry logic."""
 
     def __init__(self):
         config = getattr(settings, "MICBOARD_CONFIG", {})
-        self.base_url = config.get("SHURE_API_BASE_URL", "http://localhost:8080").rstrip("/")
-        self.shared_key = config.get("SHURE_API_SHARED_KEY")
-        self.timeout = config.get("SHURE_API_TIMEOUT", 10)
-        self.verify_ssl = config.get("SHURE_API_VERIFY_SSL", True)
+        self.base_url = config.get("SENNHEISER_API_BASE_URL", "https://localhost:443").rstrip("/")
+        self.username = "api"
+        self.password = config.get("SENNHEISER_API_PASSWORD")
+        self.timeout = config.get("SENNHEISER_API_TIMEOUT", 10)
+        self.verify_ssl = config.get("SENNHEISER_API_VERIFY_SSL", True)
 
         # Retry configuration
-        self.max_retries = config.get("SHURE_API_MAX_RETRIES", 3)
-        self.retry_backoff = config.get("SHURE_API_RETRY_BACKOFF", 0.5)  # seconds
+        self.max_retries = config.get("SENNHEISER_API_MAX_RETRIES", 3)
+        self.retry_backoff = config.get("SENNHEISER_API_RETRY_BACKOFF", 0.5)  # seconds
         self.retry_status_codes = config.get(
-            "SHURE_API_RETRY_STATUS_CODES", [429, 500, 502, 503, 504]
+            "SENNHEISER_API_RETRY_STATUS_CODES", [429, 500, 502, 503, 504]
         )
 
         # Connection health tracking
@@ -58,33 +60,15 @@ class ShureSystemAPIClient(BaseAPIClient):
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
-        if not self.shared_key:
-            raise ValueError("SHURE_API_SHARED_KEY is required for Shure System API authentication")
+        if not self.password:
+            raise ValueError("SENNHEISER_API_PASSWORD is required for Sennheiser SSCv2 API authentication")
 
-        # The Shure System API supports a shared-secret style authentication.
-        # Prefer the explicit API key header (x-api-key) per Swagger definition
-        # while keeping Authorization: Bearer for backward compatibility.
-        self.session.headers.update(
-            {
-                "Authorization": f"Bearer {self.shared_key}",
-                "x-api-key": str(self.shared_key),
-            }
-        )
-
-        # Respect an explicit websocket URL from config; store it on a
-        # private attribute because `websocket_url` is a read-only property.
-        explicit_ws = config.get("SHURE_API_WEBSOCKET_URL") if config is not None else None
-        # Track whether an explicit websocket URL was provided (even if None)
-        if "SHURE_API_WEBSOCKET_URL" in config:
-            self._explicit_websocket_set = True
-            self._explicit_websocket_url = explicit_ws
-        else:
-            self._explicit_websocket_set = False
-            self._explicit_websocket_url = None
+        # HTTP Basic Auth
+        self.session.auth = (self.username, self.password)
 
         # Compose sub-clients
-        self.discovery = ShureDiscoveryClient(self)
-        self.devices = ShureDeviceClient(self)
+        self.discovery = SennheiserDiscoveryClient(self)
+        self.devices = SennheiserDeviceClient(self)
 
     def _create_retry_strategy(self) -> Retry:
         """Create retry strategy for HTTP requests."""
@@ -101,10 +85,10 @@ class ShureSystemAPIClient(BaseAPIClient):
         return self._is_healthy and self._consecutive_failures < 5
 
     def check_health(self) -> dict[str, Any]:
-        """Perform health check against Shure API."""
+        """Perform health check against Sennheiser API."""
         try:
             response = self.session.get(
-                f"{self.base_url}/api/v1/health",
+                f"{self.base_url}/api/ssc/version",
                 timeout=5,
                 verify=self.verify_ssl,
             )
@@ -157,7 +141,7 @@ class ShureSystemAPIClient(BaseAPIClient):
             if status == 429:
                 retry_after = self._extract_retry_after(response)
                 logger.error("API HTTP 429 rate limit: %s %s", method, url)
-                raise ShureAPIRateLimitError(
+                raise SennheiserAPIRateLimitError(
                     message=f"Rate limit exceeded for {method} {url}",
                     retry_after=retry_after,
                     response=response,
@@ -170,7 +154,7 @@ class ShureSystemAPIClient(BaseAPIClient):
                 status,
                 getattr(response, "text", "")[:200],
             )
-            raise ShureAPIError(
+            raise SennheiserAPIError(
                 message=f"HTTP error for {method} {url}",
                 status_code=status,
                 response=response,
@@ -199,7 +183,7 @@ class ShureSystemAPIClient(BaseAPIClient):
         """Handle HTTPError exceptions."""
         self._consecutive_failures += 1
         if e.response.status_code == 429:
-            raise ShureAPIRateLimitError(
+            raise SennheiserAPIRateLimitError(
                 message=f"Rate limit exceeded for {method} {url}", response=e.response
             ) from e
         logger.error(
@@ -209,7 +193,7 @@ class ShureSystemAPIClient(BaseAPIClient):
             e.response.status_code,
             e.response.text[:200],  # Limit error text length
         )
-        raise ShureAPIError(
+        raise SennheiserAPIError(
             message=f"HTTP error for {method} {url}",
             status_code=e.response.status_code,
             response=e.response,
@@ -220,68 +204,34 @@ class ShureSystemAPIClient(BaseAPIClient):
         self._consecutive_failures += 1
         self._is_healthy = False
         logger.error("API connection error: %s %s - %s", method, url, e)
-        raise ShureAPIError(f"Connection error to {url}", response=None) from e
+        raise SennheiserAPIError(f"Connection error to {url}", response=None) from e
 
     def _handle_timeout_error(self, e: requests.exceptions.Timeout, method: str, url: str) -> None:
         """Handle Timeout exceptions."""
         self._consecutive_failures += 1
         logger.error("API timeout error: %s %s - %s", method, url, e)
-        raise ShureAPIError(f"Timeout error for {url}", response=None) from e
+        raise SennheiserAPIError(f"Timeout error for {url}", response=None) from e
 
     def _handle_request_error(self, e: requests.RequestException, method: str, url: str) -> None:
         """Handle general RequestException."""
         self._consecutive_failures += 1
         logger.error("API request failed: %s %s - %s", method, url, e)
-        raise ShureAPIError(f"Unknown request error for {url}", response=None) from e
+        raise SennheiserAPIError(f"Unknown request error for {url}", response=None) from e
 
     def _handle_json_error(self, e: json.JSONDecodeError, method: str, url: str) -> None:
         """Handle JSONDecodeError."""
         self._consecutive_failures += 1
         logger.error("Failed to parse JSON response from %s %s: %s", method, url, e)
-        raise ShureAPIError(f"Invalid JSON response from {url}", response=None) from e
-
-    @property
-    def websocket_url(self) -> str | None:
-        """Return the websocket URL, preferring an explicit config value.
-
-        This is a property so changes to `base_url` after initialization are
-        reflected in tests and runtime usage.
-        """
-        # If callers explicitly set the websocket value (including explicit
-        # None), prefer that over dynamic inference.
-        if getattr(self, "_explicit_websocket_set", False):
-            return self._explicit_websocket_url
-        if not getattr(self, "base_url", None):
-            return None
-        ws_scheme = "wss" if self.base_url.startswith("https") else "ws"
-        return f"{ws_scheme}://{self.base_url.split('://', 1)[1]}/api/v1/subscriptions/websocket/create"
-
-    @websocket_url.setter
-    def websocket_url(self, value: str | None) -> None:
-        """Allow tests or callers to explicitly set the websocket URL.
-
-        This writes to a private attribute which the property prefers when
-        present.
-        """
-        self._explicit_websocket_url = value
-        self._explicit_websocket_set = True
+        raise SennheiserAPIError(f"Invalid JSON response from {url}", response=None) from e
 
     async def connect_and_subscribe(self, device_id: str, callback):
         """Establishes WebSocket connection and subscribes to device updates.
 
-        Args:
-            device_id: The Shure API device ID to subscribe to
-            callback: Function to call with received WebSocket messages
-
-        Raises:
-            ShureAPIError: If connection or subscription fails
+        SSCv2 uses SSE for subscriptions, not WebSocket.
         """
-        from .websocket import connect_and_subscribe
+        raise NotImplementedError("SSE subscription not yet implemented for Sennheiser")
 
-        return await connect_and_subscribe(self, device_id, callback)
-
-    # --- Backwards-compatible delegations (tests expect these on top-level client)
-    # Delegate device-related helpers to the device sub-client
+    # --- Backwards-compatible delegations
     def get_devices(self):
         return self.devices.get_devices()
 
@@ -307,20 +257,14 @@ class ShureSystemAPIClient(BaseAPIClient):
         return self.devices._enrich_device_data(device_id, device_data)
 
     def poll_all_devices(self) -> dict[str, dict[str, Any]]:
-        """Poll all devices using the top-level client methods.
+        """Poll all devices using the top-level client methods."""
+        from .transformers import SennheiserDataTransformer
 
-        Tests patch the top-level ShureSystemAPIClient methods (get_devices,
-        get_device, get_device_channels, _enrich_device_data) so implement the
-        polling logic here and call those methods. Use the shared data
-        transformer for compatibility with the device client implementation.
-        """
-        from .transformers import ShureDataTransformer
-
-        transformer = ShureDataTransformer()
+        transformer = SennheiserDataTransformer()
 
         try:
             devices = self.get_devices()
-            logger.info("Polling %d devices from Shure System API", len(devices))
+            logger.info("Polling %d devices from Sennheiser SSCv2 API", len(devices))
         except Exception:
             logger.exception("Failed to get device list")
             return {}
@@ -340,7 +284,7 @@ class ShureSystemAPIClient(BaseAPIClient):
         logger.info("Successfully polled %d devices", len(data))
         return data
 
-    def _poll_single_device(self, device_id: str, transformer: ShureDataTransformer) -> dict[str, Any] | None:
+    def _poll_single_device(self, device_id: str, transformer: SennheiserDataTransformer) -> dict[str, Any] | None:
         """Poll a single device and return transformed data."""
         try:
             device_data = self.get_device(device_id)

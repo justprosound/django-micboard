@@ -6,6 +6,7 @@ from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from micboard.api.base_views import ManufacturerFilterMixin
 from micboard.api.utils import _get_manufacturer_code
 from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import (
@@ -71,7 +72,7 @@ class APIDocumentationAPIView(APIView):
         return Response(documentation)
 
 
-class RefreshAPIView(APIView):
+class RefreshAPIView(ManufacturerFilterMixin, APIView):
     """
     API endpoint to force refresh device data from manufacturer APIs.
     Replaces micboard.api.core_views.api_refresh.

@@ -4,7 +4,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from micboard.api.utils import _get_manufacturer_code
+from micboard.api.base_views import ManufacturerFilterMixin
 from micboard.models import (
     DiscoveredDevice,
     Group,
@@ -18,16 +18,15 @@ from micboard.serializers import (
 )
 
 
-class DataAPIView(APIView):
+class DataAPIView(ManufacturerFilterMixin, APIView):
     """
     API endpoint for aggregated device data.
     Replaces micboard.api.core_views.data_json.
     """
 
     def get(self, request, *args, **kwargs):
-        manufacturer_code = _get_manufacturer_code(request)
-
         # Try to get fresh data from cache first (with manufacturer-specific cache key)
+        manufacturer_code = request.GET.get("manufacturer")
         cache_key = f"micboard_device_data_{manufacturer_code or 'all'}"
         cached_data = cache.get(cache_key)
         if cached_data:
@@ -37,8 +36,13 @@ class DataAPIView(APIView):
         receivers_queryset = (
             Receiver.objects.filter(is_active=True)
             .prefetch_related("channels__transmitter")
-            .filter_by_manufacturer_code(manufacturer_code)
         )
+        receivers_queryset, error_response = self.filter_queryset_by_manufacturer(
+            receivers_queryset, request
+        )
+        if error_response:
+            return error_response
+
         receivers_data = ReceiverSummarySerializer(receivers_queryset, many=True).data
 
         # Serialize discovered devices (filter by manufacturer if specified)

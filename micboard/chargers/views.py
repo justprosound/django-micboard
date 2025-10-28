@@ -9,32 +9,27 @@ logger = logging.getLogger(__name__)
 def charger_display(request: HttpRequest) -> HttpResponse:
     """
     View to display the status of networked charging stations and microphones.
-    Data is retrieved from database receivers that are chargers.
+    Data is retrieved from database chargers.
     """
-    from micboard.models import Receiver
+    from micboard.models import Charger
 
-    charger_types = ["SBC250", "SBC850", "MXWNCS8", "MXWNCS4", "SBC220"]
-    chargers = (
-        Receiver.objects.filter(device_type__in=charger_types, is_active=True)
-        .order_by("order")
-        .prefetch_related("channels__transmitter")
-    )
+    chargers = Charger.objects.filter(is_active=True).order_by("order").prefetch_related("slots__transmitter")
 
     charging_stations_data = []
     for charger in chargers:
         station_slots = []
-        for channel in charger.channels.all().order_by("channel_number"):
+        for slot in charger.slots.all().order_by("slot_number"):
             slot_data = {
-                "slot_number": channel.channel_number,
-                "image": channel.image.url if channel.image else None,
+                "slot_number": slot.slot_number,
+                "image": None,  # TODO: add image field if needed
             }
-            if hasattr(channel, "transmitter"):
-                tx = channel.transmitter
+            if slot.transmitter:
+                tx = slot.transmitter
                 slot_data.update(
                     {
                         "mic_name": tx.name or f"Slot {tx.slot}",
                         "battery_level": tx.battery_percentage or 0,
-                        "charging": getattr(tx, "charging_status", False),
+                        "charging": slot.charging_status,
                     }
                 )
             else:

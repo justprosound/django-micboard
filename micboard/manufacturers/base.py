@@ -77,4 +77,20 @@ class ManufacturerPlugin(BasePlugin):
     def get_client(self) -> BaseAPIClient:
         raise NotImplementedError()
 
+    @abstractmethod
+    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_device(self, device_id: str) -> dict[str, Any] | None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def is_healthy(self) -> bool:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def check_health(self) -> dict[str, Any]:
+        raise NotImplementedError()
+
     pass

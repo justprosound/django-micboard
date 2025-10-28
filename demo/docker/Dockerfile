@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     python3-pip \
     ca-certificates \
+    procps \
  && rm -rf /var/lib/apt/lists/*
 
 # Create app directory

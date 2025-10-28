@@ -1,6 +1,7 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
+from .views.charger_views import ChargerDetailAPIView, ChargerListAPIView
 from .views.config_views import ConfigAPIView, GroupUpdateAPIView
 from .views.data_views import DataAPIView
 from .views.device_views import (
@@ -27,6 +28,8 @@ urlpatterns = [
     path("data/", DataAPIView.as_view(), name="data"),
     path("receivers/", ReceiverListAPIView.as_view(), name="receivers_list"),
     path("receivers/<str:receiver_id>/", ReceiverDetailAPIView.as_view(), name="receiver_detail"),
+    path("chargers/", ChargerListAPIView.as_view(), name="chargers_list"),
+    path("chargers/<str:charger_id>/", ChargerDetailAPIView.as_view(), name="charger_detail"),
     path("devices/<str:device_id>/", DeviceDetailAPIView.as_view(), name="device_detail"),
     path("discovery/ips/", AddDiscoveryIPsAPIView.as_view(), name="add_discovery_ips"),
     path("refresh/", RefreshAPIView.as_view(), name="refresh"),

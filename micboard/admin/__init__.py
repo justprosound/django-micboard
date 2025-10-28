@@ -19,6 +19,7 @@ from .assignments import (
     UserAlertPreferenceAdmin,
 )
 from .channels import ChannelAdmin, TransmitterAdmin
+from .chargers import ChargerAdmin, ChargerSlotAdmin
 from .discovery import DiscoveryCIDRAdmin, DiscoveryFQDNAdmin, DiscoveryJobAdmin
 from .manufacturers import ManufacturerAdmin
 from .monitoring import (
@@ -34,6 +35,8 @@ __all__ = sorted(
     [
         "AlertAdmin",
         "ChannelAdmin",
+        "ChargerAdmin",
+        "ChargerSlotAdmin",
         "DeviceAssignmentAdmin",
         "DiscoveryCIDRAdmin",
         "DiscoveryFQDNAdmin",

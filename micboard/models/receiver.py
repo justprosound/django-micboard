@@ -13,6 +13,8 @@ class UserFilteredReceiverQuerySet(models.QuerySet):
     """Custom queryset for Receiver model with user-based filtering."""
 
     def for_user(self, user: User):
+        if not user.is_authenticated:
+            return self.none()
         if user.is_superuser:
             return self
 
