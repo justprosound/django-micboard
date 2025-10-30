@@ -1,0 +1,10 @@
+{% extends 'micboard/base.html' %}
+
+{% block content %}
+    <h1>Rooms in {{ building_name }}</h1>
+    <ul>
+        {% for room in rooms %}
+            <li>{{ room.name }}</li>
+        {% endfor %}
+    </ul>
+{% endblock %}

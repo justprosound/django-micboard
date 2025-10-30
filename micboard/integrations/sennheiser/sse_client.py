@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def connect_and_subscribe(
     client: SennheiserSystemAPIClient, device_id: str, callback: Callable[[dict[str, Any]], None]
-) -> None:
+):
     """
     Establish SSE connection and subscribe to Sennheiser device updates.
 
@@ -64,10 +64,11 @@ async def connect_and_subscribe(
                         try:
                             data = json.loads(data_str)
                             await callback(data)
-                            return None
                         except json.JSONDecodeError:
                             logger.debug("Invalid JSON in SSE data: %s", data_str)
+            return
 
     except Exception as e:
         logger.exception("Error in SSE subscription: %s", e)
-    return None
+    return
+    return

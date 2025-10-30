@@ -9,7 +9,8 @@ This module defines URL patterns for:
 
 from __future__ import annotations
 
-from django.urls import include, path
+from django.urls import include, path, reverse_lazy
+from django.views.generic.base import RedirectView
 
 from micboard.chargers import views as charger_views
 from micboard.services import alerts
@@ -19,9 +20,18 @@ from micboard.views.user_views import RecordUserView
 urlpatterns = [
     # Dashboard views
     path("", dashboard.index, name="index"),
-    path("buildings/", dashboard.all_buildings_view, name="all_buildings_view"),
+    path("building/all/", dashboard.all_buildings_view, name="all_buildings_view"),
     path("building/<str:building>/", dashboard.single_building_view, name="single_building_view"),
+    path("room/all/", dashboard.all_rooms_view, name="all_rooms_view"),
+    path(
+        "room/<str:building>/all/", dashboard.rooms_in_building_view, name="rooms_in_building_view"
+    ),
     path("room/<str:building>/<str:room>/", dashboard.room_view, name="room_view"),
+    path(
+        "room/all/all/",
+        RedirectView.as_view(url=reverse_lazy("all_rooms_view")),
+        name="redirect_all_rooms",
+    ),
     path("user/<str:username>/", dashboard.user_view, name="user_view"),
     path("type/<str:device_type>/", dashboard.device_type_view, name="device_type_view"),
     path("priority/<str:priority>/", dashboard.priority_view, name="priority_view"),
