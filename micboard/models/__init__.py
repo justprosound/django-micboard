@@ -16,6 +16,7 @@ from .discovery import (
 )
 from .groups import Group
 from .locations import Building, Location, MonitoringGroup, MonitoringGroupLocation, Room
+from .realtime import RealTimeConnection
 from .receiver import Receiver
 from .telemetry import APIHealthLog, TransmitterSample, TransmitterSession
 from .transmitter import Transmitter
@@ -40,6 +41,7 @@ __all__ = [
     "MicboardConfig",
     "MonitoringGroup",
     "MonitoringGroupLocation",
+    "RealTimeConnection",
     "Receiver",
     "Room",
     "Transmitter",

@@ -17,8 +17,8 @@ from micboard.models import (
     Transmitter,
 )
 from micboard.serializers import ReceiverSummarySerializer
-from micboard.signals.broadcast_signals import api_health_changed, devices_polled
 from micboard.services.alerts import check_device_offline_alerts, check_transmitter_alerts
+from micboard.signals.broadcast_signals import api_health_changed, devices_polled
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,9 @@ def poll_manufacturer_devices(manufacturer_id: int):
                 ).data
             }
             devices_polled.send(sender=None, manufacturer=manufacturer, data=serialized_data)
+
+            # Start real-time subscriptions for this manufacturer
+            _start_realtime_subscriptions(manufacturer)
         else:
             logger.warning("No device data received from %s", manufacturer.name)
 
@@ -236,3 +239,27 @@ def _mark_offline_receivers(manufacturer, active_receiver_ids):
         for receiver in offline_receivers:
             for channel in receiver.channels.all():
                 check_device_offline_alerts(channel)
+
+
+def _start_realtime_subscriptions(manufacturer):
+    """Start real-time subscriptions for a manufacturer."""
+    try:
+        from django_q.tasks import async_task
+
+        if manufacturer.code == "shure":
+            # Start WebSocket subscriptions for Shure
+            from micboard.tasks.websocket_tasks import start_shure_websocket_subscriptions
+
+            async_task(start_shure_websocket_subscriptions)
+            logger.info("Started WebSocket subscriptions for %s", manufacturer.name)
+        elif manufacturer.code == "sennheiser":
+            # Start SSE subscriptions for Sennheiser
+            from micboard.tasks.sse_tasks import start_sse_subscriptions
+
+            async_task(start_sse_subscriptions, manufacturer.id)
+            logger.info("Started SSE subscriptions for %s", manufacturer.name)
+        else:
+            logger.debug("No real-time subscriptions available for %s", manufacturer.code)
+
+    except Exception as e:
+        logger.exception("Error starting real-time subscriptions for %s: %s", manufacturer.name, e)

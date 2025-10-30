@@ -8,7 +8,29 @@ All notable changes to django-micboard are documented here.
 
 ---
 
-## [25.10.16] - 2025-10-16
+## [25.10.17] - 2025-10-17
+
+### Added
+- **Real-Time Connection Tracking** - `RealTimeConnection` model for monitoring SSE/WebSocket subscriptions
+- **Connection Health Monitoring** - Automatic cleanup of stale connections and error recovery
+- **Real-Time Subscription Tasks** - SSE tasks for Sennheiser, WebSocket tasks for Shure
+- **Management Commands** - `realtime_status` command for connection monitoring
+- **Admin Interface Enhancements** - Real-time connection monitoring with color-coded status
+- **Automatic Subscription Startup** - Real-time subscriptions start automatically after polling
+
+### Changed
+- **Polling Integration** - `poll_devices` now starts real-time subscriptions after polling completes
+- **Architecture Documentation** - Updated to reflect real-time connection management
+- **Test Suite** - Added tests for real-time connection functionality
+
+### Features
+- **Connection Lifecycle Management** - Track connecting/connected/disconnected/error/stopped states
+- **Automatic Failover** - Reconnection logic with configurable retry attempts
+- **Health Monitoring** - Background tasks for connection health checks and cleanup
+- **Status Reporting** - CLI and admin interfaces for monitoring connection status
+- **Error Tracking** - Detailed error messages and connection history
+
+---
 
 ### Added
 - **Multi-Manufacturer Plugin Architecture** - Complete refactor to support multiple wireless microphone manufacturers

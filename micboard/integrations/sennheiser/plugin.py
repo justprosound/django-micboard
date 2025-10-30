@@ -5,7 +5,7 @@ Sennheiser manufacturer plugin for django-micboard.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, Optional, cast
 
 from micboard.manufacturers import ManufacturerPlugin
 
@@ -27,7 +27,7 @@ class SennheiserPlugin(ManufacturerPlugin):
         super().__init__(manufacturer)
         from .client import SennheiserSystemAPIClient
 
-        self.client = SennheiserSystemAPIClient()
+        self.client: SennheiserSystemAPIClient = SennheiserSystemAPIClient()
         from .transformers import SennheiserDataTransformer
 
         self.transformer = SennheiserDataTransformer()
@@ -38,7 +38,7 @@ class SennheiserPlugin(ManufacturerPlugin):
 
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get detailed data for a specific device."""
-        return self.client.devices.get_device(device_id)
+        return cast(Optional[dict[str, Any]], self.client.devices.get_device(device_id))
 
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Get channel data for a device."""
@@ -58,9 +58,11 @@ class SennheiserPlugin(ManufacturerPlugin):
         self, device_id: str, callback: Callable[[dict[str, Any]], None]
     ) -> None:
         """Establish SSE connection and subscribe to Sennheiser device updates."""
+        from asgiref.sync import async_to_sync
+
         from .sse_client import connect_and_subscribe
 
-        connect_and_subscribe(self.client, device_id, callback)
+        async_to_sync(connect_and_subscribe)(self.client, device_id, callback)
 
     def is_healthy(self) -> bool:
         """Check if the Sennheiser SSCv2 API client is healthy."""

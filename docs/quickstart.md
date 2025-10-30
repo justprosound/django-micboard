@@ -86,6 +86,15 @@ Terminal 2 - Device Polling:
 python manage.py poll_devices
 ```
 
+Terminal 3 - Real-Time Subscriptions (Optional):
+```bash
+# For Shure devices (WebSocket)
+python manage.py start_shure_websocket
+
+# For Sennheiser devices (SSE)
+python manage.py start_sse_subscriptions
+```
+
 Optional: Run the demo instance with Docker (see demo/docker). The demo compose includes the Django app and a minimal database and exposes port 8000. If you run the demo Docker container locally, consider using a restart policy in the compose or a simple watchdog to ensure the Django container is restarted automatically if it crashes.
 
 Example (docker-compose):
@@ -123,6 +132,27 @@ curl -X POST http://localhost:8000/micboard/api/discover/
 ```bash
 curl http://localhost:8000/micboard/api/data/
 ```
+
+4. Check real-time connection status:
+```bash
+python manage.py realtime_status --verbose
+```
+
+## Real-Time Features
+
+The system now supports real-time updates via WebSocket (Shure) and SSE (Sennheiser):
+
+- **Automatic Subscription**: Real-time subscriptions start automatically after polling
+- **Connection Monitoring**: Use `python manage.py realtime_status` to check connection health
+- **Admin Interface**: Monitor connections in Django Admin under "Real-Time Connections"
+- **Health Monitoring**: Automatic cleanup of stale connections and error recovery
+
+### Connection States
+- `connecting` - Establishing connection
+- `connected` - Active real-time updates
+- `disconnected` - Temporarily offline
+- `error` - Connection failed
+- `stopped` - Intentionally stopped
 
 ## Troubleshooting
 

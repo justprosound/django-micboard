@@ -119,7 +119,30 @@ class ManufacturerPlugin(ABC):
 - WebSocket broadcasting enable/disable
 - Logging and error handling
 
-### 3. WebSocket Consumer (`consumers.py`)
+### 3. Real-Time Connection Management (`RealTimeConnection` Model)
+**Purpose**: Track and monitor real-time connections for automatic failover and health monitoring
+
+**Key Components**:
+- `RealTimeConnection` model - Tracks SSE/WebSocket connection lifecycle
+- Health monitoring tasks - Automatic cleanup and status reporting
+- Management commands - CLI tools for connection monitoring
+- Admin interface - Visual oversight of connection health
+
+**Connection States**:
+- `connecting` - Establishing connection
+- `connected` - Active real-time updates
+- `disconnected` - Temporarily offline
+- `error` - Connection failed with errors
+- `stopped` - Intentionally stopped
+
+**Features**:
+- Automatic reconnection with exponential backoff
+- Error tracking and recovery
+- Connection duration monitoring
+- Health status aggregation
+- Manufacturer-aware connection management
+
+### 4. WebSocket Consumer (`consumers.py`)
 **Purpose**: Real-time bidirectional communication with clients
 
 **Features**:
@@ -158,6 +181,12 @@ class ManufacturerPlugin(ABC):
 - Manufacturer relationship for proper categorization
 - Temporary storage during device discovery
 
+#### RealTimeConnection
+- Tracks real-time subscription connections (SSE/WebSocket)
+- Connection status, error tracking, and reconnection logic
+- One-to-one relationship with Receiver model
+- Automatic health monitoring and cleanup
+
 #### Group & MicboardConfig
 - Logical grouping of devices
 - Key-value configuration storage
@@ -185,19 +214,48 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 - `GET /api/receivers/{id}/` - Get receiver details
 - `GET /api/health/` - Check API health (per-manufacturer)
 
-### 5. Views and API Endpoints
+### 5. Management Commands
+
+**Real-Time Status** (`realtime_status`):
+- Display connection status summary
+- Filter by manufacturer or status
+- Show detailed connection information
+- Color-coded output for quick status assessment
+
+**Device Polling** (`poll_devices`):
+- Poll manufacturer APIs for device data
+- Update models and broadcast via WebSocket
+- Start real-time subscriptions after polling
+- Support for async execution with Django-Q
+
+### 6. Admin Interface
+
+**Real-Time Connections**:
+- Visual monitoring of connection health
+- Color-coded status indicators
+- Bulk actions for connection management
+- Detailed connection history and error tracking
+
+**Hardware Layout Overview**:
+- Compact view of receivers grouped by manufacturer and location
+- Focus on Receiver -> Channel -> Frequency mapping
+- Useful for site technicians to verify physical configurations
+
+### 7. Views and API Endpoints
 
 **Dashboard Views**:
-- `/` - Main monitoring dashboard
+- `/` - Main monitoring dashboard (manufacturer-filtered)
 - `/about/` - About page
 
-**API Endpoints**:
-- `GET /api/data/` - Current device data (cached)
-- `POST /api/discover/` - Trigger device discovery
-- `POST /api/refresh/` - Force data refresh
-- `POST /api/slot/` - Update slot configuration
-- `POST /api/config/` - Update global config
+**API Endpoints** (all support `?manufacturer=code` filtering):
+- `GET /api/data/` - Current device data (cached, manufacturer-filtered)
+- `POST /api/discover/` - Trigger device discovery (manufacturer-specific)
+- `POST /api/refresh/` - Force data refresh (manufacturer-specific)
+- `POST /api/config/` - Update global/manufacturer-specific config
 - `POST /api/group/` - Manage groups
+- `GET /api/receivers/` - List receivers (manufacturer-filtered)
+- `GET /api/receivers/{id}/` - Get receiver details
+- `GET /api/health/` - Check API health (per-manufacturer)
 
 ## Data Flow
 
@@ -214,15 +272,16 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 5. Sleep until next interval
 ```
 
-### Real-time Updates (WebSocket)
+### Real-time Updates (WebSocket + SSE)
 ```
-1. Client connects to WebSocket
-2. Client joins 'micboard_updates' group
-3. When data updates:
-   a. poll_devices broadcasts manufacturer-filtered updates
-   b. Consumer receives message
-   c. Consumer forwards to client
-4. Client updates UI with manufacturer-specific data
+1. poll_devices triggers manufacturer polling
+2. After polling completes, start real-time subscriptions:
+   a. For Shure: Start WebSocket subscriptions
+   b. For Sennheiser: Start SSE subscriptions
+3. RealTimeConnection models track subscription status
+4. Health monitoring tasks check connection health
+5. Updates broadcast via WebSocket to connected clients
+6. Automatic reconnection on failures
 ```
 
 ### API Request Flow
@@ -397,8 +456,14 @@ Multi-Process:
 
 ## Future Enhancements
 
+### Recently Implemented
+- **Real-Time Subscriptions** - SSE/WebSocket connections with automatic failover
+- **Connection Health Monitoring** - RealTimeConnection model and health tasks
+- **Management Commands** - CLI tools for monitoring and status checking
+- **Admin Interface** - Visual oversight of real-time connection health
+
 ### Planned Features
-- **Additional Manufacturer Plugins** - Sennheiser, Audio-Technica, Lectrosonics
+- **Additional Manufacturer Plugins** - Audio-Technica, Lectrosonics
 - **Historical Data Storage** - Time-series data for trending and analytics
 - **Advanced Alert System** - Battery/RF issues with manufacturer-specific thresholds
 - **Mobile App Support** - Native apps for iOS/Android

@@ -5,8 +5,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from micboard.api.base_views import ManufacturerFilterMixin
+from micboard.api.utils import _get_manufacturer_code
 from micboard.models import (
-    Manufacturer,
     Receiver,
 )
 from micboard.serializers import (

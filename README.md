@@ -4,7 +4,7 @@
 
 A community-driven open source Django app for real-time monitoring and management of wireless microphone systems. Integrates with external Shure System API middleware for device communication.
 
-## Version: 25.10.15
+## Version: 25.10.17
 
 This project uses [Calendar Versioning](https://calver.org/) (YY.MM.DD) for easier tracking of changes against releases.
 
@@ -16,20 +16,37 @@ This project uses [Calendar Versioning](https://calver.org/) (YY.MM.DD) for easi
 ## Architecture
 
 ```
-Shure Devices → Shure System API (external) → ShureSystemAPIClient → poll_devices → Models → WebSocket
+Shure/Sennheiser Devices → Manufacturer APIs → poll_devices → Models → Real-Time Subscriptions → WebSocket
+                                      ↓
+                            RealTimeConnection Tracking
+                                      ↓
+                            Health Monitoring & Admin
 ```
 
-- **Shure System API**: External middleware handling device communication
-- **ShureSystemAPIClient**: HTTP client in `micboard/shure/client.py`
-- **poll_devices**: Management command that polls API, updates models, broadcasts via Channels
+- **Manufacturer APIs**: External APIs for Shure System API and Sennheiser SSCv2
+- **poll_devices**: Management command that polls APIs, updates models, starts real-time subscriptions
+- **Real-Time Subscriptions**: SSE (Sennheiser) and WebSocket (Shure) connections with automatic failover
+- **RealTimeConnection**: Model tracking connection status and health monitoring
 - **WebSocket**: Real-time updates to frontend via Django Channels
 
 ## Requirements
 
 - Python 3.9+
 - Django 4.2+/5.0+
-- Shure System API server (installed separately)
+- Shure System API server (for Shure devices)
+- Sennheiser SSCv2 API (for Sennheiser devices)
 - Redis (recommended for production WebSocket support)
+
+## Features
+
+- **Multi-Manufacturer Support**: Plugin architecture for Shure, Sennheiser, and future manufacturers
+- **Real-Time Monitoring**: SSE/WebSocket subscriptions with automatic failover and health monitoring
+- **Connection Tracking**: Comprehensive monitoring of real-time connection status and errors
+- **Management Commands**: CLI tools for polling devices and monitoring connections
+- **Admin Interface**: Visual oversight of devices, connections, and system health
+- **WebSocket Broadcasting**: Real-time updates via Django Channels
+- **Rate Limiting**: API protection with token bucket algorithm
+- **User Assignment System**: Device-to-user assignments with alert preferences
 
 ## Installation
 

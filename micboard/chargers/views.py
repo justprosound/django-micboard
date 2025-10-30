@@ -13,7 +13,11 @@ def charger_display(request: HttpRequest) -> HttpResponse:
     """
     from micboard.models import Charger
 
-    chargers = Charger.objects.filter(is_active=True).order_by("order").prefetch_related("slots__transmitter")
+    chargers = (
+        Charger.objects.filter(is_active=True)
+        .order_by("order")
+        .prefetch_related("slots__transmitter")
+    )
 
     charging_stations_data = []
     for charger in chargers:

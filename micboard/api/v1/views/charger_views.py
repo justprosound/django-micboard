@@ -44,9 +44,7 @@ class ChargerDetailAPIView(ManufacturerFilterMixin, APIView):
         try:
             charger = charger_queryset.get(api_device_id=charger_id)
         except Charger.DoesNotExist:
-            return Response(
-                {"error": "Charger not found"}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "Charger not found"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = ChargerDetailSerializer(charger)
         return Response(serializer.data)

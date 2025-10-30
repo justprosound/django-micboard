@@ -1,6 +1,6 @@
 import ipaddress
 import logging
-from typing import Union, cast
+from typing import Optional, Union, cast
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -395,13 +395,19 @@ class DiscoveryService:
 
         # Scan CIDRs
         for cidr, hosts in cidr_hosts_map.items():
-            self._update_progress(status_key, "scanning", total_to_scan, processed, current_cidr=cidr)
-            processed = self._scan_hosts(hosts, candidates, processed, total_to_scan, status_key, channel_layer, cidr=cidr)
+            self._update_progress(
+                status_key, "scanning", total_to_scan, processed, current_cidr=cidr
+            )
+            processed = self._scan_hosts(
+                hosts, candidates, processed, total_to_scan, status_key, channel_layer, cidr=cidr
+            )
 
         # Resolve FQDNs
         for f, ips in fqdns_map.items():
             self._update_progress(status_key, "resolving", total_to_scan, processed, current_fqdn=f)
-            processed = self._scan_hosts(ips, candidates, processed, total_to_scan, status_key, channel_layer, fqdn=f)
+            processed = self._scan_hosts(
+                ips, candidates, processed, total_to_scan, status_key, channel_layer, fqdn=f
+            )
 
         return processed
 
@@ -414,8 +420,8 @@ class DiscoveryService:
         status_key: str,
         channel_layer,
         *,
-        cidr: str = None,
-        fqdn: str = None,
+        cidr: Optional[str] = None,
+        fqdn: Optional[str] = None,
     ) -> int:
         """Scan a list of hosts, adding to candidates and updating progress."""
         for ip in hosts:
@@ -440,8 +446,8 @@ class DiscoveryService:
         phase: str,
         total: int,
         processed: int,
-        current_cidr: str = None,
-        current_fqdn: str = None,
+        current_cidr: Optional[str] = None,
+        current_fqdn: Optional[str] = None,
     ) -> None:
         """Update progress status in cache."""
         status_data = {

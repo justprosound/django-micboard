@@ -140,6 +140,7 @@ class Charger(models.Model):
         if not self.last_seen:
             return "unknown"
         from datetime import timedelta
+
         time_since = timezone.now() - self.last_seen
         if time_since < timedelta(minutes=5):
             return "healthy"

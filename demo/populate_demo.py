@@ -9,10 +9,10 @@ It's safe to re-run (it will avoid creating duplicates by name).
 from typing import Optional
 
 from django.db import transaction
-from micboard.models.receiver import Receiver
-from micboard.models.transmitter import Transmitter
 
 from micboard.models.locations import Location
+from micboard.models.receiver import Receiver
+from micboard.models.transmitter import Transmitter
 
 try:
     from micboard.manufacturers.shure.client import ShureSystemAPIClient

@@ -19,6 +19,7 @@ from micboard.manufacturers.base import BaseAPIClient
 from .device_client import ShureDeviceClient
 from .discovery_client import ShureDiscoveryClient
 from .exceptions import ShureAPIError, ShureAPIRateLimitError
+from .transformers import ShureDataTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +27,18 @@ logger = logging.getLogger(__name__)
 class ShureSystemAPIClient(BaseAPIClient):
     """Client for interacting with Shure System API with connection pooling and retry logic."""
 
-    def __init__(self):
+    def __init__(self, base_url: str | None = None, verify_ssl: bool | None = None):
         config = getattr(settings, "MICBOARD_CONFIG", {})
-        self.base_url = config.get("SHURE_API_BASE_URL", "http://localhost:8080").rstrip("/")
+        self.base_url = (
+            base_url
+            if base_url is not None
+            else config.get("SHURE_API_BASE_URL", "http://localhost:8080").rstrip("/")
+        )
         self.shared_key = config.get("SHURE_API_SHARED_KEY")
         self.timeout = config.get("SHURE_API_TIMEOUT", 10)
-        self.verify_ssl = config.get("SHURE_API_VERIFY_SSL", True)
+        self.verify_ssl = (
+            verify_ssl if verify_ssl is not None else config.get("SHURE_API_VERIFY_SSL", True)
+        )
 
         # Retry configuration
         self.max_retries = config.get("SHURE_API_MAX_RETRIES", 3)
@@ -41,7 +48,7 @@ class ShureSystemAPIClient(BaseAPIClient):
         )
 
         # Connection health tracking
-        self._last_successful_request = None
+        self._last_successful_request: float | None = None
         self._consecutive_failures = 0
         self._is_healthy = True
 
@@ -145,6 +152,7 @@ class ShureSystemAPIClient(BaseAPIClient):
             self._handle_request_error(e, method, url)
         except json.JSONDecodeError as e:
             self._handle_json_error(e, method, url)
+        return None
 
     def _handle_response(self, response: requests.Response, method: str, url: str) -> Any | None:
         """Handle successful response and potential errors."""
@@ -192,7 +200,7 @@ class ShureSystemAPIClient(BaseAPIClient):
             if retry_after_header is not None:
                 return int(retry_after_header)
         except ValueError:
-            pass
+            return None
         return None
 
     def _handle_http_error(self, e: requests.exceptions.HTTPError, method: str, url: str) -> None:
@@ -215,7 +223,9 @@ class ShureSystemAPIClient(BaseAPIClient):
             response=e.response,
         ) from e
 
-    def _handle_connection_error(self, e: requests.exceptions.ConnectionError, method: str, url: str) -> None:
+    def _handle_connection_error(
+        self, e: requests.exceptions.ConnectionError, method: str, url: str
+    ) -> None:
         """Handle ConnectionError exceptions."""
         self._consecutive_failures += 1
         self._is_healthy = False
@@ -266,7 +276,7 @@ class ShureSystemAPIClient(BaseAPIClient):
         self._explicit_websocket_url = value
         self._explicit_websocket_set = True
 
-    async def connect_and_subscribe(self, device_id: str, callback):
+    async def connect_and_subscribe(self, device_id: str, callback) -> None:
         """Establishes WebSocket connection and subscribes to device updates.
 
         Args:
@@ -340,7 +350,9 @@ class ShureSystemAPIClient(BaseAPIClient):
         logger.info("Successfully polled %d devices", len(data))
         return data
 
-    def _poll_single_device(self, device_id: str, transformer: ShureDataTransformer) -> dict[str, Any] | None:
+    def _poll_single_device(
+        self, device_id: str, transformer: ShureDataTransformer
+    ) -> dict[str, Any] | None:
         """Poll a single device and return transformed data."""
         try:
             device_data = self.get_device(device_id)
