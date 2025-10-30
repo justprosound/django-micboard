@@ -75,14 +75,18 @@ django-micboard/
 │   │   ├── api.py          # REST API endpoints
 │   │   └── dashboard.py    # Dashboard views
 │   ├── management/commands/ # Management commands
-│   ├── static/             # Static assets
-│   ├── templates/          # Django templates
-│   ├── consumers.py        # WebSocket consumers
-│   ├── decorators.py       # View decorators
-│   ├── routing.py          # WebSocket routing
-│   ├── serializers.py      # Data serializers
-│   ├── signals.py          # Django signals
-│   └── urls.py             # URL configuration
+│   │   ├── poll_devices.py   # Device polling command
+│   │   └── realtime_status.py # Real-time connection monitoring
+│   ├── tasks/                # Background tasks
+│   │   ├── polling_tasks.py  # Device polling tasks
+│   │   ├── sse_tasks.py      # SSE subscription tasks
+│   │   ├── websocket_tasks.py # WebSocket subscription tasks
+│   │   └── health_tasks.py   # Health monitoring tasks
+│   ├── models/               # Django models
+│   │   ├── realtime.py       # Real-time connection tracking
+│   │   ├── assignments.py    # User assignments & alerts
+│   │   ├── devices.py        # Receivers, channels, transmitters
+│   │   └── locations.py      # Locations & monitoring groups
 ├── tests/                  # Test suite
 │   ├── test_models.py      # Model tests
 │   └── test_package_structure.py  # PyPI validation
@@ -231,14 +235,12 @@ pytest tests/ --cov=micboard --cov-report=html
 - Alert creation and preferences
 - Location and MonitoringGroup hierarchies
 
-#### Package Structure Tests (`test_package_structure.py`)
+#### Real-Time Tests (`test_realtime.py`)
 
-22 tests validating PyPI standards:
-- No deprecated Django APIs
-- Proper app configuration
-- Model naming conventions
-- Docstring coverage
-- Import structure
+3 tests covering real-time connection functionality:
+- Connection status summary
+- Model constants validation
+- Health monitoring functions
 
 ### Writing Tests
 
@@ -247,24 +249,30 @@ Follow these conventions:
 ```python
 import pytest
 from django.test import TestCase
-from micboard.models import Receiver
+from micboard.models import Receiver, RealTimeConnection
 
-class TestReceiver(TestCase):
-    """Test Receiver model."""
+class TestRealTimeConnection(TestCase):
+    """Test RealTimeConnection model."""
 
     def setUp(self):
         """Set up test fixtures."""
-        self.receiver = Receiver.objects.create(
-            name="Test Receiver",
-            ip="192.168.1.100",
-            device_type="ulxd"
+        self.manufacturer = Manufacturer.objects.create(
+            name="Test Manufacturer",
+            code="test",
+            is_active=True
         )
 
-    def test_mark_online(self):
-        """Test marking receiver online."""
-        self.receiver.mark_online()
-        self.assertTrue(self.receiver.is_active)
-        self.assertIsNotNone(self.receiver.last_seen)
+    def test_connection_lifecycle(self):
+        """Test connection status transitions."""
+        # Test connection state changes
+        connection.mark_connecting()
+        self.assertEqual(connection.status, "connecting")
+
+        connection.mark_connected()
+        self.assertEqual(connection.status, "connected")
+
+        connection.mark_disconnected("Test error")
+        self.assertEqual(connection.status, "disconnected")
 ```
 
 ## Code Quality

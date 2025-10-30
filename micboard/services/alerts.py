@@ -73,6 +73,8 @@ class AlertManager:
                     message=message_func(transmitter),
                     channel_data=self._get_channel_snapshot(transmitter.channel),
                 )
+
+    def check_device_offline_alerts(self, channel: Channel) -> None:
         """
         Check if device/channel is offline and create alerts.
 
@@ -132,6 +134,7 @@ class AlertManager:
 
     def _check_signal_alerts(self, transmitter: Transmitter) -> None:
         """Check signal levels and create alerts."""
+
         def signal_condition(tx):
             return tx.rf_level < -80  # dB threshold
 
@@ -144,6 +147,7 @@ class AlertManager:
 
     def _check_audio_alerts(self, transmitter: Transmitter) -> None:
         """Check audio levels and create alerts."""
+
         def audio_condition(tx):
             return tx.audio_level < -40  # dB threshold
 
@@ -320,7 +324,8 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
 
 def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """
-    View to display detailed information about a specific alert"""
+    View to display detailed information about a specific alert
+    """
     alert = get_object_or_404(Alert.objects.select_related("channel", "user"), id=alert_id)
 
     context = {
@@ -331,7 +336,8 @@ def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
 
 def acknowledge_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """
-    View to acknowledge an alert"""
+    View to acknowledge an alert
+    """
     if request.method != "POST":
         return redirect("alert_detail", alert_id=alert_id)
 
@@ -343,7 +349,8 @@ def acknowledge_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
 
 def resolve_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """
-    View to resolve an alert"""
+    View to resolve an alert
+    """
     if request.method != "POST":
         return redirect("alert_detail", alert_id=alert_id)
 

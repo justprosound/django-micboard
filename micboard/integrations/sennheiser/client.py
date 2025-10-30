@@ -61,7 +61,9 @@ class SennheiserSystemAPIClient(BaseAPIClient):
         self.session.mount("https://", adapter)
 
         if not self.password:
-            raise ValueError("SENNHEISER_API_PASSWORD is required for Sennheiser SSCv2 API authentication")
+            raise ValueError(
+                "SENNHEISER_API_PASSWORD is required for Sennheiser SSCv2 API authentication"
+            )
 
         # HTTP Basic Auth
         self.session.auth = (self.username, self.password)
@@ -129,6 +131,7 @@ class SennheiserSystemAPIClient(BaseAPIClient):
             self._handle_request_error(e, method, url)
         except json.JSONDecodeError as e:
             self._handle_json_error(e, method, url)
+        return None
 
     def _handle_response(self, response: requests.Response, method: str, url: str) -> Any | None:
         """Handle successful response and potential errors."""
@@ -176,7 +179,7 @@ class SennheiserSystemAPIClient(BaseAPIClient):
             if retry_after_header is not None:
                 return int(retry_after_header)
         except ValueError:
-            pass
+            return None
         return None
 
     def _handle_http_error(self, e: requests.exceptions.HTTPError, method: str, url: str) -> None:
@@ -199,7 +202,9 @@ class SennheiserSystemAPIClient(BaseAPIClient):
             response=e.response,
         ) from e
 
-    def _handle_connection_error(self, e: requests.exceptions.ConnectionError, method: str, url: str) -> None:
+    def _handle_connection_error(
+        self, e: requests.exceptions.ConnectionError, method: str, url: str
+    ) -> None:
         """Handle ConnectionError exceptions."""
         self._consecutive_failures += 1
         self._is_healthy = False
@@ -224,7 +229,7 @@ class SennheiserSystemAPIClient(BaseAPIClient):
         logger.error("Failed to parse JSON response from %s %s: %s", method, url, e)
         raise SennheiserAPIError(f"Invalid JSON response from {url}", response=None) from e
 
-    async def connect_and_subscribe(self, device_id: str, callback):
+    async def connect_and_subscribe(self, device_id: str, callback) -> None:
         """Establishes WebSocket connection and subscribes to device updates.
 
         SSCv2 uses SSE for subscriptions, not WebSocket.
@@ -284,7 +289,9 @@ class SennheiserSystemAPIClient(BaseAPIClient):
         logger.info("Successfully polled %d devices", len(data))
         return data
 
-    def _poll_single_device(self, device_id: str, transformer: SennheiserDataTransformer) -> dict[str, Any] | None:
+    def _poll_single_device(
+        self, device_id: str, transformer: SennheiserDataTransformer
+    ) -> dict[str, Any] | None:
         """Poll a single device and return transformed data."""
         try:
             device_data = self.get_device(device_id)

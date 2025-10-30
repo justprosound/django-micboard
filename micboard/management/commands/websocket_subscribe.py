@@ -1,5 +1,5 @@
 """
-Management command to start SSE subscriptions for Sennheiser devices.
+Management command to start WebSocket subscriptions for Shure devices.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
+from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import Manufacturer, Receiver
 from micboard.tasks.polling_tasks import _update_models_from_api_data
@@ -20,14 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Start SSE subscriptions for Sennheiser devices"
+    help = "Start WebSocket subscriptions for Shure devices"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--manufacturer",
             type=str,
-            default="sennheiser",
-            help="Manufacturer code to subscribe to (default: sennheiser)",
+            default="shure",
+            help="Manufacturer code to subscribe to (default: shure)",
         )
         parser.add_argument(
             "--device",
@@ -48,12 +49,6 @@ class Command(BaseCommand):
         plugin_class = get_manufacturer_plugin(manufacturer.code)
         plugin = plugin_class(manufacturer)
 
-        if not hasattr(plugin, "connect_and_subscribe"):
-            self.stderr.write(
-                self.style.ERROR(f"Plugin {manufacturer_code} does not support SSE subscriptions")
-            )
-            return
-
         # Get devices to subscribe to
         if device_id:
             devices = [device_id]
@@ -68,11 +63,11 @@ class Command(BaseCommand):
             self.stdout.write("No active devices found to subscribe to")
             return
 
-        self.stdout.write(f"Starting SSE subscriptions for {len(devices)} device(s)...")
+        self.stdout.write(f"Starting WebSocket subscriptions for {len(devices)} device(s)...")
 
         # Set up signal handlers for graceful shutdown
         def signal_handler(signum, frame):
-            self.stdout.write("\nShutting down SSE subscriptions...")
+            self.stdout.write("\nShutting down WebSocket subscriptions...")
             sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
@@ -82,13 +77,13 @@ class Command(BaseCommand):
         try:
             asyncio.run(self._run_subscriptions(plugin, devices))
         except KeyboardInterrupt:
-            self.stdout.write("SSE subscriptions stopped by user")
+            self.stdout.write("WebSocket subscriptions stopped by user")
         except Exception as e:
-            self.stderr.write(self.style.ERROR(f"Error in SSE subscriptions: {e}"))
-            logger.exception("SSE subscription error")
+            self.stderr.write(self.style.ERROR(f"Error in WebSocket subscriptions: {e}"))
+            logger.exception("WebSocket subscription error")
 
     async def _run_subscriptions(self, plugin, device_ids: list[str]):
-        """Run SSE subscriptions for multiple devices concurrently."""
+        """Run WebSocket subscriptions for multiple devices concurrently."""
         tasks = []
 
         for device_id in device_ids:
@@ -101,22 +96,47 @@ class Command(BaseCommand):
     async def _subscribe_device(self, plugin, device_id: str):
         """Subscribe to a single device and handle updates."""
 
-        async def update_callback(data: dict[str, Any]):
-            """Handle incoming SSE data."""
-            self.stdout.write(f"Received update for {device_id}: {data}")
-            # Process the update data and update models
-            await self._process_sse_update(plugin, device_id, data)
-
         try:
-            await plugin.connect_and_subscribe(device_id, update_callback)
+            # Get receiver info for connection
+            receiver = Receiver.objects.get(
+                manufacturer=plugin.manufacturer, api_device_id=device_id
+            )
+
+            # Create API client for the WebSocket connection
+            from micboard.integrations.shure.client import ShureSystemAPIClient
+
+            # Construct base_url
+            scheme = (
+                "https" if getattr(receiver, "port", 443) == 443 else "http"
+            )  # Assuming 443 is HTTPS, otherwise HTTP
+            base_url = f"{scheme}://{receiver.ip}:{getattr(receiver, 'port', 443)}"
+
+            client = ShureSystemAPIClient(
+                base_url=base_url, verify_ssl=getattr(receiver, "verify_ssl", True)
+            )
+
+            # Set up callback for updates
+            from asgiref.sync import async_to_sync  # Add this import
+
+            def update_callback(data: dict[str, Any]):
+                """Handle incoming WebSocket data."""
+                self.stdout.write(f"Received update for {device_id}: {data}")
+                # Process the update data and update models
+                async_to_sync(self._process_websocket_update)(plugin, device_id, data)
+
+            # Connect and subscribe using the WebSocket function
+            await connect_and_subscribe(client, device_id, update_callback)
+
+        except Receiver.DoesNotExist:
+            self.stderr.write(self.style.ERROR(f"Receiver not found for device {device_id}"))
         except Exception as e:
             logger.exception(f"Error subscribing to device {device_id}: {e}")
             self.stderr.write(self.style.ERROR(f"Failed to subscribe to {device_id}: {e}"))
 
-    async def _process_sse_update(self, plugin, device_id: str, data: dict[str, Any]):
-        """Process SSE update data and update models."""
+    async def _process_websocket_update(self, plugin, device_id: str, data: dict[str, Any]):
+        """Process WebSocket update data and update models."""
         try:
-            # The SSE data should contain updated device information
+            # The WebSocket data should contain updated device information
             # For now, assume it's similar to the full device data from REST API
             # In practice, it might be partial updates, but let's treat it as full updates
 
@@ -130,12 +150,16 @@ class Command(BaseCommand):
                 api_data = [data]  # Wrap in list for the update function
                 updated_count = _update_models_from_api_data(api_data, manufacturer, plugin)
                 if updated_count > 0:
-                    self.stdout.write(f"Updated {updated_count} device(s) from SSE for {device_id}")
+                    self.stdout.write(
+                        f"Updated {updated_count} device(s) from WebSocket for {device_id}"
+                    )
                 else:
-                    logger.debug("No updates from SSE data for %s", device_id)
+                    logger.debug("No updates from WebSocket data for %s", device_id)
             else:
-                logger.debug("Could not transform SSE data for %s", device_id)
+                logger.debug("Could not transform WebSocket data for %s", device_id)
 
         except Exception as e:
-            logger.exception(f"Error processing SSE update for {device_id}: {e}")
-            self.stderr.write(self.style.ERROR(f"Error processing SSE update for {device_id}: {e}"))
+            logger.exception(f"Error processing WebSocket update for {device_id}: {e}")
+            self.stderr.write(
+                self.style.ERROR(f"Error processing WebSocket update for {device_id}: {e}")
+            )

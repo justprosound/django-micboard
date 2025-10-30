@@ -19,12 +19,10 @@ class SennheiserDeviceClient:
         self.api_client = api_client
         self.transformer = SennheiserDataTransformer()
 
-    @rate_limit(calls_per_second=5.0)
     def get_devices(self) -> list[dict[str, Any]]:
         """Get list of all devices from Sennheiser SSCv2 API."""
-        # Placeholder endpoint - needs to be verified from OpenAPI specs
         result = self.api_client._make_request("GET", "/api/devices")
-        return result if isinstance(result, list) else []
+        return cast(list[dict[str, Any]], result) if result is not None else []
 
     @rate_limit(calls_per_second=5.0)
     def get_supported_device_models(self) -> list[str]:
@@ -45,20 +43,17 @@ class SennheiserDeviceClient:
             self.api_client._make_request("GET", f"/api/devices/{device_id}"),
         )
 
-    @rate_limit(calls_per_second=10.0)
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Get channel data for a device."""
         result = self.api_client._make_request("GET", f"/api/devices/{device_id}/channels")
-        return result if isinstance(result, list) else []
+        return cast(list[dict[str, Any]], result) if result is not None else []
 
     @rate_limit(calls_per_second=10.0)
     def get_transmitter_data(self, device_id: str, channel: int) -> dict[str, Any] | None:
         """Get transmitter data for a specific channel."""
         return cast(
             Optional[dict[str, Any]],
-            self.api_client._make_request(
-                "GET", f"/api/devices/{device_id}/channels/{channel}/tx"
-            ),
+            self.api_client._make_request("GET", f"/api/devices/{device_id}/channels/{channel}/tx"),
         )
 
     def get_device_identity(self, device_id: str) -> dict[str, Any] | None:

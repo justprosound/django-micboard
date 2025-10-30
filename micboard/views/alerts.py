@@ -73,6 +73,8 @@ class AlertManager:
                     message=message_func(transmitter),
                     channel_data=self._get_channel_snapshot(transmitter.channel),
                 )
+
+    def check_device_offline_alerts(self, channel: Channel) -> None:
         """
         Check if device/channel is offline and create alerts.
 
@@ -132,6 +134,7 @@ class AlertManager:
 
     def _check_signal_alerts(self, transmitter: Transmitter) -> None:
         """Check signal levels and create alerts."""
+
         def signal_condition(tx):
             return tx.rf_level < -80  # dB threshold
 
@@ -144,6 +147,7 @@ class AlertManager:
 
     def _check_audio_alerts(self, transmitter: Transmitter) -> None:
         """Check audio levels and create alerts."""
+
         def audio_condition(tx):
             return tx.audio_level < -40  # dB threshold
 

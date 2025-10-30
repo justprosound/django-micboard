@@ -33,9 +33,8 @@ class DataAPIView(ManufacturerFilterMixin, APIView):
             return Response(cached_data)
 
         # Serialize receivers
-        receivers_queryset = (
-            Receiver.objects.filter(is_active=True)
-            .prefetch_related("channels__transmitter")
+        receivers_queryset = Receiver.objects.filter(is_active=True).prefetch_related(
+            "channels__transmitter"
         )
         receivers_queryset, error_response = self.filter_queryset_by_manufacturer(
             receivers_queryset, request

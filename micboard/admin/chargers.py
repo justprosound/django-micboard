@@ -12,7 +12,15 @@ class ChargerSlotAdmin(admin.ModelAdmin):
 
 @admin.register(Charger)
 class ChargerAdmin(admin.ModelAdmin):
-    list_display = ("name", "manufacturer", "device_type", "ip", "is_active", "last_seen", "location")
+    list_display = (
+        "name",
+        "manufacturer",
+        "device_type",
+        "ip",
+        "is_active",
+        "last_seen",
+        "location",
+    )
     list_filter = ("manufacturer", "device_type", "is_active", "location")
     search_fields = ("name", "api_device_id", "ip")
     readonly_fields = ("last_seen",)

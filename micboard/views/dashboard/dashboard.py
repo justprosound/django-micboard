@@ -2,6 +2,8 @@
 Dashboard views for the micboard app.
 """
 
+from typing import Optional
+
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404, render
@@ -12,7 +14,7 @@ from micboard.models import Alert, Building, Group, Manufacturer, Receiver, Room
 User = get_user_model()
 
 
-def get_filtered_receivers(request: HttpRequest, manufacturer_code: str | None, **filters):
+def get_filtered_receivers(request: HttpRequest, manufacturer_code: Optional[str], **filters):
     """Helper function to get filtered receivers for dashboard views."""
     return (
         Receiver.objects.for_user(request.user)
@@ -54,7 +56,9 @@ def device_type_view(request: HttpRequest, device_type: str):
     """View to display receivers of a specific type"""
     manufacturer_code = request.GET.get("manufacturer")
 
-    receivers = get_filtered_receivers(request, manufacturer_code, device_type=device_type, is_active=True)
+    receivers = get_filtered_receivers(
+        request, manufacturer_code, device_type=device_type, is_active=True
+    )
 
     context = {
         "device_type": device_type,

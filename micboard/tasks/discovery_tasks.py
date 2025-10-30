@@ -139,7 +139,9 @@ def run_discovery_sync_task(
         if api_devices is None:
             return summary
 
-        discovered_ips = {d.get("ip") or d.get("ipAddress") for d in api_devices or []}
+        discovered_ips = {
+            ip for d in api_devices or [] if (ip := d.get("ip") or d.get("ipAddress")) is not None
+        }
 
         # Read CIDR/FQDN config
         cidrs = [dc.cidr for dc in DiscoveryCIDR.objects.filter(manufacturer=manufacturer)]
@@ -150,7 +152,15 @@ def run_discovery_sync_task(
 
         # 3) Optionally expand CIDRs and resolve FQDNs and submit candidates
         _submit_scanned_candidates(
-            manufacturer, cidrs, fqdns, discovered_ips, scan_cidrs, scan_fqdns, max_hosts, discovery_service, summary
+            manufacturer,
+            cidrs,
+            fqdns,
+            discovered_ips,
+            scan_cidrs,
+            scan_fqdns,
+            max_hosts,
+            discovery_service,
+            summary,
         )
 
         # Finalize job
@@ -172,7 +182,9 @@ def run_discovery_sync_task(
         return summary
 
 
-def _add_config_entries(manufacturer: Manufacturer, add_cidrs: list[str] | None, add_fqdns: list[str] | None) -> None:
+def _add_config_entries(
+    manufacturer: Manufacturer, add_cidrs: list[str] | None, add_fqdns: list[str] | None
+) -> None:
     """Add CIDR and FQDN entries to config."""
     if add_cidrs:
         for c in add_cidrs:
@@ -187,7 +199,9 @@ def _add_config_entries(manufacturer: Manufacturer, add_cidrs: list[str] | None,
                 DiscoveryFQDN.objects.get_or_create(manufacturer=manufacturer, fqdn=f)
 
 
-def _initialize_plugin_client(manufacturer: Manufacturer, summary: dict[str, Any]) -> tuple[Any, Any] | tuple[None, None]:
+def _initialize_plugin_client(
+    manufacturer: Manufacturer, summary: dict[str, Any]
+) -> tuple[Any, Any] | tuple[None, None]:
     """Initialize plugin and client, return (plugin, client) or (None, None) on failure."""
     try:
         from micboard.manufacturers import get_manufacturer_plugin
@@ -226,9 +240,11 @@ def _persist_supported_models(manufacturer: Manufacturer, client: Any) -> None:
         logger.exception("Error persisting supported device models: %s", exc)
 
 
-def _poll_and_create_receivers(manufacturer: Manufacturer, plugin: Any, summary: dict[str, Any]) -> list[dict[str, Any]] | None:
+def _poll_and_create_receivers(
+    manufacturer: Manufacturer, plugin: Any, summary: dict[str, Any]
+) -> list[dict[str, Any]] | None:
     """Poll API for devices and create/update receivers. Return api_devices or None on failure."""
-    api_devices = []
+    api_devices: list[dict[str, Any]] = []
     try:
         api_devices = plugin.get_devices() or []
         if not api_devices:
@@ -243,7 +259,7 @@ def _poll_and_create_receivers(manufacturer: Manufacturer, plugin: Any, summary:
                     logger.warning("Skipping device with missing id/ip: %s", dev)
                     continue
 
-                rx, created = Receiver.objects.update_or_create(
+                _rx, created = Receiver.objects.update_or_create(
                     api_device_id=device_id,
                     manufacturer=manufacturer,
                     defaults={"ip": ip, "name": name, "is_active": True},
@@ -258,7 +274,12 @@ def _poll_and_create_receivers(manufacturer: Manufacturer, plugin: Any, summary:
         return None
 
 
-def _submit_missing_ips(manufacturer: Manufacturer, discovered_ips: set[str], discovery_service: DiscoveryService, summary: dict[str, Any]) -> None:
+def _submit_missing_ips(
+    manufacturer: Manufacturer,
+    discovered_ips: set[str],
+    discovery_service: DiscoveryService,
+    summary: dict[str, Any],
+) -> None:
     """Submit missing local receiver IPs to discovery."""
     missing_ips = []
     for rx in Receiver.objects.filter(manufacturer=manufacturer):
@@ -269,7 +290,9 @@ def _submit_missing_ips(manufacturer: Manufacturer, discovered_ips: set[str], di
 
     if missing_ips:
         for ip in missing_ips:
-            if discovery_service.add_discovery_candidate(ip, manufacturer, source="missing_receiver"):
+            if discovery_service.add_discovery_candidate(
+                ip, manufacturer, source="missing_receiver"
+            ):
                 summary["missing_ips_submitted"] += 1
             else:
                 summary["errors"].append(f"Failed to submit missing IP {ip}")
@@ -308,7 +331,9 @@ def _submit_scanned_candidates(
     ips_to_submit = list(dict.fromkeys(ips_to_submit))
     if ips_to_submit:
         for ip in ips_to_submit:
-            if discovery_service.add_discovery_candidate(ip, manufacturer, source="scanned_candidate"):
+            if discovery_service.add_discovery_candidate(
+                ip, manufacturer, source="scanned_candidate"
+            ):
                 summary["scanned_ips_submitted"] += 1
             else:
                 summary["errors"].append(f"Failed to submit scanned IP {ip}")
@@ -318,7 +343,9 @@ def _finalize_job(job: DiscoveryJob, summary: dict[str, Any]) -> None:
     """Finalize the discovery job with status and metrics."""
     job.status = "success" if not summary["errors"] else "failed"
     job.finished_at = timezone.now()
-    job.items_scanned = summary.get("scanned_ips_submitted", 0) + summary.get("missing_ips_submitted", 0)
+    job.items_scanned = summary.get("scanned_ips_submitted", 0) + summary.get(
+        "missing_ips_submitted", 0
+    )
     job.items_submitted = job.items_scanned
     if summary["errors"]:
         job.note = "; ".join(summary["errors"])[:1024]
