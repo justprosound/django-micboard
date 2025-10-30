@@ -146,7 +146,7 @@ mypy==1.18.2
     # via django-micboard (pyproject.toml)
 mypy-extensions==1.1.0
     # via mypy
-nh3==0.3.1
+nh3==0.3.2
     # via readme-renderer
 nltk==3.9.2
     # via safety
@@ -246,7 +246,7 @@ safety-schemas==0.0.16
     # via safety
 secretstorage==3.4.0
     # via keyring
-sentry-sdk==2.42.1
+sentry-sdk==2.43.0
     # via django-q-sentry
 service-identity==24.2.0
     # via twisted
@@ -297,9 +297,9 @@ urllib3==2.5.0
     #   sentry-sdk
     #   twine
     #   types-requests
-uv==0.9.5
+uv==0.9.6
     # via django-micboard (pyproject.toml)
-virtualenv==20.35.3
+virtualenv==20.35.4
     # via pre-commit
 websockets==15.0.1
     # via django-micboard (pyproject.toml)

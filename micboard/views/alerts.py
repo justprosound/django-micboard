@@ -18,7 +18,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from micboard.models import Alert
-from micboard.views.email import send_alert_email
+from micboard.services.email import send_alert_email
 
 if TYPE_CHECKING:
     from micboard.models import Channel, DeviceAssignment, Transmitter

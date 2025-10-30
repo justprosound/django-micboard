@@ -146,3 +146,23 @@ def all_buildings_view(request: HttpRequest):
         "buildings": buildings,
     }
     return render(request, "micboard/all_buildings_view.html", context)
+
+
+def all_rooms_view(request: HttpRequest):
+    """View to display all rooms"""
+    rooms = Room.objects.all()
+    context = {
+        "rooms": rooms,
+    }
+    return render(request, "micboard/all_rooms_view.html", context)
+
+
+def rooms_in_building_view(request: HttpRequest, building: str):
+    """View to display all rooms within a specific building"""
+    building_obj = get_object_or_404(Building, name=building)
+    rooms = Room.objects.filter(building=building_obj)
+    context = {
+        "building_name": building,
+        "rooms": rooms,
+    }
+    return render(request, "micboard/rooms_in_building_view.html", context)

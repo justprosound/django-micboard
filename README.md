@@ -1,6 +1,6 @@
 # django-micboard
 
-> **⚠️ ACTIVE DEVELOPMENT**: This project is under active development and not yet ready for production use. Features, APIs, and documentation may change without notice.
+> **⚠️ MAJOR WORK IN PROGRESS**: This project is still a major work in progress and under active development. It is not yet ready for production use. Features, APIs, and documentation may change without notice.
 
 A community-driven open source Django app for real-time monitoring and management of wireless microphone systems. Integrates with external Shure System API middleware for device communication.
 
