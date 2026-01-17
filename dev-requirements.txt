@@ -242,7 +242,7 @@ ruff==0.14.2
     # via django-micboard (pyproject.toml)
 safety==3.6.2
     # via django-micboard (pyproject.toml)
-safety-schemas==0.0.16
+safety-schemas==0.0.18
     # via safety
 secretstorage==3.4.0
     # via keyring
