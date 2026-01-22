@@ -14,21 +14,54 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DJANGO_SETTINGS_MODULE=demo.settings
-      # For Windows Docker Desktop - connect to host Shure API
-      - MICBOARD_SHURE_API_BASE_URL=http://host.docker.internal:10000
+      
+      # Shure System API Configuration
+      # For local Windows: http://host.docker.internal:10000
+      # For Georgia Tech VPN: http://172.21.x.x:10000 (actual device IP)
+      - MICBOARD_SHURE_API_BASE_URL=${MICBOARD_SHURE_API_BASE_URL:-http://host.docker.internal:10000}
+      
       # SSL verification (set to 'false' for self-signed certificates)
-      - MICBOARD_SHURE_API_VERIFY_SSL=true
-      # Shared key (passed from environment or .env file)
+      - MICBOARD_SHURE_API_VERIFY_SSL=${MICBOARD_SHURE_API_VERIFY_SSL:-true}
+      
+      # Shared key (from .env file - REQUIRED for authentication)
       - MICBOARD_SHURE_API_SHARED_KEY
+      
+      # Device discovery IPs (comma-separated)
+      # Example: 172.21.1.100,172.21.1.101,172.21.1.102
+      - MICBOARD_DISCOVERY_IPS=${MICBOARD_DISCOVERY_IPS:-}
+      
+      # Network settings for GT devices
+      - MICBOARD_NETWORK_TIMEOUT=${MICBOARD_NETWORK_TIMEOUT:-30}
+      - MICBOARD_POLLING_INTERVAL=${MICBOARD_POLLING_INTERVAL:-60}
+    
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 40s
+    
     restart: unless-stopped
     tty: true
-    # Required for host.docker.internal on Windows
+    
+    # Network configuration
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    
+    # For Georgia Tech VPN testing, you may need to configure network_mode
+    # Uncomment if connecting directly to GT network:
+    # network_mode: "host"
+  
+  # Optional: Redis for caching and Django-Q
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    profiles:
+      - with-redis
 
-  # NOTE: Django-Q cluster runs in the same container as the web app for demo simplicity
+volumes:
+  redis-data:

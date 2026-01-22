@@ -33,15 +33,22 @@ This document provides an index of all project phases and their completion statu
 - Quick Reference: [docs/DEVICE_LIFECYCLE_QUICK_REFERENCE.md](docs/DEVICE_LIFECYCLE_QUICK_REFERENCE.md)
 - Full Guide: [docs/DEVICE_LIFECYCLE_NO_BACKCOMPAT.md](docs/DEVICE_LIFECYCLE_NO_BACKCOMPAT.md)
 
-### Phase 4: Advanced Features
-- Status: 🔄 In Planning
-- Focus: Health monitoring, auto-transitions, alerts, audit trail
-- Planned Features:
-  - Device heartbeat detection
-  - Automatic offline transitions
-  - Alert rules based on lifecycle states
-  - Comprehensive audit trail
-  - Bulk device management
+### Phase 4: DRY Refactoring & Live Testing
+- Status: 🔄 In Progress (Started Jan 22, 2026)
+- Focus: Code consolidation, multi-manufacturer patterns, live device testing
+- Goals:
+  - Eliminate duplicate code patterns (DRY principles)
+  - Consolidate multi-manufacturer plugin architecture
+  - Extract common service patterns to base classes
+  - Update Docker configuration for Georgia Tech live testing
+  - Achieve 85%+ test coverage
+- Documentation: [REFACTORING_ROADMAP.md](REFACTORING_ROADMAP.md)
+- Planned Deliverables:
+  - Unified plugin base classes
+  - Consolidated service layer
+  - Docker setup for live devices
+  - Integration test suite
+  - Performance benchmarks
 
 ## Documentation Structure
 
