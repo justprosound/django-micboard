@@ -49,9 +49,59 @@ This document outlines the comprehensive refactoring plan to consolidate duplica
 3. ✅ Update PROJECT_PHASES.md with Phase 4 details
 4. ✅ Create this REFACTORING_ROADMAP.md
 
-### Phase 4.2: Service Layer DRY Refactoring
+### Phase 4.2: Service Layer DRY Refactoring ✅ (Completed)
 
 **Objective:** Eliminate duplicate patterns across services
+
+**Completed Tasks:**
+1. ✅ **Base HTTP Client Abstraction**
+   - Created `micboard/integrations/base_http_client.py`
+   - **BaseHTTPClient**: Common HTTP client with retry, pooling, health tracking
+   - **BasePollingMixin**: Shared device polling logic
+   - Eliminated ~200 lines of duplicate code per manufacturer
+
+2. ✅ **Refactored Shure Client**
+   - `ShureSystemAPIClient` now extends `BaseHTTPClient`
+   - Implements only Shure-specific methods:
+     - `_get_config_prefix()` → "SHURE_API"
+     - `_configure_authentication()` → Bearer token auth
+     - `_get_health_check_endpoint()` → "/api/v1/devices"
+     - `get_exception_class()` → ShureAPIError
+     - `get_rate_limit_exception_class()` → ShureAPIRateLimitError
+   - Reduced from 400+ lines to ~120 lines
+
+3. ✅ **Refactored Sennheiser Client**
+   - `SennheiserSystemAPIClient` now extends `BaseHTTPClient`
+   - Implements only Sennheiser-specific methods:
+     - `_get_config_prefix()` → "SENNHEISER_API"
+     - `_configure_authentication()` → HTTP Basic Auth
+     - `_get_health_check_endpoint()` → "/api/ssc/version"
+     - `get_exception_class()` → SennheiserAPIError
+     - `get_rate_limit_exception_class()` → SennheiserAPIRateLimitError
+   - Reduced from 400+ lines to ~80 lines
+
+4. ✅ **Consolidated Device Polling Logic**
+   - `BasePollingMixin` provides:
+     - `poll_all_devices()` - Polls all devices for a manufacturer
+     - `_poll_single_device()` - Polls single device with enrichment
+     - `_log_firmware_coverage()` - Logs firmware coverage stats
+   - Both Shure and Sennheiser clients use mixin
+
+5. ✅ **Validation**
+   - All 72 tests passing
+   - No backwards compatibility issues
+   - Clean refactor with no functional changes
+
+**Benefits:**
+- **Reduced Duplication:** ~400 lines of duplicate code eliminated
+- **Easier Maintenance:** Bug fixes in BaseHTTPClient apply to all manufacturers
+- **Extensibility:** New manufacturers can reuse 90% of HTTP client logic
+- **Type Safety:** Abstract methods enforce plugin contract
+- **Test Coverage:** Existing tests validate refactored code
+
+### Phase 4.3: Multi-Manufacturer Plugin Architecture (Next)
+
+**Objective:** Clean, extensible plugin system
 
 **Tasks:**
 1. **Consolidate Polling Logic**
