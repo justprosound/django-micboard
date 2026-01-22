@@ -20,6 +20,12 @@ from .assignments import (
 )
 from .channels import ChannelAdmin, TransmitterAdmin
 from .chargers import ChargerAdmin, ChargerSlotAdmin
+from .configuration_and_logging import (
+    ActivityLogAdmin,
+    ConfigurationAuditLogAdmin,
+    ManufacturerConfigurationAdmin,
+    ServiceSyncLogAdmin,
+)
 from .discovery import DiscoveryCIDRAdmin, DiscoveryFQDNAdmin, DiscoveryJobAdmin
 from .manufacturers import ManufacturerAdmin
 from .monitoring import (
@@ -33,10 +39,12 @@ from .receivers import ReceiverAdmin
 
 __all__ = sorted(
     [
+        "ActivityLogAdmin",
         "AlertAdmin",
         "ChannelAdmin",
         "ChargerAdmin",
         "ChargerSlotAdmin",
+        "ConfigurationAuditLogAdmin",
         "DeviceAssignmentAdmin",
         "DiscoveryCIDRAdmin",
         "DiscoveryFQDNAdmin",
@@ -44,11 +52,13 @@ __all__ = sorted(
         "DiscoveredDeviceAdmin",
         "GroupAdmin",
         "LocationAdmin",
+        "ManufacturerAdmin",
+        "ManufacturerConfigurationAdmin",
         "MicboardConfigAdmin",
         "MonitoringGroupAdmin",
         "ReceiverAdmin",
+        "ServiceSyncLogAdmin",
         "TransmitterAdmin",
         "UserAlertPreferenceAdmin",
-        "ManufacturerAdmin",
     ]
 )

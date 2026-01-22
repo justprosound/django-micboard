@@ -3,9 +3,11 @@ Models for the micboard app.
 """
 
 # Import all models to make them available at the package level
+from .activity_log import ActivityLog, ServiceSyncLog
 from .assignments import Alert, DeviceAssignment, UserAlertPreference
 from .channel import Channel
 from .charger import Charger, ChargerSlot
+from .configuration import ConfigurationAuditLog, ManufacturerConfiguration
 from .discovery import (
     DiscoveredDevice,
     DiscoveryCIDR,
@@ -25,11 +27,13 @@ from .user_views import UserView
 
 __all__ = [
     "APIHealthLog",
+    "ActivityLog",
     "Alert",
     "Building",
     "Channel",
     "Charger",
     "ChargerSlot",
+    "ConfigurationAuditLog",
     "DeviceAssignment",
     "DiscoveredDevice",
     "DiscoveryCIDR",
@@ -38,12 +42,14 @@ __all__ = [
     "Group",
     "Location",
     "Manufacturer",
+    "ManufacturerConfiguration",
     "MicboardConfig",
     "MonitoringGroup",
     "MonitoringGroupLocation",
     "RealTimeConnection",
     "Receiver",
     "Room",
+    "ServiceSyncLog",
     "Transmitter",
     "TransmitterSample",
     "TransmitterSession",

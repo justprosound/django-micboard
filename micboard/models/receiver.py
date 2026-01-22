@@ -132,12 +132,19 @@ class Receiver(models.Model):
         help_text="The physical location of this receiver",
     )
     order = models.PositiveIntegerField(default=0, help_text="Display order for charger layouts")
-    # Status fields
-    is_active = models.BooleanField(
-        default=True, help_text="Whether this device is currently active/online"
+    
+    # Lifecycle status
+    status = models.CharField(
+        max_length=20,
+        default="discovered",
+        db_index=True,
+        help_text="Current lifecycle status of the device",
     )
     last_seen = models.DateTimeField(
         null=True, blank=True, help_text="Last time this device was successfully polled"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True, help_text="Last time this device record was updated"
     )
 
     objects = ReceiverManager()
@@ -148,37 +155,28 @@ class Receiver(models.Model):
         ordering: ClassVar[list[str]] = ["order", "manufacturer__name", "name"]
         indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["manufacturer", "api_device_id"]),
-            models.Index(fields=["is_active", "last_seen"]),
+            models.Index(fields=["status", "last_seen"]),
         ]
         unique_together: ClassVar[list[list[str]]] = [["manufacturer", "api_device_id"]]
 
     def __str__(self) -> str:
         return f"{self.manufacturer.name} {self.device_type} - {self.name} ({self.ip})"
 
-    def mark_online(self) -> None:
-        """Mark receiver as online"""
-        self.is_active = True
-        self.last_seen = timezone.now()
-        self.save(update_fields=["is_active", "last_seen"])
-
-    def mark_offline(self) -> None:
-        """Mark receiver as offline"""
-        self.is_active = False
-        self.save(update_fields=["is_active"])
-
-    def get_active_channels(self):
-        """Get all channels with active transmitters"""
-        return self.channels.filter(transmitter__isnull=False).select_related("transmitter")
-
-    def get_channel_count(self) -> int:
-        """Get total number of channels"""
-        return self.channels.count()  # type: ignore
+    @property
+    def is_active(self) -> bool:
+        """Check if receiver is active based on status."""
+        active_states = {"online", "degraded", "provisioning"}
+        return self.status in active_states
 
     @property
     def health_status(self) -> str:
-        """Get health status based on last_seen and is_active"""
-        if not self.is_active:
+        """Get health status based on status field and last_seen timestamp."""
+        if self.status == "offline":
             return "offline"
+        if self.status == "maintenance":
+            return "maintenance"
+        if self.status == "retired":
+            return "retired"
         if not self.last_seen:
             return "unknown"
         time_since = timezone.now() - self.last_seen
@@ -187,8 +185,3 @@ class Receiver(models.Model):
         if time_since < timedelta(minutes=30):
             return "warning"
         return "stale"
-
-    @property
-    def is_healthy(self) -> bool:
-        """Check if receiver is healthy"""
-        return self.health_status == "healthy"

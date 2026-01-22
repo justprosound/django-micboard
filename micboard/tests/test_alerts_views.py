@@ -32,7 +32,7 @@ class AlertManagerTest(TestCase):
             ip="192.168.1.100",
             manufacturer=self.manufacturer,
             api_device_id="12345",
-            is_active=True,
+            status="online",
         )
         # Freeze time for consistent updated_at values
         with freeze_time(timezone.now()):
@@ -221,7 +221,7 @@ class AlertManagerTest(TestCase):
             mock_create.assert_not_called()
 
     def test_check_device_offline_alerts_receiver_offline(self):
-        self.receiver.is_active = False
+        self.receiver.status = "offline"
         self.receiver.save()
         with patch.object(
             self.alert_manager, "_create_device_offline_alert"
@@ -231,7 +231,7 @@ class AlertManagerTest(TestCase):
 
     @freeze_time("2025-10-30 12:00:00")  # Freeze time for this test
     def test_check_device_offline_alerts_transmitter_offline(self):
-        self.receiver.is_active = True  # Ensure receiver is active
+        self.receiver.status = "online"  # Ensure receiver is active
         self.receiver.save()
         # Set transmitter updated_at to be older than 5 minutes from frozen time
         Transmitter.objects.filter(pk=self.transmitter.pk).update(
@@ -249,9 +249,12 @@ class AlertManagerTest(TestCase):
             mock_create_offline.assert_called_once_with(self.channel)
 
     def test_check_device_offline_alerts_both_online(self):
-        self.receiver.is_active = True
+        self.receiver.status = "online"
         self.receiver.save()
-        self.transmitter.updated_at = timezone.now()  # Make is_active True
+        # Make transmitter active by setting both status and last_seen
+        self.transmitter.status = "online"
+        self.transmitter.last_seen = timezone.now()
+        self.transmitter.updated_at = timezone.now()
         self.transmitter.save()
         with patch.object(
             self.alert_manager, "_create_device_offline_alert"

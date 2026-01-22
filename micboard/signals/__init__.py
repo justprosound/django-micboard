@@ -14,6 +14,8 @@ from django.core.cache import cache
 
 # Import signal modules to register handlers
 from . import broadcast_signals, device_signals, discovery_signals, request_signals, user_signals
+# Import new device lifecycle handlers (Phase 4)
+from . import handlers  # noqa: F401
 
 # Import signals for external use
 from .broadcast_signals import api_health_changed, devices_polled

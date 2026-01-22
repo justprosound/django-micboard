@@ -19,7 +19,7 @@ class ChannelAdmin(admin.ModelAdmin):
     """Admin configuration for Channel model."""
 
     list_display = ("__str__", "receiver", "channel_number", "has_transmitter")
-    list_filter = ("receiver__device_type", "receiver__is_active")
+    list_filter = ("receiver__device_type", "receiver__status")
     search_fields = ("receiver__name", "channel_number")
     inlines: ClassVar[list] = []  # Removed TransmitterInline to avoid duplication
 

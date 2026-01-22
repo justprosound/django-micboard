@@ -14,15 +14,16 @@ RUN apt-get update && apt-get install -y \
 
 # Create app directory
 WORKDIR /app
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Create a virtualenv and make its bin available
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Upgrade pip and install production dependencies
-COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Copy project definition
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy the project into the image. In compose we'll mount the repo over /app for development.
 COPY . /app

@@ -68,7 +68,7 @@ class ManufacturerFilterMixin:
                     {"error": f"Manufacturer '{manufacturer_code}' not found"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-                return queryset, error_response
+                return None, error_response
 
         return queryset, None
 

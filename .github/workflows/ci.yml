@@ -56,9 +56,10 @@ jobs:
           cache: 'pip'
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install Django~=${{ matrix.django-version }}
-          pip install -e .[dev]
+          pip install uv
+          uv venv
+          uv pip install Django~=${{ matrix.django-version }}
+          uv pip install -e .[dev]
       - name: Run ruff
         run: |
           ruff check .
@@ -93,12 +94,8 @@ jobs:
         with:
           python-version: "3.11"
           cache: 'pip'
-      - name: Install build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install build twine
       - name: Build package
-        run: python -m build
+        run: uv build
       - name: Check package
         run: twine check dist/*
       - name: Upload artifacts

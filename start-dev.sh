@@ -1,42 +1,27 @@
 #!/bin/bash
 
 # Script to start a local development instance with Docker demo
+#
+# SECURITY NOTE:
+# - This script reads the Shure shared key from environment or Windows installation
+# - NEVER hardcode credentials in this script or pass them as arguments
+# - Use .env.local for local configuration (this file is in .gitignore)
+# - For detailed setup instructions, see: docs/CONFIGURATION.md
 
 set -e
 
-echo "Setting up virtual environment for development tools..."
+# uv sync will create .venv if it doesn't exist
 
-if [ ! -d ".venv" ]; then
-    python3 -m venv .venv
-    echo "Virtual environment created."
-else
-    echo "Virtual environment already exists."
-fi
-
-echo "Activating virtual environment..."
-source .venv/bin/activate
-
-echo "Upgrading pip..."
-.venv/bin/pip3 install --upgrade 'pip<=25.3' setuptools wheel
-
-echo "Installing uv..."
-pip install uv
-
-echo "Updating requirements files..."
-uv pip compile --upgrade pyproject.toml -o requirements.txt
-uv pip compile --upgrade pyproject.toml --extra dev -o dev-requirements.txt
-uv pip compile --upgrade pyproject.toml --extra docs -o docs/requirements.txt
-
-echo "Installing dev dependencies..."
-uv pip sync dev-requirements.txt
+echo "Syncing dependencies with uv..."
+uv sync --frozen --extra dev
 
 echo "Validating Django system configuration..."
 unset DJANGO_SETTINGS_MODULE
-python manage.py check
+uv run manage.py check
 
 echo "Running migrations..."
-python manage.py makemigrations micboard
-python manage.py migrate
+uv run manage.py makemigrations micboard
+uv run manage.py migrate
 
 echo "Checking for WSL2 environment and Shure shared key..."
 SHARED_KEY=""
@@ -60,7 +45,7 @@ fi
 
 echo "Building demo Docker image..."
 cd demo/docker
-docker-compose build
+docker compose build
 
 echo "Starting demo container..."
 echo ""
@@ -72,7 +57,7 @@ echo ""
 if [ -n "$SHARED_KEY" ]; then
     echo "✓ Shared key detected for this session"
     echo "Starting container with shared key..."
-    MICBOARD_SHURE_API_SHARED_KEY="$SHARED_KEY" docker-compose up -d
+    MICBOARD_SHURE_API_SHARED_KEY="$SHARED_KEY" docker compose up -d
 else
     echo "⚠  WARNING: Shared key not available!"
     echo ""
@@ -84,7 +69,7 @@ else
     echo "  ./start-dev.sh"
     echo ""
     echo "Or run directly:"
-    echo "  MICBOARD_SHURE_API_SHARED_KEY=your-key-here docker-compose up"
+    echo "  MICBOARD_SHURE_API_SHARED_KEY=your-key-here docker compose up"
     echo ""
     echo "To get the shared key from Shure System API:"
     echo "  Windows: C:\\ProgramData\\Shure\\SystemAPI\\Standalone\\Security\\sharedkey.txt"
@@ -93,5 +78,5 @@ else
     echo "Starting container anyway (will fail to connect without shared key)..."
     echo "Press Ctrl+C to stop and configure, or wait for connection errors..."
     echo ""
-    docker-compose up -d
+    docker compose up -d
 fi

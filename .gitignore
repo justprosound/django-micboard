@@ -92,6 +92,29 @@ node_modules
 site/
 coverage.lcov
 
+# Security: Environment and Configuration Files
+.env.local
+.env.*.local
+config/local*.yml
+config/secrets*
+*.key
+*.pem
+*.p12
+*.pfx
+sharedkey.txt
+device_inventory*.json
+
+# Local development scripts with secrets (never commit credentials)
+scripts/local_*.py
+scripts/device_discovery_local.py
+scripts/*_local.py
+scripts/test_data/*.json
+scripts/test_data/*.csv
+
+# IDE temporary files with config
+.vscode/settings.local.json
+.idea/vcs.xml
+
 # Windows installer binaries for demo (ignore only binaries; keep README.md tracked)
 /demo/windows/installers/*.msi
 /demo/windows/installers/*.exe

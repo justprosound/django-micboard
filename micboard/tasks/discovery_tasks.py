@@ -280,13 +280,21 @@ def _submit_missing_ips(
     discovery_service: DiscoveryService,
     summary: dict[str, Any],
 ) -> None:
-    """Submit missing local receiver IPs to discovery."""
+    """Submit missing local receiver and discovered device IPs to discovery."""
     missing_ips = []
+    
+    # Check Receiver objects (configured devices)
     for rx in Receiver.objects.filter(manufacturer=manufacturer):
         if not rx.ip:
             continue
         if rx.ip not in discovered_ips:
             missing_ips.append(rx.ip)
+    
+    # Also check DiscoveredDevice objects (devices found but not yet configured)
+    from micboard.models import DiscoveredDevice
+    for dev in DiscoveredDevice.objects.filter(manufacturer=manufacturer):
+        if dev.ip and dev.ip not in discovered_ips and dev.ip not in missing_ips:
+            missing_ips.append(dev.ip)
 
     if missing_ips:
         for ip in missing_ips:
