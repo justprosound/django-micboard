@@ -21,7 +21,7 @@ class ChargerAdmin(admin.ModelAdmin):
         "last_seen",
         "location",
     )
-    list_filter = ("manufacturer", "device_type", "is_active", "location")
+    list_filter = ("manufacturer", "device_type", "location")
     search_fields = ("name", "api_device_id", "ip")
     readonly_fields = ("last_seen",)
     ordering = ("order", "manufacturer__name", "name")

@@ -108,10 +108,14 @@ class ShureSystemAPIClient(BaseAPIClient):
         return self._is_healthy and self._consecutive_failures < 5
 
     def check_health(self) -> dict[str, Any]:
-        """Perform health check against Shure API."""
+        """Perform health check against Shure API.
+        
+        Note: Shure System API doesn't have a dedicated /health endpoint,
+        so we use /api/v1/devices as a health check.
+        """
         try:
             response = self.session.get(
-                f"{self.base_url}/api/v1/health",
+                f"{self.base_url}/api/v1/devices",
                 timeout=5,
                 verify=self.verify_ssl,
             )

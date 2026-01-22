@@ -1,5 +1,9 @@
 """
 Polling-related background tasks for the micboard app.
+
+NOTE: This module is being refactored to use the new service layer.
+New code should use PollingService directly. These tasks are maintained
+for backwards compatibility with existing celery/django-q configurations.
 """
 
 # Polling-related background tasks for the micboard app.
@@ -26,6 +30,49 @@ logger = logging.getLogger(__name__)
 def poll_manufacturer_devices(manufacturer_id: int):
     """
     Task to poll devices for a specific manufacturer and update models.
+    
+    NOTE: This is a legacy task wrapper. New code should use:
+        from micboard.services import PollingService
+        service = PollingService()
+        service.poll_manufacturer(manufacturer)
+    """
+    try:
+        manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
+        
+        # Use the new PollingService for clean service-based approach
+        from micboard.services import PollingService
+        
+        service = PollingService()
+        result = service.poll_manufacturer(manufacturer)
+        
+        # Run alerts after polling
+        check_device_offline_alerts()
+        check_transmitter_alerts()
+        
+        logger.info(
+            "Polling task complete for %s: %d devices created/updated, %d transmitters",
+            manufacturer.name,
+            result.get("devices_created", 0) + result.get("devices_updated", 0),
+            result.get("transmitters_synced", 0),
+        )
+        
+        # Start real-time subscriptions
+        _start_realtime_subscriptions(manufacturer)
+        
+        return result
+        
+    except Manufacturer.DoesNotExist:
+        logger.warning(
+            "Manufacturer with ID %s not found for device polling task.", manufacturer_id
+        )
+    except Exception as e:
+        logger.exception("Error polling devices for manufacturer ID %s: %s", manufacturer_id, e)
+
+
+def poll_manufacturer_devices_legacy(manufacturer_id: int):
+    """
+    DEPRECATED: Legacy polling implementation kept for reference.
+    Use poll_manufacturer_devices() instead, which uses PollingService.
     """
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
@@ -110,6 +157,8 @@ def _update_models_from_api_data(api_data, manufacturer, plugin):
 
 def _update_receiver(transformed_data, manufacturer, api_device_id):
     """Update or create a receiver from transformed API data."""
+    from micboard.services.device_lifecycle import get_lifecycle_manager
+    
     receiver, created = Receiver.objects.update_or_create(
         api_device_id=api_device_id,
         manufacturer=manufacturer,
@@ -118,15 +167,20 @@ def _update_receiver(transformed_data, manufacturer, api_device_id):
             "device_type": transformed_data.get("type", "unknown"),
             "name": transformed_data.get("name", ""),
             "firmware_version": transformed_data.get("firmware", ""),
-            "is_active": True,
             "last_seen": timezone.now(),
         },
     )
 
+    # Use lifecycle manager for state transition
+    lifecycle = get_lifecycle_manager(manufacturer.code)
     if created:
         logger.info("Created new receiver: %s (%s)", receiver.name, api_device_id)
+        lifecycle.mark_online(receiver)
     else:
         logger.debug("Updated receiver: %s", api_device_id)
+        # Only transition to online if not in a stable state
+        if receiver.status not in {'online', 'degraded', 'maintenance'}:
+            lifecycle.mark_online(receiver)
 
     return receiver
 
@@ -224,19 +278,36 @@ def _assign_transmitter_slot(channel, transformed_tx, api_device_id, channel_num
 
 def _mark_offline_receivers(manufacturer, active_receiver_ids):
     """Mark receivers that are no longer in API data as offline."""
-    offline_count = (
-        Receiver.objects.filter(manufacturer=manufacturer)
-        .exclude(id__in=active_receiver_ids)
-        .filter(is_active=True)
-        .update(is_active=False)
-    )
+    from micboard.services.device_lifecycle import get_lifecycle_manager
+    
+    # Find receivers that should be marked offline
+    offline_receivers = Receiver.objects.filter(
+        manufacturer=manufacturer,
+        status__in={'online', 'degraded', 'provisioning'}
+    ).exclude(id__in=active_receiver_ids)
+    
+    if not offline_receivers.exists():
+        return
+    
+    lifecycle = get_lifecycle_manager(manufacturer.code)
+    offline_count = 0
+    
+    for receiver in offline_receivers:
+        try:
+            lifecycle.mark_offline(receiver, reason="Device not found in API poll")
+            offline_count += 1
+        except Exception:
+            logger.exception("Error marking receiver %s as offline", receiver.id)
 
     if offline_count > 0:
         logger.warning("Marked %d receivers as offline for %s", offline_count, manufacturer.name)
 
         # Check for offline alerts on all channels of offline receivers
-        offline_receivers = Receiver.objects.filter(manufacturer=manufacturer, is_active=False)
-        for receiver in offline_receivers:
+        offline_receivers_refreshed = Receiver.objects.filter(
+            manufacturer=manufacturer, 
+            status='offline'
+        )
+        for receiver in offline_receivers_refreshed:
             for channel in receiver.channels.all():
                 check_device_offline_alerts(channel)
 

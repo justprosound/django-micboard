@@ -1,0 +1,409 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Micboard Admin Dashboard{% endblock %}
+
+{% block extrahead %}
+    <style>
+        .dashboard-container {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .stat-values {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            flex: 1;
+        }
+
+        .stat-value .label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-value .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-healthy { background: #d4edda; color: #155724; }
+        .status-degraded { background: #fff3cd; color: #856404; }
+        .status-unhealthy { background: #f8d7da; color: #721c24; }
+        .status-unknown { background: #e2e3e5; color: #383d41; }
+
+        .section-title {
+            margin-top: 40px;
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #417690;
+            padding-bottom: 10px;
+        }
+
+        .manufacturer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .manufacturer-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .manufacturer-card h4 {
+            margin: 0 0 12px 0;
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .manufacturer-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .manufacturer-stat:last-child {
+            border-bottom: none;
+        }
+
+        .manufacturer-stat .label {
+            color: #666;
+        }
+
+        .manufacturer-stat .value {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .activity-list {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .activity-item {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            gap: 12px;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .activity-icon.crud { background: #e3f2fd; color: #1976d2; }
+        .activity-icon.service { background: #fff3e0; color: #f57c00; }
+        .activity-icon.sync { background: #e8f5e9; color: #388e3c; }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-summary {
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .activity-meta {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-indicator.online { background: #28a745; }
+        .status-indicator.offline { background: #dc3545; }
+        .status-indicator.healthy { background: #28a745; }
+        .status-indicator.degraded { background: #ffc107; }
+        .status-indicator.unhealthy { background: #dc3545; }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+
+            .manufacturer-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .timestamp {
+            text-align: right;
+            color: #999;
+            font-size: 11px;
+            margin-top: 20px;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <h1>Micboard Platform Dashboard</h1>
+
+    <!-- System Health Overview -->
+    <div class="dashboard-grid">
+        <div class="stat-card">
+            <h3>System Health</h3>
+            <div style="font-size: 14px; margin-bottom: 15px;">
+                <span class="status-badge status-{{ system_health.status }}">
+                    {{ system_health.status|upper }}
+                </span>
+            </div>
+            <div class="stat-values">
+                <div class="stat-value">
+                    <div class="label">Online Devices</div>
+                    <div class="value">{{ system_health.online_devices }} / {{ system_health.total_devices }}</div>
+                </div>
+                <div class="stat-value">
+                    <div class="label">Online %</div>
+                    <div class="value">{{ system_health.online_percentage }}%</div>
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ system_health.online_percentage }}%;">
+                    {{ system_health.online_percentage }}%
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <h3>Receivers</h3>
+            <div class="stat-values">
+                <div class="stat-value">
+                    <div class="label">Total</div>
+                    <div class="value">{{ receiver_stats.total }}</div>
+                </div>
+                <div class="stat-value">
+                    <div class="label">Online</div>
+                    <div class="value" style="color: #28a745;">{{ receiver_stats.online }}</div>
+                </div>
+                <div class="stat-value">
+                    <div class="label">Offline</div>
+                    <div class="value" style="color: #dc3545;">{{ receiver_stats.offline }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <h3>Transmitters</h3>
+            <div class="stat-values">
+                <div class="stat-value">
+                    <div class="label">Total</div>
+                    <div class="value">{{ transmitter_stats.total }}</div>
+                </div>
+                <div class="stat-value">
+                    <div class="label">Online</div>
+                    <div class="value" style="color: #28a745;">{{ transmitter_stats.online }}</div>
+                </div>
+                <div class="stat-value">
+                    <div class="label">Offline</div>
+                    <div class="value" style="color: #dc3545;">{{ transmitter_stats.offline }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <h3>Channels</h3>
+            <div class="stat-values">
+                <div class="stat-value">
+                    <div class="label">Total</div>
+                    <div class="value">{{ channel_stats.total }}</div>
+                </div>
+                <div class="stat-value">
+                    <div class="label">Active</div>
+                    <div class="value">{{ channel_stats.active }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manufacturers -->
+    <h2 class="section-title">Manufacturer Status</h2>
+    <div class="manufacturer-grid">
+        {% for mfg in manufacturer_stats %}
+        <div class="manufacturer-card">
+            <h4>{{ mfg.name }}</h4>
+            <div class="manufacturer-stat">
+                <span class="label">Status</span>
+                <span class="status-badge status-{{ mfg.service_status }}">{{ mfg.service_status|upper }}</span>
+            </div>
+            <div class="manufacturer-stat">
+                <span class="label">Receivers</span>
+                <span class="value">
+                    <span class="status-indicator online"></span>{{ mfg.online_receivers }} / {{ mfg.receiver_count }}
+                </span>
+            </div>
+            <div class="manufacturer-stat">
+                <span class="label">Transmitters</span>
+                <span class="value">
+                    <span class="status-indicator online"></span>{{ mfg.online_transmitters }} / {{ mfg.transmitter_count }}
+                </span>
+            </div>
+            <div class="manufacturer-stat">
+                <span class="label">Last Poll</span>
+                <span class="value">
+                    {% if mfg.last_poll %}
+                        {{ mfg.last_poll|slice:":16" }}
+                    {% else %}
+                        Never
+                    {% endif %}
+                </span>
+            </div>
+            {% if mfg.error_count > 0 %}
+            <div class="manufacturer-stat">
+                <span class="label" style="color: #dc3545;">Errors</span>
+                <span class="value" style="color: #dc3545;">{{ mfg.error_count }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Recent Activities and Syncs -->
+    <h2 class="section-title">Recent Activity</h2>
+    <div class="two-column">
+        <div>
+            <h3 style="margin: 0 0 15px 0; font-size: 16px;">Latest Activities</h3>
+            <div class="activity-list">
+                {% for activity in recent_activities %}
+                <div class="activity-item">
+                    <div class="activity-icon {{ activity.activity_type|lower }}">●</div>
+                    <div class="activity-content">
+                        <div class="activity-summary">{{ activity.summary }}</div>
+                        <div class="activity-meta">
+                            {{ activity.user }} • {{ activity.created_at|slice:":19" }}
+                            <span class="status-badge" style="margin-left: 8px; padding: 2px 6px; font-size: 10px;">
+                                {{ activity.status|upper }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="activity-item">
+                    <div style="color: #999;">No recent activities</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div>
+            <h3 style="margin: 0 0 15px 0; font-size: 16px;">Latest Syncs</h3>
+            <div class="activity-list">
+                {% for sync in recent_syncs %}
+                <div class="activity-item">
+                    <div class="activity-icon sync">⟳</div>
+                    <div class="activity-content">
+                        <div class="activity-summary">{{ sync.service }} - {{ sync.sync_type }}</div>
+                        <div class="activity-meta">
+                            <span class="status-badge" style="margin-right: 8px;">{{ sync.status|upper }}</span>
+                            {{ sync.device_count }} devices • {{ sync.duration }}s • {{ sync.started_at|slice:":19" }}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="activity-item">
+                    <div style="color: #999;">No recent syncs</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="timestamp">
+        Last updated: {{ timestamp|slice:":19" }}
+    </div>
+</div>
+{% endblock %}

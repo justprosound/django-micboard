@@ -114,7 +114,7 @@ class ReceiverAdmin(admin.ModelAdmin):
         "active_transmitters",
         "last_seen",
     )
-    list_filter = ("device_type", "is_active", "manufacturer")
+    list_filter = ("device_type", "status", "manufacturer")
     search_fields = ("name", "ip", "api_device_id")
     inlines: ClassVar[list] = [ChannelInline]
     readonly_fields = ("last_seen", "get_hardware_summary")
@@ -141,7 +141,7 @@ class ReceiverAdmin(admin.ModelAdmin):
         for each receiver list channels with their current frequency (if any).
         """
         receivers_qs = (
-            Receiver.objects.filter(is_active=True)
+            Receiver.objects.filter(status__in=["online", "degraded", "provisioning"])
             .select_related("manufacturer")
             .prefetch_related(
                 "channels__transmitter",
@@ -239,7 +239,7 @@ class ReceiverAdmin(admin.ModelAdmin):
                 )
             },
         ),
-        ("Status", {"fields": ("is_active", "last_seen")}),
+        ("Status", {"fields": ("status", "last_seen")}),
         (
             "Hardware Layout",
             {
@@ -265,24 +265,30 @@ class ReceiverAdmin(admin.ModelAdmin):
         )
 
     status_indicator.short_description = "Status"  # type: ignore
-    status_indicator.admin_order_field = "is_active"  # type: ignore
+    status_indicator.admin_order_field = "status"  # type: ignore
 
     @admin.action(description="Mark selected receivers as online")
     def mark_online(self, request, queryset):
         """Mark selected receivers as online."""
+        from micboard.services.device_lifecycle import get_lifecycle_manager
+        
+        lifecycle = get_lifecycle_manager('shure')  # Default to shure, could be dynamic
         updated = 0
         for receiver in queryset:
-            receiver.mark_online()
-            updated += 1
+            if lifecycle.mark_online(receiver):
+                updated += 1
         self.message_user(request, f"{updated} receiver(s) marked as online.")
 
     @admin.action(description="Mark selected receivers as offline")
     def mark_offline(self, request, queryset):
         """Mark selected receivers as offline."""
+        from micboard.services.device_lifecycle import get_lifecycle_manager
+        
+        lifecycle = get_lifecycle_manager('shure')  # Default to shure, could be dynamic
         updated = 0
         for receiver in queryset:
-            receiver.mark_offline()
-            updated += 1
+            if lifecycle.mark_offline(receiver):
+                updated += 1
         self.message_user(request, f"{updated} receiver(s) marked as offline.")
 
     @admin.action(description="Sync selected receivers from API")
@@ -318,7 +324,9 @@ class ReceiverAdmin(admin.ModelAdmin):
                     receiver.firmware_version = transformed_data.get(
                         "firmware", receiver.firmware_version
                     )
-                    receiver.mark_online()
+                    # Use lifecycle manager for status update
+                    lifecycle = get_lifecycle_manager(receiver.manufacturer.code)
+                    lifecycle.mark_online(receiver)
                     synced += 1
             except Exception as e:
                 logger.error("Failed to sync %s: %s", receiver.api_device_id, e)

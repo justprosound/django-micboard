@@ -50,7 +50,7 @@ class MonitoringGroupAdmin(admin.ModelAdmin):
     """Admin configuration for MonitoringGroup model."""
 
     list_display = ("name", "is_active")
-    list_filter = ("is_active",)
+    list_filter = ()
     search_fields = ("name", "description")
     filter_horizontal = (
         "users",

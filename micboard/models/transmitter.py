@@ -39,11 +39,23 @@ class Transmitter(models.Model):
         default=UNKNOWN_BYTE_VALUE, help_text="Signal quality (0-255)"
     )
     runtime = models.CharField(max_length=20, blank=True, help_text="Runtime information")
-    status = models.CharField(max_length=50, blank=True, help_text="Transmitter status")
+    
+    # Lifecycle status
+    status = models.CharField(
+        max_length=20,
+        default="discovered",
+        db_index=True,
+        help_text="Current lifecycle status of the device",
+    )
+    api_status = models.CharField(max_length=50, blank=True, help_text="Transmitter status from API")
+    
     name = models.CharField(max_length=100, blank=True, help_text="Transmitter name")
     name_raw = models.CharField(max_length=100, blank=True, help_text="Raw transmitter name")
     charging_status = models.BooleanField(
         default=False, help_text="Whether the transmitter is currently charging"
+    )
+    last_seen = models.DateTimeField(
+        null=True, blank=True, help_text="Last time this device was successfully polled"
     )
     updated_at = models.DateTimeField(auto_now=True, help_text="Last update timestamp")
 
@@ -81,10 +93,17 @@ class Transmitter(models.Model):
 
     @property
     def is_active(self) -> bool:
-        """Check if transmitter is currently active (recently updated)"""
-        if not self.updated_at:
+        """Check if transmitter is currently active based on status and recency."""
+        active_states = ["online", "degraded", "provisioning"]
+        if self.status not in active_states:
             return False
-        time_since = timezone.now() - self.updated_at
+        
+        # Check recency
+        check_time = self.last_seen or self.updated_at
+        if not check_time:
+            return False
+        
+        time_since = timezone.now() - check_time
         return time_since < timedelta(minutes=5)  # type: ignore
 
     def get_signal_quality(self) -> str:

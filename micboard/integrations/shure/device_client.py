@@ -131,7 +131,26 @@ class ShureDeviceClient:
         return device_data
 
     def poll_all_devices(self) -> dict[str, dict[str, Any]]:
-        """Poll all devices and return aggregated data with transmitter info."""
+        """
+        Poll all devices and return raw aggregated data.
+        
+        NOTE: This method is deprecated. Use DeviceService.poll_and_sync_all() instead.
+        This method returns raw API data without saving to database - it's now
+        just a thin wrapper for backwards compatibility.
+        
+        For new code:
+            from micboard.services import DeviceService
+            service = DeviceService(manufacturer)
+            result = service.poll_and_sync_all()
+        """
+        import warnings
+        warnings.warn(
+            "ShureDeviceClient.poll_all_devices() is deprecated. "
+            "Use DeviceService.poll_and_sync_all() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        
         try:
             devices = self.get_devices()
             logger.info("Polling %d devices from Shure System API", len(devices))
