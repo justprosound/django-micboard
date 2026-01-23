@@ -238,7 +238,7 @@ ruamel-yaml==0.18.16
     # via
     #   safety
     #   safety-schemas
-ruff==0.14.2
+ruff==0.14.14
     # via django-micboard (pyproject.toml)
 safety==3.6.2
     # via django-micboard (pyproject.toml)
