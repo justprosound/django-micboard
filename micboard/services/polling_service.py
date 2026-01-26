@@ -1,5 +1,4 @@
-"""
-Polling orchestration service for django-micboard.
+"""Polling orchestration service for django-micboard.
 
 Coordinates device polling across all manufacturers, manages polling state,
 and broadcasts updates via WebSocket/signals.
@@ -8,9 +7,11 @@ and broadcasts updates via WebSocket/signals.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from django.utils import timezone
+
+from micboard.services.base_polling_mixin import PollingMixin
 
 if TYPE_CHECKING:
     from micboard.models import Manufacturer
@@ -18,9 +19,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PollingService:
-    """
-    Service for orchestrating device polling across manufacturers.
+class PollingService(PollingMixin):
+    """Service for orchestrating device polling across manufacturers.
 
     Provides high-level API for triggering polls, checking health,
     and broadcasting results. Uses DeviceService internally for
@@ -31,63 +31,58 @@ class PollingService:
         """Initialize polling service."""
         pass
 
-    def poll_all_manufacturers(self) -> dict[str, Any]:
+    def refresh_devices(self, *, manufacturer: str | None = None) -> dict[str, Any]:
+        """Refresh device data by invoking the standard polling pipeline.
+
+        Args:
+            manufacturer: Optional manufacturer code to scope the refresh. If omitted,
+                all manufacturers are refreshed.
+
+        Returns:
+            Mapping of manufacturer code to refresh summary including status and counts.
         """
-        Poll all active manufacturers.
+        from micboard.models import Manufacturer
+
+        results: dict[str, dict[str, Any]] = {}
+        queryset = (
+            Manufacturer.objects.filter(code=manufacturer)
+            if manufacturer
+            else Manufacturer.objects.all()
+        )
+
+        for mfr in queryset:
+            poll_result = self.poll_manufacturer(mfr)
+            device_count = poll_result.get("devices_created", 0) + poll_result.get(
+                "devices_updated", 0
+            )
+            has_errors = bool(poll_result.get("errors")) or poll_result.get("status") == "failed"
+
+            results[mfr.code] = {
+                "status": "error" if has_errors else "success",
+                "device_count": device_count,
+                "updated": device_count,
+                "errors": poll_result.get("errors", []),
+            }
+
+        return results
+
+    def poll_all_manufacturers(self) -> dict[str, Any]:
+        """Poll all active manufacturers using centralized mixin logic.
 
         Returns:
             Dictionary with results per manufacturer
         """
-        from micboard.models import Manufacturer
-
-        manufacturers = Manufacturer.objects.filter(is_active=True)
-
-        results = {
-            "timestamp": timezone.now().isoformat(),
-            "total_manufacturers": manufacturers.count(),
-            "manufacturers": {},
-            "summary": {
-                "total_devices": 0,
-                "total_transmitters": 0,
-                "errors": [],
-            },
-        }
-
-        for manufacturer in manufacturers:
-            try:
-                result = self.poll_manufacturer(manufacturer)
-                results["manufacturers"][manufacturer.code] = result
-
-                # Aggregate stats
-                results["summary"]["total_devices"] += (
-                    result.get("devices_created", 0) + result.get("devices_updated", 0)
-                )
-                results["summary"]["total_transmitters"] += result.get("transmitters_synced", 0)
-
-                if result.get("errors"):
-                    results["summary"]["errors"].extend(result["errors"])
-
-            except Exception as e:
-                error_msg = f"Failed to poll {manufacturer.name}: {e}"
-                logger.exception(error_msg)
-                results["summary"]["errors"].append(error_msg)
-                results["manufacturers"][manufacturer.code] = {
-                    "status": "failed",
-                    "error": str(e),
-                }
-
-        logger.info(
-            "Polling complete: %d manufacturers, %d devices, %d transmitters",
-            results["total_manufacturers"],
-            results["summary"]["total_devices"],
-            results["summary"]["total_transmitters"],
+        return self.poll_all_manufacturers_with_handler(
+            on_manufacturer_polled=self._poll_manufacturer_handler,
+            on_complete=self._on_polling_complete,
         )
 
-        return results
+    def _poll_manufacturer_handler(self, manufacturer: Manufacturer) -> dict[str, Any]:
+        """Handler invoked by mixin for each manufacturer."""
+        return self.poll_manufacturer(manufacturer)
 
     def poll_manufacturer(self, manufacturer: Manufacturer) -> dict[str, Any]:
-        """
-        Poll a specific manufacturer for device updates.
+        """Poll a specific manufacturer for device updates.
 
         Args:
             manufacturer: Manufacturer instance
@@ -96,6 +91,7 @@ class PollingService:
             Dictionary with polling results
         """
         from micboard.services.device_service import DeviceService
+        from micboard.services.signal_emitter import SignalEmitter
 
         logger.info("Starting poll for manufacturer: %s", manufacturer.name)
 
@@ -108,14 +104,14 @@ class PollingService:
             if not result.get("errors"):
                 self.broadcast_device_updates(manufacturer, result)
 
-            # Emit signal for monitoring
-            self._emit_polling_signal(manufacturer, result)
+            # Emit signal using centralized SignalEmitter
+            SignalEmitter.emit_devices_polled(manufacturer, result)
 
             logger.info(
-                "Poll complete for %s: %d devices, %d transmitters, %d errors",
+                "Poll complete for %s: %d chassis, %d units, %d errors",
                 manufacturer.name,
                 result.get("devices_created", 0) + result.get("devices_updated", 0),
-                result.get("transmitters_synced", 0),
+                result.get("units_synced", 0),
                 len(result.get("errors", [])),
             )
 
@@ -130,13 +126,20 @@ class PollingService:
                 "error": str(e),
                 "devices_created": 0,
                 "devices_updated": 0,
-                "transmitters_synced": 0,
+                "units_synced": 0,
                 "errors": [str(e)],
             }
 
+    def _on_polling_complete(self, results: dict[str, Any]) -> None:
+        """Callback invoked after all manufacturers are polled."""
+        # Could run alerts, cleanup, etc.
+        logger.debug(
+            "Polling sequence completed: %d manufacturers",
+            results.get("total_manufacturers"),
+        )
+
     def broadcast_device_updates(self, manufacturer: Manufacturer, data: dict[str, Any]) -> None:
-        """
-        Broadcast device updates via WebSocket/Channels.
+        """Broadcast device updates via WebSocket/Channels.
 
         Args:
             manufacturer: Manufacturer that was polled
@@ -146,7 +149,7 @@ class PollingService:
             from asgiref.sync import async_to_sync
             from channels.layers import get_channel_layer
 
-            from micboard.models import Receiver
+            from micboard.models import WirelessChassis
             from micboard.serializers import ReceiverSummarySerializer
             from micboard.services.device_lifecycle import DeviceStatus
 
@@ -155,10 +158,12 @@ class PollingService:
                 logger.debug("No channel layer configured; skipping broadcast")
                 return
 
-            # Serialize receiver data for broadcast - use status field
+            # Serialize chassis data for broadcast - use status field
             active_statuses = DeviceStatus.active_states()
-            receivers = Receiver.objects.filter(manufacturer=manufacturer, status__in=active_statuses)
-            serialized = ReceiverSummarySerializer(receivers, many=True).data
+            chassis_qs = WirelessChassis.objects.filter(
+                manufacturer=manufacturer, status__in=active_statuses
+            )
+            serialized = ReceiverSummarySerializer(chassis_qs, many=True).data
 
             # Send to WebSocket group
             async_to_sync(channel_layer.group_send)(
@@ -172,38 +177,61 @@ class PollingService:
             )
 
             logger.debug(
-                "Broadcasted updates for %d devices from %s", len(serialized), manufacturer.name
+                "Broadcasted updates for %d chassis from %s", len(serialized), manufacturer.name
             )
 
         except Exception:
             logger.exception("Failed to broadcast device updates for %s", manufacturer.name)
 
-    def _emit_polling_signal(self, manufacturer: Manufacturer, data: dict[str, Any]) -> None:
-        """
-        Emit Django signal for polling completion.
+    def check_api_health(self, manufacturer: Manufacturer) -> dict[str, Any]:
+        """Check API health for a specific manufacturer.
+
+        Uses centralized health response standardization and signal emission.
 
         Args:
-            manufacturer: Manufacturer that was polled
-            data: Polling result data
+            manufacturer: Manufacturer to check
+
+        Returns:
+            Dictionary with standardized health status
         """
+        from micboard.manufacturers import get_manufacturer_plugin
+        from micboard.services.signal_emitter import SignalEmitter
+
         try:
-            from micboard.signals.broadcast_signals import devices_polled
+            plugin_class = get_manufacturer_plugin(manufacturer.code)
+            plugin = plugin_class(manufacturer)
+            client = plugin.get_client()
 
-            devices_polled.send(sender=self.__class__, manufacturer=manufacturer, data=data)
+            if hasattr(client, "check_health"):
+                raw_health = client.check_health()
+            else:
+                raw_health = {
+                    "status": "unknown",
+                    "message": "Health check not implemented for this manufacturer",
+                }
 
-            logger.debug("Emitted devices_polled signal for %s", manufacturer.name)
+            # Standardize the response format
+            standardized = self._standardize_health_response(raw_health)
 
-        except Exception:
-            logger.debug("Failed to emit devices_polled signal", exc_info=True)
+            # Emit signal using centralized SignalEmitter
+            SignalEmitter.emit_api_health_changed(manufacturer, standardized)
+
+            return standardized
+
+        except Exception as e:
+            logger.exception("Error checking API health for %s", manufacturer.name)
+            error_response = self._standardize_health_response({"status": "error", "error": str(e)})
+            # Still emit signal for error status
+            SignalEmitter.emit_api_health_changed(manufacturer, error_response)
+            return error_response
 
     def get_polling_health(self) -> dict[str, Any]:
-        """
-        Check polling health status across all manufacturers.
+        """Check polling health status across all manufacturers.
 
         Returns:
             Dictionary with health status
         """
-        from micboard.models import Manufacturer, Receiver
+        from micboard.models import Manufacturer, WirelessChassis
         from micboard.services.device_lifecycle import DeviceStatus
 
         manufacturers = Manufacturer.objects.filter(is_active=True)
@@ -219,20 +247,20 @@ class PollingService:
             },
         }
 
-        online_statuses = {'online'}
+        online_statuses = {"online"}
         active_statuses = DeviceStatus.active_states()
 
         for manufacturer in manufacturers:
-            receivers = Receiver.objects.filter(manufacturer=manufacturer)
-            active_receivers = receivers.filter(status__in=active_statuses)
-            online_receivers = active_receivers.filter(status__in=online_statuses)
+            chassis_qs = WirelessChassis.objects.filter(manufacturer=manufacturer)
+            active_chassis = chassis_qs.filter(status__in=active_statuses)
+            online_chassis = active_chassis.filter(status__in=online_statuses)
 
             mfr_health = {
                 "name": manufacturer.name,
-                "total_devices": receivers.count(),
-                "active_devices": active_receivers.count(),
-                "online_devices": online_receivers.count(),
-                "status": "healthy" if online_receivers.exists() else "warning",
+                "total_devices": chassis_qs.count(),
+                "active_devices": active_chassis.count(),
+                "online_devices": online_chassis.count(),
+                "status": "healthy" if online_chassis.exists() else "warning",
             }
 
             # Check API client health
@@ -268,43 +296,10 @@ class PollingService:
 
         return health
 
-    def check_api_health(self, manufacturer: Manufacturer) -> dict[str, Any]:
-        """
-        Check API health for a specific manufacturer.
-
-        Args:
-            manufacturer: Manufacturer to check
-
-        Returns:
-            Dictionary with health status
-        """
-        try:
-            from micboard.manufacturers import get_manufacturer_plugin
-
-            plugin_class = get_manufacturer_plugin(manufacturer.code)
-            plugin = plugin_class(manufacturer)
-            client = plugin.get_client()
-
-            if hasattr(client, "check_health"):
-                return cast(dict[str, Any], client.check_health())
-
-            return {
-                "status": "unknown",
-                "message": "Health check not implemented for this manufacturer",
-            }
-
-        except Exception as e:
-            logger.exception("Error checking API health for %s", manufacturer.name)
-            return {
-                "status": "error",
-                "error": str(e),
-            }
-
 
 # Convenience function for quick access
 def get_polling_service() -> PollingService:
-    """
-    Get a PollingService instance.
+    """Get a PollingService instance.
 
     Returns:
         PollingService instance

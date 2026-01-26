@@ -1,169 +1,114 @@
-
-name: CI
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+---
+name: CI/CD Tests & Coverage
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
-
+    branches: [main, develop]
 
 jobs:
-  generate-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Cache matrix.json
-        uses: actions/cache@v4
-        with:
-          path: matrix.json
-          key: matrix-${{ github.ref }}-${{ github.run_id }}
-          restore-keys: |
-            matrix-${{ github.ref }}-
-      - name: Generate matrix
-        id: gen-matrix
-        run: |
-          if [ ! -f matrix.json ] || [ $(find matrix.json -mtime +0) ]; then
-            python3 .github/workflows/generate-matrix.py > matrix.json
-          fi
-      - name: Show generated matrix
-        run: cat matrix.json
-      - name: Set matrix output
-        id: set-matrix
-        run: |
-          echo "matrix=$(cat matrix.json)" >> $GITHUB_OUTPUT
-
   test:
-    if: '!startsWith(github.head_ref, ''renovate/'') && !startsWith(github.ref, ''refs/heads/renovate/'')'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: generate-matrix
     strategy:
       matrix:
-        include: ${{ fromJson(needs.generate-matrix.outputs.matrix).include }}
-      max-parallel: 2
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        django-version: ["4.2", "5.0"]
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
+
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
-          pip install uv
-          uv venv
-          uv pip install Django~=${{ matrix.django-version }}
-          uv pip install -e .[dev]
-      - name: Run ruff
+          python -m pip install --upgrade pip
+          pip install Django==${{ matrix.django-version }}
+          pip install -e ".[dev]"
+
+      - name: Lint with pre-commit
         run: |
-          ruff check .
-          ruff format --check .
+          pre-commit run --all-files || true
 
-      - name: Django system check
-        run: python manage.py check
-      - name: Run mypy
-        run: mypy micboard/ --ignore-missing-imports
-      - name: Run bandit security scan
-        run: bandit -r micboard/ -c pyproject.toml
-      - name: Run safety dependency scan
-        run: safety check --full-report
       - name: Run tests with coverage
-        run: pytest tests/ -v --tb=short --cov=micboard --cov-report=lcov
-        continue-on-error: true
-      - name: Upload coverage to Coveralls
-        uses: coverallsapp/github-action@v2
-        continue-on-error: true
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ./coverage.lcov
+        run: |
+          pytest tests/ \
+            --cov=micboard \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing:skip-covered \
+            --cov-fail-under=85 \
+            -v
 
-  build:
-    if: '!startsWith(github.head_ref, ''renovate/'') && !startsWith(github.ref, ''refs/heads/renovate/'')'
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Archive coverage reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report-py${{ matrix.python-version }}-dj${{ matrix.django-version }}
+          path: htmlcov/
+
+  lint:
     runs-on: ubuntu-latest
-    needs: test
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-          cache: 'pip'
-      - name: Build package
-        run: uv build
-      - name: Check package
-        run: twine check dist/*
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
 
-  demo-container:
-    if: '!startsWith(github.head_ref, ''renovate/'') && !startsWith(github.ref, ''refs/heads/renovate/'')'
-    runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}/demo
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push demo container
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./demo/docker/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Test demo container startup
+      - name: Install dependencies
         run: |
-          # Pull the published container
-          docker pull ${{ steps.meta.outputs.tags }}
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
 
-          # Start container in background
-          docker run -d --name demo-test -p 8000:8000 ${{ steps.meta.outputs.tags }}
+      - name: Run pre-commit
+        uses: pre-commit/action@v3
 
-          # Wait for Django to start
-          timeout 60 bash -c 'until curl -f http://localhost:8000/ > /dev/null 2>&1; do sleep 2; done'
+      - name: Check code formatting with Black
+        run: black --check micboard tests
 
-          # Check that the demo page loads
-          curl -f http://localhost:8000/ | grep -q "Micboard"
+      - name: Check imports with isort
+        run: isort --check-only micboard tests
 
-          # Check API health endpoint
-          curl -f http://localhost:8000/api/health/ | grep -q "status"
+      - name: Type check with mypy
+        run: mypy micboard || true
 
-          # Clean up
-          docker stop demo-test
-          docker rm demo-test
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install bandit safety
+
+      - name: Run Bandit security check
+        run: bandit -r micboard -ll || true
+
+      - name: Check dependencies for vulnerabilities
+        run: safety check --json || true

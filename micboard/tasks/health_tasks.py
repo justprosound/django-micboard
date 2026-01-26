@@ -1,6 +1,4 @@
-"""
-Health-related background tasks for the micboard app.
-"""
+"""Health-related background tasks for the micboard app."""
 
 # Health-related background tasks for the micboard app.
 from __future__ import annotations
@@ -19,9 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def check_manufacturer_api_health(manufacturer_id: int):
-    """
-    Task to check a specific manufacturer's API health.
-    """
+    """Task to check a specific manufacturer's API health."""
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
         plugin_class = get_manufacturer_plugin(manufacturer.code)
@@ -53,9 +49,7 @@ def check_manufacturer_api_health(manufacturer_id: int):
 
 
 def check_realtime_connection_health():
-    """
-    Task to check health of real-time connections and clean up stale connections.
-    """
+    """Task to check health of real-time connections and clean up stale connections."""
     try:
         # Check for connections that haven't received messages recently
         stale_threshold = timezone.now() - timedelta(minutes=10)
@@ -99,8 +93,7 @@ def check_realtime_connection_health():
 
 
 def get_realtime_connection_status():
-    """
-    Get a summary of real-time connection statuses.
+    """Get a summary of real-time connection statuses.
 
     Returns:
         dict: Summary of connection statuses

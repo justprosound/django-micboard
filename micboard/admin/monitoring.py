@@ -1,7 +1,9 @@
-"""
-Admin configuration for monitoring models (Location, MonitoringGroup, Group, Config, DiscoveredDevice).
+"""Admin configuration for monitoring models.
 
-This module provides Django admin interfaces for managing monitoring groups, locations, and system configuration.
+(Location, MonitoringGroup, Group, Config, DiscoveredDevice).
+
+This module provides Django admin interfaces for managing monitoring groups,
+locations, and system configuration.
 """
 
 from __future__ import annotations

@@ -1,158 +1,72 @@
 # django-micboard
 
-> **⚠️ MAJOR WORK IN PROGRESS**: This project is still a major work in progress and under active development. It is not yet ready for production use. Features, APIs, and documentation may change without notice.
+Real-time multi-manufacturer wireless microphone monitoring for Django.
 
-A community-driven open source Django app for real-time monitoring and management of wireless microphone systems. Integrates with external Shure System API middleware for device communication.
+django-micboard provides a unified interface for monitoring wireless audio systems (Shure, Sennheiser, etc.) in real-time using Django Channels and manufacturer-specific APIs.
 
-## Version: 25.10.17
+## Features
 
-This project uses [Calendar Versioning](https://calver.org/) (YY.MM.DD) for easier tracking of changes against releases.
-
-[![PyPI Version](https://img.shields.io/pypi/v/django-micboard)](https://pypi.org/project/django-micboard/)
-[![Build Status](https://github.com/justprosound/django-micboard/actions/workflows/ci.yml/badge.svg)](https://github.com/justprosound/django-micboard/actions)
-[![Coverage Status](https://coveralls.io/repos/github/justprosound/django-micboard/badge.svg?branch=main)](https://coveralls.io/github/justprosound/django-micboard?branch=main)
-[![Documentation Status](https://readthedocs.org/projects/django-micboard/badge/?version=latest)](https://django-micboard.readthedocs.io/en/latest/?badge=latest)
-
-## Architecture
-
-```
-Shure/Sennheiser Devices → Manufacturer APIs → poll_devices → Models → Real-Time Subscriptions → WebSocket
-                                      ↓
-                            RealTimeConnection Tracking
-                                      ↓
-                            Health Monitoring & Admin
-```
-
-- **Manufacturer APIs**: External APIs for Shure System API and Sennheiser SSCv2
-- **poll_devices**: Management command that polls APIs, updates models, starts real-time subscriptions
-- **Real-Time Subscriptions**: SSE (Sennheiser) and WebSocket (Shure) connections with automatic failover
-- **RealTimeConnection**: Model tracking connection status and health monitoring
-- **WebSocket**: Real-time updates to frontend via Django Channels
+- **Multi-Manufacturer Support**: Plugin architecture for Shure System API, Sennheiser SSCv2, and more.
+- **Real-Time Updates**: Live telemetry via WebSockets/SSE.
+- **Device Lifecycle Management**: Automated discovery, tracking, and movement logging.
+- **Regulatory Compliance**: Integrated frequency auditing against regulatory domains.
+- **Alerting System**: User-specific notification preferences for battery, signal loss, and offline events.
 
 ## Requirements
 
 - Python 3.9+
-- Django 4.2+/5.0+
-- Shure System API server (for Shure devices)
-- Sennheiser SSCv2 API (for Sennheiser devices)
-- Redis (recommended for production WebSocket support)
+- Django 4.2+ / 5.0+
+- Redis (required for production WebSockets)
+- Manufacturer Middleware (e.g., Shure System API server)
 
-## Features
+## Local Setup
 
-- **Multi-Manufacturer Support**: Plugin architecture for Shure, Sennheiser, and future manufacturers
-- **Real-Time Monitoring**: SSE/WebSocket subscriptions with automatic failover and health monitoring
-- **Connection Tracking**: Comprehensive monitoring of real-time connection status and errors
-- **Management Commands**: CLI tools for polling devices and monitoring connections
-- **Admin Interface**: Visual oversight of devices, connections, and system health
-- **WebSocket Broadcasting**: Real-time updates via Django Channels
-- **Rate Limiting**: API protection with token bucket algorithm
-- **User Assignment System**: Device-to-user assignments with alert preferences
+1. **Clone and Install**:
+   ```bash
+   git clone https://github.com/justprosound/django-micboard.git
+   cd django-micboard
+   pip install -e ".[dev,all]"
+   ```
 
-## Installation
+2. **Environment Configuration**:
+   Create a `.env` file based on `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
 
-### Option 1: Install from PyPI (When Available)
+3. **Initialize Database**:
+   *(For development only - do not run in production if database already exists)*
+   ```bash
+   python manage.py migrate
+   ```
 
-```bash
-pip install django-micboard
-# Or with Redis support
-pip install django-micboard[redis]
-```
+4. **Run Services**:
+   ```bash
+   # Terminal 1: Django server
+   python manage.py runserver
 
-### Option 2: Install from Source (Development)
+   # Terminal 2: Device polling
+   python manage.py poll_devices
+   ```
 
-```bash
-git clone https://github.com/justprosound/django-micboard.git
-cd django-micboard
-pip install -e .  # Editable install
-```
-
-## Quick Start
-
-See [docs/quickstart.md](docs/quickstart.md) for detailed setup instructions.
-
-### Minimal Setup
-
-1. Add to `INSTALLED_APPS`:
-```python
-INSTALLED_APPS = [
-    # ... other apps
-    'channels',
-    'micboard',
-]
-```
-
-2. Configure Shure System API connection:
-```python
-MICBOARD_CONFIG = {
-    'SHURE_API_BASE_URL': 'http://localhost:10000',  # or https:// for SSL
-    'SHURE_API_SHARED_KEY': 'your-shared-secret-here',  # Required: from Shure System API
-    'SHURE_API_VERIFY_SSL': True,  # Set to False only for self-signed certificates
-}
-```
-
-3. Configure Channels:
-```python
-ASGI_APPLICATION = 'your_project.asgi.application'
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
-    },
-}
-```
-
-4. Run migrations:
-```bash
-python manage.py migrate
-```
-
-5. Start services:
-```bash
-# Terminal 1: Django/Daphne
-daphne -b 0.0.0.0 -p 8000 your_project.asgi:application
-
-# Terminal 2: Device polling (required)
-python manage.py poll_devices
-```
-
-## Documentation
-
-- [Quick Start Guide](docs/quickstart.md)
-- [Architecture Overview](docs/architecture.md)
-- [Configuration Guide](docs/configuration.md)
-- [Rate Limiting](docs/rate-limiting.md)
-- [API Reference](docs/api-reference.md)
-- [User Assignments](docs/user-assignments.md)
-- [Dependency Management](docs/dependency-management.md)
-- [Changelog](docs/changelog.md)
-
-## Testing
+## Running Tests
 
 ```bash
-pytest tests/ -v  # 60 tests
+pytest
 ```
 
-## Contributing
+## Development
 
-This is a community-driven open source project. Contributions welcome!
+We use `ruff` for linting/formatting and `pre-commit` for git hooks.
+```bash
+pre-commit install
+pre-commit run --all-files
+```
 
-1. Follow existing code patterns
-2. Add type hints and docstrings
-3. Use keyword-only parameters for optional args
-4. Run tests before submitting: `pytest tests/ -v`
-5. Update documentation as needed
+## Deployment
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+Ensure `DEBUG=False` and all secrets are provided via environment variables. Do NOT manually edit migration files. Static files should be collected via `python manage.py collectstatic`.
 
 ## License
 
-AGPL-3.0-or-later
-
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-
-See [LICENSE](LICENSE) for full text.
-
-## Support
-
-- **Issues**: Open an issue on GitHub
-- **Shure System API**: Consult [Shure API Documentation](https://shure.stoplight.io)
-- **Django Channels**: See [Channels Documentation](https://channels.readthedocs.io/)
+AGPL-3.0-or-later - see [LICENSE](LICENSE) for details.

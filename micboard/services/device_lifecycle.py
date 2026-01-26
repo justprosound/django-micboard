@@ -1,5 +1,4 @@
-"""
-Device lifecycle management service.
+"""Device lifecycle management service.
 
 Handles all device state transitions, validation, and bi-directional sync
 with manufacturer APIs. Replaces signal-based state management with direct,
@@ -18,14 +17,13 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
 if TYPE_CHECKING:
-    from micboard.models import Receiver, Transmitter
+    from micboard.models import WirelessChassis, WirelessUnit
 
 logger = logging.getLogger(__name__)
 
@@ -58,15 +56,14 @@ class DeviceStatus(str, Enum):
 
 
 class DeviceLifecycleManager:
-    """
-    Centralized manager for device lifecycle operations.
+    """Centralized manager for device lifecycle operations.
 
     Handles:
     - State transitions with validation
     - Bi-directional sync with manufacturer APIs
     - Activity logging
     - Health monitoring
-    
+
     Does NOT use signals for state management (signals only for broadcasts).
     """
 
@@ -106,28 +103,54 @@ class DeviceLifecycleManager:
         DeviceStatus.RETIRED.value: [],  # Terminal state
     }
 
-    def __init__(self, service_code: Optional[str] = None):
-        """
-        Initialize lifecycle manager.
+    def __init__(
+        self,
+        service_code: Optional[str] = None,
+        *,
+        structured_logger=None,
+    ):
+        """Initialize lifecycle manager.
 
         Args:
             service_code: Optional manufacturer service code for logging context
+            structured_logger: Optional structured logger instance for consistent event formatting
         """
         self.service_code = service_code
-        self._logger = get_structured_logger()
+        try:
+            self._logger = structured_logger or get_structured_logger()
+        except Exception:
+            logger.debug("Falling back to standard logger; structured logger unavailable")
+            self._logger = None
 
-    @transaction.atomic
-    def transition_device(
+    def transition(
         self,
-        device: Receiver | Transmitter,
+        device: WirelessChassis | WirelessUnit,
         to_status: str,
         *,
         reason: str = "",
         metadata: Optional[Dict[str, Any]] = None,
         sync_to_api: bool = False,
     ) -> bool:
-        """
-        Transition device to new status with validation and logging.
+        """Public alias for transition_device for compatibility."""
+        return self.transition_device(
+            device,
+            to_status,
+            reason=reason,
+            metadata=metadata,
+            sync_to_api=sync_to_api,
+        )
+
+    @transaction.atomic
+    def transition_device(
+        self,
+        device: WirelessChassis | WirelessUnit,
+        to_status: str,
+        *,
+        reason: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+        sync_to_api: bool = False,
+    ) -> bool:
+        """Transition device to new status with validation and logging.
 
         Args:
             device: Device instance to transition
@@ -172,14 +195,15 @@ class DeviceLifecycleManager:
         device.save(update_fields=["status", "last_seen", "updated_at"])
 
         # Log the transition
-        self._logger.log_crud_update(
-            device,
-            old_values=old_values,
-            new_values={
-                "status": to_status,
-                "last_seen": device.last_seen,
-            },
-        )
+        if self._logger:
+            self._logger.log_crud_update(
+                device,
+                old_values=old_values,
+                new_values={
+                    "status": to_status,
+                    "last_seen": device.last_seen,
+                },
+            )
 
         logger.info(
             f"Device transition: {device_type} {device.pk} {from_status} → {to_status}",
@@ -200,7 +224,10 @@ class DeviceLifecycleManager:
         return True
 
     def mark_discovered(
-        self, device: Receiver | Transmitter, *, device_data: Optional[Dict[str, Any]] = None
+        self,
+        device: WirelessChassis | WirelessUnit,
+        *,
+        device_data: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Mark device as discovered."""
         return self.transition_device(
@@ -211,7 +238,10 @@ class DeviceLifecycleManager:
         )
 
     def mark_online(
-        self, device: Receiver | Transmitter, *, health_data: Optional[Dict[str, Any]] = None
+        self,
+        device: WirelessChassis | WirelessUnit,
+        *,
+        health_data: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Mark device as online/operational."""
         return self.transition_device(
@@ -222,7 +252,7 @@ class DeviceLifecycleManager:
         )
 
     def mark_degraded(
-        self, device: Receiver | Transmitter, *, warnings: Optional[List[str]] = None
+        self, device: WirelessChassis | WirelessUnit, *, warnings: Optional[List[str]] = None
     ) -> bool:
         """Mark device as degraded (functional but with issues)."""
         return self.transition_device(
@@ -233,15 +263,13 @@ class DeviceLifecycleManager:
         )
 
     def mark_offline(
-        self, device: Receiver | Transmitter, *, reason: str = "Not responding"
+        self, device: WirelessChassis | WirelessUnit, *, reason: str = "Not responding"
     ) -> bool:
         """Mark device as offline."""
-        return self.transition_device(
-            device, DeviceStatus.OFFLINE.value, reason=reason
-        )
+        return self.transition_device(device, DeviceStatus.OFFLINE.value, reason=reason)
 
     def mark_maintenance(
-        self, device: Receiver | Transmitter, *, reason: str = "Administrative action"
+        self, device: WirelessChassis | WirelessUnit, *, reason: str = "Administrative action"
     ) -> bool:
         """Mark device as in maintenance mode."""
         return self.transition_device(
@@ -252,23 +280,20 @@ class DeviceLifecycleManager:
         )
 
     def mark_retired(
-        self, device: Receiver | Transmitter, *, reason: str = "Decommissioned"
+        self, device: WirelessChassis | WirelessUnit, *, reason: str = "Decommissioned"
     ) -> bool:
         """Mark device as retired (terminal state)."""
-        return self.transition_device(
-            device, DeviceStatus.RETIRED.value, reason=reason
-        )
+        return self.transition_device(device, DeviceStatus.RETIRED.value, reason=reason)
 
     @transaction.atomic
     def update_device_from_api(
         self,
-        device: Receiver | Transmitter,
+        device: WirelessChassis | WirelessUnit,
         api_data: Dict[str, Any],
         *,
         service_code: str,
     ) -> bool:
-        """
-        Update device from manufacturer API data (pull sync).
+        """Update device from manufacturer API data (pull sync).
 
         Args:
             device: Device to update
@@ -298,20 +323,19 @@ class DeviceLifecycleManager:
         if new_status != device.status:
             device.status = new_status
 
-        device.save(
-            update_fields=["name", "firmware_version", "status", "last_seen", "updated_at"]
-        )
+        device.save(update_fields=["name", "firmware_version", "status", "last_seen", "updated_at"])
 
         # Log update
-        self._logger.log_crud_update(
-            device,
-            old_values=old_values,
-            new_values={
-                "name": device.name,
-                "firmware_version": device.firmware_version,
-                "status": device.status,
-            },
-        )
+        if self._logger:
+            self._logger.log_crud_update(
+                device,
+                old_values=old_values,
+                new_values={
+                    "name": device.name,
+                    "firmware_version": device.firmware_version,
+                    "status": device.status,
+                },
+            )
 
         logger.debug(
             f"Updated device from API: {device.__class__.__name__} {device.pk}",
@@ -326,13 +350,12 @@ class DeviceLifecycleManager:
 
     def sync_device_to_api(
         self,
-        device: Receiver | Transmitter,
+        device: WirelessChassis | WirelessUnit,
         service,
         *,
         fields: Optional[List[str]] = None,
     ) -> bool:
-        """
-        Push device changes to manufacturer API (push sync).
+        """Push device changes to manufacturer API (push sync).
 
         Args:
             device: Device to sync
@@ -380,10 +403,9 @@ class DeviceLifecycleManager:
             return False
 
     def check_device_health(
-        self, device: Receiver | Transmitter, *, threshold_minutes: int = 5
+        self, device: WirelessChassis | WirelessUnit, *, threshold_minutes: int = 5
     ) -> str:
-        """
-        Check device health and auto-transition if needed.
+        """Check device health and auto-transition if needed.
 
         Args:
             device: Device to check
@@ -422,12 +444,11 @@ class DeviceLifecycleManager:
 
     def bulk_health_check(
         self,
-        devices: List[Receiver | Transmitter],
+        devices: List[WirelessChassis | WirelessUnit],
         *,
         threshold_minutes: int = 5,
     ) -> Dict[str, int]:
-        """
-        Check health of multiple devices efficiently.
+        """Check health of multiple devices efficiently.
 
         Args:
             devices: List of devices to check
@@ -452,6 +473,97 @@ class DeviceLifecycleManager:
 
         return results
 
+    def update_stale_devices(self, *, timeout_minutes: int = 5) -> int:
+        """Mark devices offline when last_seen is older than threshold."""
+        from micboard.models import WirelessChassis
+
+        threshold = timezone.now() - timedelta(minutes=timeout_minutes)
+        stale = WirelessChassis.objects.filter(last_seen__lt=threshold).exclude(
+            status__in=[DeviceStatus.MAINTENANCE.value, DeviceStatus.RETIRED.value]
+        )
+
+        updated = 0
+        for device in stale:
+            if self.mark_offline(device, reason="Stale heartbeat"):
+                updated += 1
+        return updated
+
+    def create_with_state(self, manufacturer, api_data: Dict[str, Any]):
+        """Create a chassis with initial state from API data."""
+        from micboard.models import WirelessChassis
+
+        ip = api_data.get("ipAddress") or api_data.get("ip") or api_data.get("ipv4")
+        api_device_id = api_data.get("id") or api_data.get("api_device_id")
+        if not ip or not api_device_id:
+            logger.warning("Skipping device creation; missing ip or api_device_id")
+            return None
+
+        chassis = WirelessChassis.objects.create(
+            manufacturer=manufacturer,
+            api_device_id=api_device_id,
+            ip=ip,
+            model=api_data.get("model", ""),
+            serial_number=api_data.get("serialNumber", ""),
+            status=self._map_api_state_to_status(
+                api_data.get("deviceState", "").upper(), "discovered"
+            ),
+            last_seen=timezone.now(),
+        )
+
+        return chassis
+
+    def sync_state_from_api(
+        self, device: WirelessChassis | WirelessUnit, api_data: Dict[str, Any]
+    ) -> bool:
+        """Update a device's status field based on API payload."""
+        state = api_data.get("deviceState") or api_data.get("state")
+        if not state:
+            return False
+        target_status = self._map_api_state_to_status(str(state).upper(), device.status)
+        return self.transition_device(device, target_status, metadata={"source": "api"})
+
+    def bulk_mark_offline(self, *, chassis_ids: List[int]) -> int:
+        """Mark multiple chassis offline."""
+        from micboard.models import WirelessChassis
+
+        updated = 0
+        for chassis in WirelessChassis.objects.filter(pk__in=chassis_ids):
+            if self.mark_offline(chassis, reason="Bulk offline operation"):
+                updated += 1
+        return updated
+
+    def bulk_sync_states(self, api_states: Dict[str, Dict[str, Any]]) -> int:
+        """Sync state for chassis keyed by serial_number."""
+        from micboard.models import WirelessChassis
+
+        serials = list(api_states.keys())
+        updated = 0
+
+        for chassis in WirelessChassis.objects.filter(serial_number__in=serials):
+            payload = api_states.get(chassis.serial_number, {})
+            if self.sync_state_from_api(chassis, payload):
+                updated += 1
+
+        return updated
+
+    def handle_poll_result(
+        self, device: WirelessChassis | WirelessUnit, poll_data: Dict[str, Any]
+    ) -> bool:
+        """Handle lifecycle transition from poll results."""
+        state = poll_data.get("deviceState") or poll_data.get("state")
+        if not state:
+            return False
+        status = self._map_api_state_to_status(str(state).upper(), device.status)
+        return self.transition_device(device, status, metadata={"source": "poll"})
+
+    def handle_missing_device(self, device: WirelessChassis | WirelessUnit) -> bool:
+        """Mark device missing during poll as offline."""
+        return self.transition_device(device, DeviceStatus.OFFLINE.value, reason="Missing in poll")
+
+    def get_state_history(self, device: WirelessChassis | WirelessUnit):
+        """Placeholder for future state history backend."""
+        return None
+
     # Helper methods
 
     def _is_valid_transition(self, from_status: str, to_status: str) -> bool:
@@ -471,7 +583,7 @@ class DeviceLifecycleManager:
         return state_mapping.get(api_state, current_status)
 
     def _build_api_payload(
-        self, device: Receiver | Transmitter, fields: Optional[List[str]] = None
+        self, device: WirelessChassis | WirelessUnit, fields: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Build API payload from device model."""
         payload = {
@@ -485,7 +597,10 @@ class DeviceLifecycleManager:
         return payload
 
     def _sync_status_to_api(
-        self, device: Receiver | Transmitter, status: str, metadata: Optional[Dict[str, Any]]
+        self,
+        device: WirelessChassis | WirelessUnit,
+        status: str,
+        metadata: Optional[Dict[str, Any]],
     ) -> None:
         """Push status change to manufacturer API."""
         if not self.service_code:

@@ -7,7 +7,7 @@ from __future__ import annotations
 from django.core.cache import cache
 
 from micboard.manufacturers import get_manufacturer_plugin
-from micboard.models import Manufacturer, Receiver
+from micboard.models import Manufacturer, WirelessChassis
 
 
 def get_discovery_candidates(
@@ -47,7 +47,7 @@ def get_discovery_candidates(
 
     # 2) Local receivers for this manufacturer
     try:
-        for rx in Receiver.objects.filter(manufacturer=manufacturer):
+        for rx in WirelessChassis.objects.filter(manufacturer=manufacturer):
             if rx.ip:
                 candidates.append(rx.ip)
     except Exception:

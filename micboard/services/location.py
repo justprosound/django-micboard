@@ -1,0 +1,191 @@
+"""Location service layer for location management and device organization.
+
+Manages locations and provides location-based device queries.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from django.db.models import Count, QuerySet
+
+from micboard.models import Location, WirelessChassis
+
+if TYPE_CHECKING:
+    pass
+
+
+class LocationService:
+    """Business logic for location management and organization."""
+
+    @staticmethod
+    def create_location(*, name: str, description: str = "") -> Location:
+        """Create a new location.
+
+        Args:
+            name: Location name.
+            description: Optional location description.
+
+        Returns:
+            Created Location object.
+
+        Raises:
+            ValueError: If location with same name already exists.
+        """
+        if Location.objects.filter(name=name).exists():
+            msg = f"Location with name '{name}' already exists"
+            raise ValueError(msg)
+
+        return Location.objects.create(name=name, description=description)
+
+    @staticmethod
+    def update_location(
+        *, location: Location, name: str | None = None, description: str | None = None
+    ) -> Location:
+        """Update a location.
+
+        Args:
+            location: Location instance.
+            name: New name, or None to skip.
+            description: New description, or None to skip.
+
+        Returns:
+            Updated Location object.
+        """
+        updated = False
+        if name is not None and location.name != name:
+            # Check for duplicates
+            if Location.objects.filter(name=name).exclude(id=location.id).exists():
+                msg = f"Location with name '{name}' already exists"
+                raise ValueError(msg)
+            location.name = name
+            updated = True
+        if description is not None and location.description != description:
+            location.description = description
+            updated = True
+
+        if updated:
+            location.save()
+
+        return location
+
+    @staticmethod
+    def delete_location(*, location: Location) -> None:
+        """Delete a location.
+
+        All associated devices will have their location cleared.
+
+        Args:
+            location: Location instance to delete.
+        """
+        location.delete()
+
+    @staticmethod
+    def get_all_locations(
+        *,
+        organization_id: int | None = None,
+        site_id: int | None = None,
+        campus_id: int | None = None,
+    ) -> QuerySet:
+        """Get all locations.
+
+        Args:
+            organization_id: Optional organization ID (MSP mode).
+            site_id: Optional site ID (multi-site mode).
+            campus_id: Optional campus ID (MSP mode).
+
+        Returns:
+            QuerySet of Location objects ordered by name.
+        """
+        from django.conf import settings
+
+        qs = Location.objects.all()
+
+        # Apply tenant filtering if enabled
+        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
+            if organization_id:
+                qs = qs.filter(building__organization_id=organization_id)
+            if campus_id:
+                qs = qs.filter(building__campus_id=campus_id)
+        elif getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+            if site_id:
+                qs = qs.filter(building__site_id=site_id)
+
+        return qs.order_by("name")
+
+    @staticmethod
+    def get_location_device_counts() -> QuerySet:
+        """Get locations with their device counts.
+
+        Returns:
+            QuerySet of Location objects with annotated chassis count.
+        """
+        return Location.objects.annotate(chassis_count=Count("wireless_devices")).order_by(
+            "-chassis_count"
+        )
+
+    @staticmethod
+    def get_devices_in_location(*, location: Location) -> QuerySet:
+        """Get all active devices in a location.
+
+        Args:
+            location: Location instance.
+
+        Returns:
+            QuerySet of WirelessChassis objects in the location.
+        """
+        return location.wireless_devices.filter(status="online")
+
+    @staticmethod
+    def assign_device_to_location(
+        *, device: WirelessChassis, location: Location
+    ) -> WirelessChassis:
+        """Assign a device to a location.
+
+        Args:
+            device: WirelessChassis instance.
+            location: Location instance.
+
+        Returns:
+            Updated WirelessChassis object.
+        """
+        device.location = location
+        device.save(update_fields=["location"])
+        return device
+
+    @staticmethod
+    def unassign_device_from_location(*, device: WirelessChassis) -> WirelessChassis:
+        """Remove device from location.
+
+        Args:
+            device: WirelessChassis instance.
+
+        Returns:
+            Updated WirelessChassis object.
+        """
+        device.location = None
+        device.save(update_fields=["location"])
+        return device
+
+    @staticmethod
+    def list_all_locations() -> QuerySet[Location]:
+        """Get all locations (alias for get_all_locations)."""
+        return LocationService.get_all_locations()
+
+    @staticmethod
+    def get_location_by_id(location_id: int) -> Location | None:
+        """Get a location by its ID."""
+        try:
+            return Location.objects.get(id=location_id)
+        except Location.DoesNotExist:
+            return None
+
+    @staticmethod
+    def count_total_locations() -> int:
+        """Count total number of locations."""
+        return Location.objects.count()
+
+    @staticmethod
+    def count_locations_with_devices() -> int:
+        """Count locations that have devices assigned."""
+        return Location.objects.filter(wireless_devices__isnull=False).distinct().count()

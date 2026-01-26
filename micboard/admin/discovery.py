@@ -1,5 +1,4 @@
-"""
-Admin configuration for discovery models (DiscoveryCIDR, DiscoveryFQDN, DiscoveryJob).
+"""Admin configuration for discovery models (DiscoveryCIDR, DiscoveryFQDN, DiscoveryJob).
 
 This module provides Django admin interfaces for managing device discovery configurations and jobs.
 """

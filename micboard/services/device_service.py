@@ -1,5 +1,4 @@
-"""
-Device management service for django-micboard.
+"""Device management service for django-micboard.
 
 Handles device lifecycle operations (CRUD, state management, synchronization)
 across all manufacturers. Separates business logic from HTTP clients.
@@ -8,447 +7,265 @@ across all manufacturers. Separates business logic from HTTP clients.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-from django.utils import timezone
+from django.db import models
+from django.db.models import QuerySet
 
 if TYPE_CHECKING:
-    from micboard.manufacturers.base import BaseAPIClient, BaseManufacturerPlugin
-    from micboard.models import Manufacturer, Receiver, Transmitter
+    from micboard.models import WirelessChassis, WirelessUnit
 
 logger = logging.getLogger(__name__)
 
 
-class DeviceService:
-    """
-    Service for managing device lifecycle operations.
+@dataclass(slots=True)
+class NormalizedDevice:
+    """Normalized device payload independent of manufacturer key names."""
 
-    Provides high-level API for device synchronization, state management,
-    and data enrichment. Uses manufacturer-specific clients internally
-    but presents a unified interface.
-    """
+    api_device_id: str
+    ip: str
+    serial_number: str
+    mac_address: str
+    name: str
+    model: str
+    device_type: str
+    firmware_version: str
+    hosted_firmware_version: str
+    description: str
+    subnet_mask: str | None
+    gateway: str | None
+    network_mode: str
+    interface_id: str
 
-    def __init__(
-        self,
-        manufacturer: Manufacturer,
-        client: BaseAPIClient | None = None,
-        plugin: BaseManufacturerPlugin | None = None,
-    ):
-        """
-        Initialize device service for a manufacturer.
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> NormalizedDevice | None:
+        """Best-effort normalization for heterogeneous vendor payloads."""
+        api_device_id = (data.get("id") or data.get("api_device_id") or "").strip()
+        ip = (
+            data.get("ip")
+            or data.get("ipAddress")
+            or data.get("ipv4")
+            or data.get("ip_address")
+            or ""
+        ).strip()
 
-        Args:
-            manufacturer: Manufacturer instance
-            client: Optional API client (for testing/dependency injection)
-            plugin: Optional manufacturer plugin (for testing)
-        """
-        self.manufacturer = manufacturer
+        if not api_device_id or not ip:
+            return None
 
-        # Use provided client/plugin or get default from manufacturer
-        if plugin:
-            self.plugin = plugin
-            self.client = client or plugin.get_client()
-        elif client:
-            self.plugin = None
-            self.client = client
-        else:
-            # Get plugin and client from manufacturer
-            from micboard.manufacturers import get_manufacturer_plugin
+        serial_number = (
+            data.get("serial_number") or data.get("serialNumber") or data.get("serial") or ""
+        ).strip()
+        mac_address = (
+            data.get("mac_address") or data.get("macAddress") or data.get("mac") or ""
+        ).strip()
 
-            plugin_class = get_manufacturer_plugin(manufacturer.code)
-            self.plugin = plugin_class(manufacturer)
-            self.client = self.plugin.get_client()
-
-    def sync_devices_from_api(self) -> tuple[int, int]:
-        """
-        Synchronize devices from manufacturer API to Django models.
-
-        Fetches device list from API, creates/updates Receiver objects,
-        and returns counts of created and updated devices.
-
-        Returns:
-            Tuple of (created_count, updated_count)
-        """
-        from micboard.models import Receiver
-
-        try:
-            # Fetch devices from API using client
-            api_devices = self.client.get_devices()
-            if not api_devices:
-                logger.info("No devices returned from API for %s", self.manufacturer.name)
-                return 0, 0
-
-            created_count = 0
-            updated_count = 0
-
-            for device_data in api_devices:
-                device_id = device_data.get("id") or device_data.get("api_device_id")
-                if not device_id:
-                    logger.warning("Device missing ID field: %s", device_data)
-                    continue
-
-                # Extract key fields (handle different manufacturer formats)
-                ip = (
-                    device_data.get("ip")
-                    or device_data.get("ipAddress")
-                    or device_data.get("ipv4")
-                )
-                name = device_data.get("name") or device_data.get("model") or ""
-                model = device_data.get("model") or ""
-                firmware = (
-                    device_data.get("firmware")
-                    or device_data.get("firmware_version")
-                    or device_data.get("firmwareVersion")
-                    or ""
-                )
-
-                # Create or update receiver
-                receiver, created = Receiver.objects.update_or_create(
-                    api_device_id=device_id,
-                    manufacturer=self.manufacturer,
-                    defaults={
-                        "ip": ip,
-                        "name": name,
-                        "model": model,
-                        "firmware": firmware,
-                        "last_seen": timezone.now(),
-                    },
-                )
-
-                # Use lifecycle manager for state transition
-                from micboard.services.device_lifecycle import get_lifecycle_manager
-                lifecycle = get_lifecycle_manager(self.manufacturer.code)
-                
-                if created:
-                    # New device: mark as online
-                    lifecycle.mark_online(receiver)
-                    created_count += 1
-                    logger.info(
-                        "Created receiver %s (%s) for %s", name, ip, self.manufacturer.name
-                    )
-                else:
-                    # Existing device: update last_seen and ensure online
-                    receiver.last_seen = timezone.now()
-                    receiver.save(update_fields=['last_seen'])
-                    # Only transition to online if not already in a stable state
-                    if receiver.status not in {'online', 'degraded', 'maintenance'}:
-                        lifecycle.mark_online(receiver)
-                    updated_count += 1
-                    logger.debug(
-                        "Updated receiver %s (%s) for %s", name, ip, self.manufacturer.name
-                    )
-
-            logger.info(
-                "Synced %d devices for %s: %d created, %d updated",
-                len(api_devices),
-                self.manufacturer.name,
-                created_count,
-                updated_count,
-            )
-
-            return created_count, updated_count
-
-        except Exception:
-            logger.exception("Error syncing devices from API for %s", self.manufacturer.name)
-            return 0, 0
-
-    def get_active_devices(self) -> list[Receiver]:
-        """
-        Get all active devices for this manufacturer.
-
-        Returns:
-            List of Receiver objects
-        """
-        from micboard.models import Receiver
-        from micboard.services.device_lifecycle import DeviceStatus
-
-        active_statuses = DeviceStatus.active_states()
-        return cast(
-            list[Receiver],
-            list(Receiver.objects.filter(manufacturer=self.manufacturer, status__in=active_statuses)),
+        return cls(
+            api_device_id=api_device_id,
+            ip=ip,
+            serial_number=serial_number,
+            mac_address=mac_address,
+            name=(data.get("name") or data.get("model") or "").strip(),
+            model=(data.get("model") or "").strip(),
+            device_type=(data.get("device_type") or "").strip(),
+            firmware_version=(
+                data.get("firmware")
+                or data.get("firmware_version")
+                or data.get("firmwareVersion")
+                or ""
+            ).strip(),
+            hosted_firmware_version=(data.get("hosted_firmware_version") or "").strip(),
+            description=(data.get("description") or "").strip(),
+            subnet_mask=data.get("subnet_mask") or data.get("subnetMask"),
+            gateway=data.get("gateway"),
+            network_mode=(data.get("network_mode") or data.get("networkMode") or "auto").strip(),
+            interface_id=(data.get("interface_id") or data.get("interfaceId") or "").strip(),
         )
 
-    def get_device_by_api_id(self, api_device_id: str) -> Receiver | None:
-        """
-        Get device by manufacturer's API device ID.
 
-        Args:
-            api_device_id: Device ID from manufacturer API
+class DeviceService:
+    """Service for managing device lifecycle operations.
 
-        Returns:
-            Receiver instance or None
-        """
-        from micboard.models import Receiver
+    Provides high-level API for device queries, state management,
+    and data enrichment. All operations are manufacturer-agnostic.
+    """
+
+    @staticmethod
+    def get_active_receivers() -> QuerySet[WirelessChassis]:
+        """Fetch all chassis currently in active states."""
+        from micboard.models import WirelessChassis
+
+        return WirelessChassis.objects.active()
+
+    @staticmethod
+    def get_active_transmitters() -> QuerySet[WirelessUnit]:
+        """Fetch all field units currently in active states."""
+        from micboard.models import WirelessUnit
+
+        return WirelessUnit.objects.active()
+
+    @staticmethod
+    def get_device_by_ip(*, ip: str) -> WirelessChassis | None:
+        """Find a chassis by IP address."""
+        from micboard.models import WirelessChassis
+
+        return WirelessChassis.objects.filter(ip=ip).first()
+
+    @staticmethod
+    def get_receiver_by_id(*, receiver_id: int) -> WirelessChassis | None:
+        """Get a chassis by its database ID."""
+        from micboard.models import WirelessChassis
 
         try:
-            return cast(
-                Receiver,
-                Receiver.objects.get(
-                    api_device_id=api_device_id, manufacturer=self.manufacturer
-                ),
-            )
-        except Receiver.DoesNotExist:
+            return WirelessChassis.objects.get(id=receiver_id)
+        except WirelessChassis.DoesNotExist:
             return None
 
-    def update_device_state(self, device_id: int, state: dict[str, Any]) -> bool:
-        """
-        Update device state attributes.
-
-        Args:
-            device_id: Django Receiver primary key
-            state: Dictionary of fields to update
-
-        Returns:
-            True if successful, False otherwise
-        """
-        from micboard.models import Receiver
+    @staticmethod
+    def get_transmitter_by_id(*, transmitter_id: int) -> WirelessUnit | None:
+        """Get a field unit by its database ID."""
+        from micboard.models import WirelessUnit
 
         try:
-            receiver = Receiver.objects.get(pk=device_id, manufacturer=self.manufacturer)
-
-            for key, value in state.items():
-                if hasattr(receiver, key):
-                    setattr(receiver, key, value)
-
-            receiver.save()
-            logger.debug("Updated device %s state: %s", device_id, state)
-            return True
-
-        except Receiver.DoesNotExist:
-            logger.warning("Device %s not found for state update", device_id)
-            return False
-        except Exception:
-            logger.exception("Error updating device %s state", device_id)
-            return False
-
-    def mark_online(self, device_id: int) -> bool:
-        """
-        Mark device as online using lifecycle manager.
-
-        Args:
-            device_id: Django Receiver primary key
-
-        Returns:
-            True if successful
-        """
-        try:
-            from micboard.models import Receiver
-            from micboard.services.device_lifecycle import get_lifecycle_manager
-
-            receiver = Receiver.objects.get(pk=device_id, manufacturer=self.manufacturer)
-            lifecycle = get_lifecycle_manager(self.manufacturer.code)
-            lifecycle.mark_online(receiver)
-            return True
-        except Exception:
-            logger.exception("Error marking device %s as online", device_id)
-            return False
-
-    def mark_offline(self, device_id: int) -> bool:
-        """
-        Mark device as offline using lifecycle manager.
-
-        Args:
-            device_id: Django Receiver primary key
-
-        Returns:
-            True if successful
-        """
-        try:
-            from micboard.models import Receiver
-            from micboard.services.device_lifecycle import get_lifecycle_manager
-
-            receiver = Receiver.objects.get(pk=device_id, manufacturer=self.manufacturer)
-            lifecycle = get_lifecycle_manager(self.manufacturer.code)
-            lifecycle.mark_offline(receiver, reason="Device not found in API poll")
-            return True
-        except Exception:
-            logger.exception("Error marking device %s as offline", device_id)
-            return False
-
-    def enrich_device_data(self, api_device_id: str) -> dict[str, Any] | None:
-        """
-        Fetch enriched device data from manufacturer API.
-
-        Calls optional endpoints like /identify, /network, /status
-        to get additional metadata (serial, MAC, hostname, etc.).
-
-        Args:
-            api_device_id: Device ID from manufacturer API
-
-        Returns:
-            Enriched device data dict or None
-        """
-        try:
-            # Get base device data
-            device_data = self.client.get_device(api_device_id)
-            if not device_data:
-                logger.warning("No device data for %s", api_device_id)
-                return None
-
-            # Use client's enrichment if available (Shure/Sennheiser specific)
-            if hasattr(self.client, "_enrich_device_data"):
-                device_data = self.client._enrich_device_data(api_device_id, device_data)
-
-            return cast(dict[str, Any], device_data)
-
-        except Exception:
-            logger.exception("Error enriching device data for %s", api_device_id)
+            return WirelessUnit.objects.get(id=transmitter_id)
+        except WirelessUnit.DoesNotExist:
             return None
 
-    def get_device_channels(self, api_device_id: str) -> list[dict[str, Any]]:
-        """
-        Get channel/transmitter data for a device.
+    @staticmethod
+    def get_online_receivers() -> QuerySet[WirelessChassis]:
+        """Get all chassis that are currently online."""
+        from micboard.models import WirelessChassis
 
-        Args:
-            api_device_id: Device ID from manufacturer API
+        return WirelessChassis.objects.filter(is_online=True)
 
-        Returns:
-            List of channel data dictionaries
-        """
+    @staticmethod
+    def get_offline_receivers() -> QuerySet[WirelessChassis]:
+        """Get all chassis that are currently offline."""
+        from micboard.models import WirelessChassis
+
+        return WirelessChassis.objects.filter(is_online=False)
+
+    @staticmethod
+    def get_low_battery_receivers(*, threshold: int = 25) -> QuerySet[WirelessChassis]:
+        """Get chassis with units having low battery levels."""
+        from micboard.models import WirelessChassis
+
+        return WirelessChassis.objects.filter(field_units__battery__lt=threshold).distinct()
+
+    @staticmethod
+    def count_active_receivers() -> int:
+        """Count all active chassis."""
+        return DeviceService.get_active_receivers().count()
+
+    @staticmethod
+    def count_online_receivers() -> int:
+        """Count all online chassis."""
+        return DeviceService.get_online_receivers().count()
+
+    @staticmethod
+    def count_offline_receivers() -> int:
+        """Count all offline chassis."""
+        return DeviceService.get_offline_receivers().count()
+
+    @staticmethod
+    def get_device_by_name(*, name: str) -> WirelessChassis | WirelessUnit | None:
+        """Find a device by name."""
+        from micboard.models import WirelessChassis, WirelessUnit
+
+        # Check chassis first
+        chassis = WirelessChassis.objects.filter(name__iexact=name).first()
+        if chassis:
+            return chassis
+
+        # Check units
+        unit = WirelessUnit.objects.filter(name__iexact=name).first()
+        if unit:
+            return unit
+
+        return None
+
+    @staticmethod
+    def get_devices_in_location(*, location_id: int) -> QuerySet[WirelessChassis]:
+        """Get all chassis assigned to a specific location."""
+        from micboard.models import WirelessChassis
+
+        return WirelessChassis.objects.filter(location_id=location_id)
+
+    @staticmethod
+    def search_devices(*, query: str) -> list[WirelessChassis | WirelessUnit]:
+        """Search devices by name, IP, or serial number."""
+        from micboard.models import WirelessChassis, WirelessUnit
+
+        results = []
+
+        # Search chassis
+        chassis = WirelessChassis.objects.filter(
+            models.Q(name__icontains=query)
+            | models.Q(ip__icontains=query)
+            | models.Q(serial_number__icontains=query)
+        )
+        results.extend(list(chassis))
+
+        # Search units
+        units = WirelessUnit.objects.filter(
+            models.Q(name__icontains=query)
+            | models.Q(frequency__icontains=query)
+            | models.Q(serial_number__icontains=query)
+        )
+        results.extend(list(units))
+
+        return results
+
+    @staticmethod
+    def sync_device_status(*, device_obj: WirelessChassis | WirelessUnit, online: bool) -> None:
+        """Update the online status of a device."""
+        from micboard.services.device_lifecycle import get_lifecycle_manager
+
+        if isinstance(device_obj, WirelessChassis):
+            lifecycle = get_lifecycle_manager(device_obj.manufacturer.code)
+            if online:
+                lifecycle.mark_online(device_obj)
+            else:
+                lifecycle.mark_offline(device_obj)
+        elif isinstance(device_obj, WirelessUnit):
+            device_obj.status = "online" if online else "offline"
+            device_obj.save(update_fields=["status"])
+
+    @staticmethod
+    def sync_device_battery(*, device_obj: WirelessUnit, battery_level: int) -> None:
+        """Update the battery level of a field unit."""
+        if not (0 <= battery_level <= 255):
+            raise ValueError("battery_level must be 0-255")
+
+        device_obj.battery = battery_level
+        device_obj.save(update_fields=["battery"])
+
+    @staticmethod
+    def mark_device_inactive(*, device_obj: WirelessChassis | WirelessUnit) -> None:
+        """Mark a device as inactive."""
+        from micboard.services.device_lifecycle import get_lifecycle_manager
+
+        if isinstance(device_obj, WirelessChassis):
+            lifecycle = get_lifecycle_manager(device_obj.manufacturer.code)
+            lifecycle.mark_offline(device_obj)
+        elif isinstance(device_obj, WirelessUnit):
+            device_obj.status = "offline"
+            device_obj.save(update_fields=["status"])
+
+    @staticmethod
+    def count_manufacturer_devices(*, manufacturer_code: str) -> dict[str, int]:
+        """Count devices for a specific manufacturer."""
+        from micboard.models import Manufacturer, WirelessChassis, WirelessUnit
+
         try:
-            if hasattr(self.client, "get_device_channels"):
-                channels = self.client.get_device_channels(api_device_id)
-                return channels or []
-            return []
-        except Exception:
-            logger.exception("Error getting channels for device %s", api_device_id)
-            return []
+            manufacturer = Manufacturer.objects.get(code=manufacturer_code)
+        except Manufacturer.DoesNotExist:
+            return {"chassis": 0, "units": 0}
 
-    def get_transmitter_data(self, api_device_id: str, channel: int) -> dict[str, Any] | None:
-        """
-        Get transmitter data for a specific channel.
+        chassis_count = WirelessChassis.objects.filter(manufacturer=manufacturer).count()
+        units_count = WirelessUnit.objects.filter(manufacturer=manufacturer).count()
 
-        Args:
-            api_device_id: Device ID from manufacturer API
-            channel: Channel number
-
-        Returns:
-            Transmitter data dict or None
-        """
-        try:
-            if hasattr(self.client, "get_transmitter_data"):
-                return cast(
-                    dict[str, Any] | None,
-                    self.client.get_transmitter_data(api_device_id, channel),
-                )
-            return None
-        except Exception:
-            logger.exception("Error getting transmitter data for %s ch%d", api_device_id, channel)
-            return None
-
-    def sync_transmitters_for_device(self, receiver: Receiver) -> int:
-        """
-        Synchronize transmitters for a specific receiver.
-
-        Args:
-            receiver: Receiver instance
-
-        Returns:
-            Number of transmitters synced
-        """
-        from micboard.models import Transmitter
-
-        if not receiver.api_device_id:
-            logger.warning("Receiver %s missing api_device_id", receiver.id)
-            return 0
-
-        try:
-            channels = self.get_device_channels(receiver.api_device_id)
-            synced_count = 0
-
-            for channel_data in channels:
-                channel_num = channel_data.get("channel") or channel_data.get("channelNumber")
-                if not channel_num:
-                    continue
-
-                # Get transmitter-specific data
-                tx_data = channel_data.get("transmitter") or channel_data.get("tx")
-                if not tx_data:
-                    # Try fetching from dedicated endpoint
-                    tx_data = self.get_transmitter_data(receiver.api_device_id, channel_num)
-
-                if tx_data:
-                    # Create or update transmitter
-                    Transmitter.objects.update_or_create(
-                        receiver=receiver,
-                        channel=channel_num,
-                        defaults={
-                            "model": tx_data.get("model") or "",
-                            "battery_level": tx_data.get("battery") or tx_data.get("batteryLevel"),
-                            "rssi": tx_data.get("rssi"),
-                            "frequency": channel_data.get("frequency"),
-                        },
-                    )
-                    synced_count += 1
-
-            logger.debug(
-                "Synced %d transmitters for receiver %s", synced_count, receiver.api_device_id
-            )
-            return synced_count
-
-        except Exception:
-            logger.exception("Error syncing transmitters for receiver %s", receiver.id)
-            return 0
-
-    def poll_and_sync_all(self) -> dict[str, Any]:
-        """
-        Comprehensive polling: sync devices and transmitters.
-
-        Performs full synchronization from API:
-        1. Sync devices (receivers)
-        2. Sync transmitters for each device
-        3. Return summary statistics
-
-        Returns:
-            Dictionary with sync statistics
-        """
-        result = {
-            "manufacturer": self.manufacturer.code,
-            "devices_created": 0,
-            "devices_updated": 0,
-            "transmitters_synced": 0,
-            "errors": [],
+        return {
+            "chassis": chassis_count,
+            "units": units_count,
         }
-
-        try:
-            # Sync devices
-            created, updated = self.sync_devices_from_api()
-            result["devices_created"] = created
-            result["devices_updated"] = updated
-
-            # Sync transmitters for each device
-            receivers = self.get_active_devices()
-            for receiver in receivers:
-                try:
-                    tx_count = self.sync_transmitters_for_device(receiver)
-                    result["transmitters_synced"] += tx_count
-                except Exception as e:
-                    result["errors"].append(f"Failed to sync transmitters for {receiver.id}: {e}")
-
-            logger.info(
-                "Polling complete for %s: %d devices, %d transmitters",
-                self.manufacturer.name,
-                created + updated,
-                result["transmitters_synced"],
-            )
-
-        except Exception as e:
-            error_msg = f"Polling failed for {self.manufacturer.name}: {e}"
-            result["errors"].append(error_msg)
-            logger.exception(error_msg)
-
-        return result
-
-
-# Convenience function for quick access
-def get_device_service(manufacturer: Manufacturer) -> DeviceService:
-    """
-    Get a DeviceService instance for a manufacturer.
-
-    Args:
-        manufacturer: Manufacturer instance
-
-    Returns:
-        DeviceService instance
-    """
-    return DeviceService(manufacturer)

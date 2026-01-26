@@ -438,5 +438,5 @@ python scripts/shure_discovery_monitor.py
 
 ---
 
-**Last Updated:** January 21, 2026  
+**Last Updated:** January 21, 2026
 **Status:** Production Ready

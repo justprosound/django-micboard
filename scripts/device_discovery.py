@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""
-Device Discovery & Population Script for Local Shure System API
+"""Device Discovery & Population Script for Local Shure System API.
 
 This script discovers live Shure devices on the VPN and populates the local
 Shure System API with real device data for testing and development.
@@ -20,19 +19,18 @@ Environment Variables:
     SHURE_API_PASSWORD - API credentials (if needed)
 """
 
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
-import subprocess
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 
 # Django setup
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'demo.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "demo.settings")
 import django
+
 django.setup()
 
-from django.conf import settings
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -44,7 +42,7 @@ class DeviceDiscovery:
 
     def __init__(self, *, timeout: int = 5, verify_ssl: bool = False):
         """Initialize device discovery client.
-        
+
         Args:
             timeout: Request timeout in seconds
             verify_ssl: Whether to verify SSL certificates
@@ -69,10 +67,10 @@ class DeviceDiscovery:
 
     def probe_device(self, ip: str) -> Optional[Dict[str, Any]]:
         """Probe a single device at the given IP address.
-        
+
         Args:
             ip: Device IP address
-            
+
         Returns:
             Device info dict if successful, None otherwise
         """
@@ -86,10 +84,7 @@ class DeviceDiscovery:
         for endpoint in endpoints:
             try:
                 response = self.session.get(
-                    endpoint,
-                    timeout=self.timeout,
-                    verify=self.verify_ssl,
-                    allow_redirects=False
+                    endpoint, timeout=self.timeout, verify=self.verify_ssl, allow_redirects=False
                 )
                 if response.status_code in [200, 401]:  # 401 means API exists but needs auth
                     print(f"✓ Device found at {ip}")
@@ -106,10 +101,10 @@ class DeviceDiscovery:
 
     def discover_from_ips(self, ips: List[str]) -> List[Dict[str, Any]]:
         """Discover devices from a list of IP addresses.
-        
+
         Args:
             ips: List of device IP addresses
-            
+
         Returns:
             List of discovered device info dicts
         """
@@ -127,12 +122,12 @@ class DeviceDiscovery:
 
     def discover_from_file(self, filename: str) -> List[Dict[str, Any]]:
         """Discover devices from a file of IP addresses.
-        
+
         File format: One IP per line, lines starting with # are comments
-        
+
         Args:
             filename: Path to file with IPs
-            
+
         Returns:
             List of discovered device info dicts
         """
@@ -141,10 +136,10 @@ class DeviceDiscovery:
             return []
 
         ips = []
-        with open(filename, 'r') as f:
+        with open(filename) as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#'):
+                if line and not line.startswith("#"):
                     ips.append(line)
 
         print(f"Loaded {len(ips)} IPs from {filename}")
@@ -152,33 +147,33 @@ class DeviceDiscovery:
 
     def discover_from_env(self) -> List[Dict[str, Any]]:
         """Discover devices from SHURE_DEVICE_IPS environment variable.
-        
+
         Returns:
             List of discovered device info dicts
         """
-        ips_str = os.environ.get('SHURE_DEVICE_IPS', '')
+        ips_str = os.environ.get("SHURE_DEVICE_IPS", "")
         if not ips_str:
             print("✗ SHURE_DEVICE_IPS not set")
             return []
 
-        ips = [ip.strip() for ip in ips_str.split(',') if ip.strip()]
+        ips = [ip.strip() for ip in ips_str.split(",") if ip.strip()]
         print(f"Loaded {len(ips)} IPs from SHURE_DEVICE_IPS")
         return self.discover_from_ips(ips)
 
     def save_device_manifest(self, filename: str = "device_manifest.json") -> None:
         """Save discovered devices to a manifest file.
-        
+
         Args:
             filename: Output filename (will NOT be committed - in .gitignore)
         """
         # DO NOT COMMIT THIS FILE - Add to .gitignore
         manifest = {
             "devices": self.discovered_devices,
-            "timestamp": __import__('datetime').datetime.now().isoformat(),
+            "timestamp": __import__("datetime").datetime.now().isoformat(),
             "total_count": len(self.discovered_devices),
         }
 
-        with open(filename, 'w') as f:
+        with open(filename, "w") as f:
             json.dump(manifest, f, indent=2)
 
         print(f"\n✓ Device manifest saved to {filename}")
@@ -191,24 +186,21 @@ class LocalPopulation:
 
     def __init__(self, api_base: str = "http://localhost:8000"):
         """Initialize population client.
-        
+
         Args:
             api_base: Base URL of local Shure API
         """
-        self.api_base = api_base.rstrip('/')
+        self.api_base = api_base.rstrip("/")
         self.session = requests.Session()
 
     def check_api_health(self) -> bool:
         """Check if local API is running.
-        
+
         Returns:
             True if API is healthy
         """
         try:
-            response = self.session.get(
-                f"{self.api_base}/api/health",
-                timeout=5
-            )
+            response = self.session.get(f"{self.api_base}/api/health", timeout=5)
             print(f"✓ Local API is {response.status_code}: Healthy")
             return response.status_code == 200
         except requests.exceptions.RequestException as e:
@@ -217,10 +209,10 @@ class LocalPopulation:
 
     def populate_from_manifest(self, manifest_file: str) -> bool:
         """Populate API from device manifest.
-        
+
         Args:
             manifest_file: Path to device manifest JSON
-            
+
         Returns:
             True if successful
         """
@@ -228,10 +220,10 @@ class LocalPopulation:
             print(f"✗ Manifest file not found: {manifest_file}")
             return False
 
-        with open(manifest_file, 'r') as f:
+        with open(manifest_file) as f:
             manifest = json.load(f)
 
-        devices = manifest.get('devices', [])
+        devices = manifest.get("devices", [])
         print(f"\nPopulating {len(devices)} devices...")
 
         for device in devices:
@@ -244,51 +236,33 @@ class LocalPopulation:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description='Discover and populate Shure devices from VPN'
-    )
-    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+    parser = argparse.ArgumentParser(description="Discover and populate Shure devices from VPN")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     # Discover subcommand
-    discover_parser = subparsers.add_parser('discover', help='Discover devices')
+    discover_parser = subparsers.add_parser("discover", help="Discover devices")
+    discover_parser.add_argument("--file", help="File with IP addresses (one per line)")
     discover_parser.add_argument(
-        '--file',
-        help='File with IP addresses (one per line)'
+        "--env", action="store_true", help="Use SHURE_DEVICE_IPS environment variable"
     )
+    discover_parser.add_argument("--ips", help="Comma-separated IP addresses")
     discover_parser.add_argument(
-        '--env',
-        action='store_true',
-        help='Use SHURE_DEVICE_IPS environment variable'
-    )
-    discover_parser.add_argument(
-        '--ips',
-        help='Comma-separated IP addresses'
-    )
-    discover_parser.add_argument(
-        '--save',
-        default='device_manifest.json',
-        help='Save manifest to file'
+        "--save", default="device_manifest.json", help="Save manifest to file"
     )
 
     # Populate subcommand
-    populate_parser = subparsers.add_parser('populate', help='Populate local API')
+    populate_parser = subparsers.add_parser("populate", help="Populate local API")
     populate_parser.add_argument(
-        '--manifest',
-        default='device_manifest.json',
-        help='Device manifest file'
+        "--manifest", default="device_manifest.json", help="Device manifest file"
     )
 
     # Test subcommand
-    test_parser = subparsers.add_parser('test', help='Test device connectivity')
-    test_parser.add_argument(
-        '--ip',
-        required=True,
-        help='Device IP to test'
-    )
+    test_parser = subparsers.add_parser("test", help="Test device connectivity")
+    test_parser.add_argument("--ip", required=True, help="Device IP to test")
 
     args = parser.parse_args()
 
-    if args.command == 'discover':
+    if args.command == "discover":
         discovery = DeviceDiscovery()
 
         if args.file:
@@ -296,7 +270,7 @@ def main():
         elif args.env:
             devices = discovery.discover_from_env()
         elif args.ips:
-            ips = [ip.strip() for ip in args.ips.split(',')]
+            ips = [ip.strip() for ip in args.ips.split(",")]
             devices = discovery.discover_from_ips(ips)
         else:
             parser.print_help()
@@ -308,13 +282,13 @@ def main():
         else:
             return 1
 
-    elif args.command == 'populate':
+    elif args.command == "populate":
         population = LocalPopulation()
         if population.check_api_health():
             return 0 if population.populate_from_manifest(args.manifest) else 1
         return 1
 
-    elif args.command == 'test':
+    elif args.command == "test":
         discovery = DeviceDiscovery()
         device = discovery.probe_device(args.ip)
         if device:
@@ -329,5 +303,5 @@ def main():
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

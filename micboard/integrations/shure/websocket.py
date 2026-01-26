@@ -1,5 +1,4 @@
-"""
-WebSocket support for real-time Shure System API device updates.
+"""WebSocket support for real-time Shure System API device updates.
 
 This module provides WebSocket connection handling for subscribing to live device updates.
 """

@@ -1,64 +1,96 @@
-"""
-Django admin configuration package for micboard.
+"""Django admin configuration package for micboard.
 
 This package organizes admin classes by functional area:
-- receivers: Receiver administration
-- channels: Channel, Transmitter administration
+- receivers: WirelessChassis administration
+- channels: RFChannel, WirelessUnit administration
 - discovery: DiscoveryCIDR, DiscoveryFQDN, DiscoveryJob administration
+- discovery_admin: DiscoveryQueue, DeviceMovementLog administration
 - assignments: DeviceAssignment, Alert, UserAlertPreference administration
 - monitoring: Location, MonitoringGroup, Group, Config, DiscoveredDevice administration
 """
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from .assignments import (
-    AlertAdmin,
-    DeviceAssignmentAdmin,
-    UserAlertPreferenceAdmin,
+    AlertAdmin as AlertAdmin,
 )
-from .channels import ChannelAdmin, TransmitterAdmin
-from .chargers import ChargerAdmin, ChargerSlotAdmin
+from .assignments import (
+    DeviceAssignmentAdmin as DeviceAssignmentAdmin,
+)
+from .assignments import (
+    UserAlertPreferenceAdmin as UserAlertPreferenceAdmin,
+)
+from .channels import RFChannelAdmin as RFChannelAdmin
+from .channels import WirelessUnitAdmin as WirelessUnitAdmin
+from .chargers import ChargerAdmin as ChargerAdmin
+from .chargers import ChargerSlotAdmin as ChargerSlotAdmin
 from .configuration_and_logging import (
-    ActivityLogAdmin,
-    ConfigurationAuditLogAdmin,
-    ManufacturerConfigurationAdmin,
-    ServiceSyncLogAdmin,
+    ActivityLogAdmin as ActivityLogAdmin,
 )
-from .discovery import DiscoveryCIDRAdmin, DiscoveryFQDNAdmin, DiscoveryJobAdmin
-from .manufacturers import ManufacturerAdmin
+from .configuration_and_logging import (
+    ConfigurationAuditLogAdmin as ConfigurationAuditLogAdmin,
+)
+from .configuration_and_logging import (
+    ManufacturerConfigurationAdmin as ManufacturerConfigurationAdmin,
+)
+from .configuration_and_logging import (
+    ServiceSyncLogAdmin as ServiceSyncLogAdmin,
+)
+from .discovery import (
+    DiscoveryCIDRAdmin as DiscoveryCIDRAdmin,
+)
+from .discovery import (
+    DiscoveryFQDNAdmin as DiscoveryFQDNAdmin,
+)
+from .discovery import (
+    DiscoveryJobAdmin as DiscoveryJobAdmin,
+)
+from .discovery_admin import (
+    DeviceMovementLogAdmin as DeviceMovementLogAdmin,
+)
+from .discovery_admin import (
+    DiscoveryQueueAdmin as DiscoveryQueueAdmin,
+)
+from .manufacturers import ManufacturerAdmin as ManufacturerAdmin
 from .monitoring import (
-    DiscoveredDeviceAdmin,
-    GroupAdmin,
-    LocationAdmin,
-    MicboardConfigAdmin,
-    MonitoringGroupAdmin,
+    DiscoveredDeviceAdmin as DiscoveredDeviceAdmin,
 )
-from .receivers import ReceiverAdmin
+from .monitoring import (
+    GroupAdmin as GroupAdmin,
+)
+from .monitoring import (
+    LocationAdmin as LocationAdmin,
+)
+from .monitoring import (
+    MicboardConfigAdmin as MicboardConfigAdmin,
+)
+from .monitoring import (
+    MonitoringGroupAdmin as MonitoringGroupAdmin,
+)
+from .receivers import WirelessChassisAdmin as WirelessChassisAdmin
 
-__all__ = sorted(
-    [
-        "ActivityLogAdmin",
-        "AlertAdmin",
-        "ChannelAdmin",
-        "ChargerAdmin",
-        "ChargerSlotAdmin",
-        "ConfigurationAuditLogAdmin",
-        "DeviceAssignmentAdmin",
-        "DiscoveryCIDRAdmin",
-        "DiscoveryFQDNAdmin",
-        "DiscoveryJobAdmin",
-        "DiscoveredDeviceAdmin",
-        "GroupAdmin",
-        "LocationAdmin",
-        "ManufacturerAdmin",
-        "ManufacturerConfigurationAdmin",
-        "MicboardConfigAdmin",
-        "MonitoringGroupAdmin",
-        "ReceiverAdmin",
-        "ServiceSyncLogAdmin",
-        "TransmitterAdmin",
-        "UserAlertPreferenceAdmin",
-    ]
-)
+__all__ = [
+    "ActivityLogAdmin",
+    "AlertAdmin",
+    "ChargerAdmin",
+    "ChargerSlotAdmin",
+    "ConfigurationAuditLogAdmin",
+    "DeviceAssignmentAdmin",
+    "DeviceMovementLogAdmin",
+    "DiscoveryCIDRAdmin",
+    "DiscoveryFQDNAdmin",
+    "DiscoveryJobAdmin",
+    "DiscoveryQueueAdmin",
+    "DiscoveredDeviceAdmin",
+    "GroupAdmin",
+    "LocationAdmin",
+    "ManufacturerAdmin",
+    "ManufacturerConfigurationAdmin",
+    "MicboardConfigAdmin",
+    "MonitoringGroupAdmin",
+    "RFChannelAdmin",
+    "WirelessUnitAdmin",
+    "WirelessChassisAdmin",
+    "ServiceSyncLogAdmin",
+    "UserAlertPreferenceAdmin",
+]

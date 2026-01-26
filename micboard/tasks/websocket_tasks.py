@@ -1,5 +1,4 @@
-"""
-WebSocket background tasks for real-time device updates.
+"""WebSocket background tasks for real-time device updates.
 
 This module handles WebSocket connections for manufacturers that support
 real-time updates via WebSocket (currently Shure).
@@ -20,8 +19,7 @@ logger = logging.getLogger(__name__)
 
 @async_task
 def start_shure_websocket_subscriptions():
-    """
-    Start WebSocket subscriptions for all active Shure devices.
+    """Start WebSocket subscriptions for all active Shure devices.
 
     This task runs in the background and maintains WebSocket connections
     to Shure devices for real-time updates.
@@ -42,20 +40,20 @@ def start_shure_websocket_subscriptions():
             logger.error("Shure plugin not found")
             return
 
-        # Get active receivers
-        active_receivers = manufacturer.receivers.filter(is_active=True)
-        if not active_receivers:
-            logger.info("No active Shure receivers found")
+        # Get active chassis
+        active_chassis = manufacturer.wireless_chassis.filter(status="online")
+        if not active_chassis:
+            logger.info("No active wireless chassis found")
             return
 
-        # Start WebSocket subscriptions for each receiver
+        # Start WebSocket subscriptions for each chassis
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
         try:
             tasks = []
-            for receiver in active_receivers:
-                task = loop.create_task(_start_receiver_websocket_async(plugin, receiver))
+            for chassis in active_chassis:
+                task = loop.create_task(_start_receiver_websocket_async(plugin, chassis))
                 tasks.append(task)
 
             if tasks:
@@ -71,16 +69,16 @@ def start_shure_websocket_subscriptions():
         logger.exception("Error starting Shure WebSocket subscriptions: %s", e)
 
 
-async def _start_receiver_websocket_async(plugin, receiver):
+async def _start_receiver_websocket_async(plugin, chassis):
     """Start WebSocket subscription for a single receiver."""
     try:
-        logger.info("Starting WebSocket subscription for Shure receiver: %s", receiver.name)
+        logger.info("Starting WebSocket subscription for Shure receiver: %s", chassis.name)
 
         # Get or create connection tracking
         from micboard.models import RealTimeConnection
 
         connection, created = RealTimeConnection.objects.get_or_create(
-            receiver=receiver, defaults={"connection_type": "websocket"}
+            chassis=chassis, defaults={"connection_type": "websocket"}
         )
         if not created:
             connection.connection_type = "websocket"
@@ -93,12 +91,12 @@ async def _start_receiver_websocket_async(plugin, receiver):
 
         # Construct base_url
         scheme = (
-            "https" if getattr(receiver, "port", 443) == 443 else "http"
+            "https" if getattr(chassis, "port", 443) == 443 else "http"
         )  # Assuming 443 is HTTPS, otherwise HTTP
-        base_url = f"{scheme}://{receiver.ip}:{getattr(receiver, 'port', 443)}"
+        base_url = f"{scheme}://{chassis.ip}:{getattr(chassis, 'port', 443)}"
 
         client = ShureSystemAPIClient(
-            base_url=base_url, verify_ssl=getattr(receiver, "verify_ssl", True)
+            base_url=base_url, verify_ssl=getattr(chassis, "verify_ssl", True)
         )
 
         # Set up callback for updates
@@ -106,13 +104,13 @@ async def _start_receiver_websocket_async(plugin, receiver):
 
         def update_callback(data: dict[str, Any]):
             connection.received_message()
-            async_to_sync(_process_websocket_update_async)(plugin, receiver.api_device_id, data)
+            async_to_sync(_process_websocket_update_async)(plugin, chassis.api_device_id, data)
 
         # Connect and subscribe using the WebSocket function
-        await connect_and_subscribe(client, receiver.api_device_id, update_callback)
+        await connect_and_subscribe(client, chassis.api_device_id, update_callback)
 
     except Exception as e:
-        logger.exception("Error in WebSocket subscription for receiver %s: %s", receiver.name, e)
+        logger.exception("Error in WebSocket subscription for chassis %s: %s", chassis.name, e)
         if "connection" in locals():
             connection.mark_error(str(e))
 
@@ -158,16 +156,16 @@ async def _broadcast_websocket_update_async(manufacturer, device_data: dict[str,
         from micboard.serializers import serialize_receiver
         from micboard.signals.broadcast_signals import devices_polled
 
-        # Get the updated receiver data
+        # Get the updated chassis data
         api_device_id = device_data.get("api_device_id")
         if api_device_id:
-            from micboard.models import Receiver
+            from micboard.models import WirelessChassis
 
             try:
-                receiver = Receiver.objects.get(
+                chassis = WirelessChassis.objects.get(
                     manufacturer=manufacturer, api_device_id=api_device_id
                 )
-                serialized_data = {"receivers": [serialize_receiver(receiver, include_extra=True)]}
+                serialized_data = {"receivers": [serialize_receiver(chassis, include_extra=True)]}
 
                 # Send via Django Channels
                 channel_layer = get_channel_layer()
@@ -186,8 +184,10 @@ async def _broadcast_websocket_update_async(manufacturer, device_data: dict[str,
 
                 logger.debug("Broadcasted WebSocket update for device %s", api_device_id)
 
-            except Receiver.DoesNotExist:
-                logger.warning("Receiver not found for WebSocket broadcast: %s", api_device_id)
+            except WirelessChassis.DoesNotExist:
+                logger.warning(
+                    "Wireless chassis not found for WebSocket broadcast: %s", api_device_id
+                )
 
     except Exception as e:
         logger.exception("Error broadcasting WebSocket update: %s", e)

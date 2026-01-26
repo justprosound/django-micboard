@@ -1,5 +1,4 @@
-"""
-Manufacturer service base classes and registry.
+"""Manufacturer service base classes and registry.
 
 This module provides the service-oriented architecture for manufacturer integrations,
 with direct device lifecycle management and bi-directional sync capabilities.
@@ -9,12 +8,12 @@ Architecture:
   ├─ ShureService (concrete implementation)
   ├─ SennheiserService (future)
   └─ ...
-  
+
   ServiceRegistry (singleton)
   ├─ Register services
   ├─ Lifecycle management
   └─ Configuration overrides
-  
+
   DeviceLifecycleManager handles all state transitions
 """
 
@@ -48,8 +47,7 @@ class ManufacturerServiceConfig:
         enabled: bool = True,
         config: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize service configuration.
+        """Initialize service configuration.
 
         Args:
             code: Unique manufacturer code (e.g., 'shure', 'sennheiser')
@@ -66,13 +64,13 @@ class ManufacturerServiceConfig:
         self.created_at = timezone.now()
 
     def __repr__(self) -> str:
+        """Return a concise representation showing code, name, and status."""
         status = "enabled" if self.enabled else "disabled"
         return f"<ManufacturerServiceConfig {self.code}: {self.name} ({status})>"
 
 
 class ManufacturerService(ABC):
-    """
-    Abstract base service for manufacturer integrations.
+    """Abstract base service for manufacturer integrations.
 
     Services handle:
     - API communication
@@ -94,16 +92,13 @@ class ManufacturerService(ABC):
     SUPPORTS_DISCOVERY: ClassVar[bool] = True
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        Initialize the service.
+        """Initialize the service.
 
         Args:
             config: Configuration overrides from admin/settings
         """
         if not self.MANUFACTURER_CODE:
-            raise ImproperlyConfigured(
-                f"{self.__class__.__name__} must define MANUFACTURER_CODE"
-            )
+            raise ImproperlyConfigured(f"{self.__class__.__name__} must define MANUFACTURER_CODE")
 
         self.config = config or {}
         self._client = None
@@ -112,9 +107,10 @@ class ManufacturerService(ABC):
         self._is_healthy = False
         self._error_count = 0
         self._poll_count = 0
-        
+
         # Initialize lifecycle manager for this service
         from micboard.services.device_lifecycle import get_lifecycle_manager
+
         self._lifecycle_manager = get_lifecycle_manager(service_code=self.code)
 
         logger.info(
@@ -157,8 +153,7 @@ class ManufacturerService(ABC):
 
     @abstractmethod
     def get_client(self) -> Any:
-        """
-        Get or create the API client.
+        """Get or create the API client.
 
         Returns:
             Configured API client instance
@@ -166,8 +161,7 @@ class ManufacturerService(ABC):
         raise NotImplementedError()
 
     def check_health(self) -> Dict[str, Any]:
-        """
-        Check service health.
+        """Check service health.
 
         Returns:
             Dict with keys:
@@ -229,8 +223,7 @@ class ManufacturerService(ABC):
 
     @abstractmethod
     def poll_devices(self) -> List[Dict[str, Any]]:
-        """
-        Poll the manufacturer API for devices.
+        """Poll the manufacturer API for devices.
 
         Should:
         1. Fetch devices from API
@@ -245,8 +238,7 @@ class ManufacturerService(ABC):
 
     @abstractmethod
     def get_device_details(self, device_id: str) -> Dict[str, Any]:
-        """
-        Fetch detailed information for a specific device.
+        """Fetch detailed information for a specific device.
 
         Args:
             device_id: Device identifier from API
@@ -258,8 +250,7 @@ class ManufacturerService(ABC):
 
     @abstractmethod
     def transform_device_data(self, api_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Transform manufacturer API data to standard format.
+        """Transform manufacturer API data to standard format.
 
         Standard format:
         {
@@ -281,8 +272,7 @@ class ManufacturerService(ABC):
         raise NotImplementedError()
 
     def configure_discovery(self, ips: List[str]) -> bool:
-        """
-        Configure IP addresses for discovery (if supported).
+        """Configure IP addresses for discovery (if supported).
 
         Args:
             ips: List of IP addresses to discover
@@ -307,11 +297,10 @@ class ManufacturerService(ABC):
         device,
         api_data: Dict[str, Any],
     ) -> bool:
-        """
-        Update device from API data (pull sync).
+        """Update device from API data (pull sync).
 
         Args:
-            device: Receiver or Transmitter instance
+            device: WirelessChassis or WirelessUnit instance
             api_data: Raw data from manufacturer API
 
         Returns:
@@ -327,8 +316,7 @@ class ManufacturerService(ABC):
         *,
         fields: Optional[List[str]] = None,
     ) -> bool:
-        """
-        Push device changes to API (push sync).
+        """Push device changes to API (push sync).
 
         Args:
             device: Device to sync
@@ -376,13 +364,14 @@ class ManufacturerService(ABC):
 
     def _emit_status_changed(self, device) -> None:
         """Emit signal for WebSocket broadcast (minimal signal use)."""
+        is_online = getattr(device, "is_online", device.status == "online")
         device_status_changed.send(
             sender=self.__class__,
             service_code=self.code,
             device_id=device.pk,
             device_type=device.__class__.__name__,
             status=device.status,
-            is_active=device.is_active,
+            is_active=is_online,
             timestamp=timezone.now(),
         )
 
@@ -401,8 +390,7 @@ class ManufacturerService(ABC):
 
 
 class ServiceRegistry:
-    """
-    Registry for all manufacturer services.
+    """Registry for all manufacturer services.
 
     Provides:
     - Singleton management
@@ -412,6 +400,7 @@ class ServiceRegistry:
     """
 
     def __init__(self):
+        """Initialize service and configuration registries."""
         self._services: Dict[str, ManufacturerService] = {}
         self._configs: Dict[str, ManufacturerServiceConfig] = {}
 
@@ -489,10 +478,7 @@ class ServiceRegistry:
 
     def get_health_status(self) -> Dict[str, Any]:
         """Get health status of all services."""
-        return {
-            service.code: service.check_health()
-            for service in self.get_all_services()
-        }
+        return {service.code: service.check_health() for service in self.get_all_services()}
 
     def unregister(self, code: str) -> None:
         """Unregister a service."""

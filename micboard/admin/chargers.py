@@ -5,9 +5,26 @@ from micboard.models import Charger, ChargerSlot
 
 @admin.register(ChargerSlot)
 class ChargerSlotAdmin(admin.ModelAdmin):
-    list_display = ("charger", "slot_number", "is_occupied", "transmitter", "charging_status")
-    list_filter = ("charger", "is_occupied", "charging_status")
-    search_fields = ("charger__name", "transmitter__name")
+    list_display = (
+        "charger",
+        "slot_number",
+        "is_occupied",
+        "device_info",
+        "battery_percent",
+        "device_status",
+    )
+    list_filter = ("charger", "occupied", "device_status")
+    search_fields = ("charger__name", "device_serial", "device_model")
+
+    @admin.display(description="Device Info")
+    def device_info(self, obj):
+        if obj.device_model and obj.device_serial:
+            return f"{obj.device_model} ({obj.device_serial})"
+        return obj.device_serial or "-"
+
+    @admin.display(boolean=True, description="Occupied")
+    def is_occupied(self, obj):
+        return obj.occupied
 
 
 @admin.register(Charger)
@@ -17,11 +34,11 @@ class ChargerAdmin(admin.ModelAdmin):
         "manufacturer",
         "device_type",
         "ip",
-        "is_active",
+        "status",
         "last_seen",
         "location",
     )
-    list_filter = ("manufacturer", "device_type", "location")
+    list_filter = ("manufacturer", "device_type", "status", "location")
     search_fields = ("name", "api_device_id", "ip")
     readonly_fields = ("last_seen",)
     ordering = ("order", "manufacturer__name", "name")

@@ -1,0 +1,253 @@
+# Wireless audio device specifications fixture
+# Defines channel capabilities, roles, and features across all manufacturers
+
+shure:
+  ulxd4d:
+    channels: 2
+    role: "receiver"
+    dante: true
+    name: "ULX-D4D"
+    models:
+      - "ULX-D4D"
+      - "ULXD4D"
+      - "ULXD4D-GV"
+
+  ulxd4q:
+    channels: 4
+    role: "receiver"
+    dante: true
+    name: "ULX-D4Q"
+    models:
+      - "ULX-D4Q"
+      - "ULXD4Q"
+      - "ULXD4Q-GV"
+
+  ulxd4gv:
+    channels: 4
+    role: "receiver"
+    dante: false
+    name: "ULX-D4 (Standard)"
+    models:
+      - "ULX-D4GV"
+      - "ULXD4GV"
+      - "ULX-D4"
+
+  ad4d:
+    channels: 2
+    role: "receiver"
+    dante: false
+    name: "AD4D"
+    models:
+      - "AD4D"
+      - "AD4DNP"
+      - "AD4D-A"
+
+  ad4q:
+    channels: 4
+    role: "receiver"
+    dante: false
+    name: "AD4Q"
+    models:
+      - "AD4Q"
+      - "AD4QNP"
+      - "AD4Q-A"
+
+  adx5d:
+    channels: 2
+    role: "receiver"
+    dante: false
+    name: "ADX5D"
+    models:
+      - "ADX5D"
+      - "ADX5D-A"
+
+  adpsm:
+    channels: 4
+    role: "transmitter"
+    dante: false
+    name: "Axient Digital PSM"
+    models:
+      - "ADPSM"
+      - "ADPSM-A"
+      - "ADPSM-TW"
+
+  qlxd1:
+    channels: 1
+    role: "receiver"
+    dante: false
+    name: "QLX-D1"
+    models:
+      - "QLX-D1"
+      - "QLXD1"
+
+  qlxd2:
+    channels: 2
+    role: "receiver"
+    dante: false
+    name: "QLX-D2"
+    models:
+      - "QLX-D2"
+      - "QLXD2"
+
+  qlxd4:
+    channels: 4
+    role: "receiver"
+    dante: false
+    name: "QLX-D4"
+    models:
+      - "QLX-D4"
+      - "QLXD4"
+
+  slxd1:
+    channels: 1
+    role: "receiver"
+    dante: false
+    name: "SLX-D1"
+    models:
+      - "SLX-D1"
+      - "SLXD1"
+
+  slxd2:
+    channels: 2
+    role: "receiver"
+    dante: false
+    name: "SLX-D2"
+    models:
+      - "SLX-D2"
+      - "SLXD2"
+
+  slxd4:
+    channels: 4
+    role: "receiver"
+    dante: false
+    name: "SLX-D4"
+    models:
+      - "SLX-D4"
+      - "SLXD4"
+
+  glxd12:
+    channels: 2
+    role: "receiver"
+    dante: false
+    name: "GLX-D12"
+    models:
+      - "GLX-D12"
+      - "GLXD12"
+
+  glxd14:
+    channels: 4
+    role: "receiver"
+    dante: false
+    name: "GLX-D14"
+    models:
+      - "GLX-D14"
+      - "GLXD14"
+
+  uhfr:
+    channels: 4
+    role: "receiver"
+    dante: false
+    name: "UHF-R"
+    models:
+      - "UHF-R"
+      - "UHFR"
+
+  anx4_axient:
+    channels: 16
+    role: "receiver"
+    dante: true
+    name: "ANX4 (Axient Digital Mode)"
+    models:
+      - "ANX4"
+      - "ANX4LC"
+      - "ANX4-AxientDigital"
+
+  anx4_ulxd:
+    channels: 24
+    role: "receiver"
+    dante: true
+    name: "ANX4 (ULX-D Mode)"
+    models:
+      - "ANX4-ULXD"
+      - "ANX4-ULX"
+
+sennheiser:
+  spectera_base:
+    channels: 64
+    role: "transceiver"
+    dante: true
+    name: "Spectera Base Station"
+    models:
+      - "Spectera"
+      - "Spectera Base"
+      - "Spectera Base Station"
+
+  spectera_sek:
+    channels: 2
+    role: "transceiver"
+    dante: false
+    name: "Spectera SEK Bodypack"
+    models:
+      - "Spectera SEK"
+      - "SEK"
+
+  ew_d_sr:
+    channels: 1
+    role: "receiver"
+    dante: false
+    name: "Evolution Wireless Digital SR"
+    models:
+      - "EW-D SR"
+      - "SR"
+
+  iem:
+    channels: 16
+    role: "transmitter"
+    dante: false
+    name: "IEM Transmitter"
+    models:
+      - "IEM Transmitter"
+
+wisycom:
+  sr1:
+    channels: 1
+    role: "receiver"
+    dante: false
+    name: "SR1"
+    models:
+      - "SR1"
+      - "SR1-HM"
+
+  sr1b:
+    channels: 1
+    role: "receiver"
+    dante: true
+    name: "SR1B (Dante)"
+    models:
+      - "SR1B"
+      - "SR1B-HM"
+
+  sr1two:
+    channels: 2
+    role: "receiver"
+    dante: false
+    name: "SR1 TWO"
+    models:
+      - "SR1 TWO"
+
+  mixpre:
+    channels: 16
+    role: "transmitter"
+    dante: false
+    name: "MixPre"
+    models:
+      - "MixPre"
+
+ulbaco:
+  wmu4d:
+    channels: 4
+    role: "receiver"
+    dante: false
+    name: "WMU4D"
+    models:
+      - "WMU4D"

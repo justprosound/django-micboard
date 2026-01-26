@@ -1,6 +1,4 @@
-"""
-Rate limiting decorators for micboard views.
-"""
+"""Rate limiting decorators for micboard views."""
 
 import logging
 import time
@@ -13,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=None):
-    """
-    Rate limit decorator for Django views using sliding window algorithm.
+    """Rate limit decorator for Django views using sliding window algorithm.
 
     Args:
         max_requests: Maximum number of requests allowed in the time window
@@ -91,10 +88,8 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
 
 
 def get_client_ip(request):
-    """
-    Extract client IP address from request, considering proxies.
-    """
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    """Extract client IP address from request, considering proxies."""
+    x_forwarded_for = request.headers.get("x-forwarded-for")
     if x_forwarded_for:
         ip = x_forwarded_for.split(",")[0].strip()
     else:
@@ -103,8 +98,7 @@ def get_client_ip(request):
 
 
 def rate_limit_user(max_requests: int = 100, window_seconds: int = 60):
-    """
-    Rate limit decorator for authenticated users.
+    """Rate limit decorator for authenticated users.
     Uses user ID instead of IP address for the cache key.
 
     Example:

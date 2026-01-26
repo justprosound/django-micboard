@@ -1,5 +1,4 @@
-"""
-Django admin dashboard for system platform status.
+"""Django admin dashboard for system platform status.
 
 Provides real-time overview of manufacturers, devices, and service health.
 """
@@ -8,10 +7,8 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Any, Dict, List
 
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -21,12 +18,13 @@ from django.views.decorators.http import require_http_methods
 from micboard.decorators import rate_limit_view
 from micboard.models import (
     ActivityLog,
-    Channel,
     Manufacturer,
-    Receiver,
+    RFChannel,
     ServiceSyncLog,
-    Transmitter,
+    WirelessChassis,
+    WirelessUnit,
 )
+from micboard.services.efis_import import EFISImportService
 from micboard.services.manufacturer_service import get_all_services
 
 logger = logging.getLogger(__name__)
@@ -36,8 +34,7 @@ logger = logging.getLogger(__name__)
 @require_http_methods(["GET"])
 @rate_limit_view(max_requests=60, window_seconds=60)
 def admin_dashboard(request) -> render:
-    """
-    Main admin dashboard showing system platform status.
+    """Main admin dashboard showing system platform status.
 
     Displays:
     - Overall device counts and online status
@@ -52,35 +49,37 @@ def admin_dashboard(request) -> render:
     last_week = now - timedelta(days=7)
 
     # Device statistics
-    all_receivers = Receiver.objects.all()
-    all_transmitters = Transmitter.objects.all()
+    all_receivers = WirelessChassis.objects.all()
+    all_transmitters = WirelessUnit.objects.all()
 
     receiver_stats = {
         "total": all_receivers.count(),
         "online": all_receivers.filter(is_online=True).count(),
         "offline": all_receivers.filter(is_online=False).count(),
-        "active": all_receivers.filter(is_active=True).count(),
+        "active": all_receivers.filter(status__in=["online", "degraded", "provisioning"]).count(),
     }
 
     transmitter_stats = {
         "total": all_transmitters.count(),
-        "online": all_transmitters.filter(is_online=True).count(),
-        "offline": all_transmitters.filter(is_online=False).count(),
-        "active": all_transmitters.filter(is_active=True).count(),
+        "online": all_transmitters.filter(status="online").count(),
+        "offline": all_transmitters.filter(status="offline").count(),
+        "active": all_transmitters.filter(
+            status__in=["online", "degraded", "provisioning"]
+        ).count(),
     }
 
     # Manufacturer statistics
     manufacturers = Manufacturer.objects.annotate(
-        receiver_count=Count("receiver", distinct=True),
-        transmitter_count=Count("transmitter", distinct=True),
+        receiver_count=Count("wirelesschassis", distinct=True),
+        transmitter_count=Count("wirelessunit", distinct=True),
         online_receivers=Count(
-            "receiver",
-            filter=Q(receiver__is_online=True),
+            "wirelesschassis",
+            filter=Q(wirelesschassis__is_online=True),
             distinct=True,
         ),
         online_transmitters=Count(
-            "transmitter",
-            filter=Q(transmitter__is_online=True),
+            "wirelessunit",
+            filter=Q(wirelessunit__status="online"),
             distinct=True,
         ),
     )
@@ -114,9 +113,7 @@ def admin_dashboard(request) -> render:
             health = service.check_health()
             stats["service_status"] = health.get("status", "unknown")
             stats["service_message"] = health.get("message", "")
-            stats["last_poll"] = (
-                service.last_poll.isoformat() if service.last_poll else None
-            )
+            stats["last_poll"] = service.last_poll.isoformat() if service.last_poll else None
             stats["error_count"] = service.error_count
         else:
             stats["service_status"] = "unavailable"
@@ -146,10 +143,9 @@ def admin_dashboard(request) -> render:
     )
 
     # Recent activities
-    recent_activities = (
-        ActivityLog.objects.select_related("user", "content_type")
-        .order_by("-created_at")[:10]
-    )
+    recent_activities = ActivityLog.objects.select_related("user", "content_type").order_by(
+        "-created_at"
+    )[:10]
 
     recent_activities_data = []
     for activity in recent_activities:
@@ -165,10 +161,7 @@ def admin_dashboard(request) -> render:
         )
 
     # Recent syncs
-    recent_syncs = (
-        ServiceSyncLog.objects.select_related("service")
-        .order_by("-started_at")[:5]
-    )
+    recent_syncs = ServiceSyncLog.objects.select_related("service").order_by("-started_at")[:5]
 
     recent_syncs_data = []
     for sync in recent_syncs:
@@ -187,8 +180,8 @@ def admin_dashboard(request) -> render:
 
     # Channel statistics
     channel_stats = {
-        "total": Channel.objects.count(),
-        "active": Channel.objects.filter(is_active=True).count(),
+        "total": RFChannel.objects.count(),
+        "active": RFChannel.objects.filter(enabled=True).count(),
     }
 
     # System health summary
@@ -214,6 +207,10 @@ def admin_dashboard(request) -> render:
     if system_health["online_percentage"] < 50:
         system_health["status"] = "unhealthy"
 
+    # Check compliance data freshness
+    efis_outdated = EFISImportService.is_outdated()
+    efis_last_update = EFISImportService.get_last_import_date()
+
     context = {
         "title": "Micboard Admin Dashboard",
         "system_health": system_health,
@@ -231,6 +228,10 @@ def admin_dashboard(request) -> render:
         "recent_activities": recent_activities_data,
         "recent_syncs": recent_syncs_data,
         "timestamp": now.isoformat(),
+        "efis_alert": {
+            "outdated": efis_outdated,
+            "last_update": efis_last_update,
+        },
     }
 
     return render(request, "admin/dashboard.html", context)
@@ -240,8 +241,7 @@ def admin_dashboard(request) -> render:
 @require_http_methods(["GET"])
 @rate_limit_view(max_requests=60, window_seconds=60)
 def api_dashboard_data(request) -> JsonResponse:
-    """
-    API endpoint for dashboard data (JSON).
+    """API endpoint for dashboard data (JSON).
 
     Used for AJAX updates and external integrations.
     """
@@ -249,8 +249,8 @@ def api_dashboard_data(request) -> JsonResponse:
     last_hour = now - timedelta(hours=1)
 
     # Get current statistics
-    all_receivers = Receiver.objects.all()
-    all_transmitters = Transmitter.objects.all()
+    all_receivers = WirelessChassis.objects.all()
+    all_transmitters = WirelessUnit.objects.all()
 
     receiver_stats = {
         "total": all_receivers.count(),
@@ -260,8 +260,8 @@ def api_dashboard_data(request) -> JsonResponse:
 
     transmitter_stats = {
         "total": all_transmitters.count(),
-        "online": all_transmitters.filter(is_online=True).count(),
-        "offline": all_transmitters.filter(is_online=False).count(),
+        "online": all_transmitters.filter(status="online").count(),
+        "offline": all_transmitters.filter(status="offline").count(),
     }
 
     # Service health
@@ -299,9 +299,7 @@ def api_dashboard_data(request) -> JsonResponse:
 @require_http_methods(["GET"])
 @rate_limit_view(max_requests=120, window_seconds=60)
 def api_manufacturer_status(request, manufacturer_code: str) -> JsonResponse:
-    """
-    API endpoint for detailed manufacturer status.
-    """
+    """API endpoint for detailed manufacturer status."""
     try:
         manufacturer = Manufacturer.objects.get(code=manufacturer_code)
     except Manufacturer.DoesNotExist:
@@ -310,27 +308,25 @@ def api_manufacturer_status(request, manufacturer_code: str) -> JsonResponse:
             status=404,
         )
 
-    receivers = manufacturer.receiver_set.all()
-    transmitters = manufacturer.transmitter_set.all()
+    receivers = manufacturer.wirelesschassis_set.all()
+    transmitters = manufacturer.wirelessunit_set.all()
 
     receiver_stats = {
         "total": receivers.count(),
         "online": receivers.filter(is_online=True).count(),
         "offline": receivers.filter(is_online=False).count(),
-        "active": receivers.filter(is_active=True).count(),
+        "active": receivers.filter(status__in=["online", "degraded", "provisioning"]).count(),
     }
 
     transmitter_stats = {
         "total": transmitters.count(),
-        "online": transmitters.filter(is_online=True).count(),
-        "offline": transmitters.filter(is_online=False).count(),
-        "active": transmitters.filter(is_active=True).count(),
+        "online": transmitters.filter(status="online").count(),
+        "offline": transmitters.filter(status="offline").count(),
+        "active": transmitters.filter(status__in=["online", "degraded", "provisioning"]).count(),
     }
 
     # Recent syncs
-    recent_syncs = (
-        manufacturer.sync_logs.all().order_by("-started_at")[:5]
-    )
+    recent_syncs = manufacturer.sync_logs.all().order_by("-started_at")[:5]
 
     recent_syncs_data = [
         {
@@ -345,12 +341,9 @@ def api_manufacturer_status(request, manufacturer_code: str) -> JsonResponse:
     ]
 
     # Recent activities
-    recent_activities = (
-        ActivityLog.objects.filter(
-            Q(service_code=manufacturer_code) | Q(object_id=manufacturer.id)
-        )
-        .order_by("-created_at")[:5]
-    )
+    recent_activities = ActivityLog.objects.filter(
+        Q(service_code=manufacturer_code) | Q(object_id=manufacturer.id)
+    ).order_by("-created_at")[:5]
 
     recent_activities_data = [
         {

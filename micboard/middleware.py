@@ -1,22 +1,105 @@
-"""
-Security middleware for Django Micboard.
+"""Custom middleware for django-micboard.
 
-Provides additional security headers and protections beyond Django's defaults.
+Provides request logging, performance monitoring, connection health tracking, and security.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from typing import Callable
 
 from django.http import HttpRequest, HttpResponse
+from django.utils.deprecation import MiddlewareMixin
+
+from micboard.services import ConnectionHealthService
 
 logger = logging.getLogger(__name__)
 
 
+class RequestLoggingMiddleware(MiddlewareMixin):
+    """Log all requests with timing information."""
+
+    def process_request(self, request: HttpRequest) -> None:
+        """Store request start time."""
+        request._start_time = time.time()  # type: ignore[attr-defined]
+
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
+        """Log request with timing."""
+        if hasattr(request, "_start_time"):
+            duration = time.time() - request._start_time
+            logger.info(
+                f"{request.method} {request.path} - {response.status_code} "
+                f"({duration * 1000:.2f}ms)"
+            )
+        return response
+
+
+class ConnectionHealthMiddleware(MiddlewareMixin):
+    """Track connection health for manufacturer APIs."""
+
+    def process_request(self, request: HttpRequest) -> None:
+        """Check connection health on each request."""
+        # Only check for API endpoints
+        if request.path.startswith("/api/"):
+            try:
+                unhealthy = ConnectionHealthService.get_unhealthy_connections(
+                    heartbeat_timeout_seconds=60
+                )
+
+                if unhealthy:
+                    logger.warning(
+                        f"Unhealthy connections detected: "
+                        f"{[c['manufacturer_code'] for c in unhealthy]}"
+                    )
+
+                    # Store in request for use in views
+                    request.unhealthy_connections = unhealthy  # type: ignore[attr-defined]
+            except Exception as e:
+                logger.error(f"Error checking connection health: {e}")
+
+
+class PerformanceMonitoringMiddleware(MiddlewareMixin):
+    """Monitor slow requests and log performance warnings."""
+
+    SLOW_REQUEST_THRESHOLD = 1.0  # seconds
+
+    def process_request(self, request: HttpRequest) -> None:
+        """Store request start time."""
+        request._perf_start_time = time.time()  # type: ignore[attr-defined]
+
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
+        """Check for slow requests."""
+        if hasattr(request, "_perf_start_time"):
+            duration = time.time() - request._perf_start_time
+
+            if duration > self.SLOW_REQUEST_THRESHOLD:
+                logger.warning(
+                    f"SLOW REQUEST: {request.method} {request.path} took {duration:.2f}s"
+                )
+
+                # Add custom header for monitoring
+                response["X-Response-Time"] = f"{duration:.3f}"
+
+        return response
+
+
+class APIVersionMiddleware(MiddlewareMixin):
+    """Add API version information to responses."""
+
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
+        """Add version header to API responses."""
+        if request.path.startswith("/api/"):
+            # Import here to avoid circular imports
+            from micboard import __version__
+
+            response["X-API-Version"] = __version__
+
+        return response
+
+
 class SecurityHeadersMiddleware:
-    """
-    Middleware to add security headers to all responses.
+    """Middleware to add security headers to all responses.
 
     Adds headers for:
     - Content Security Policy (CSP)
@@ -64,9 +147,8 @@ class SecurityHeadersMiddleware:
         return response
 
 
-class RequestLoggingMiddleware:
-    """
-    Middleware to log security-relevant requests.
+class SecurityLoggingMiddleware:
+    """Middleware to log security-relevant requests.
 
     Logs suspicious requests that might indicate security issues.
     """
@@ -84,7 +166,7 @@ class RequestLoggingMiddleware:
         ]
 
         request_path = request.get_full_path().lower()
-        user_agent = request.META.get("HTTP_USER_AGENT", "").lower()
+        user_agent = request.headers.get("user-agent", "").lower()
 
         for pattern in suspicious_patterns:
             if pattern in request_path or pattern in user_agent:
@@ -92,7 +174,7 @@ class RequestLoggingMiddleware:
                     "Suspicious request detected: %s %s (User-Agent: %s, IP: %s)",
                     request.method,
                     request.get_full_path(),
-                    request.META.get("HTTP_USER_AGENT", "Unknown"),
+                    request.headers.get("user-agent", "Unknown"),
                     self._get_client_ip(request),
                 )
                 break
@@ -112,7 +194,7 @@ class RequestLoggingMiddleware:
 
     def _get_client_ip(self, request: HttpRequest) -> str:
         """Get the client IP address from the request."""
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        x_forwarded_for = request.headers.get("x-forwarded-for")
         if x_forwarded_for:
             # Take the first IP if there are multiple
             return str(x_forwarded_for).split(",")[0].strip()

@@ -1,6 +1,4 @@
-"""
-Views for the micboard app.
-"""
+"""Views for the micboard app."""
 
 from .dashboard import about, index
 

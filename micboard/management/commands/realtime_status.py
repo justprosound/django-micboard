@@ -1,6 +1,4 @@
-"""
-Management command to check and display real-time connection status.
-"""
+"""Management command to check and display real-time connection status."""
 
 from __future__ import annotations
 

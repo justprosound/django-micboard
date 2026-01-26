@@ -1,6 +1,4 @@
-"""
-Shure manufacturer plugin for django-micboard.
-"""
+"""Shure manufacturer plugin for django-micboard."""
 
 from __future__ import annotations
 

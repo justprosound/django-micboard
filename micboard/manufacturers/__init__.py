@@ -15,7 +15,6 @@ import importlib
 import pkgutil
 import sys
 from types import ModuleType
-from typing import Any, cast
 
 from .base import BaseAPIClient, BasePlugin, ManufacturerPlugin
 

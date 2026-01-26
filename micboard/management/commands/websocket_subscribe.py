@@ -1,6 +1,4 @@
-"""
-Management command to start WebSocket subscriptions for Shure devices.
-"""
+"""Management command to start WebSocket subscriptions for Shure devices."""
 
 from __future__ import annotations
 
@@ -14,7 +12,7 @@ from django.core.management.base import BaseCommand
 
 from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.manufacturers import get_manufacturer_plugin
-from micboard.models import Manufacturer, Receiver
+from micboard.models import Manufacturer, WirelessChassis
 from micboard.tasks.polling_tasks import _update_models_from_api_data
 
 logger = logging.getLogger(__name__)
@@ -33,7 +31,10 @@ class Command(BaseCommand):
         parser.add_argument(
             "--device",
             type=str,
-            help="Specific device ID to subscribe to. If not provided, subscribes to all active devices.",
+            help=(
+                "Specific device ID to subscribe to. "
+                "If not provided, subscribes to all active devices."
+            ),
         )
 
     def handle(self, *args, **options):
@@ -54,9 +55,9 @@ class Command(BaseCommand):
             devices = [device_id]
         else:
             devices = list(
-                Receiver.objects.filter(manufacturer=manufacturer, is_active=True).values_list(
-                    "api_device_id", flat=True
-                )
+                WirelessChassis.objects.filter(
+                    manufacturer=manufacturer, is_active=True
+                ).values_list("api_device_id", flat=True)
             )
 
         if not devices:
@@ -95,10 +96,9 @@ class Command(BaseCommand):
 
     async def _subscribe_device(self, plugin, device_id: str):
         """Subscribe to a single device and handle updates."""
-
         try:
             # Get receiver info for connection
-            receiver = Receiver.objects.get(
+            receiver = WirelessChassis.objects.get(
                 manufacturer=plugin.manufacturer, api_device_id=device_id
             )
 
@@ -127,7 +127,7 @@ class Command(BaseCommand):
             # Connect and subscribe using the WebSocket function
             await connect_and_subscribe(client, device_id, update_callback)
 
-        except Receiver.DoesNotExist:
+        except WirelessChassis.DoesNotExist:
             self.stderr.write(self.style.ERROR(f"Receiver not found for device {device_id}"))
         except Exception as e:
             logger.exception(f"Error subscribing to device {device_id}: {e}")

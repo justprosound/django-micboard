@@ -4,35 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "django-micboard"
-version = "25.10.17"  # CalVer: YY.MM.DD
-description = "Django app for real-time Shure wireless microphone monitoring via Shure System API"
+version = "25.01.15"
+description = "Real-time multi-manufacturer wireless microphone monitoring for Django"
 readme = "README.md"
+requires-python = ">=3.9"
 license = {text = "AGPL-3.0-or-later"}
 authors = [
-    {name = "django-micboard contributors"}
-]
-maintainers = [
-    {name = "django-micboard contributors"}
+    {name = "Django Micboard Contributors", email = "contribute@example.com"}
 ]
 keywords = [
     "django",
-    "shure",
     "wireless",
     "microphone",
     "monitoring",
-    "audio",
+    "shure",
+    "sennheiser",
     "real-time",
-    "websocket"
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Framework :: Django",
+    "Framework :: Django :: 4.2",
     "Framework :: Django :: 5.0",
-    "Framework :: Django :: 5.1",
     "Intended Audience :: Developers",
-    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
@@ -40,154 +37,223 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications",
     "Topic :: Internet :: WWW/HTTP",
-    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
-    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.9"
 
 dependencies = [
-    "Django>=5.1,<6.0",
-    "channels>=4.0.0,<5.0",
-    "daphne>=4.0.0,<5.0",
-    "requests>=2.31.0",
-    "asgiref>=3.7.0",
-    "urllib3>=2.0.0",
-    "websockets>=12.0.0",
-    "djangorestframework>=3.14.0",
-    "django-q2[sentry]>=1.4.0",
-    "Pillow>=10.0.0",
+    "Django>=4.2,<6.0",
+    "djangorestframework>=3.14",
+    "django-filter>=23.0",
+    "python-dateutil>=2.8",
+    "requests>=2.28",
 ]
-
-
 
 [project.optional-dependencies]
-redis = [
-    "channels-redis>=4.0.0,<5.0",
-    "redis>=5.0.0",
+channels = [
+    "channels>=4.0",
+    "channels-redis>=4.0",
+]
+tasks = [
+    "django-q>=1.3.9",
+]
+graphql = [
+    "graphene-django>=3.0",
+]
+observability = [
+    "prometheus-client>=0.16",
 ]
 dev = [
-    "freezegun>=1.2.0",
-    "pytest-django>=4.5.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "ruff>=0.14.0,<0.15.0",
-    "mypy>=1.8.0",
-    "pre-commit>=3.6.0",
-    "build>=1.0.0",
-    "twine>=5.0.0",
-    "bandit>=1.7.0",
-    "safety>=2.3.0",
-    "coveralls>=3.3.1",
-    "types-requests",
+    "pytest>=7.0",
+    "pytest-django>=4.5",
+    "pytest-cov>=4.0",
+    "factory-boy>=3.2",
+    "pre-commit>=3.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "django-stubs>=4.2.0",
+    "djangorestframework-stubs>=1.9.0",
+    "types-channels>=4.0",
+    "types-redis>=4.3",
+    "types-requests>=2.28",
+    "types-python-dateutil>=2.8",
+    "bandit>=1.7",
+    "interrogate>=1.5",
+    "coverage>=7.0",
 ]
 docs = [
-    "mkdocs>=1.5.0",
-    "mkdocs-material>=9.5.0",
-    "pymdown-extensions>=10.7",
-    "mkdocs-minify-plugin>=0.8.0",
-    "mkdocstrings[python]>=0.24.0",
-    "mkdocs-autorefs>=1.0.0",
-    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
-    "mkdocs-git-authors-plugin>=0.8.0",
-    "mkdocs-awesome-pages-plugin>=2.9.0",
-    "mkdocs-section-index>=0.3.0",
-    "mkdocs-macros-plugin>=1.0.0",
-    "mkdocs-redirects>=1.2.0",
-    "mkdocs-rss-plugin>=1.15.0",
-    "mkdocs-print-site-plugin>=2.6.0",
-    "mkdocs-meta-descriptions-plugin>=2.3.0",
-    "mkdocs-git-committers-plugin-2>=2.4.0",
+    "sphinx>=5.0",
+    "sphinx-rtd-theme>=1.0",
+    "sphinx-autodoc-typehints>=1.18",
+]
+all = [
+    "channels>=4.0",
+    "channels-redis>=4.0",
+    "django-q>=1.3.9",
+    "graphene-django>=3.0",
+    "prometheus-client>=0.16",
+    "pytest>=7.0",
+    "pytest-django>=4.5",
+    "pytest-cov>=4.0",
+    "factory-boy>=3.2",
+    "pre-commit>=3.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "django-stubs>=4.2.0",
+    "djangorestframework-stubs>=1.9.0",
+    "types-channels>=4.0",
+    "types-redis>=4.3",
+    "types-requests>=2.28",
+    "types-python-dateutil>=2.8",
+    "bandit>=1.7",
+    "interrogate>=1.5",
+    "coverage>=7.0",
+    "sphinx>=5.0",
+    "sphinx-rtd-theme>=1.0",
+    "sphinx-autodoc-typehints>=1.18",
 ]
 
 [project.urls]
-Homepage = "https://github.com/justprosound/django-micboard"
+Homepage = "https://github.com/yourusername/django-micboard"
 Documentation = "https://django-micboard.readthedocs.io"
-Repository = "https://github.com/justprosound/django-micboard"
-Changelog = "https://github.com/justprosound/django-micboard/blob/main/docs/changelog.md"
-"Issue Tracker" = "https://github.com/justprosound/django-micboard/issues"
+Repository = "https://github.com/yourusername/django-micboard.git"
+"Bug Tracker" = "https://github.com/yourusername/django-micboard/issues"
+Changelog = "https://github.com/yourusername/django-micboard/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 packages = ["micboard"]
-include-package-data = true
 
 [tool.setuptools.package-data]
 micboard = [
-    "static/**/*",
-    "templates/**/*",
-    "management/commands/*.py",
+    "templates/**/*.html",
+    "static/**/*.js",
+    "static/**/*.css",
 ]
 
+# ============================================================================
+# Testing Configuration
+# ============================================================================
 [tool.pytest.ini_options]
-# DJANGO_SETTINGS_MODULE = "tests.settings"
-# testpaths = ["tests"]
-# "tests/**/*.py" = ["ARG", "S"]  # Allow unused args and security issues in tests
-# module = "tests.*"
-# exclude_dirs = ["tests", "migrations", "__pycache__"]
-python_files = ["test_*.py", "*_test.py"]
-# testpaths = ["tests"]
-addopts = [
-    "--verbose",
-    "--strict-markers",
-    "--tb=short",
+DJANGO_SETTINGS_MODULE = "tests.settings"
+python_files = ["test_*.py", "tests.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+testpaths = ["tests"]
+
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (slower, external dependencies)",
+    "e2e: End-to-end tests (slowest, full workflow)",
+    "slow: Slow-running tests",
+    "plugin: Plugin-specific tests",
+    "django_db: Requires Django database access",
+    "asyncio: Asynchronous tests",
 ]
 
+addopts = [
+    "--cov=micboard",
+    "--cov-report=html:htmlcov",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=xml",
+    "--cov-fail-under=85",
+    "--strict-markers",
+    "-ra",
+    "--tb=short",
+    "--disable-warnings",
+]
+
+timeout = 300
+
+[tool.coverage.run]
+branch = true
+source = ["micboard"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/venv/*",
+    "*/virtualenv/*",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+    "if 0:",
+    "if False:",
+    "if settings.DEBUG",
+    "except ImportError",
+    "class .*\\bProtocol\\):",
+    "@overload",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# ============================================================================
+# Linting & Type Checking
+# ============================================================================
 [tool.ruff]
 line-length = 100
 target-version = "py39"
-exclude = [
-    ".git",
-    ".venv",
-    "migrations",
-    "__pycache__",
-    "micboard/views.py",
-]
+extend-exclude = ["scripts/"]
 
 [tool.ruff.lint]
-select = [
-    "E",   # pycodestyle errors
-    "F",   # pyflakes
-    "W",   # pycodestyle warnings
-    "I",   # isort
-    "N",   # pep8-naming
-    "UP",  # pyupgrade
-    "B",   # flake8-bugbear
-    "A",   # flake8-builtins
-    "C4",  # flake8-comprehensions
-    "DTZ", # flake8-datetimez
-    "DJ",  # flake8-django
-    "RUF", # Ruff-specific rules
-]
+select = ["E", "F", "I", "W", "D", "N", "Q", "B"]
 ignore = [
-    "E501",  # Line too long (handled by formatter)
-    "DJ001", # Null on string field (intentional for optional fields)
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106"
 ]
 
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]  # Unused imports in __init__
-# "tests/**/*.py" = ["ARG", "S"]  # Allow unused args and security issues in tests
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 88
 
 [tool.mypy]
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 python_version = "3.9"
-warn_return_any = true
+strict = false
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
 warn_unused_configs = true
+check_untyped_defs = false
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
-check_untyped_defs = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-strict_optional = true
-ignore_missing_imports = true
+disallow_untyped_calls = false
+show_error_codes = true
 
+[[tool.mypy.overrides]]
+module = "*.migrations.*"
+ignore_errors = true
 
+[tool.django-stubs]
+django_settings_module = "example_project.settings"
 
-[tool.bandit]
-exclude_dirs = ["migrations", "__pycache__"]
-# exclude_dirs = ["tests", "migrations", "__pycache__"]
-skips = ["B101", "B601"]  # Skip assert checks and shell usage in admin commands
+# ============================================================================
+# Django Configuration
+# ============================================================================
+[tool.django]
+settings_module = "tests.settings"
 
-[tool.codespell]
-ignore-words-list = ["Shure", "shure", "assertIn"]
+# ============================================================================
+# Package Metadata
+# ============================================================================
+[project.entry-points."django.apps"]
+micboard = "micboard.apps.MicboardConfig"
+
+[tool.pbr]
+skip_authors = true
+skip_changelog = true

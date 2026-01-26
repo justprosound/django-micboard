@@ -1,5 +1,4 @@
-"""
-Base HTTP client with shared retry, pooling, health tracking, and error handling.
+"""Base HTTP client with shared retry, pooling, health tracking, and error handling.
 
 This module provides a common foundation for manufacturer-specific API clients,
 eliminating code duplication across Shure, Sennheiser, and future integrations.
@@ -18,22 +17,23 @@ from django.conf import settings
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from micboard.integrations.common.exceptions import APIError, APIRateLimitError
 from micboard.manufacturers.base import BaseAPIClient
+from micboard.services.base_health_mixin import HealthCheckMixin
 
 logger = logging.getLogger(__name__)
 
 
-class BaseHTTPClient(BaseAPIClient):
-    """
-    Abstract HTTP client with connection pooling, retry logic, and health tracking.
-    
+class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
+    """Abstract HTTP client with connection pooling, retry logic, and health tracking.
+
     Provides common functionality for all manufacturer API clients:
     - Session management with connection pooling
     - Configurable retry strategy with backoff
-    - Health tracking and monitoring
+    - Health tracking and monitoring (via HealthCheckMixin)
     - Comprehensive error handling with logging
     - Rate limit detection
-    
+
     Subclasses must implement:
     - _get_config_prefix(): Return config key prefix (e.g., "SHURE_API")
     - _configure_authentication(): Set up session auth headers/params
@@ -43,16 +43,15 @@ class BaseHTTPClient(BaseAPIClient):
     """
 
     def __init__(self, base_url: str | None = None, verify_ssl: bool | None = None):
-        """
-        Initialize HTTP client with configuration.
-        
+        """Initialize HTTP client with configuration.
+
         Args:
             base_url: Override base URL from config
             verify_ssl: Override SSL verification from config
         """
         config = getattr(settings, "MICBOARD_CONFIG", {})
         prefix = self._get_config_prefix()
-        
+
         # Core configuration
         self.base_url = (
             base_url
@@ -94,9 +93,8 @@ class BaseHTTPClient(BaseAPIClient):
 
     @abstractmethod
     def _get_config_prefix(self) -> str:
-        """
-        Return configuration key prefix for this manufacturer.
-        
+        """Return configuration key prefix for this manufacturer.
+
         Examples: "SHURE_API", "SENNHEISER_API"
         """
         raise NotImplementedError()
@@ -108,15 +106,14 @@ class BaseHTTPClient(BaseAPIClient):
 
     @abstractmethod
     def _configure_authentication(self, config: dict[str, Any]) -> None:
-        """
-        Configure authentication for the session.
-        
+        """Configure authentication for the session.
+
         Implementations should validate required credentials and update
         self.session.headers or self.session.auth as needed.
-        
+
         Args:
             config: MICBOARD_CONFIG dictionary from Django settings
-            
+
         Raises:
             ValueError: If required credentials are missing
         """
@@ -124,20 +121,19 @@ class BaseHTTPClient(BaseAPIClient):
 
     @abstractmethod
     def _get_health_check_endpoint(self) -> str:
-        """
-        Return endpoint path for health checks.
-        
+        """Return endpoint path for health checks.
+
         Examples: "/api/v1/devices", "/api/ssc/version"
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def get_exception_class(self) -> type[Exception]:
+    def get_exception_class(self) -> type[APIError]:
         """Return manufacturer-specific API exception class."""
         raise NotImplementedError()
 
     @abstractmethod
-    def get_rate_limit_exception_class(self) -> type[Exception]:
+    def get_rate_limit_exception_class(self) -> type[APIRateLimitError]:
         """Return manufacturer-specific rate limit exception class."""
         raise NotImplementedError()
 
@@ -156,17 +152,14 @@ class BaseHTTPClient(BaseAPIClient):
         return self._is_healthy and self._consecutive_failures < 5
 
     def check_health(self) -> dict[str, Any]:
-        """
-        Perform health check against the API.
-        
-        Returns:
-            Dictionary with:
-            - status: 'healthy', 'unhealthy', or 'unreachable'
-            - base_url: Configured base URL
-            - status_code: HTTP status code (if reachable)
-            - consecutive_failures: Current failure count
-            - last_successful_request: Timestamp of last success
-            - error: Error message (if unreachable)
+        """Perform health check against the API.
+
+        Returns standardized health response from HealthCheckMixin:
+        {
+            "status": "healthy" | "degraded" | "unhealthy" | "error",
+            "timestamp": ISO string,
+            "details": {...}
+        }
         """
         try:
             endpoint = self._get_health_check_endpoint()
@@ -175,35 +168,41 @@ class BaseHTTPClient(BaseAPIClient):
                 timeout=5,
                 verify=self.verify_ssl,
             )
-            is_up = response.status_code == 200
-            return {
-                "status": "healthy" if is_up else "unhealthy",
+
+            is_healthy = response.status_code == 200
+            status = "healthy" if is_healthy else "unhealthy"
+
+            # Build details dict
+            details = {
                 "base_url": self.base_url,
                 "status_code": response.status_code,
                 "consecutive_failures": self._consecutive_failures,
                 "last_successful_request": self._last_successful_request,
             }
+
+            # Use mixin method to standardize response
+            return self._standardize_health_response(
+                status=status,
+                details=details,
+            )
+
         except requests.RequestException as e:
-            return {
-                "status": "unreachable",
-                "base_url": self.base_url,
-                "error": str(e),
-                "consecutive_failures": self._consecutive_failures,
-                "last_successful_request": self._last_successful_request,
-            }
+            return self._standardize_health_response(
+                status="error",
+                error=f"Health check failed: {e}",
+            )
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Any | None:
-        """
-        Make HTTP request with error handling and comprehensive logging.
-        
+        """Make HTTP request with error handling and comprehensive logging.
+
         Args:
             method: HTTP method (GET, POST, etc.)
             endpoint: API endpoint path (e.g., "/api/v1/devices")
             **kwargs: Additional arguments for requests.request()
-            
+
         Returns:
             Parsed JSON response or None on error
-            
+
         Raises:
             Manufacturer-specific exceptions for errors
         """
@@ -333,17 +332,15 @@ class BaseHTTPClient(BaseAPIClient):
 
 
 class BasePollingMixin:
-    """
-    Mixin for common device polling logic.
-    
+    """Mixin for common device polling logic.
+
     Provides poll_all_devices() implementation that works with any transformer
     that follows the standard interface.
     """
 
     def poll_all_devices(self) -> dict[str, dict[str, Any]]:
-        """
-        Poll all devices using the top-level client methods.
-        
+        """Poll all devices using the top-level client methods.
+
         Returns:
             Dictionary mapping device IDs to transformed device data
         """

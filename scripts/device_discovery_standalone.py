@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Standalone Device Discovery for Shure VPN Devices
+"""Standalone Device Discovery for Shure VPN Devices.
 
 Discovers live Shure devices on VPN without Django dependencies.
 Probes connectivity and generates device manifest.
@@ -11,15 +10,15 @@ Usage:
     python scripts/device_discovery_standalone.py discover --file devices.txt
 """
 
-import sys
-import json
 import argparse
-from typing import List, Dict, Optional, Any
+import json
+import sys
+from typing import Any, Dict, List, Optional
 
 import requests
+import urllib3
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import urllib3
 
 # Disable SSL warnings for development
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -30,7 +29,7 @@ class DeviceDiscovery:
 
     def __init__(self, *, timeout: int = 5, verify_ssl: bool = False):
         """Initialize device discovery client.
-        
+
         Args:
             timeout: Request timeout in seconds
             verify_ssl: Whether to verify SSL certificates
@@ -55,10 +54,10 @@ class DeviceDiscovery:
 
     def probe_device(self, ip: str) -> Optional[Dict[str, Any]]:
         """Probe a single device at the given IP address.
-        
+
         Args:
             ip: Device IP address
-            
+
         Returns:
             Device info dict if successful, None otherwise
         """
@@ -73,14 +72,11 @@ class DeviceDiscovery:
         ]
 
         print(f"  Probing {ip}...", end=" ", flush=True)
-        
+
         for endpoint in endpoints:
             try:
                 response = self.session.get(
-                    endpoint,
-                    timeout=self.timeout,
-                    verify=self.verify_ssl,
-                    allow_redirects=False
+                    endpoint, timeout=self.timeout, verify=self.verify_ssl, allow_redirects=False
                 )
                 # 200 = accessible, 401/403 = API exists but needs auth
                 if response.status_code in [200, 401, 403]:
@@ -104,10 +100,10 @@ class DeviceDiscovery:
 
     def discover_from_ips(self, ips: List[str]) -> List[Dict[str, Any]]:
         """Discover devices from a list of IP addresses.
-        
+
         Args:
             ips: List of device IP addresses
-            
+
         Returns:
             List of discovered device info dicts
         """
@@ -124,25 +120,26 @@ class DeviceDiscovery:
 
     def discover_from_file(self, filename: str) -> List[Dict[str, Any]]:
         """Discover devices from a file of IP addresses.
-        
+
         File format: One IP per line, lines starting with # are comments
-        
+
         Args:
             filename: Path to file with IPs
-            
+
         Returns:
             List of discovered device info dicts
         """
         import os
+
         if not os.path.exists(filename):
             print(f"✗ File not found: {filename}")
             return []
 
         ips = []
-        with open(filename, 'r') as f:
+        with open(filename) as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#'):
+                if line and not line.startswith("#"):
                     ips.append(line)
 
         print(f"Loaded {len(ips)} IPs from {filename}")
@@ -150,19 +147,19 @@ class DeviceDiscovery:
 
     def save_device_manifest(self, filename: str = "device_manifest.json") -> None:
         """Save discovered devices to a manifest file.
-        
+
         Args:
             filename: Output filename (will NOT be committed - in .gitignore)
         """
         from datetime import datetime
-        
+
         manifest = {
             "devices": self.discovered_devices,
             "timestamp": datetime.now().isoformat(),
             "total_count": len(self.discovered_devices),
         }
 
-        with open(filename, 'w') as f:
+        with open(filename, "w") as f:
             json.dump(manifest, f, indent=2)
 
         print(f"\n✓ Device manifest saved to {filename}")
@@ -172,56 +169,36 @@ class DeviceDiscovery:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description='Discover Shure devices from VPN'
-    )
-    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+    parser = argparse.ArgumentParser(description="Discover Shure devices from VPN")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     # Discover subcommand
-    discover_parser = subparsers.add_parser('discover', help='Discover devices')
+    discover_parser = subparsers.add_parser("discover", help="Discover devices")
+    discover_parser.add_argument("--file", help="File with IP addresses (one per line)")
+    discover_parser.add_argument("--ips", help="Comma-separated IP addresses")
     discover_parser.add_argument(
-        '--file',
-        help='File with IP addresses (one per line)'
+        "--save", default="device_manifest.json", help="Save manifest to file"
     )
     discover_parser.add_argument(
-        '--ips',
-        help='Comma-separated IP addresses'
-    )
-    discover_parser.add_argument(
-        '--save',
-        default='device_manifest.json',
-        help='Save manifest to file'
-    )
-    discover_parser.add_argument(
-        '--timeout',
-        type=int,
-        default=5,
-        help='Timeout in seconds (default: 5)'
+        "--timeout", type=int, default=5, help="Timeout in seconds (default: 5)"
     )
 
     # Test subcommand
-    test_parser = subparsers.add_parser('test', help='Test device connectivity')
+    test_parser = subparsers.add_parser("test", help="Test device connectivity")
+    test_parser.add_argument("--ip", required=True, help="Device IP to test")
     test_parser.add_argument(
-        '--ip',
-        required=True,
-        help='Device IP to test'
-    )
-    test_parser.add_argument(
-        '--timeout',
-        type=int,
-        default=5,
-        help='Timeout in seconds (default: 5)'
+        "--timeout", type=int, default=5, help="Timeout in seconds (default: 5)"
     )
 
     args = parser.parse_args()
 
-    if args.command == 'discover':
+    if args.command == "discover":
         discovery = DeviceDiscovery(timeout=args.timeout)
 
         if args.file:
             devices = discovery.discover_from_file(args.file)
         elif args.ips:
-            ips = [ip.strip() for ip in args.ips.split(',')]
+            ips = [ip.strip() for ip in args.ips.split(",")]
             devices = discovery.discover_from_ips(ips)
         else:
             parser.print_help()
@@ -233,7 +210,7 @@ def main():
         else:
             return 1
 
-    elif args.command == 'test':
+    elif args.command == "test":
         discovery = DeviceDiscovery(timeout=args.timeout)
         device = discovery.probe_device(args.ip)
         if device:
@@ -248,5 +225,5 @@ def main():
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

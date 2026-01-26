@@ -1,0 +1,37 @@
+<tr id="assignment-{{ assignment.id }}">
+    <td>
+        <div class="d-flex align-items-center">
+            {% if assignment.user.profile.photo %}
+            <img src="{{ assignment.user.profile.photo.url }}" class="rounded-circle me-2" width="32" height="32" style="object-fit: cover;">
+            {% else %}
+            <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center text-white" style="width: 32px; height: 32px;">
+                {{ assignment.user.username|first|upper }}
+            </div>
+            {% endif %}
+            <div>
+                <div class="fw-bold">{{ assignment.user.get_full_name|default:assignment.user.username }}</div>
+                <small class="text-muted">{{ assignment.user.profile.title }}</small>
+            </div>
+        </div>
+    </td>
+    <td>{{ assignment.user.profile.get_user_type_display }}</td>
+    <td>
+        <strong>{{ assignment.channel.chassis.name }}</strong>
+        <div class="small text-muted">Ch {{ assignment.channel.channel_number }}</div>
+    </td>
+    <td>{{ assignment.channel.frequency }} MHz</td>
+    <td>
+        <span class="badge bg-{% if assignment.priority == 'critical' %}danger{% elif assignment.priority == 'high' %}warning text-dark{% else %}info{% endif %}">
+            {{ assignment.priority|title }}
+        </span>
+    </td>
+    <td>
+        <button class="btn btn-sm btn-outline-danger"
+                hx-delete="{% url 'delete_assignment' assignment.id %}"
+                hx-target="#assignment-{{ assignment.id }}"
+                hx-swap="outerHTML"
+                hx-confirm="Are you sure you want to remove this assignment?">
+            Remove
+        </button>
+    </td>
+</tr>

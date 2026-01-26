@@ -1,6 +1,4 @@
-"""
-Context processors for micboard templates.
-"""
+"""Context processors for micboard templates."""
 
 from django.core.cache import cache
 
@@ -8,8 +6,7 @@ from micboard.models import Manufacturer
 
 
 def api_health(request):
-    """
-    Context processor that provides API health status for all manufacturers.
+    """Context processor that provides API health status for all manufacturers.
 
     Returns a dict with:
     - api_health_status: Overall status ('healthy', 'unhealthy', 'partial', 'unconfigured')

@@ -1,5 +1,4 @@
-"""
-Django admin customizations for Manufacturer model.
+"""Django admin customizations for Manufacturer model.
 
 Provides a custom admin view to manage discovery IPs for manufacturers.
 """
@@ -13,8 +12,8 @@ from django.contrib import admin, messages
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 
-from micboard.discovery.service import DiscoveryService  # Added import
 from micboard.models import Manufacturer
+from micboard.services.discovery_service_new import DiscoveryService
 
 logger = logging.getLogger(__name__)
 

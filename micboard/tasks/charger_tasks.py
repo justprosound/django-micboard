@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def poll_charger_data(manufacturer_id: int):
-    """
-    Task to poll charger data from a specific manufacturer's API.
-    """
+    """Task to poll charger data from a specific manufacturer's API."""
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
         plugin_class = get_manufacturer_plugin(manufacturer.code)

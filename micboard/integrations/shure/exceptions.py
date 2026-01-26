@@ -1,48 +1,25 @@
+"""Shure System API exception classes.
+
+This module provides Shure-specific exceptions that inherit from
+the common exception hierarchy while maintaining their distinct identities.
+"""
+
 from __future__ import annotations
 
-import requests
+# Import base exceptions
+from micboard.integrations.common.exceptions import APIError, APIRateLimitError
 
 
-class ShureAPIError(Exception):
-    """Base exception for Shure System API errors."""
+class ShureAPIError(APIError):
+    """Shure System API error exception."""
 
-    def __init__(
-        self,
-        message: str,
-        status_code: int | None = None,
-        response: requests.Response | None = None,
-    ):
-        super().__init__(message)
-        self.message = message
-        self.status_code = status_code
-        self.response = response
-
-    def __str__(self):
-        if self.status_code:
-            return f"ShureAPIError: {self.message} (Status: {self.status_code})"
-        return f"ShureAPIError: {self.message}"
+    pass
 
 
-class ShureAPIRateLimitError(ShureAPIError):
-    """Exception for Shure System API rate limit errors (HTTP 429)."""
+class ShureAPIRateLimitError(ShureAPIError, APIRateLimitError):
+    """Shure System API rate limit error exception."""
 
-    def __init__(
-        self,
-        message: str = "Rate limit exceeded",
-        retry_after: int | None = None,
-        response: requests.Response | None = None,
-    ):
-        super().__init__(message, status_code=429, response=response)
-        self.retry_after = retry_after
-        if response and "Retry-After" in response.headers:
-            try:
-                self.retry_after = int(response.headers["Retry-After"])
-            except ValueError:
-                pass
+    pass
 
-    def __str__(self):
-        if self.retry_after:
-            return (
-                f"ShureAPIRateLimitError: {self.message}. Retry after {self.retry_after} seconds."
-            )
-        return f"ShureAPIRateLimitError: {self.message}"
+
+__all__ = ["ShureAPIError", "ShureAPIRateLimitError"]

@@ -1,6 +1,4 @@
-"""
-User-related signal handlers for the micboard app.
-"""
+"""User-related signal handlers for the micboard app."""
 
 # User-related signal handlers for the micboard app.
 from __future__ import annotations
