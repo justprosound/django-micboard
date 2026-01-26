@@ -1,5 +1,4 @@
-"""
-Management command to synchronize discovery between Django and manufacturer APIs.
+"""Management command to synchronize discovery between Django and manufacturer APIs.
 
 This command pushes DiscoveredDevice IPs from Django to manufacturer APIs (like Shure System API)
 and then pulls device data back to Django. Django Micboard is the "source of truth" for device IPs.
@@ -14,7 +13,9 @@ from micboard.tasks.discovery_tasks import run_discovery_sync_task
 
 
 class Command(BaseCommand):
-    help = "Synchronize discovery IPs between Django and manufacturer APIs (Django is source of truth)"
+    help = (
+        "Synchronize discovery IPs between Django and manufacturer APIs (Django is source of truth)"
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -87,19 +88,15 @@ class Command(BaseCommand):
             # Display results
             status = result.get("status", "unknown")
             if status == "success":
-                self.stdout.write(self.style.SUCCESS(f"  ✓ Sync completed successfully"))
+                self.stdout.write(self.style.SUCCESS("  ✓ Sync completed successfully"))
             elif status == "failed":
-                self.stdout.write(self.style.ERROR(f"  ✗ Sync failed"))
+                self.stdout.write(self.style.ERROR("  ✗ Sync failed"))
             else:
                 self.stdout.write(self.style.WARNING(f"  Status: {status}"))
 
             self.stdout.write(f"  Created receivers: {result.get('created_receivers', 0)}")
-            self.stdout.write(
-                f"  Missing IPs submitted: {result.get('missing_ips_submitted', 0)}"
-            )
-            self.stdout.write(
-                f"  Scanned IPs submitted: {result.get('scanned_ips_submitted', 0)}"
-            )
+            self.stdout.write(f"  Missing IPs submitted: {result.get('missing_ips_submitted', 0)}")
+            self.stdout.write(f"  Scanned IPs submitted: {result.get('scanned_ips_submitted', 0)}")
 
             if result.get("errors"):
                 self.stdout.write(self.style.WARNING("  Errors:"))

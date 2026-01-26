@@ -1,6 +1,4 @@
-"""
-Django admin configuration for configuration and logging models.
-"""
+"""Django admin configuration for configuration and logging models."""
 
 from __future__ import annotations
 
@@ -75,6 +73,7 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
 
     actions = ["validate_config", "apply_config", "enable_config", "disable_config"]
 
+    @admin.display(description="Status")
     def status_badge(self, obj: ManufacturerConfiguration) -> str:
         """Display status as colored badge."""
         if obj.is_active:
@@ -85,8 +84,7 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
             '<span style="color: red;">●</span> Inactive',
         )
 
-    status_badge.short_description = "Status"
-
+    @admin.display(description="Validation")
     def validation_badge(self, obj: ManufacturerConfiguration) -> str:
         """Display validation status as colored badge."""
         if obj.is_valid:
@@ -97,16 +95,14 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
             '<span style="color: red;">✗ Invalid</span>',
         )
 
-    validation_badge.short_description = "Validation"
-
+    @admin.display(description="Updated By")
     def updated_by_name(self, obj: ManufacturerConfiguration) -> str:
         """Display who updated it."""
         if obj.updated_by:
             return obj.updated_by.username
         return "System"
 
-    updated_by_name.short_description = "Updated By"
-
+    @admin.display(description="Validation Result")
     def validation_result(self, obj: ManufacturerConfiguration) -> str:
         """Display validation result."""
         if not obj.last_validated:
@@ -114,27 +110,20 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
 
         errors = obj.validation_errors.get("errors", [])
         if not errors:
-            return format_html(
-                '<span style="color: green;"><strong>✓ Valid</strong></span>'
-            )
+            return format_html('<span style="color: green;"><strong>✓ Valid</strong></span>')
 
-        error_html = "<br>".join(
-            format_html("<li>{}</li>", error) for error in errors
-        )
+        error_html = "<br>".join(format_html("<li>{}</li>", error) for error in errors)
         return format_html(
             '<span style="color: red;"><strong>✗ Invalid</strong></span><ul>{}</ul>',
             error_html,
         )
 
-    validation_result.short_description = "Validation Result"
-
-    def validate_config(
-        self, request, queryset: object
-    ) -> None:
+    @admin.action(description="Validate selected configurations")
+    def validate_config(self, request, queryset: object) -> None:
         """Action to validate configuration."""
         count = 0
         for config in queryset:
-            result = config.validate()
+            _ = config.validate()  # Trigger validation side effects
             config.save()
             count += 1
 
@@ -144,8 +133,7 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
             messages.SUCCESS,
         )
 
-    validate_config.short_description = "Validate selected configurations"
-
+    @admin.action(description="Apply selected configurations to service")
     def apply_config(self, request, queryset: object) -> None:
         """Action to apply configuration."""
         applied = 0
@@ -170,8 +158,7 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
                 messages.ERROR,
             )
 
-    apply_config.short_description = "Apply selected configurations to service"
-
+    @admin.action(description="Enable selected configurations")
     def enable_config(self, request, queryset: object) -> None:
         """Action to enable configuration."""
         count = queryset.update(is_active=True)
@@ -181,8 +168,7 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
             messages.SUCCESS,
         )
 
-    enable_config.short_description = "Enable selected configurations"
-
+    @admin.action(description="Disable selected configurations")
     def disable_config(self, request, queryset: object) -> None:
         """Action to disable configuration."""
         count = queryset.update(is_active=False)
@@ -191,8 +177,6 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
             f"Disabled {count} configuration(s)",
             messages.SUCCESS,
         )
-
-    disable_config.short_description = "Disable selected configurations"
 
 
 @admin.register(ConfigurationAuditLog)
@@ -220,6 +204,7 @@ class ConfigurationAuditLogAdmin(admin.ModelAdmin):
     )
     date_hierarchy = "created_at"
 
+    @admin.display(description="Action")
     def get_action_badge(self, obj: ConfigurationAuditLog) -> str:
         """Display action as colored badge."""
         colors = {
@@ -237,8 +222,7 @@ class ConfigurationAuditLogAdmin(admin.ModelAdmin):
             obj.get_action_display(),
         )
 
-    get_action_badge.short_description = "Action"
-
+    @admin.display(description="Configuration")
     def configuration_code(self, obj: ConfigurationAuditLog) -> str:
         """Display configuration code with link."""
         url = reverse(
@@ -251,16 +235,14 @@ class ConfigurationAuditLogAdmin(admin.ModelAdmin):
             obj.configuration.code,
         )
 
-    configuration_code.short_description = "Configuration"
-
+    @admin.display(description="Created By")
     def created_by_name(self, obj: ConfigurationAuditLog) -> str:
         """Display created by user."""
         if obj.created_by:
             return obj.created_by.username
         return "System"
 
-    created_by_name.short_description = "Created By"
-
+    @admin.display(description="Result")
     def result_badge(self, obj: ConfigurationAuditLog) -> str:
         """Display result as colored badge."""
         if obj.result == "success":
@@ -270,8 +252,6 @@ class ConfigurationAuditLogAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="color: red;">✗ Failed</span>',
         )
-
-    result_badge.short_description = "Result"
 
 
 @admin.register(ActivityLog)
@@ -361,6 +341,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
         ),
     )
 
+    @admin.display(description="Type")
     def activity_type_badge(self, obj: ActivityLog) -> str:
         """Display activity type as colored badge."""
         colors = {
@@ -373,13 +354,13 @@ class ActivityLogAdmin(admin.ModelAdmin):
         }
         color = colors.get(obj.activity_type, "#666666")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
+            '<span style="background: {}; color: white; padding: 3px 8px; '
+            'border-radius: 3px;">{}</span>',
             color,
             obj.get_activity_type_display(),
         )
 
-    activity_type_badge.short_description = "Type"
-
+    @admin.display(description="Operation")
     def operation_badge(self, obj: ActivityLog) -> str:
         """Display operation as colored badge."""
         colors = {
@@ -395,13 +376,13 @@ class ActivityLogAdmin(admin.ModelAdmin):
         }
         color = colors.get(obj.operation, "#666666")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
+            '<span style="background: {}; color: white; padding: 3px 8px; '
+            'border-radius: 3px;">{}</span>',
             color,
             obj.get_operation_display(),
         )
 
-    operation_badge.short_description = "Operation"
-
+    @admin.display(description="User/Service")
     def user_name(self, obj: ActivityLog) -> str:
         """Display user name."""
         if obj.user:
@@ -418,8 +399,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
             return f"[{obj.service_code}]"
         return "System"
 
-    user_name.short_description = "User/Service"
-
+    @admin.display(description="Status")
     def status_badge(self, obj: ActivityLog) -> str:
         """Display status as colored badge."""
         colors = {
@@ -429,12 +409,11 @@ class ActivityLogAdmin(admin.ModelAdmin):
         }
         color = colors.get(obj.status, "#666666")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
+            '<span style="background: {}; color: white; padding: 3px 8px; '
+            'border-radius: 3px;">{}</span>',
             color,
             obj.status.upper(),
         )
-
-    status_badge.short_description = "Status"
 
 
 @admin.register(ServiceSyncLog)
@@ -511,12 +490,12 @@ class ServiceSyncLogAdmin(admin.ModelAdmin):
         ),
     )
 
+    @admin.display(description="Service")
     def service_name(self, obj: ServiceSyncLog) -> str:
         """Display service name."""
         return obj.service.name
 
-    service_name.short_description = "Service"
-
+    @admin.display(description="Type")
     def sync_type_badge(self, obj: ServiceSyncLog) -> str:
         """Display sync type as badge."""
         colors = {
@@ -526,13 +505,13 @@ class ServiceSyncLogAdmin(admin.ModelAdmin):
         }
         color = colors.get(obj.sync_type, "#666666")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
+            '<span style="background: {}; color: white; padding: 3px 8px; '
+            'border-radius: 3px;">{}</span>',
             color,
             obj.get_sync_type_display(),
         )
 
-    sync_type_badge.short_description = "Type"
-
+    @admin.display(description="Status")
     def status_badge(self, obj: ServiceSyncLog) -> str:
         """Display status as colored badge."""
         colors = {
@@ -542,13 +521,13 @@ class ServiceSyncLogAdmin(admin.ModelAdmin):
         }
         color = colors.get(obj.status, "#666666")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
+            '<span style="background: {}; color: white; padding: 3px 8px; '
+            'border-radius: 3px;">{}</span>',
             color,
             obj.status.upper(),
         )
 
-    status_badge.short_description = "Status"
-
+    @admin.display(description="Duration")
     def duration(self, obj: ServiceSyncLog) -> str:
         """Display sync duration."""
         seconds = obj.duration_seconds()
@@ -558,10 +537,7 @@ class ServiceSyncLogAdmin(admin.ModelAdmin):
         seconds = seconds % 60
         return f"{minutes}m {seconds}s"
 
-    duration.short_description = "Duration"
-
+    @admin.display(description="Duration")
     def duration_display(self, obj: ServiceSyncLog) -> str:
         """Display duration for detail view."""
         return f"{obj.duration_seconds()} seconds"
-
-    duration_display.short_description = "Duration"

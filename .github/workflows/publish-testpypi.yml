@@ -1,8 +1,9 @@
+---
 name: Publish to TestPyPI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     tags:
       - 'test-*'
   workflow_dispatch:

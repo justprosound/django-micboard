@@ -1,59 +1,156 @@
-"""
-Models for the micboard app.
+# file: micboard/models/__init__.py
+"""Django Micboard Models - Unified domain model layer.
+
+Domain-organized model exports organized by business concern:
+- hardware: Wireless base stations, field devices, chargers
+- rf_coordination: RF channels and communication paths
+- locations: Physical locations, buildings, rooms
+- monitoring: Monitoring groups, assignments, alerts
+- discovery: Device discovery, manufacturers, configuration
+- telemetry: Metrics, samples, API health
+- realtime: Real-time connection tracking
+- audit: Activity logging and service sync records
+- users: User profiles and views
 """
 
-# Import all models to make them available at the package level
-from .activity_log import ActivityLog, ServiceSyncLog
-from .assignments import Alert, DeviceAssignment, UserAlertPreference
-from .channel import Channel
-from .charger import Charger, ChargerSlot
-from .configuration import ConfigurationAuditLog, ManufacturerConfiguration
+from __future__ import annotations
+
+# Audit domain
+from .audit import (
+    ActivityLog,
+    ConfigurationAuditLog,
+    ServiceSyncLog,
+)
+
+# Discovery domain
 from .discovery import (
+    DeviceMovementLog,
     DiscoveredDevice,
+    Discovery,
     DiscoveryCIDR,
     DiscoveryFQDN,
     DiscoveryJob,
+    DiscoveryQueue,
     Manufacturer,
+    ManufacturerConfiguration,
     MicboardConfig,
 )
-from .groups import Group
-from .locations import Building, Location, MonitoringGroup, MonitoringGroupLocation, Room
-from .realtime import RealTimeConnection
-from .receiver import Receiver
-from .telemetry import APIHealthLog, TransmitterSample, TransmitterSession
-from .transmitter import Transmitter
-from .user_profile import UserProfile
-from .user_views import UserView
+
+# Hardware domain
+from .hardware import (
+    Charger,
+    ChargerManager,
+    ChargerQuerySet,
+    ChargerSlot,
+    WirelessChassis,
+    WirelessChassisManager,
+    WirelessChassisQuerySet,
+    WirelessUnit,
+    WirelessUnitManager,
+    WirelessUnitQuerySet,
+)
+
+# Locations domain
+from .locations import (
+    Building,
+    Location,
+    Room,
+)
+
+# Monitoring domain
+from .monitoring import (
+    Alert,
+    Assignment,
+    DeviceAssignment,
+    Group,
+    MonitoringGroup,
+    UserAlertPreference,
+)
+
+# Real-time domain
+from .realtime import (
+    RealTimeConnection,
+)
+
+# RF Coordination domain
+from .rf_coordination import (
+    ExclusionZone,
+    FrequencyBand,
+    RegulatoryDomain,
+    RFChannel,
+    RFChannelManager,
+    RFChannelQuerySet,
+)
+
+# Telemetry domain
+from .telemetry import (
+    APIHealthLog,
+    TransmitterSample,
+    TransmitterSession,
+    WirelessUnitSample,
+    WirelessUnitSession,
+)
+
+# Users domain
+from .users import (
+    UserProfile,
+    UserView,
+)
 
 __all__ = [
-    "APIHealthLog",
-    "ActivityLog",
-    "Alert",
-    "Building",
-    "Channel",
+    # Hardware
     "Charger",
+    "ChargerManager",
+    "ChargerQuerySet",
     "ChargerSlot",
-    "ConfigurationAuditLog",
+    "WirelessChassis",
+    "WirelessChassisManager",
+    "WirelessChassisQuerySet",
+    "WirelessUnit",
+    "WirelessUnitManager",
+    "WirelessUnitQuerySet",
+    # RF Coordination
+    "RFChannel",
+    "RFChannelManager",
+    "RFChannelQuerySet",
+    "RegulatoryDomain",
+    "FrequencyBand",
+    "ExclusionZone",
+    # Locations
+    "Building",
+    "Location",
+    "Room",
+    # Monitoring
+    "Alert",
+    "Assignment",
     "DeviceAssignment",
-    "DiscoveredDevice",
+    "UserAlertPreference",
+    "Group",
+    "MonitoringGroup",
+    # Discovery
+    "DeviceMovementLog",
+    "Discovery",
     "DiscoveryCIDR",
+    "DiscoveredDevice",
     "DiscoveryFQDN",
     "DiscoveryJob",
-    "Group",
-    "Location",
+    "DiscoveryQueue",
     "Manufacturer",
     "ManufacturerConfiguration",
     "MicboardConfig",
-    "MonitoringGroup",
-    "MonitoringGroupLocation",
-    "RealTimeConnection",
-    "Receiver",
-    "Room",
-    "ServiceSyncLog",
-    "Transmitter",
+    # Telemetry
+    "APIHealthLog",
+    "WirelessUnitSample",
+    "WirelessUnitSession",
     "TransmitterSample",
     "TransmitterSession",
-    "UserAlertPreference",
+    # Real-time
+    "RealTimeConnection",
+    # Audit
+    "ActivityLog",
+    "ConfigurationAuditLog",
+    "ServiceSyncLog",
+    # Users
     "UserProfile",
     "UserView",
 ]

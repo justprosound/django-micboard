@@ -16,15 +16,20 @@ INSTALLED_APPS = [
 
 ## MICBOARD_CONFIG
 
-`django-micboard` is configured through a single dictionary in your `settings.py` called `MICBOARD_CONFIG`. The following keys are available:
+`django-micboard` is configured through a single dictionary in your `settings.py` called `MICBOARD_CONFIG`. All keys are optional except where noted. The following keys are available:
 
-| `SHURE_API_BASE_URL` | The base URL of the Shure System API. | `"http://localhost:10000"` |
-| `SHURE_API_SHARED_KEY` | The shared secret API key for the Shure System API (required). | `None` |
-| `SHURE_API_TIMEOUT` | The timeout in seconds for API requests. | `10` |
-| `SHURE_API_VERIFY_SSL` | Whether to verify SSL certificates for the API. | `True` |
-| `SHURE_API_MAX_RETRIES` | The maximum number of retries for failed API requests. | `3` |
-| `SHURE_API_RETRY_BACKOFF` | The backoff factor for retries (in seconds). | `0.5` |
-| `SHURE_API_RETRY_STATUS_CODES` | A list of HTTP status codes to retry on. | `[429, 500, 502, 503, 504]` |
+| Key | Description | Default |
+|-----|-------------|---------|
+| `SHURE_API_BASE_URL` | The base URL of the Shure System API (required) | `"http://localhost:8080"` |
+| `SHURE_API_SHARED_KEY` | The shared secret API key for Shure System API | `None` |
+| `SHURE_API_TIMEOUT` | Timeout in seconds for API requests | `10` |
+| `SHURE_API_VERIFY_SSL` | Whether to verify SSL certificates | `True` |
+| `SHURE_API_MAX_RETRIES` | Maximum number of retries for failed requests | `3` |
+| `SHURE_API_RETRY_BACKOFF` | Backoff factor for retries (seconds) | `0.5` |
+| `SHURE_API_RETRY_STATUS_CODES` | HTTP status codes to retry | `[429, 500, 502, 503, 504]` |
+| `POLL_INTERVAL` | Interval in seconds between device polls | `5` |
+| `CACHE_TIMEOUT` | Timeout in seconds for API response caching | `30` |
+| `TRANSMITTER_INACTIVITY_SECONDS` | Seconds before transmitter marked inactive | (varies) |
 
 ## Authentication
 
@@ -78,19 +83,21 @@ Example with HTTPS:
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": "https://my-shure-api.local:10000",
     "SHURE_API_VERIFY_SSL": True,  # Recommended for production
+    "SHURE_API_TIMEOUT": 15,
+    "POLL_INTERVAL": 10,
 }
 ```
-| `POLL_INTERVAL` | The interval in seconds between device polls. | `5` |
-| `CACHE_TIMEOUT` | The timeout in seconds for caching API responses. | `30` |
-| `EMAIL_RECIPIENTS` | A list of email addresses to send alerts to. | `[]` |
-| `EMAIL_FROM` | The email address to send alerts from. | `"micboard@localhost"` |
 
-Example:
+## Polling Configuration
+
+Configure device polling frequency and behavior:
 
 ```python
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": "http://my-shure-api.local:10000",
-    "POLL_INTERVAL": 10,
+    "POLL_INTERVAL": 10,  # Poll every 10 seconds
+    "CACHE_TIMEOUT": 60,  # Cache responses for 60 seconds
+    "TRANSMITTER_INACTIVITY_SECONDS": 30,  # Mark transmitters inactive after 30s
 }
 ```
 
@@ -132,36 +139,6 @@ CACHES = {
 
 For production, consider using a more robust cache backend like Redis or Memcached.
 
-## Email Configuration
-
-`django-micboard` uses Django's built-in email system for sending alert notifications. Configure your email settings in `settings.py`:
-
-```python
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "your-email@gmail.com"
-EMAIL_HOST_PASSWORD = "your-app-password"
-DEFAULT_FROM_EMAIL = "micboard@yourdomain.com"
-```
-
-For alert notifications, configure recipients in `MICBOARD_CONFIG`:
-
-```python
-MICBOARD_CONFIG = {
-    # ... other settings
-    "EMAIL_RECIPIENTS": ["admin@yourdomain.com", "tech@yourdomain.com"],
-    "EMAIL_FROM": "micboard@yourdomain.com",
-}
-```
-
-Individual users can also configure their own alert preferences through the admin interface, including:
-- Email notification method (email, WebSocket, or both)
-- Custom email address for alerts
-- Battery and signal thresholds
-- Quiet hours for notifications
-
 ## Logging
 
 The app uses the `micboard` logger. You can configure it in your `LOGGING` setting:
@@ -184,22 +161,28 @@ LOGGING = {
 }
 ```
 
-## Health Checks
+## Management Commands
 
-You can check the health of the Shure System API connection using the management command:
-
-```bash
-python manage.py check_api_health
-```
-
-For JSON output:
+The app provides several management commands for device management and monitoring:
 
 ```bash
-python manage.py check_api_health --json
+# Poll devices from manufacturers
+python manage.py poll_devices
+
+# Sync discovery results
+python manage.py sync_discovery
+
+# Add Shure devices manually
+python manage.py add_shure_devices
+
+# Subscribe to real-time status
+python manage.py realtime_status
+
+# WebSocket subscriptions
+python manage.py websocket_subscribe
+
+# Server-Sent Events subscription
+python manage.py sse_subscribe
 ```
 
-The health check will show:
-- API connectivity status
-- Response status codes
-- Consecutive failure count
-- Last successful request timestamp
+See [API Reference](api/management.md) for detailed command documentation.

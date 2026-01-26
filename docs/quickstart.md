@@ -1,16 +1,23 @@
 # Quick Start Guide
 
-> **⚠️ ACTIVE DEVELOPMENT**: This project has not been released. This guide is for development and testing only.
+Get django-micboard up and running with your Shure wireless microphone system in minutes.
 
 ## Prerequisites
 
-1. Python 3.9+ installed
-2. Shure System API server installed and running
-3. Network access to Shure devices
+- Python 3.9+
+- Django 4.2+ or 5.0+
+- A Shure System API server (installed and running)
+- Network access to your Shure devices
 
-## Installation Steps
+## Installation
 
-### 1. Clone and Install
+### 1. Install Package
+
+```bash
+pip install django-micboard
+```
+
+Or for development:
 
 ```bash
 git clone https://github.com/justprosound/django-micboard.git
@@ -18,37 +25,136 @@ cd django-micboard
 pip install -e .
 ```
 
-### 2. Add to Django Project
+### 2. Configure Django Settings
 
-Add to `settings.py`:
+Add to your `settings.py`:
+
 ```python
 INSTALLED_APPS = [
-    # ... existing apps
+    # ... your other apps
     'channels',
     'micboard',
 ]
 
-# Micboard configuration
-MICBOARD_CONFIG = {
-    'SHURE_API_BASE_URL': 'http://localhost:10000',  # or https:// for SSL
-    'SHURE_API_SHARED_KEY': 'your-shared-secret-here',  # Required: from Shure System API
-    'SHURE_API_VERIFY_SSL': True,  # Set to False only for self-signed certificates
+# Shure System API Configuration
+MICBOARD_SHURE_API = {
+    'BASE_URL': 'https://your-shure-system.local',  # Shure System API URL
+    'USERNAME': 'admin',                           # API username
+    'PASSWORD': 'your-password',                   # API password
+    'VERIFY_SSL': True,                            # Set False for self-signed certs
 }
 
-# Channels configuration
+# Django Channels (for WebSocket support)
 ASGI_APPLICATION = 'your_project.asgi.application'
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('127.0.0.1', 6379)],
+        },
     },
 }
 ```
 
-### 3. Update ASGI Configuration
+### 3. Configure ASGI
 
-Update `asgi.py`:
+Update your `asgi.py`:
+
 ```python
 import os
+import django
+from channels.routing import ProtocolTypeRouter, URLRouter
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
+django.setup()
+
+from micboard.routing import websocket_urlpatterns
+
+application = ProtocolTypeRouter({
+    'http': get_asgi_application(),
+    'websocket': URLRouter(websocket_urlpatterns),
+})
+```
+
+### 4. Run Migrations
+
+```bash
+python manage.py migrate
+```
+
+## Shure System Setup
+
+### Enable Shure System API
+
+1. Access your Shure System API management interface
+2. Navigate to **Network → API Settings**
+3. Enable the **System API**
+4. Note the API URL and credentials
+
+### Configure Device Discovery
+
+Add your Shure device IPs to the discovery list:
+
+```bash
+# Add discovery IPs
+python manage.py add_shure_devices --ips 192.168.1.100 192.168.1.101
+
+# Or configure via admin interface at /admin/micboard/discovery/
+```
+
+## Start Monitoring
+
+### Run Device Polling
+
+```bash
+# Poll all Shure devices
+python manage.py poll_devices --manufacturer shure
+
+# Run continuously (recommended for production)
+python manage.py poll_devices --manufacturer shure --continuous
+```
+
+### Start Django Server
+
+```bash
+python manage.py runserver
+```
+
+Visit `http://localhost:8000/admin/` to see your devices!
+
+## Real-time Updates
+
+Django Micboard automatically establishes WebSocket connections for real-time updates:
+
+- Battery levels
+- RF signal strength
+- Audio levels
+- Device status changes
+
+## Next Steps
+
+- Manage assignments and devices in the admin: [guides/admin-interface.md](guides/admin-interface.md)
+- Configure monitoring and alerts: [guides/monitoring.md](guides/monitoring.md)
+- Enable real-time updates: [guides/realtime-updates.md](guides/realtime-updates.md)
+- Explore the API: [api/endpoints.md](api/endpoints.md)
+
+## Troubleshooting
+
+**Can't connect to Shure API?**
+- Verify API credentials in settings
+- Check network connectivity to Shure system
+- Ensure System API is enabled on Shure device
+
+**No devices discovered?**
+- Add device IPs to discovery list
+- Check device network configuration
+- Verify Shure devices are powered on
+
+**WebSocket not working?**
+- Install Redis and configure CHANNEL_LAYERS
+- Check ASGI configuration
+- Verify Django Channels is installed
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
 from django.core.asgi import get_asgi_application

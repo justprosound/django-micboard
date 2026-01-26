@@ -7,8 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def charger_display(request: HttpRequest) -> HttpResponse:
-    """
-    View to display the status of networked charging stations and microphones.
+    """View to display the status of networked charging stations and microphones.
     Data is retrieved from database chargers.
     """
     from micboard.models import Charger
@@ -50,7 +49,7 @@ def charger_display(request: HttpRequest) -> HttpResponse:
             {
                 "id": charger.api_device_id,
                 "name": charger.name or f"Charger {charger.api_device_id}",
-                "status": "online" if charger.is_active else "offline",
+                "status": "online" if charger.status == "online" else "offline",
                 "slots": station_slots,
             }
         )

@@ -1,5 +1,4 @@
-"""
-Structured logging utilities for standardized logging across the application.
+"""Structured logging utilities for standardized logging across the application.
 
 Provides helpers for logging CRUD operations, service activities, and syncs.
 """
@@ -19,8 +18,7 @@ logger = logging.getLogger("micboard.logging")
 
 
 class StructuredLogger:
-    """
-    Utility class for structured logging with activity tracking.
+    """Utility class for structured logging with activity tracking.
 
     Logs to both Python logging and ActivityLog models.
     """
@@ -34,8 +32,7 @@ class StructuredLogger:
         request=None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> ActivityLog:
-        """
-        Log a CREATE operation.
+        """Log a CREATE operation.
 
         Args:
             obj: The created object
@@ -75,8 +72,7 @@ class StructuredLogger:
         request=None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> ActivityLog:
-        """
-        Log an UPDATE operation.
+        """Log an UPDATE operation.
 
         Args:
             obj: The updated object
@@ -120,8 +116,7 @@ class StructuredLogger:
         request=None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> ActivityLog:
-        """
-        Log a DELETE operation.
+        """Log a DELETE operation.
 
         Args:
             obj: The deleted object
@@ -160,7 +155,7 @@ class StructuredLogger:
         log = ActivityLog.log_service(
             operation=ActivityLog.START,
             service_code=service_code,
-            summary=f"Service started",
+            summary="Service started",
             status="success",
         )
 
@@ -183,7 +178,7 @@ class StructuredLogger:
         log = ActivityLog.log_service(
             operation=ActivityLog.STOP,
             service_code=service_code,
-            summary=f"Service stopped",
+            summary="Service stopped",
             status="success",
         )
 
@@ -207,7 +202,7 @@ class StructuredLogger:
         log = ActivityLog.log_service(
             operation=ActivityLog.FAILURE,
             service_code=service_code,
-            summary=f"Service error",
+            summary="Service error",
             status="failed",
             error_message=str(error),
         )
@@ -270,8 +265,7 @@ class StructuredLogger:
         error_message: str = "",
         extra: Optional[Dict[str, Any]] = None,
     ) -> ServiceSyncLog:
-        """
-        Log sync completion.
+        """Log sync completion.
 
         Args:
             sync_log: ServiceSyncLog instance to update

@@ -1,5 +1,4 @@
-"""
-Data transformers for converting Shure System API format to micboard format.
+"""Data transformers for converting Shure System API format to micboard format.
 
 This module handles all data transformation logic, including:
 - Device data transformation

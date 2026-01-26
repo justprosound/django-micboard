@@ -1,6 +1,4 @@
-"""
-Sennheiser manufacturer plugin for django-micboard.
-"""
+"""Sennheiser manufacturer plugin for django-micboard."""
 
 from __future__ import annotations
 

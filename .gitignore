@@ -3,9 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
-*.so
-
 # Distribution / packaging
 .Python
 build/
@@ -26,14 +23,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -47,7 +36,8 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-cover/
+.mypy_cache/
+.ruff_cache/
 
 # Django stuff:
 *.log
@@ -55,47 +45,34 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 media/
+staticfiles/
 
 # Environments
 .env
+.env.local
+.env.*.local
 .venv
 env/
 venv/
 ENV/
-env.bak/
-venv.bak/
 
 # IDEs
 .vscode/
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-node_modules
+# Node / JS
+node_modules/
+package-lock.json
 
 # MkDocs build output
 site/
-coverage.lcov
 
-# Security: Environment and Configuration Files
-.env.local
-.env.*.local
-config/local*.yml
+# Security & Secrets
 config/secrets*
 *.key
 *.pem
@@ -104,21 +81,6 @@ config/secrets*
 sharedkey.txt
 device_inventory*.json
 
-# Local development scripts with secrets (never commit credentials)
+# Local development scripts
 scripts/local_*.py
-scripts/device_discovery_local.py
 scripts/*_local.py
-scripts/test_data/*.json
-scripts/test_data/*.csv
-
-# IDE temporary files with config
-.vscode/settings.local.json
-.idea/vcs.xml
-
-# Windows installer binaries for demo (ignore only binaries; keep README.md tracked)
-/demo/windows/installers/*.msi
-/demo/windows/installers/*.exe
-# Keep README in repo
-!/demo/windows/installers/README.md
-.env
-.env.local

@@ -1,5 +1,4 @@
-"""
-Polling-related background tasks for the micboard app.
+"""Polling-related background tasks for the micboard app.
 
 NOTE: This module is being refactored to use the new service layer.
 New code should use PollingService directly. These tasks are maintained
@@ -15,10 +14,10 @@ from django.utils import timezone
 
 from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import (
-    Channel,
     Manufacturer,
-    Receiver,
-    Transmitter,
+    RFChannel,
+    WirelessChassis,
+    WirelessUnit,
 )
 from micboard.serializers import ReceiverSummarySerializer
 from micboard.services.alerts import check_device_offline_alerts, check_transmitter_alerts
@@ -28,9 +27,8 @@ logger = logging.getLogger(__name__)
 
 
 def poll_manufacturer_devices(manufacturer_id: int):
-    """
-    Task to poll devices for a specific manufacturer and update models.
-    
+    """Task to poll devices for a specific manufacturer and update models.
+
     NOTE: This is a legacy task wrapper. New code should use:
         from micboard.services import PollingService
         service = PollingService()
@@ -38,29 +36,29 @@ def poll_manufacturer_devices(manufacturer_id: int):
     """
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
-        
+
         # Use the new PollingService for clean service-based approach
         from micboard.services import PollingService
-        
+
         service = PollingService()
         result = service.poll_manufacturer(manufacturer)
-        
+
         # Run alerts after polling
         check_device_offline_alerts()
         check_transmitter_alerts()
-        
+
         logger.info(
             "Polling task complete for %s: %d devices created/updated, %d transmitters",
             manufacturer.name,
             result.get("devices_created", 0) + result.get("devices_updated", 0),
             result.get("transmitters_synced", 0),
         )
-        
+
         # Start real-time subscriptions
         _start_realtime_subscriptions(manufacturer)
-        
+
         return result
-        
+
     except Manufacturer.DoesNotExist:
         logger.warning(
             "Manufacturer with ID %s not found for device polling task.", manufacturer_id
@@ -70,8 +68,7 @@ def poll_manufacturer_devices(manufacturer_id: int):
 
 
 def poll_manufacturer_devices_legacy(manufacturer_id: int):
-    """
-    DEPRECATED: Legacy polling implementation kept for reference.
+    """DEPRECATED: Legacy polling implementation kept for reference.
     Use poll_manufacturer_devices() instead, which uses PollingService.
     """
     try:
@@ -99,7 +96,7 @@ def poll_manufacturer_devices_legacy(manufacturer_id: int):
             # Broadcast updated list via devices_polled signal
             serialized_data = {
                 "receivers": ReceiverSummarySerializer(
-                    Receiver.objects.filter(manufacturer=manufacturer), many=True
+                    WirelessChassis.objects.filter(manufacturer=manufacturer), many=True
                 ).data
             }
             devices_polled.send(sender=None, manufacturer=manufacturer, data=serialized_data)
@@ -118,8 +115,7 @@ def poll_manufacturer_devices_legacy(manufacturer_id: int):
 
 
 def _update_models_from_api_data(api_data, manufacturer, plugin):
-    """
-    Helper function to update Django models with API data.
+    """Helper function to update Django models with API data.
     Extracted from poll_devices.py management command.
     """
     updated_count = 0
@@ -158,8 +154,8 @@ def _update_models_from_api_data(api_data, manufacturer, plugin):
 def _update_receiver(transformed_data, manufacturer, api_device_id):
     """Update or create a receiver from transformed API data."""
     from micboard.services.device_lifecycle import get_lifecycle_manager
-    
-    receiver, created = Receiver.objects.update_or_create(
+
+    receiver, created = WirelessChassis.objects.update_or_create(
         api_device_id=api_device_id,
         manufacturer=manufacturer,
         defaults={
@@ -179,7 +175,7 @@ def _update_receiver(transformed_data, manufacturer, api_device_id):
     else:
         logger.debug("Updated receiver: %s", api_device_id)
         # Only transition to online if not in a stable state
-        if receiver.status not in {'online', 'degraded', 'maintenance'}:
+        if receiver.status not in {"online", "degraded", "maintenance"}:
             lifecycle.mark_online(receiver)
 
     return receiver
@@ -199,8 +195,8 @@ def _update_channel_and_transmitter(receiver, channel_info, plugin, api_device_i
         return
 
     # Create/update Channel
-    channel, ch_created = Channel.objects.update_or_create(
-        receiver=receiver,
+    channel, ch_created = RFChannel.objects.update_or_create(
+        chassis=receiver,
         channel_number=channel_num,
     )
 
@@ -214,10 +210,12 @@ def _update_channel_and_transmitter(receiver, channel_info, plugin, api_device_i
     # Assign slot and update/create transmitter
     target_slot = _assign_transmitter_slot(channel, transformed_tx, api_device_id, channel_num)
 
-    transmitter, _ = Transmitter.objects.update_or_create(
-        channel=channel,
+    transmitter, _ = WirelessUnit.objects.update_or_create(
+        assigned_resource=channel,
         defaults={
             "slot": target_slot,
+            "manufacturer": receiver.manufacturer,
+            "base_chassis": receiver,
             "battery": transformed_tx.get("battery", 255),
             "battery_charge": transformed_tx.get("battery_charge"),
             "audio_level": transformed_tx.get("audio_level", 0),
@@ -226,10 +224,9 @@ def _update_channel_and_transmitter(receiver, channel_info, plugin, api_device_i
             "antenna": transformed_tx.get("antenna", ""),
             "tx_offset": transformed_tx.get("tx_offset", 255),
             "quality": transformed_tx.get("quality", 255),
-            "runtime": transformed_tx.get("runtime", ""),
+            "battery_runtime": transformed_tx.get("runtime", ""),
             "status": transformed_tx.get("status", ""),
             "name": transformed_tx.get("name", ""),
-            "name_raw": transformed_tx.get("name_raw", ""),
         },
     )
 
@@ -243,7 +240,7 @@ def _assign_transmitter_slot(channel, transformed_tx, api_device_id, channel_num
 
     # Try to find existing transmitter for this channel
     try:
-        transmitter = Transmitter.objects.get(channel=channel)
+        transmitter = WirelessUnit.objects.get(assigned_resource=channel)
         target_slot = transmitter.slot  # Keep existing slot
         logger.debug(
             "Reusing existing slot %d for %s channel %d",
@@ -252,19 +249,19 @@ def _assign_transmitter_slot(channel, transformed_tx, api_device_id, channel_num
             channel_num,
         )
         return target_slot
-    except Transmitter.DoesNotExist:
+    except WirelessUnit.DoesNotExist:
         # New transmitter - assign slot
         if api_slot is not None:
             target_slot = api_slot
         else:
             # Generate a deterministic slot based on receiver and channel
             # This ensures consistent slot assignment across restarts
-            base_slot = hash(f"{channel.receiver.api_device_id}-{channel_num}")
+            base_slot = hash(f"{channel.chassis.api_device_id}-{channel_num}")
             # Use positive modulo to get a reasonable slot range
             target_slot = abs(base_slot) % 10000
 
             # Check for collisions and increment if needed
-            while Transmitter.objects.filter(slot=target_slot).exists():
+            while WirelessUnit.objects.filter(slot=target_slot).exists():
                 target_slot = (target_slot + 1) % 10000
 
             logger.info(
@@ -279,19 +276,18 @@ def _assign_transmitter_slot(channel, transformed_tx, api_device_id, channel_num
 def _mark_offline_receivers(manufacturer, active_receiver_ids):
     """Mark receivers that are no longer in API data as offline."""
     from micboard.services.device_lifecycle import get_lifecycle_manager
-    
+
     # Find receivers that should be marked offline
-    offline_receivers = Receiver.objects.filter(
-        manufacturer=manufacturer,
-        status__in={'online', 'degraded', 'provisioning'}
+    offline_receivers = WirelessChassis.objects.filter(
+        manufacturer=manufacturer, status__in={"online", "degraded", "provisioning"}
     ).exclude(id__in=active_receiver_ids)
-    
+
     if not offline_receivers.exists():
         return
-    
+
     lifecycle = get_lifecycle_manager(manufacturer.code)
     offline_count = 0
-    
+
     for receiver in offline_receivers:
         try:
             lifecycle.mark_offline(receiver, reason="Device not found in API poll")
@@ -303,12 +299,11 @@ def _mark_offline_receivers(manufacturer, active_receiver_ids):
         logger.warning("Marked %d receivers as offline for %s", offline_count, manufacturer.name)
 
         # Check for offline alerts on all channels of offline receivers
-        offline_receivers_refreshed = Receiver.objects.filter(
-            manufacturer=manufacturer, 
-            status='offline'
+        offline_receivers_refreshed = WirelessChassis.objects.filter(
+            manufacturer=manufacturer, status="offline"
         )
         for receiver in offline_receivers_refreshed:
-            for channel in receiver.channels.all():
+            for channel in receiver.rf_channels.all():
                 check_device_offline_alerts(channel)
 
 

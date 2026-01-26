@@ -30,7 +30,7 @@ def expand_python_versions(version_str):
 
 
 def get_supported_django_python_pairs():
-    resp = requests.get("https://endoflife.date/api/v1/products/django")
+    resp = requests.get("https://endoflife.date/api/v1/products/django", timeout=10)
     resp.raise_for_status()
     api = resp.json()
     releases = api["result"]["releases"]

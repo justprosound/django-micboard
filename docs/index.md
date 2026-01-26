@@ -1,57 +1,72 @@
 # Django Micboard
 
-> **⚠️ ACTIVE DEVELOPMENT**: This project is under active development and has not been released. APIs and features are subject to change.
+> **Real-time wireless microphone monitoring for Django**
 
-Welcome to the django-micboard documentation!
+Django Micboard is a Django application for real-time monitoring and management of **Shure wireless microphone systems**. It provides a modern web interface for tracking microphone status, battery levels, RF signals, and audio levels across your wireless systems.
 
-django-micboard is a Django application for real-time monitoring and management of **multi-manufacturer wireless microphone systems**. It uses a **plugin architecture** to support different wireless microphone manufacturers, providing a modern web interface for monitoring microphone status, battery levels, RF signals, and audio levels across your wireless systems.
-
-**Version**: {{ project_version() }} (CalVer: YY.MM.DD)
-**License**: {{ license_info() }}
-**Python**: {{ python_version() }}+
-**Django**: {{ django_version() }}
-**Last Updated**: {{ last_commit_date() }}
-**Contributors**: {{ contributors_count() }}
-**Files**: {{ file_count() }} Python files, {{ test_count() }} test files
+**Version**: 25.10.17 (CalVer: YY.MM.DD)
+**License**: AGPL-3.0-or-later
+**Python**: 3.9+
+**Django**: 4.2+/5.0+
 
 ## Features
 
 - 🎤 **Real-time Monitoring** - Live updates via WebSocket for battery, RF levels, and audio
-- 🔌 **Multi-Manufacturer Support** - Plugin architecture supporting Shure, Sennheiser, and other manufacturers
+- 🔌 **Shure System API Integration** - Full support for Shure wireless microphone systems
 - 👥 **User Assignments** - Assign devices to users with location tracking
-- 🚨 **Smart Alerts** - Configurable notifications for battery, RF issues, and more
-- 📊 **Dashboard Views** - Multiple view types (building, room, user, device type, priority)
-- 🔒 **Rate Limiting** - Built-in API rate limiting and connection pooling
-- 🐳 **Production Ready** - Django 4.2+/5.0+ compatible, fully tested
+- 🚨 **Smart Alerts** - Configurable notifications for battery and RF issues
+- 📊 **Admin Dashboard** - Visual oversight of devices and system health
+- 🔒 **Rate Limiting** - Built-in API protection
+- 🐳 **Production Ready** - Django 4.2+/5.0+ compatible
 
-## Supported Manufacturers
+## Quick Start
 
-- **Shure** - UHF-R, QLX-D, ULX-D, Axient Digital (AD), PSM1000 series
-- **Extensible** - Plugin architecture for adding new manufacturers
+```bash
+# Install
+pip install django-micboard
 
-## Quick Links
+# Add to Django settings
+INSTALLED_APPS = [
+    # ... other apps
+    'channels',
+    'micboard',
+]
+
+# Configure Shure API
+MICBOARD_CONFIG = {
+    'SHURE_API_BASE_URL': 'https://your-shure-system.local:10000',
+    'SHURE_API_SHARED_KEY': 'your-shared-secret',
+    'SHURE_API_VERIFY_SSL': True,
+}
+
+# Run migrations
+python manage.py migrate
+
+# Start monitoring
+python manage.py poll_devices
+```
+
+## Supported Systems
+
+- **Shure UHF-R, QLX-D, ULX-D, Axient Digital (AD), PSM1000 series**
+- **Plugin architecture** for additional manufacturers
+
+## Documentation
 
 - [Quick Start Guide](quickstart.md) - Get up and running quickly
 - [Configuration](configuration.md) - All configuration options
-- [Plugin Development](plugin-development.md) - Add support for new manufacturers
-- [API Reference](api-reference.md) - Complete API documentation
-- [Architecture](architecture.md) - System design and components
-- [Changelog](changelog.md) - Version history
+- [Multitenancy](multitenancy.md) - Tenant-aware setup and behavior
+- [Shure Integration](shure-integration.md) - Shure System API setup and usage
+- [API Reference](api/endpoints.md) - REST and WebSocket endpoints
+- [Architecture](development/architecture.md) - System design overview
+- [Archive Index](archive/INDEX.md) - Historical docs and delivery records
 
 ## Requirements
 
 - Python 3.9+
 - Django 4.2+ or 5.0+
-- Django Channels
-- Redis (for WebSocket support)
-
-## Installation
-
-```bash
-pip install django-micboard
-```
-
-See the [Quick Start Guide](quickstart.md) for complete installation instructions.
+- Django Channels (for WebSocket support)
+- Redis (recommended for production)
 
 ## Support
 

@@ -1,6 +1,4 @@
-"""
-Core HTTP client for Shure System API with connection pooling and retry logic.
-"""
+"""Core HTTP client for Shure System API with connection pooling and retry logic."""
 
 from __future__ import annotations
 
@@ -8,6 +6,7 @@ import logging
 from typing import Any, cast
 
 from django.conf import settings
+from requests.auth import HTTPDigestAuth
 
 from micboard.integrations.base_http_client import BaseHTTPClient, BasePollingMixin
 
@@ -47,23 +46,32 @@ class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
 
     def _get_default_base_url(self) -> str:
         """Return default base URL for Shure API."""
-        return "http://localhost:8080"
+        return "https://localhost:10000"
 
     def _configure_authentication(self, config: dict[str, Any]) -> None:
-        """Configure Shure API authentication with shared key."""
+        """Configure Shure API authentication.
+
+        The Shure System API can use multiple authentication methods:
+        1. API Key header (x-api-key) - primary per Swagger securitySchemes
+        2. HTTP Digest Authentication (RFC 7616) - optional, controlled by config
+        3. Bearer token - in Authorization header (reserved)
+        """
         self.shared_key = config.get("SHURE_API_SHARED_KEY")
         if not self.shared_key:
             raise ValueError("SHURE_API_SHARED_KEY is required for Shure System API authentication")
 
-        # The Shure System API supports a shared-secret style authentication.
-        # Prefer the explicit API key header (x-api-key) per Swagger definition
-        # while keeping Authorization: Bearer for backward compatibility.
-        self.session.headers.update(
-            {
-                "Authorization": f"Bearer {self.shared_key}",
-                "x-api-key": str(self.shared_key),
-            }
-        )
+        # Prefer x-api-key per Swagger 'SharedSecret' security scheme
+        self.session.headers.update({"x-api-key": str(self.shared_key)})
+
+        # Optional: enable HTTP Digest if explicitly configured
+        use_digest = bool(config.get("SHURE_API_USE_DIGEST", False))
+        if use_digest:
+            try:
+                self.session.auth = HTTPDigestAuth(username="shure", password=self.shared_key)
+            except Exception as e:
+                logger.warning(
+                    f"HTTP Digest Auth setup failed: {e}. Continuing with x-api-key header only"
+                )
 
     def _get_health_check_endpoint(self) -> str:
         """Return health check endpoint for Shure API."""
@@ -95,7 +103,8 @@ class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
         if not getattr(self, "base_url", None):
             return None
         ws_scheme = "wss" if self.base_url.startswith("https") else "ws"
-        return f"{ws_scheme}://{self.base_url.split('://', 1)[1]}/api/v1/subscriptions/websocket/create"
+        base = self.base_url.split("://", 1)[1]
+        return f"{ws_scheme}://{base}/api/v1/subscriptions/websocket/create"
 
     @websocket_url.setter
     def websocket_url(self, value: str | None) -> None:

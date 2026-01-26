@@ -1,0 +1,57 @@
+{% load micboard_tags %}
+
+{% for charger in chargers %}
+<div class="charger-card">
+    <div class="card-header bg-dark border-bottom border-secondary py-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-white">{{ charger.name }}</h5>
+            <span class="badge bg-secondary opacity-75">{{ charger.model }}</span>
+        </div>
+        <small class="text-muted">{{ charger.ip }}</small>
+    </div>
+
+    <div class="slots-list">
+        {% for slot in charger.slots.all %}
+        <div class="slot-item {% if not slot.is_functional %}opacity-50{% endif %}">
+            <div class="slot-number">{{ slot.slot_number }}</div>
+
+            <div class="d-flex align-items-center flex-grow-1 gap-3">
+                {% if slot.occupied %}
+                    {% with performer=serial_to_performer|get_item:slot.device_serial %}
+                        {% if performer and performer.photo_url %}
+                            <img src="{{ performer.photo_url }}" class="performer-photo" alt="{{ performer.name }}">
+                        {% else %}
+                            <div class="performer-photo d-flex align-items-center justify-content-center bg-secondary">
+                                <i class="bi bi-person text-dark h4 mb-0"></i>
+                            </div>
+                        {% endif %}
+
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">{{ performer.name|default:slot.device_serial }}</div>
+                            <div class="small text-muted">{{ performer.title|default:slot.device_model }}</div>
+
+                            {% if slot.device_status == "updating" %}
+                                <div class="status-updating">
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    Firmware: {{ slot.device_firmware_version }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="text-end" style="width: 80px;">
+                            <div class="battery-bar mb-1">
+                                <div class="battery-fill {% if slot.battery_percent < 20 %}bg-danger{% elif slot.battery_percent < 50 %}bg-warning{% else %}bg-success{% endif %}"
+                                     style="width: {{ slot.battery_percent|default:0 }}%"></div>
+                            </div>
+                            <div class="small fw-bold">{{ slot.battery_percent|default:"?" }}%</div>
+                        </div>
+                    {% endwith %}
+                {% else %}
+                    <div class="text-muted italic small py-2">Empty Slot</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}

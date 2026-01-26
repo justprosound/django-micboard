@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""
-Local Shure System API Integration Test Script
+"""Local Shure System API Integration Test Script.
 
 This script tests connectivity and basic operations with the Shure System API
 running locally on https://localhost:10000/v1.0/swagger.json
@@ -9,28 +8,28 @@ Usage:
     uv run python shure_api_test.py [--shared-key KEY] [--no-ssl-verify]
 """
 
-import sys
-import os
-import json
 import argparse
+import json
 import logging
-from typing import Any, Optional
+import os
+import sys
+from typing import Optional
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 # Setup Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'demo.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "demo.settings")
 import django
+
 django.setup()
 
 from django.conf import settings
+
 from micboard.integrations.shure.client import ShureSystemAPIClient
-from micboard.integrations.shure.exceptions import ShureAPIError
 
 
 class ShureAPITester:
@@ -38,7 +37,7 @@ class ShureAPITester:
 
     def __init__(self, shared_key: Optional[str] = None, verify_ssl: bool = True):
         """Initialize the test suite."""
-        self.shared_key = shared_key or os.environ.get('MICBOARD_SHURE_API_SHARED_KEY')
+        self.shared_key = shared_key or os.environ.get("MICBOARD_SHURE_API_SHARED_KEY")
         self.verify_ssl = verify_ssl
         self.client: Optional[ShureSystemAPIClient] = None
         self.test_results = []
@@ -46,9 +45,11 @@ class ShureAPITester:
     def initialize_client(self) -> bool:
         """Initialize the Shure API client."""
         logger.info("Initializing Shure System API Client...")
-        logger.info(f"  Base URL: https://localhost:10000")
+        logger.info("  Base URL: https://localhost:10000")
         logger.info(f"  SSL Verification: {self.verify_ssl}")
-        logger.info(f"  Shared Key: {'*' * (len(self.shared_key) - 4) if self.shared_key else 'NOT SET'}{self.shared_key[-4:] if self.shared_key else ''}")
+        logger.info(
+            f"  Shared Key: {'*' * (len(self.shared_key) - 4) if self.shared_key else 'NOT SET'}{self.shared_key[-4:] if self.shared_key else ''}"
+        )
 
         if not self.shared_key:
             logger.error("ERROR: SHURE_API_SHARED_KEY environment variable not set!")
@@ -56,17 +57,16 @@ class ShureAPITester:
 
         try:
             # Temporarily override Django settings
-            old_config = getattr(settings, 'MICBOARD_CONFIG', {})
+            old_config = getattr(settings, "MICBOARD_CONFIG", {})
             settings.MICBOARD_CONFIG = {
-                'SHURE_API_BASE_URL': 'https://localhost:10000',
-                'SHURE_API_SHARED_KEY': self.shared_key,
-                'SHURE_API_VERIFY_SSL': self.verify_ssl,
-                'SHURE_API_TIMEOUT': 10,
+                "SHURE_API_BASE_URL": "https://localhost:10000",
+                "SHURE_API_SHARED_KEY": self.shared_key,
+                "SHURE_API_VERIFY_SSL": self.verify_ssl,
+                "SHURE_API_TIMEOUT": 10,
             }
 
             self.client = ShureSystemAPIClient(
-                base_url='https://localhost:10000',
-                verify_ssl=self.verify_ssl
+                base_url="https://localhost:10000", verify_ssl=self.verify_ssl
             )
             logger.info("✓ Client initialized successfully")
             return True
@@ -87,7 +87,7 @@ class ShureAPITester:
             health = self.client.check_health()
             logger.info(f"✓ Health check successful: {json.dumps(health, indent=2)}")
             self.test_results.append(("Health Check", True, health))
-            return health.get('status') == 'healthy'
+            return health.get("status") == "healthy"
         except Exception as e:
             logger.error(f"✗ Health check failed: {e}")
             self.test_results.append(("Health Check", False, str(e)))
@@ -106,7 +106,9 @@ class ShureAPITester:
             devices = self.client.devices.get_devices()
             logger.info(f"✓ Retrieved {len(devices)} device(s)")
             for idx, device in enumerate(devices[:3], 1):  # Show first 3
-                logger.info(f"  Device {idx}: {device.get('deviceId', 'N/A')} - {device.get('deviceType', 'N/A')}")
+                logger.info(
+                    f"  Device {idx}: {device.get('deviceId', 'N/A')} - {device.get('deviceType', 'N/A')}"
+                )
             if len(devices) > 3:
                 logger.info(f"  ... and {len(devices) - 3} more")
             self.test_results.append(("Get Devices", True, {"count": len(devices)}))
@@ -132,7 +134,7 @@ class ShureAPITester:
                 self.test_results.append(("Device Details", False, "No devices available"))
                 return False
 
-            device_id = devices[0].get('deviceId')
+            device_id = devices[0].get("deviceId")
             logger.info(f"Testing with device ID: {device_id}")
 
             # Test device identity
@@ -205,7 +207,7 @@ class ShureAPITester:
             # Make multiple rapid requests to test pooling
             for i in range(3):
                 devices = self.client.devices.get_devices()
-                logger.info(f"✓ Request {i+1}: Retrieved {len(devices)} devices")
+                logger.info(f"✓ Request {i + 1}: Retrieved {len(devices)} devices")
 
             logger.info("✓ Connection pooling working correctly")
             self.test_results.append(("Connection Pooling", True, {}))
@@ -228,7 +230,9 @@ class ShureAPITester:
             rate_limiter = self.client.rate_limiter
             logger.info(f"Rate limiter configured: {rate_limiter is not None}")
             logger.info(f"Rate limiter type: {type(rate_limiter).__name__}")
-            self.test_results.append(("Rate Limiter", True, {"has_limiter": rate_limiter is not None}))
+            self.test_results.append(
+                ("Rate Limiter", True, {"has_limiter": rate_limiter is not None})
+            )
             return True
         except Exception as e:
             logger.error(f"✗ Rate limiter test failed: {e}")
@@ -244,7 +248,7 @@ class ShureAPITester:
         passed = sum(1 for _, success, _ in self.test_results if success)
         total = len(self.test_results)
 
-        for test_name, success, details in self.test_results:
+        for test_name, success, _details in self.test_results:
             status = "✓ PASS" if success else "✗ FAIL"
             logger.info(f"{status}: {test_name}")
 
@@ -280,29 +284,24 @@ class ShureAPITester:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description='Test Shure System API integration'
+    parser = argparse.ArgumentParser(description="Test Shure System API integration")
+    parser.add_argument(
+        "--shared-key",
+        help="Shure API shared key (can also use MICBOARD_SHURE_API_SHARED_KEY env var)",
     )
     parser.add_argument(
-        '--shared-key',
-        help='Shure API shared key (can also use MICBOARD_SHURE_API_SHARED_KEY env var)'
-    )
-    parser.add_argument(
-        '--no-ssl-verify',
-        action='store_true',
-        help='Disable SSL verification (for self-signed certificates)'
+        "--no-ssl-verify",
+        action="store_true",
+        help="Disable SSL verification (for self-signed certificates)",
     )
 
     args = parser.parse_args()
 
-    tester = ShureAPITester(
-        shared_key=args.shared_key,
-        verify_ssl=not args.no_ssl_verify
-    )
+    tester = ShureAPITester(shared_key=args.shared_key, verify_ssl=not args.no_ssl_verify)
 
     success = tester.run_all_tests()
     sys.exit(0 if success else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

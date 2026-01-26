@@ -1,5 +1,4 @@
-"""
-Django application configuration for Micboard.
+"""Django application configuration for Micboard.
 
 This module defines the AppConfig for the Micboard reusable app, including
 default settings, signal registration, and startup configuration validation.
@@ -37,12 +36,12 @@ class MicboardConfig(AppConfig):
     }
 
     def ready(self):
-        """Initialize app when Django starts"""
+        """Initialize app when Django starts."""
         # Validate configuration without mutating project settings
         self._validate_configuration()
 
         # Import signals to register them
-        from . import signals  # noqa: F401
+        from micboard import signals as _signals  # noqa: F401
 
         # Advise about recommended middleware (do not modify settings)
         self._register_security_middleware()
@@ -50,7 +49,7 @@ class MicboardConfig(AppConfig):
         logger.info("Micboard app initialized (configuration validated)")
 
     def _register_security_middleware(self):
-        """Register security middleware if not already present"""
+        """Register security middleware if not already present."""
         from django.conf import settings
 
         middleware_classes = [
@@ -60,7 +59,8 @@ class MicboardConfig(AppConfig):
 
         if not hasattr(settings, "MIDDLEWARE"):
             logger.warning(
-                "Project settings has no MIDDLEWARE configured; Micboard recommends the following middleware but will not modify your settings automatically."
+                "Project settings has no MIDDLEWARE configured; Micboard recommends the "
+                "following middleware but will not modify your settings automatically."
             )
 
         missing = [
@@ -70,12 +70,12 @@ class MicboardConfig(AppConfig):
         ]
         if missing:
             logger.info(
-                "Micboard recommends adding the following middleware to your project settings.MIDDLEWARE:\n"
-                + "\n".join(f"    {m}" for m in missing)
+                "Micboard recommends adding the following middleware to your project "
+                "settings.MIDDLEWARE:\n" + "\n".join(f"    {m}" for m in missing)
             )
 
     def _validate_configuration(self):
-        """Validate MICBOARD_CONFIG settings"""
+        """Validate MICBOARD_CONFIG settings."""
         config = getattr(settings, "MICBOARD_CONFIG", {})
 
         # Merge with defaults

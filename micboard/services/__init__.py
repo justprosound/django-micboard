@@ -1,35 +1,63 @@
-"""Business logic services for the micboard app.
+"""Business logic service layer for django-micboard.
 
-This module provides high-level service APIs for:
-- Device management (DeviceService)
-- Network discovery (DiscoveryService)
-- Polling orchestration (PollingService)
-- Email notifications (EmailService)
-
-Services encapsulate business logic and provide clean interfaces
-for tasks, views, and management commands.
+Decouples business logic from views, signals, and management commands.
+Provides a unified interface for device management, polling, discovery,
+location, and connection health monitoring.
 """
 
 from __future__ import annotations
 
-# Core services
-from .device_service import DeviceService, get_device_service
-from .discovery_service_new import DiscoveryService
-from .email import EmailService, email_service, send_alert_email, send_system_email
+# Implementation services
+from .assignment import AssignmentService
+from .connection import ConnectionHealthService
+from .device_service import DeviceService
+from .discovery import DiscoveryService
+
+# Core exceptions
+from .exceptions import (
+    AssignmentAlreadyExistsError,
+    AssignmentNotFoundError,
+    ConnectionError,
+    DeviceNotFoundError,
+    DiscoveryError,
+    LocationAlreadyExistsError,
+    LocationNotFoundError,
+    ManufacturerPluginError,
+    MicboardServiceError,
+)
+from .location import LocationService
+from .manufacturer import ManufacturerService
+from .monitoring_service import MonitoringService
 from .polling_service import PollingService, get_polling_service
+from .synchronization_service import SynchronizationService
+from .utils import PaginatedResult, SyncResult, filter_by_search, paginate_queryset
 
 __all__ = [
-    # Device management
+    # Core Services
+    "AssignmentService",
+    "ConnectionHealthService",
     "DeviceService",
-    "get_device_service",
-    # Discovery
     "DiscoveryService",
-    # Polling
+    "LocationService",
+    "ManufacturerService",
+    "MonitoringService",
     "PollingService",
+    "SynchronizationService",
+    # Service Accessors
     "get_polling_service",
-    # Email
-    "EmailService",
-    "email_service",
-    "send_alert_email",
-    "send_system_email",
+    # Utilities
+    "SyncResult",
+    "PaginatedResult",
+    "paginate_queryset",
+    "filter_by_search",
+    # Exceptions
+    "MicboardServiceError",
+    "AssignmentAlreadyExistsError",
+    "AssignmentNotFoundError",
+    "ConnectionError",
+    "DeviceNotFoundError",
+    "DiscoveryError",
+    "LocationAlreadyExistsError",
+    "LocationNotFoundError",
+    "ManufacturerPluginError",
 ]

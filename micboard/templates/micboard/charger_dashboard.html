@@ -1,0 +1,114 @@
+{% extends "micboard/base.html" %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<style>
+    :root {
+        --display-width: {{ display_width_px }}px;
+    }
+
+    .charger-container {
+        width: var(--display-width);
+        margin: 0 auto;
+        padding: 20px;
+        background: #1a1a1a;
+        min-height: 100vh;
+        color: #eee;
+    }
+
+    .charger-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 24px;
+    }
+
+    .charger-card {
+        background: #2d2d2d;
+        border: 1px solid #444;
+        border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+
+    .performer-photo {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #555;
+    }
+
+    .slot-item {
+        border-bottom: 1px solid #3d3d3d;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .slot-item:last-child {
+        border-bottom: none;
+    }
+
+    .slot-number {
+        font-weight: bold;
+        color: #888;
+        font-size: 0.9em;
+        width: 24px;
+    }
+
+    .battery-bar {
+        height: 8px;
+        background: #444;
+        border-radius: 4px;
+        flex-grow: 1;
+        overflow: hidden;
+    }
+
+    .battery-fill {
+        height: 100%;
+        transition: width 0.5s ease-in-out;
+    }
+
+    .status-updating {
+        color: #0dcaf0;
+        font-style: italic;
+        font-size: 0.8em;
+    }
+
+    /* Responsive scaling based on display width */
+    @media (max-width: {{ display_width_px }}px) {
+        .charger-container {
+            width: 100%;
+            transform: scale(calc(100vw / {{ display_width_px }}));
+            transform-origin: top center;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="charger-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Charger Dashboard</h1>
+            <small class="text-muted">Display Width: {{ display_width_px }}px</small>
+        </div>
+
+        <form class="d-flex gap-2" hx-post="{% url 'charger_dashboard' %}" hx-target=".charger-container" hx-select=".charger-container" hx-swap="outerHTML">
+            {% csrf_token %}
+            <input type="number" name="display_width_px" value="{{ display_width_px }}" class="form-control form-control-sm" style="width: 100px;">
+            <button type="submit" class="btn btn-sm btn-outline-light">Set Width</button>
+        </form>
+    </div>
+
+    <div id="charger-grid"
+         class="charger-grid"
+         hx-get="{% url 'charger_dashboard' %}"
+         hx-trigger="every 10s"
+         hx-swap="innerHTML"
+         hx-select=".charger-grid">
+        {% include "micboard/partials/charger_grid.html" %}
+    </div>
+</div>
+{% endblock %}

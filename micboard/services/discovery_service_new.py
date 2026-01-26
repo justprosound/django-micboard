@@ -1,16 +1,25 @@
+"""Network discovery service to manage manufacturer IP/FQDN scans."""
+
 import ipaddress
 import logging
 from typing import Optional, Union, cast
 
 from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.core.cache import cache
 from django.utils import timezone
+
+try:
+    from channels.layers import get_channel_layer
+except ImportError:
+    # Channels not installed, provide a no-op function
+    def get_channel_layer():
+        return None
+
 
 from micboard.discovery.legacy import expand_cidrs, resolve_fqdns
 from micboard.manufacturers import get_manufacturer_plugin
 from micboard.manufacturers.base import BaseAPIClient
-from micboard.models import DiscoveryCIDR, DiscoveryFQDN, Manufacturer, Receiver
+from micboard.models import DiscoveryCIDR, DiscoveryFQDN, Manufacturer, WirelessChassis
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +28,7 @@ class DiscoveryService:
     """Manages network discovery across all configured manufacturers."""
 
     def __init__(self):
+        """Initialize discovery helpers and state."""
         pass
 
     def _get_manufacturer_client(self, manufacturer: Manufacturer) -> BaseAPIClient:
@@ -31,10 +41,11 @@ class DiscoveryService:
         self, ip_address: str, current_manufacturer: Manufacturer
     ) -> bool:
         """Check if an IP address is already managed by another manufacturer."""
-        # Check if any Receiver object already exists with this IP and a different manufacturer
+        # Check if any WirelessChassis object already exists with this IP and
+        # a different manufacturer
         return cast(
             bool,
-            Receiver.objects.filter(ip=ip_address)
+            WirelessChassis.objects.filter(ip=ip_address)
             .exclude(manufacturer=current_manufacturer)
             .exists(),
         )
@@ -126,10 +137,10 @@ class DiscoveryService:
         # Collect IPs from various sources
         candidate_ips: list[str] = []
 
-        # 1. IPs from existing Receivers for this manufacturer
-        for rx in Receiver.objects.filter(manufacturer=manufacturer):
-            if rx.ip:
-                candidate_ips.append(rx.ip)
+        # 1. IPs from existing chassis for this manufacturer
+        for ch in WirelessChassis.objects.filter(manufacturer=manufacturer):
+            if ch.ip:
+                candidate_ips.append(ch.ip)
 
         # 2. IPs from DiscoveryCIDR
         if scan_cidrs:
@@ -181,20 +192,78 @@ class DiscoveryService:
     def get_all_managed_ips(self) -> set[str]:
         """Returns a set of all IP addresses currently managed by any manufacturer."""
         managed_ips = set()
-        for rx in Receiver.objects.all():
-            if rx.ip:
-                managed_ips.add(rx.ip)
+        for ch in WirelessChassis.objects.all():
+            if ch.ip:
+                managed_ips.add(ch.ip)
         return managed_ips
 
     def get_manufacturer_for_ip(self, ip_address: str) -> Union[Manufacturer, None]:
         """Returns the manufacturer managing a given IP address, if any."""
         try:
-            receiver = Receiver.objects.filter(ip=ip_address).first()
-            if receiver:
-                return Manufacturer(receiver.manufacturer)
+            chassis = WirelessChassis.objects.filter(ip=ip_address).first()
+            if chassis:
+                return chassis.manufacturer
         except Exception as e:
             logger.error("Error getting manufacturer for IP %s: %s", ip_address, e)
         return None
+
+    def get_device_detail(
+        self,
+        *,
+        manufacturer_code: str | None = None,
+        device_id: str | None = None,
+    ) -> dict[str, dict]:
+        """Fetch device detail via manufacturer plugins without using signals.
+
+        Args:
+            manufacturer_code: Optional code to scope the lookup. If omitted,
+                              all manufacturers are queried.
+            device_id: Device identifier from the manufacturer's API.
+
+        Returns:
+            Mapping of manufacturer code -> {status, device|error}
+        """
+        if not device_id:
+            return {}
+
+        if manufacturer_code:
+            manufacturers = Manufacturer.objects.filter(code=manufacturer_code)
+        else:
+            manufacturers = Manufacturer.objects.all()
+
+        results: dict[str, dict] = {}
+
+        for mfr in manufacturers:
+            try:
+                plugin_cls = get_manufacturer_plugin(mfr.code)
+                plugin = plugin_cls(mfr)
+
+                dev = plugin.get_device(device_id)
+                if not dev:
+                    continue
+
+                try:
+                    channels = plugin.get_device_channels(device_id)
+                    dev["channels"] = channels
+                except Exception:
+                    logger.debug("No channel data for %s", device_id)
+
+                transformed = plugin.transform_device_data(dev)
+                if not transformed:
+                    results[mfr.code] = {"status": "error", "error": "transform failed"}
+                    continue
+
+                results[mfr.code] = {"status": "success", "device": transformed}
+
+                # If scoped to a specific manufacturer, short-circuit on first success
+                if manufacturer_code:
+                    return results
+
+            except Exception as exc:
+                logger.exception("Error fetching device %s for %s: %s", device_id, mfr.code, exc)
+                results[mfr.code] = {"status": "error", "error": str(exc)}
+
+        return results
 
     def get_discovery_candidates(
         self,
@@ -206,9 +275,9 @@ class DiscoveryService:
     ) -> list[str]:
         """Return a deduplicated list of candidate IPs for discovery for the manufacturer.
 
-        This aggregates the client's manual discovery IPs (if available), local Receiver
+        This aggregates the client's manual discovery IPs (if available), local chassis
         IP addresses that are not yet in the discovery list, and optionally expanded
-        CIDRs and resolved FQDNs from MicboardConfig.
+        CIDRs and resolved FQDNs from DiscoveryCIDR and DiscoveryFQDN models.
         """
         try:
             manufacturer = Manufacturer.objects.get(code=manufacturer_code)
@@ -226,13 +295,13 @@ class DiscoveryService:
                 # Ignore remote fetch errors; continue with other sources
                 logger.debug("Could not fetch remote discovery IPs for %s", manufacturer.code)
 
-        # 2) Include local receiver IPs that might not be discovered yet
+        # 2) Include local chassis IPs that might not be discovered yet
         try:
-            for rx in Receiver.objects.filter(manufacturer=manufacturer):
-                if rx.ip:
-                    candidate_ips.append(rx.ip)
+            for ch in WirelessChassis.objects.filter(manufacturer=manufacturer):
+                if ch.ip:
+                    candidate_ips.append(ch.ip)
         except Exception:
-            logger.exception("Error fetching local receiver IPs for discovery candidates")
+            logger.exception("Error fetching local chassis IPs for discovery candidates")
 
         # 3) Optionally expand CIDRs and resolve FQDNs from DiscoveryCIDR and DiscoveryFQDN models
         try:
@@ -303,7 +372,7 @@ class DiscoveryService:
         return self._finalize_candidates(status_key, candidates, total_to_scan, processed)
 
     def _collect_base_candidates(self, manufacturer: Manufacturer) -> list[str]:
-        """Collect base candidates from remote discovery IPs and local receivers."""
+        """Collect base candidates from remote discovery IPs and local chassis."""
         candidates = []
 
         # Remote discovery IPs
@@ -315,13 +384,13 @@ class DiscoveryService:
             except Exception:
                 logger.debug("Could not fetch remote discovery IPs for %s", manufacturer.code)
 
-        # Local receiver IPs
+        # Local chassis IPs
         try:
-            for rx in Receiver.objects.filter(manufacturer=manufacturer):
-                if rx.ip:
-                    candidates.append(rx.ip)
+            for ch in WirelessChassis.objects.filter(manufacturer=manufacturer):
+                if ch.ip:
+                    candidates.append(ch.ip)
         except Exception:
-            logger.exception("Error fetching local receiver IPs for discovery candidates")
+            logger.exception("Error fetching local chassis IPs for discovery candidates")
 
         return candidates
 

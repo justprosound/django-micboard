@@ -1,6 +1,4 @@
-"""
-SSE client for Sennheiser SSCv2 subscriptions.
-"""
+"""SSE client for Sennheiser SSCv2 subscriptions."""
 
 from __future__ import annotations
 
@@ -18,8 +16,7 @@ logger = logging.getLogger(__name__)
 async def connect_and_subscribe(
     client: SennheiserSystemAPIClient, device_id: str, callback: Callable[[dict[str, Any]], None]
 ):
-    """
-    Establish SSE connection and subscribe to Sennheiser device updates.
+    """Establish SSE connection and subscribe to Sennheiser device updates.
 
     Args:
         client: SennheiserSystemAPIClient instance
@@ -51,7 +48,7 @@ async def connect_and_subscribe(
         # Use requests with stream=True for SSE
         with requests.get(
             sse_url, headers=headers, stream=True, verify=client.verify_ssl
-        ) as response:
+        ) as response:  # nosec B113 - timeout not applicable for SSE streaming
             if response.status_code != 200:
                 logger.error("SSE connection failed with status %d", response.status_code)
                 return

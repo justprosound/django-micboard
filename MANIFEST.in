@@ -1,15 +1,9 @@
 # Include documentation at root level
 include README.md
 include LICENSE
-include CHANGELOG.md
-include QUICKSTART.md
-include ARCHITECTURE.md
-include USER_ASSIGNMENT.md
-include RATE_LIMITING.md
-include PACKAGING.md
+include CONTRIBUTING.md
+include SECURITY.md
 include pyproject.toml
-include requirements.txt
-include .copilot-instructions.md
 
 # Include package data (now in micboard/ subdirectory)
 recursive-include micboard/static *

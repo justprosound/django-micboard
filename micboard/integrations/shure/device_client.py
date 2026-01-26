@@ -21,9 +21,53 @@ class ShureDeviceClient:
 
     @rate_limit(calls_per_second=5.0)
     def get_devices(self) -> list[dict[str, Any]]:
-        """Get list of all devices from Shure System API."""
+        """Get list of all devices from Shure System API.
+
+        Returns:
+            List of device node dictionaries with normalized structure.
+            Extracts deviceId from hardwareIdentity to top-level id field.
+        """
         result = self.api_client._make_request("GET", "/api/v1/devices")
-        return result if isinstance(result, list) else []
+
+        devices = []
+        # Handle GraphQL-style response with edges/nodes
+        if isinstance(result, dict) and "edges" in result:
+            edges = result.get("edges", [])
+            # Extract node from each edge
+            devices = [edge.get("node", {}) for edge in edges if "node" in edge]
+        elif isinstance(result, list):
+            # Fallback for direct list response
+            devices = result
+
+        # Normalize device structure: extract deviceId from hardwareIdentity to top-level id
+        normalized = []
+        for device in devices:
+            if isinstance(device, dict):
+                # Extract deviceId from hardwareIdentity if present
+                hardware_identity = device.get("hardwareIdentity", {})
+                device_id = hardware_identity.get("deviceId")
+
+                if device_id:
+                    # Add top-level id field expected by transformers
+                    device["id"] = device_id
+
+                # Extract other commonly needed fields to top-level
+                if "serialNumber" in hardware_identity:
+                    device.setdefault("serialNumber", hardware_identity["serialNumber"])
+
+                communication = device.get("communicationProtocol", {})
+                if "address" in communication:
+                    device.setdefault("ipAddress", communication["address"])
+
+                software = device.get("softwareIdentity", {})
+                if "model" in software:
+                    device.setdefault("model", software["model"])
+                if "firmwareVersion" in software:
+                    device.setdefault("firmwareVersion", software["firmwareVersion"])
+
+                normalized.append(device)
+
+        return normalized
 
     @rate_limit(calls_per_second=5.0)
     def get_supported_device_models(self) -> list[str]:
@@ -131,26 +175,26 @@ class ShureDeviceClient:
         return device_data
 
     def poll_all_devices(self) -> dict[str, dict[str, Any]]:
-        """
-        Poll all devices and return raw aggregated data.
-        
+        """Poll all devices and return raw aggregated data.
+
         NOTE: This method is deprecated. Use DeviceService.poll_and_sync_all() instead.
         This method returns raw API data without saving to database - it's now
         just a thin wrapper for backwards compatibility.
-        
+
         For new code:
             from micboard.services import DeviceService
             service = DeviceService(manufacturer)
             result = service.poll_and_sync_all()
         """
         import warnings
+
         warnings.warn(
             "ShureDeviceClient.poll_all_devices() is deprecated. "
             "Use DeviceService.poll_and_sync_all() instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        
+
         try:
             devices = self.get_devices()
             logger.info("Polling %d devices from Shure System API", len(devices))

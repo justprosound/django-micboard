@@ -1,6 +1,4 @@
-"""
-SSE subscription tasks for real-time updates.
-"""
+"""SSE subscription tasks for real-time updates."""
 
 from __future__ import annotations
 
@@ -9,15 +7,14 @@ import logging
 from typing import Any
 
 from micboard.manufacturers import get_manufacturer_plugin
-from micboard.models import Manufacturer, Receiver
+from micboard.models import Manufacturer, WirelessChassis
 from micboard.tasks.polling_tasks import _update_models_from_api_data
 
 logger = logging.getLogger(__name__)
 
 
 def start_sse_subscriptions(manufacturer_id: int):
-    """
-    Start SSE subscriptions for all active devices of a manufacturer.
+    """Start SSE subscriptions for all active devices of a manufacturer.
     This runs indefinitely until stopped.
     """
     try:
@@ -31,7 +28,7 @@ def start_sse_subscriptions(manufacturer_id: int):
 
         # Get active devices
         devices = list(
-            Receiver.objects.filter(manufacturer=manufacturer, is_active=True).values_list(
+            WirelessChassis.objects.filter(manufacturer=manufacturer, status="online").values_list(
                 "api_device_id", flat=True
             )
         )
@@ -73,20 +70,20 @@ async def _subscribe_device_async(plugin, device_id: str):
         logger.info("Starting SSE subscription for device: %s", device_id)
 
         # Get receiver for connection tracking
-        from micboard.models import RealTimeConnection, Receiver
+        from micboard.models import RealTimeConnection, WirelessChassis
 
         try:
-            receiver = Receiver.objects.get(
+            chassis = WirelessChassis.objects.get(
                 manufacturer=plugin.manufacturer, api_device_id=device_id
             )
             connection, created = RealTimeConnection.objects.get_or_create(
-                receiver=receiver, defaults={"connection_type": "sse"}
+                chassis=chassis, defaults={"connection_type": "sse"}
             )
             if not created:
                 connection.connection_type = "sse"
                 connection.save()
             connection.mark_connecting()
-        except Receiver.DoesNotExist:
+        except WirelessChassis.DoesNotExist:
             logger.warning("Receiver not found for SSE subscription: %s", device_id)
             connection = None
 
@@ -146,13 +143,13 @@ async def _broadcast_sse_update_async(manufacturer, device_data: dict[str, Any])
         # Get the updated receiver data
         api_device_id = device_data.get("api_device_id")
         if api_device_id:
-            from micboard.models import Receiver
+            from micboard.models import WirelessChassis
 
             try:
-                receiver = Receiver.objects.get(
+                chassis = WirelessChassis.objects.get(
                     manufacturer=manufacturer, api_device_id=api_device_id
                 )
-                serialized_data = {"receivers": [serialize_receiver(receiver, include_extra=True)]}
+                serialized_data = {"receivers": [serialize_receiver(chassis, include_extra=True)]}
 
                 # Send via Django Channels
                 channel_layer = get_channel_layer()
@@ -171,7 +168,7 @@ async def _broadcast_sse_update_async(manufacturer, device_data: dict[str, Any])
 
                 logger.debug("Broadcasted SSE update for device %s", api_device_id)
 
-            except Receiver.DoesNotExist:
+            except WirelessChassis.DoesNotExist:
                 logger.warning("Receiver not found for SSE broadcast: %s", api_device_id)
 
     except Exception as e:

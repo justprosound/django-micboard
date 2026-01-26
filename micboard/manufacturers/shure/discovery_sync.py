@@ -6,8 +6,8 @@ functions by delegating to micboard.discovery.service.DiscoveryService.
 
 from __future__ import annotations
 
-from micboard.discovery.service import DiscoveryService
 from micboard.manufacturers import get_manufacturer_plugin as _get_manufacturer_plugin
+from micboard.services.discovery_service_new import DiscoveryService
 
 
 def get_discovery_candidates(

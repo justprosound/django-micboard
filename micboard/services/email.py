@@ -1,5 +1,4 @@
-"""
-Email notification utilities for django-micboard.
+"""Email notification utilities for django-micboard.
 
 Provides email sending functionality for alerts and system notifications
 using Django's built-in email system.
@@ -22,18 +21,17 @@ logger = logging.getLogger(__name__)
 
 
 class EmailService:
-    """
-    Service for sending email notifications.
+    """Service for sending email notifications.
 
     Uses Django's email backend for reliable delivery.
     """
 
     def __init__(self):
+        """Prepare an email backend connection for sending messages."""
         self.connection = get_connection()
 
     def send_alert_notification(self, alert: Alert, recipients: list[str] | None = None) -> bool:
-        """
-        Send email notification for an alert.
+        """Send email notification for an alert.
 
         Args:
             alert: Alert instance
@@ -90,8 +88,7 @@ class EmailService:
     def send_system_notification(
         self, subject: str, message: str, recipients: list[str] | None = None
     ) -> bool:
-        """
-        Send system notification email.
+        """Send system notification email.
 
         Args:
             subject: Email subject
@@ -155,8 +152,7 @@ email_service = EmailService()
 
 
 def send_alert_email(alert: Alert, recipients: list[str] | None = None) -> bool:
-    """
-    Convenience function to send alert email.
+    """Convenience function to send alert email.
 
     Args:
         alert: Alert instance
@@ -169,8 +165,7 @@ def send_alert_email(alert: Alert, recipients: list[str] | None = None) -> bool:
 
 
 def send_system_email(subject: str, message: str, recipients: list[str] | None = None) -> bool:
-    """
-    Convenience function to send system email.
+    """Convenience function to send system email.
 
     Args:
         subject: Email subject

@@ -1,3 +1,4 @@
+---
 site_name: django-micboard
 site_description: Django app for real-time Shure wireless microphone monitoring
 site_url: https://django-micboard.readthedocs.io
@@ -6,7 +7,7 @@ repo_name: django-micboard
 copyright: Licensed under AGPL-3.0-or-later | Community-driven open source project
 
 theme:
-  name: material
+  name: mkdocs
   features:
     - navigation.instant
     - navigation.tracking
@@ -17,131 +18,49 @@ theme:
     - navigation.footer
     - search.suggest
     - search.highlight
-    - search.share
     - content.code.copy
-    - content.code.annotate
     - content.tooltips
-    - content.tabs.link
     - toc.follow
     - toc.integrate
-  palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
   font:
     text: Roboto
     code: Roboto Mono
-  icon:
-    repo: fontawesome/brands/github
-    edit: material/pencil
-    view: material/eye
-    previous: fontawesome/solid/angle-left
-    next: fontawesome/solid/angle-right
 
 nav:
   - Home: index.md
   - Getting Started:
       - Quick Start: quickstart.md
+      - Installation: installation.md
       - Configuration: configuration.md
   - User Guide:
-      - Architecture: architecture.md
-      - User Assignments: user-assignments.md
-      - Rate Limiting: rate-limiting.md
+      - Monitoring Devices: guides/monitoring.md
+      - Admin Interface: guides/admin-interface.md
+      - Real-time Updates: guides/realtime-updates.md
+      - Multitenancy: multitenancy.md
+      - Multitenancy Quickref: multitenancy-quickref.md
+  - Shure Integration:
+      - Shure System API: shure-integration.md
+      - Device Discovery: integration/discovery-workflow.md
+      - Troubleshooting: guides/shure-troubleshooting.md
+      - API References: integration/integration-references.md
   - API Reference:
-      - Overview: api-reference.md
-      - Python API:
-          - Models: api/models.md
-          - Serializers: api/serializers.md
-          - Views: api/views.md
-          - Management Commands: api/management.md
-      - REST API:
-          - Endpoints: api/endpoints.md
-          - WebSocket: api/websocket.md
+      - REST API: api/endpoints.md
+      - WebSocket API: api/websocket.md
+      - Management Commands: api/management.md
+      - Models: api/models.md
+      - Serializers: api/serializers.md
+      - Views: api/views.md
   - Development:
       - Developer Guide: development.md
-      - Dependencies: dependency-management.md
-      - Plugin Development: plugin-development.md
+      - Architecture: development/architecture.md
+      - Python API: development/api-reference.md
+      - Dependencies: development/dependency-management.md
   - About:
       - Changelog: changelog.md
+      - Archive: archive/INDEX.md
 
 plugins:
-  - search:
-      lang: en
-      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
-  - minify:
-      minify_html: true
-      minify_js: true
-      minify_css: true
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: timeago
-  - git-committers:
-      repository: justprosound/django-micboard
-      branch: main
-      docs_path: docs/
-  - git-authors:
-      show_contribution: true
-      show_line_count: false
-  - awesome-pages
-  - section-index
-  - mkdocstrings:
-      default_handler: python
-      handlers:
-        python:
-          options:
-            docstring_style: google
-            docstring_options:
-              ignore_init_summary: false
-            merge_init_into_class: true
-            show_signature: true
-            show_signature_annotations: true
-            show_source: false
-            show_bases: true
-            show_inheritance_diagram: true
-            show_labels: true
-            show_root_heading: true
-            show_root_full_path: false
-            show_object_full_path: false
-            show_category_heading: true
-            show_symbol_type_heading: true
-            show_symbol_type_toc: true
-            inherited_members: true
-            separate_signature: true
-            line_length: 80
-  - macros:
-      module_name: macros
-  - meta-descriptions:
-      export_csv: false
-      quiet: false
-      enable_checks: false
-      min_length: 50
-      max_length: 160
-      trim: true
-  - redirects:
-      redirect_maps: {}
-  - print-site:
-      add_to_navigation: true
-      print_page_title: "Django Micboard Documentation"
-      add_full_urls: true
-      enumerate_headings: true
-      enumerate_figures: true
-      add_table_of_contents: true
-      toc_title: "Table of Contents"
-      toc_depth: 3
-      path_to_pdf: ""
-      include_css: true
-      enabled: true
+  - search
 
 markdown_extensions:
   - abbr
@@ -153,33 +72,11 @@ markdown_extensions:
   - toc:
       permalink: true
       toc_depth: 3
-  - pymdownx.arithmatex:
-      generic: true
-  - pymdownx.betterem:
-      smart_enable: all
-  - pymdownx.caret
-  - pymdownx.details
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.keys
-  - pymdownx.mark
-  - pymdownx.smartsymbols
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.tabbed:
-      alternate_style: true
-  - pymdownx.tasklist:
-      custom_checkbox: true
-  - pymdownx.tilde
+  - codehilite:
+      guess_lang: false
+  - fenced_code
+  - tables
+  - meta
 
 extra:
   version:

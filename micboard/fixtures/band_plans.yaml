@@ -1,0 +1,78 @@
+# Band Plans Registry
+# Format: manufacturer -> band_key -> {name, min_mhz, max_mhz, region}
+
+shure:
+  g50:
+    name: "G50 (470-534 MHz)"
+    min_mhz: 470.0
+    max_mhz: 534.0
+    region: "US/EU"
+  h50:
+    name: "H50 (534-598 MHz)"
+    min_mhz: 534.0
+    max_mhz: 598.0
+    region: "US/EU"
+  j50:
+    name: "J50 (572-636 MHz)"
+    min_mhz: 572.0
+    max_mhz: 636.0
+    region: "International"
+  l50:
+    name: "L50 (632-696 MHz)"
+    min_mhz: 632.0
+    max_mhz: 696.0
+    region: "Asia/Pacific"
+  x52:
+    name: "X52 (902-928 MHz)"
+    min_mhz: 902.0
+    max_mhz: 928.0
+    region: "US ISM/STL"
+  z16:
+    name: "Z16 (1.24-1.26 GHz)"
+    min_mhz: 1240.0
+    max_mhz: 1260.0
+    region: "Japan"
+
+sennheiser:
+  aw_plus:
+    name: "Aw+ (470-558 MHz)"
+    min_mhz: 470.0
+    max_mhz: 558.0
+    region: "US"
+  bw:
+    name: "Bw (626-698 MHz)"
+    min_mhz: 626.0
+    max_mhz: 698.0
+    region: "US"
+  gw:
+    name: "Gw (558-626 MHz)"
+    min_mhz: 558.0
+    max_mhz: 626.0
+    region: "US"
+  a:
+    name: "A (516-558 MHz)"
+    min_mhz: 516.0
+    max_mhz: 558.0
+    region: "Global"
+  g:
+    name: "G (566-608 MHz)"
+    min_mhz: 566.0
+    max_mhz: 608.0
+    region: "Global"
+  b:
+    name: "B (626-668 MHz)"
+    min_mhz: 626.0
+    max_mhz: 668.0
+    region: "Global"
+
+wisycom:
+  b1:
+    name: "B1 (470-663 MHz)"
+    min_mhz: 470.0
+    max_mhz: 663.0
+    region: "Wideband"
+  b2:
+    name: "B2 (470-800 MHz)"
+    min_mhz: 470.0
+    max_mhz: 800.0
+    region: "Wideband"

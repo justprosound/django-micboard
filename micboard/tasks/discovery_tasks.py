@@ -1,6 +1,4 @@
-"""
-Discovery-related background tasks for the micboard app.
-"""
+"""Discovery-related background tasks for the micboard app."""
 
 # Discovery-related background tasks for the micboard app.
 from __future__ import annotations
@@ -12,40 +10,36 @@ from typing import Any
 from django.core.cache import cache
 from django.utils import timezone
 
-from micboard.discovery.service import DiscoveryService
 from micboard.models import (
     DiscoveryCIDR,
     DiscoveryFQDN,
     DiscoveryJob,
     Manufacturer,
     MicboardConfig,
-    Receiver,
+    WirelessChassis,
 )
+from micboard.services.discovery_service_new import DiscoveryService
 
 logger = logging.getLogger(__name__)
 
 
-def sync_receiver_discovery(receiver_id: int):
-    """
-    Task to ensure a receiver is known to the manufacturer's discovery list.
-    """
+def sync_receiver_discovery(chassis_id: int):
+    """Task to ensure a wireless chassis is known to the manufacturer's discovery list."""
     try:
-        receiver = Receiver.objects.get(pk=receiver_id)
+        chassis = WirelessChassis.objects.get(pk=chassis_id)
         discovery_service = DiscoveryService()
-        if receiver.ip:
+        if chassis.ip_address:
             discovery_service.add_discovery_candidate(
-                receiver.ip, receiver.manufacturer, source="receiver_save"
+                chassis.ip_address, chassis.manufacturer, source="chassis_save"
             )
-    except Receiver.DoesNotExist:
-        logger.warning("Receiver with ID %s not found for discovery sync.", receiver_id)
+    except WirelessChassis.DoesNotExist:
+        logger.warning("WirelessChassis with ID %s not found for discovery sync.", chassis_id)
     except Exception:
-        logger.exception("Error in sync_receiver_discovery task for receiver ID %s", receiver_id)
+        logger.exception("Error in sync_receiver_discovery task for chassis ID %s", chassis_id)
 
 
 def run_manufacturer_discovery_task(manufacturer_id: int, scan_cidrs: bool, scan_fqdns: bool):
-    """
-    Task to run discovery for a specific manufacturer.
-    """
+    """Task to run discovery for a specific manufacturer."""
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
         discovery_service = DiscoveryService()
@@ -65,9 +59,7 @@ def run_manufacturer_discovery_task(manufacturer_id: int, scan_cidrs: bool, scan
 
 
 def cache_all_discovery_candidates(scan_cidrs: bool = False, scan_fqdns: bool = False):
-    """
-    Task to compute and cache discovery candidate IPs for all manufacturers.
-    """
+    """Task to compute and cache discovery candidate IPs for all manufacturers."""
     logger.info(
         "Starting task to cache all discovery candidates (CIDRs: %s, FQDNs: %s)",
         scan_cidrs,
@@ -95,9 +87,7 @@ def run_discovery_sync_task(
     scan_fqdns: bool = False,
     max_hosts: int = 1024,
 ):
-    """
-    Task to run a discovery synchronization for the given manufacturer.
-    """
+    """Task to run a discovery synchronization for the given manufacturer."""
     summary: dict[str, Any] = {
         "manufacturer": manufacturer_id,
         "status": "running",
@@ -259,7 +249,7 @@ def _poll_and_create_receivers(
                     logger.warning("Skipping device with missing id/ip: %s", dev)
                     continue
 
-                _rx, created = Receiver.objects.update_or_create(
+                _rx, created = WirelessChassis.objects.update_or_create(
                     api_device_id=device_id,
                     manufacturer=manufacturer,
                     defaults={"ip": ip, "name": name, "is_active": True},
@@ -280,18 +270,19 @@ def _submit_missing_ips(
     discovery_service: DiscoveryService,
     summary: dict[str, Any],
 ) -> None:
-    """Submit missing local receiver and discovered device IPs to discovery."""
+    """Submit missing local chassis and discovered device IPs to discovery."""
     missing_ips = []
-    
-    # Check Receiver objects (configured devices)
-    for rx in Receiver.objects.filter(manufacturer=manufacturer):
-        if not rx.ip:
+
+    # Check WirelessChassis objects (configured devices)
+    for chassis in WirelessChassis.objects.filter(manufacturer=manufacturer):
+        if not chassis.ip_address:
             continue
-        if rx.ip not in discovered_ips:
-            missing_ips.append(rx.ip)
-    
+        if chassis.ip_address not in discovered_ips:
+            missing_ips.append(chassis.ip_address)
+
     # Also check DiscoveredDevice objects (devices found but not yet configured)
     from micboard.models import DiscoveredDevice
+
     for dev in DiscoveredDevice.objects.filter(manufacturer=manufacturer):
         if dev.ip and dev.ip not in discovered_ips and dev.ip not in missing_ips:
             missing_ips.append(dev.ip)
@@ -299,7 +290,7 @@ def _submit_missing_ips(
     if missing_ips:
         for ip in missing_ips:
             if discovery_service.add_discovery_candidate(
-                ip, manufacturer, source="missing_receiver"
+                ip, manufacturer, source="missing_chassis"
             ):
                 summary["missing_ips_submitted"] += 1
             else:
@@ -369,7 +360,7 @@ def _broadcast_results(manufacturer: Manufacturer) -> None:
 
         serialized_data = {
             "receivers": ReceiverSummarySerializer(
-                Receiver.objects.filter(manufacturer=manufacturer), many=True
+                WirelessChassis.objects.filter(manufacturer=manufacturer), many=True
             ).data
         }
         devices_polled.send(sender=None, manufacturer=manufacturer, data=serialized_data)

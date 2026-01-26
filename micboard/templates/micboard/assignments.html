@@ -1,0 +1,80 @@
+{% extends "micboard/base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Assignments</h1>
+        <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#createForm">
+            New Assignment
+        </button>
+    </div>
+
+    <!-- Create Form -->
+    <div class="collapse mb-4" id="createForm">
+        <div class="card card-body">
+            <form action="{% url 'create_assignment' %}" method="post">
+                {% csrf_token %}
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Performer</label>
+                        <select name="user" class="form-select" required>
+                            <option value="">Select Performer...</option>
+                            {% for p in performers %}
+                            <option value="{{ p.id }}">{{ p.get_full_name|default:p.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Channel</label>
+                        <select name="channel" class="form-select" required>
+                            <option value="">Select Channel...</option>
+                            {% for c in channels %}
+                            <option value="{{ c.id }}">{{ c.chassis.name }} - Ch {{ c.channel_number }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Priority</label>
+                        <select name="priority" class="form-select">
+                            <option value="low">Low</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success w-100">Assign</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assignments Table -->
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Performer</th>
+                        <th>Role</th>
+                        <th>Channel</th>
+                        <th>Frequency</th>
+                        <th>Priority</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for assignment in assignments %}
+                        {% include "micboard/partials/assignment_row.html" %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">No active assignments found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

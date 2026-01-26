@@ -1,6 +1,4 @@
-"""
-Broadcast-related signal handlers for the micboard app.
-"""
+"""Broadcast-related signal handlers for the micboard app."""
 
 # Broadcast-related signal handlers for the micboard app.
 from __future__ import annotations
@@ -8,8 +6,15 @@ from __future__ import annotations
 import logging
 
 from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.dispatch import Signal, receiver
+
+try:
+    from channels.layers import get_channel_layer
+except ImportError:
+    # Channels not installed, provide a no-op function
+    def get_channel_layer():
+        return None
+
 
 logger = logging.getLogger(__name__)
 

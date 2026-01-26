@@ -1,5 +1,8 @@
-"""
-Discovery-related signal handlers for the micboard app.
+"""Discovery-related signal handlers for the micboard app.
+
+SIMPLIFIED: Task scheduling only.
+Core discovery logic moved to DiscoveryOrchestrationService and DiscoveryService.
+See: micboard.services.discovery_orchestration_service.DiscoveryOrchestrationService
 """
 
 # Discovery-related signal handlers for the micboard app.
@@ -10,7 +13,14 @@ from typing import Any
 
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
-from django_q.tasks import async_task
+
+try:
+    from django_q.tasks import async_task
+except ImportError:
+    # django-q not installed, provide a no-op decorator
+    def async_task(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
 
 from micboard.models import (
     DiscoveryCIDR,
@@ -27,7 +37,10 @@ logger = logging.getLogger(__name__)
 def micboardconfig_saved(
     sender: type[MicboardConfig], instance: MicboardConfig, created: bool, **kwargs: Any
 ) -> None:
-    """Trigger discovery scans when SHURE discovery config changes for a manufacturer."""
+    """Trigger discovery scans when SHURE discovery config changes for a manufacturer.
+
+    Delegates to DiscoveryOrchestrationService via async task.
+    """
     _ = sender
     try:
         # This signal handler is specifically for Shure config keys for now.
@@ -51,7 +64,10 @@ def micboardconfig_saved(
 def discovery_cidr_changed(
     sender: type[DiscoveryCIDR], instance: DiscoveryCIDR, **kwargs: Any
 ) -> None:
-    """Trigger a scan when CIDR entries change for a manufacturer."""
+    """Trigger a scan when CIDR entries change for a manufacturer.
+
+    Delegates to DiscoveryOrchestrationService via async task.
+    """
     _ = sender
     try:
         async_task(
@@ -69,7 +85,10 @@ def discovery_cidr_changed(
 def discovery_fqdn_changed(
     sender: type[DiscoveryFQDN], instance: DiscoveryFQDN, **kwargs: Any
 ) -> None:
-    """Trigger a scan when FQDN entries change for a manufacturer."""
+    """Trigger a scan when FQDN entries change for a manufacturer.
+
+    Delegates to DiscoveryOrchestrationService via async task.
+    """
     _ = sender
     try:
         async_task(
@@ -86,7 +105,10 @@ def discovery_fqdn_changed(
 def manufacturer_saved(
     sender: type[Manufacturer], instance: Manufacturer, created: bool, **kwargs: Any
 ) -> None:
-    """Trigger discovery sync when a manufacturer is added or activated."""
+    """Trigger discovery sync when a manufacturer is added or activated.
+
+    Delegates to DiscoveryOrchestrationService via async task.
+    """
     _ = sender
     try:
         # Only trigger when not created and when is_active toggled True

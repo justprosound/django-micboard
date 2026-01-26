@@ -1,5 +1,4 @@
-"""
-Minimal signal handlers for device lifecycle events.
+"""Minimal signal handlers for device lifecycle events.
 
 IMPORTANT: Business logic moved to DeviceLifecycleManager.
 These handlers ONLY handle:
@@ -37,8 +36,7 @@ def broadcast_device_status(
     is_active: bool,
     **kwargs: Any,
 ) -> None:
-    """
-    Broadcast device status changes via WebSocket.
+    """Broadcast device status changes via WebSocket.
 
     Args:
         sender: Service that emitted the signal
@@ -50,8 +48,8 @@ def broadcast_device_status(
         **kwargs: Additional signal kwargs
     """
     try:
-        from channels.layers import get_channel_layer
         from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
 
         channel_layer = get_channel_layer()
         if not channel_layer:
@@ -99,8 +97,7 @@ def broadcast_sync_completion(
     sync_result: dict,
     **kwargs: Any,
 ) -> None:
-    """
-    Broadcast sync completion via WebSocket.
+    """Broadcast sync completion via WebSocket.
 
     Args:
         sender: Service that emitted the signal
@@ -109,8 +106,8 @@ def broadcast_sync_completion(
         **kwargs: Additional signal kwargs
     """
     try:
-        from channels.layers import get_channel_layer
         from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
 
         channel_layer = get_channel_layer()
         if not channel_layer:

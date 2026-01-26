@@ -230,10 +230,29 @@
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-container">
-    <h1>Micboard Platform Dashboard</h1>
+<div id="content-main">
+    {% if efis_alert.outdated %}
+    <div style="background-color: #fff3cd; color: #856404; padding: 15px; margin-bottom: 20px; border: 1px solid #ffeeba; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <strong>⚠️ Regulatory Data Outdated</strong><br>
+            The frequency compliance database hasn't been updated in over 30 days.
+            {% if efis_alert.last_update %}
+            (Last update: {{ efis_alert.last_update|date:"Y-m-d" }})
+            {% else %}
+            (Never updated)
+            {% endif %}
+            <br>
+            <span style="font-size: 0.9em; margin-top: 5px; display: inline-block;">
+                Resources:
+                <a href="https://apwpt.org/" style="color: #856404; text-decoration: underline;" title="APWPT - Association for securing radio spectrum for the cultural and creative industries">APWPT</a> |
+                <a href="https://apwpt.org/wp-content/uploads/2025/09/Handout_Version-2025_September.pdf" style="color: #856404; text-decoration: underline;" title="APWPT Handout Version September 2025">Regulatory Handout (Sept 2025)</a>
+            </span>
+        </div>
+        <!-- In a real app, this would link to an admin action or trigger the management command -->
+        <a href="#" class="button" style="background-color: #856404; color: white; padding: 5px 10px; text-decoration: none; border-radius: 3px;" onclick="alert('Please run: python manage.py import_efis_regulations'); return false;">Update Now</a>
+    </div>
+    {% endif %}
 
-    <!-- System Health Overview -->
     <div class="dashboard-grid">
         <div class="stat-card">
             <h3>System Health</h3>
