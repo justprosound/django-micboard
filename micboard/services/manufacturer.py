@@ -71,8 +71,8 @@ class ManufacturerService:
             }
         """
         from micboard.models import Manufacturer
-        from micboard.services.deduplication_service import get_deduplication_service
-        from micboard.services.device_lifecycle import get_lifecycle_manager
+        from micboard.services.hardware_deduplication_service import get_hardware_deduplication_service
+        from micboard.services.hardware_lifecycle import get_lifecycle_manager
 
         try:
             manufacturer = Manufacturer.objects.get(code=manufacturer_code)
@@ -109,7 +109,7 @@ class ManufacturerService:
                     "errors": [],
                 }
 
-            dedup_service = get_deduplication_service(manufacturer)
+            dedup_service = get_hardware_deduplication_service(manufacturer)
             lifecycle = get_lifecycle_manager(manufacturer.code)
 
             created_count = 0
@@ -168,16 +168,16 @@ class ManufacturerService:
     @staticmethod
     def _normalize_devices(api_devices: Iterable[dict[str, Any]], plugin) -> list[dict[str, Any]]:
         """Normalize and validate raw API device payloads."""
-        from micboard.services.device_service import NormalizedDevice
+        from micboard.services.hardware import NormalizedHardware
 
-        normalized: list[NormalizedDevice] = []
+        normalized: list[NormalizedHardware] = []
         for raw in api_devices:
             # Transform using plugin first
             transformed = plugin.transform_device_data(raw)
             if not transformed:
                 continue
 
-            payload = NormalizedDevice.from_api(transformed)
+            payload = NormalizedHardware.from_api(transformed)
             if not payload:
                 continue
             normalized.append(payload)

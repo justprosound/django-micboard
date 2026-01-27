@@ -1,6 +1,6 @@
 """Admin configuration for monitoring models.
 
-(Location, MonitoringGroup, Group, Config, DiscoveredDevice).
+(Location, MonitoringGroup, Config, DiscoveredDevice).
 
 This module provides Django admin interfaces for managing monitoring groups,
 locations, and system configuration.
@@ -10,19 +10,12 @@ from __future__ import annotations
 
 from django.contrib import admin
 
-from micboard.models import DiscoveredDevice, Group, Location, MicboardConfig, MonitoringGroup
-
-
-@admin.register(Group)
-class GroupAdmin(admin.ModelAdmin):
-    """Admin configuration for Group model."""
-
-    list_display = ("group_number", "title", "hide_charts")
-    search_fields = ("title",)
+from micboard.admin.mixins import MicboardModelAdmin
+from micboard.models import DiscoveredDevice, Location, MicboardConfig, MonitoringGroup
 
 
 @admin.register(MicboardConfig)
-class MicboardConfigAdmin(admin.ModelAdmin):
+class MicboardConfigAdmin(MicboardModelAdmin):
     """Admin configuration for MicboardConfig model."""
 
     list_display = ("key", "value")
@@ -30,7 +23,7 @@ class MicboardConfigAdmin(admin.ModelAdmin):
 
 
 @admin.register(DiscoveredDevice)
-class DiscoveredDeviceAdmin(admin.ModelAdmin):
+class DiscoveredDeviceAdmin(MicboardModelAdmin):
     """Admin configuration for DiscoveredDevice model."""
 
     list_display = ("ip", "device_type", "channels", "discovered_at")
@@ -39,7 +32,7 @@ class DiscoveredDeviceAdmin(admin.ModelAdmin):
 
 
 @admin.register(Location)
-class LocationAdmin(admin.ModelAdmin):
+class LocationAdmin(MicboardModelAdmin):
     """Admin configuration for Location model."""
 
     list_display = ("name", "building", "room")
@@ -48,7 +41,7 @@ class LocationAdmin(admin.ModelAdmin):
 
 
 @admin.register(MonitoringGroup)
-class MonitoringGroupAdmin(admin.ModelAdmin):
+class MonitoringGroupAdmin(MicboardModelAdmin):
     """Admin configuration for MonitoringGroup model."""
 
     list_display = ("name", "is_active")

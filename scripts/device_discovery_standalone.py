@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone Device Discovery for Shure VPN Devices.
+"""Standalone WirelessChassis Discovery for Shure VPN Devices.
 
 Discovers live Shure devices on VPN without Django dependencies.
 Probes connectivity and generates device manifest.
@@ -56,10 +56,10 @@ class DeviceDiscovery:
         """Probe a single device at the given IP address.
 
         Args:
-            ip: Device IP address
+            ip: WirelessChassis IP address
 
         Returns:
-            Device info dict if successful, None otherwise
+            WirelessChassis info dict if successful, None otherwise
         """
         # Common Shure API endpoints
         endpoints = [
@@ -162,7 +162,7 @@ class DeviceDiscovery:
         with open(filename, "w") as f:
             json.dump(manifest, f, indent=2)
 
-        print(f"\n✓ Device manifest saved to {filename}")
+        print(f"\n✓ WirelessChassis manifest saved to {filename}")
         print("  ⚠️  WARNING: Do not commit this file!")
         print("     It should be in .gitignore")
 
@@ -185,7 +185,7 @@ def main():
 
     # Test subcommand
     test_parser = subparsers.add_parser("test", help="Test device connectivity")
-    test_parser.add_argument("--ip", required=True, help="Device IP to test")
+    test_parser.add_argument("--ip", required=True, help="WirelessChassis IP to test")
     test_parser.add_argument(
         "--timeout", type=int, default=5, help="Timeout in seconds (default: 5)"
     )

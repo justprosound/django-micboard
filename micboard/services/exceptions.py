@@ -17,14 +17,14 @@ class MicboardServiceError(Exception):
     pass
 
 
-class DeviceNotFoundError(MicboardServiceError):
-    """Raised when a device cannot be found."""
+class HardwareNotFoundError(MicboardServiceError):
+    """Raised when a component cannot be found."""
 
     def __init__(self, *, device_id: int | str | None = None, message: str | None = None):
-        """Initialize with optional device identifier and custom message."""
+        """Initialize with optional identifier and custom message."""
         self.device_id = device_id
         detail = message or (
-            f"Device not found: {device_id}" if device_id is not None else "Device not found"
+            f"Component not found: {device_id}" if device_id is not None else "Component not found"
         )
         super().__init__(detail)
 

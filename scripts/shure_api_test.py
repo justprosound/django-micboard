@@ -107,7 +107,7 @@ class ShureAPITester:
             logger.info(f"✓ Retrieved {len(devices)} device(s)")
             for idx, device in enumerate(devices[:3], 1):  # Show first 3
                 logger.info(
-                    f"  Device {idx}: {device.get('deviceId', 'N/A')} - {device.get('deviceType', 'N/A')}"
+                    f"  WirelessChassis {idx}: {device.get('deviceId', 'N/A')} - {device.get('deviceType', 'N/A')}"
                 )
             if len(devices) > 3:
                 logger.info(f"  ... and {len(devices) - 3} more")
@@ -124,14 +124,14 @@ class ShureAPITester:
             return False
 
         logger.info("\n" + "=" * 70)
-        logger.info("TEST 3: Get Device Details")
+        logger.info("TEST 3: Get WirelessChassis Details")
         logger.info("=" * 70)
 
         try:
             devices = self.client.devices.get_devices()
             if not devices:
                 logger.warning("⊘ No devices available to test")
-                self.test_results.append(("Device Details", False, "No devices available"))
+                self.test_results.append(("WirelessChassis Details", False, "No devices available"))
                 return False
 
             device_id = devices[0].get("deviceId")
@@ -139,21 +139,21 @@ class ShureAPITester:
 
             # Test device identity
             identity = self.client.devices.get_device_identity(device_id)
-            logger.info(f"✓ Device Identity: {identity.get('serialNumber', 'N/A')}")
+            logger.info(f"✓ WirelessChassis Identity: {identity.get('serialNumber', 'N/A')}")
 
             # Test device status
             status = self.client.devices.get_device_status(device_id)
-            logger.info(f"✓ Device Status: {status.get('systemTime', 'N/A')}")
+            logger.info(f"✓ WirelessChassis Status: {status.get('systemTime', 'N/A')}")
 
             # Test device network
             network = self.client.devices.get_device_network(device_id)
-            logger.info(f"✓ Device Network: {network.get('ipAddress', 'N/A')}")
+            logger.info(f"✓ WirelessChassis Network: {network.get('ipAddress', 'N/A')}")
 
-            self.test_results.append(("Device Details", True, {"device_id": device_id}))
+            self.test_results.append(("WirelessChassis Details", True, {"device_id": device_id}))
             return True
         except Exception as e:
-            logger.error(f"✗ Device details failed: {e}")
-            self.test_results.append(("Device Details", False, str(e)))
+            logger.error(f"✗ WirelessChassis details failed: {e}")
+            self.test_results.append(("WirelessChassis Details", False, str(e)))
             return False
 
     def test_discovery_endpoints(self) -> bool:

@@ -2,17 +2,14 @@
 """Monitoring, assignments, and alert models."""
 
 from .alert import Alert, UserAlertPreference
-from .assignment import DeviceAssignment
-from .group import Group, MonitoringGroup
-
-# Backwards-compatible alias expected by higher-level imports
-Assignment = DeviceAssignment
+from .group import MonitoringGroup
+from .performer import Performer
+from .performer_assignment import PerformerAssignment
 
 __all__ = [
     "Alert",
-    "Assignment",
-    "DeviceAssignment",
     "UserAlertPreference",
-    "Group",
     "MonitoringGroup",
+    "Performer",
+    "PerformerAssignment",
 ]

@@ -141,44 +141,30 @@ class PollingMixin:
     def _emit_polling_complete_signal(
         self, manufacturer: Manufacturer, result: dict[str, Any] | None = None
     ) -> None:
-        """Emit devices_polled signal after successful polling.
-
-        Centralizes signal emission to ensure consistency.
-
-        Args:
-            manufacturer: Manufacturer that was polled
-            result: Polling result
-        """
+        """Broadcast device polled event (replacing signals)."""
         try:
-            from micboard.signals.broadcast_signals import devices_polled
+            from micboard.services.broadcast_service import BroadcastService
 
-            devices_polled.send(sender=self.__class__, manufacturer=manufacturer, data=result)
-            logger.debug("Emitted devices_polled signal for %s", manufacturer.name)
+            BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=result)
+            logger.debug("Broadcasted device update for %s", manufacturer.name)
 
         except Exception:
-            logger.exception("Failed to emit devices_polled signal for %s", manufacturer.name)
+            logger.exception("Failed to broadcast device update for %s", manufacturer.name)
 
     def _emit_health_changed_signal(
         self, manufacturer: Manufacturer, health_status: dict[str, Any]
     ) -> None:
-        """Emit api_health_changed signal when API health changes.
-
-        Centralizes health signal emission.
-
-        Args:
-            manufacturer: Manufacturer
-            health_status: Health check result
-        """
+        """Broadcast API health change (replacing signals)."""
         try:
-            from micboard.signals.broadcast_signals import api_health_changed
+            from micboard.services.broadcast_service import BroadcastService
 
-            api_health_changed.send(
-                sender=self.__class__, manufacturer=manufacturer, health_data=health_status
+            BroadcastService.broadcast_api_health(
+                manufacturer=manufacturer, health_data=health_status
             )
-            logger.debug("Emitted api_health_changed signal for %s", manufacturer.name)
+            logger.debug("Broadcasted API health change for %s", manufacturer.name)
 
         except Exception:
-            logger.exception("Failed to emit api_health_changed signal for %s", manufacturer.name)
+            logger.exception("Failed to broadcast API health change for %s", manufacturer.name)
 
     def _standardize_health_response(self, health_data: dict[str, Any]) -> dict[str, Any]:
         """Standardize health response format across all manufacturers.

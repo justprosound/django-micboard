@@ -265,26 +265,30 @@ def switch_org(request, org_id):
     return redirect('dashboard')
 ```
 
-## API Views
+## View Integration
 
-Apply tenant filtering in DRF views:
+Apply tenant filtering in your views by accessing the organization attached to the request:
 
 ```python
-from rest_framework.views import APIView
+from django.http import JsonResponse
+from django.views import View
 from micboard.services import DeviceService
 
-class ReceiverListAPIView(APIView):
+class ReceiverListAPIView(View):
     def get(self, request):
-        # Get organization from request
+        # Get organization from request (attached by TenantMiddleware)
         org = getattr(request, 'organization', None)
         org_id = org.id if org else None
 
-        # Filter receivers
+        # Filter receivers using the service layer
         receivers = DeviceService.get_active_receivers(
             organization_id=org_id
         )
 
-        # ... serialize and return
+        # Return as JSON
+        return JsonResponse({
+            "receivers": list(receivers.values())
+        })
 ```
 
 ## Migration Guide

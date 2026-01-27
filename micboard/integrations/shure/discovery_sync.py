@@ -1,5 +1,6 @@
-"""Compatibility helper providing discovery helper functions expected by
-legacy imports under micboard.manufacturers.shure.discovery_sync.
+"""Compatibility helper for discovery functions.
+
+Expected by legacy imports under micboard.manufacturers.shure.discovery_sync.
 """
 
 from __future__ import annotations

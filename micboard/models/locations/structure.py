@@ -132,6 +132,7 @@ class Room(models.Model):
 
 class Location(models.Model):
     """Represents a specific point of interest within a building and room.
+
     This model links to Building and Room for structured location management.
     """
 

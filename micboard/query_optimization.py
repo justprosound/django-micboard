@@ -5,20 +5,31 @@ Provides helpers for select_related, prefetch_related, and query analysis.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, TypeVar
 
-from django.db import connection
+from django.db import connection, models
 from django.db.models import Prefetch, QuerySet
+
+from micboard.models import (
+    Location,
+    PerformerAssignment,
+    WirelessChassis,
+    WirelessUnit,
+)
 
 if TYPE_CHECKING:
     pass
+
+_ModelT = TypeVar("_ModelT", bound=models.Model)
 
 
 class QueryOptimizer:
     """Utility class for query optimization."""
 
     @staticmethod
-    def optimize_receiver_queryset(*, queryset: QuerySet) -> QuerySet:
+    def optimize_receiver_queryset(
+        *, queryset: QuerySet[WirelessChassis]
+    ) -> QuerySet[WirelessChassis]:
         """Optimize receiver queryset with common relations.
 
         Args:
@@ -31,12 +42,13 @@ class QueryOptimizer:
             "location",
             "manufacturer",
         ).prefetch_related(
-            "assignments",
-            "assignments__user",
+            "rf_channels",
         )
 
     @staticmethod
-    def optimize_transmitter_queryset(*, queryset: QuerySet) -> QuerySet:
+    def optimize_transmitter_queryset(
+        *, queryset: QuerySet[WirelessUnit]
+    ) -> QuerySet[WirelessUnit]:
         """Optimize transmitter queryset with common relations.
 
         Args:
@@ -46,12 +58,14 @@ class QueryOptimizer:
             Optimized queryset with select_related.
         """
         return queryset.select_related(
-            "charger",
+            "base_chassis",
             "manufacturer",
         )
 
     @staticmethod
-    def optimize_assignment_queryset(*, queryset: QuerySet) -> QuerySet:
+    def optimize_assignment_queryset(
+        *, queryset: QuerySet[PerformerAssignment]
+    ) -> QuerySet[PerformerAssignment]:
         """Optimize assignment queryset with relations.
 
         Args:
@@ -61,28 +75,27 @@ class QueryOptimizer:
             Optimized queryset with select_related.
         """
         return queryset.select_related(
-            "user",
-            "device",
-            "device__location",
+            "performer",
+            "wireless_unit",
+            "monitoring_group",
         )
 
     @staticmethod
-    def get_receivers_with_assignments() -> QuerySet:
+    def get_receivers_with_assignments() -> QuerySet[WirelessChassis]:
         """Get receivers with optimized assignment prefetch.
 
         Returns:
             QuerySet of receivers with prefetched assignments.
         """
-        from micboard.models import DeviceAssignment, WirelessChassis
-
         assignments_prefetch = Prefetch(
-            "assignments", queryset=DeviceAssignment.objects.select_related("user")
+            "wireless_units__performer_assignments",
+            queryset=PerformerAssignment.objects.select_related("performer"),
         )
 
         return WirelessChassis.objects.prefetch_related(assignments_prefetch)
 
     @staticmethod
-    def get_locations_with_device_counts() -> QuerySet:
+    def get_locations_with_device_counts() -> QuerySet[Location]:
         """Get locations with annotated device counts.
 
         Returns:
@@ -90,9 +103,7 @@ class QueryOptimizer:
         """
         from django.db.models import Count
 
-        from micboard.models import Location
-
-        return Location.objects.annotate(device_count=Count("receivers"))
+        return Location.objects.annotate(device_count=Count("wireless_devices"))
 
 
 class QueryAnalyzer:
@@ -136,7 +147,7 @@ class QueryAnalyzer:
         return [query for query in connection.queries if float(query["time"]) > threshold_seconds]
 
     @staticmethod
-    def analyze_queryset(*, queryset: QuerySet) -> Dict[str, Any]:
+    def analyze_queryset(*, queryset: QuerySet[Any]) -> Dict[str, Any]:
         """Analyze queryset without executing it.
 
         Args:

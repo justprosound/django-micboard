@@ -58,7 +58,7 @@ class DeduplicationResult:
         return "DeduplicationResult(unknown)"
 
 
-class DeviceDeduplicationService:
+class HardwareDeduplicationService:
     """Service for managing device deduplication and conflict detection.
 
     Provides authoritative device registry by:
@@ -561,8 +561,8 @@ class DeviceDeduplicationService:
         return results
 
 
-def get_deduplication_service(
+def get_hardware_deduplication_service(
     manufacturer: Manufacturer | None = None,
-) -> DeviceDeduplicationService:
+) -> HardwareDeduplicationService:
     """Get deduplication service instance."""
-    return DeviceDeduplicationService(manufacturer)
+    return HardwareDeduplicationService(manufacturer)

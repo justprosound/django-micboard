@@ -101,7 +101,7 @@ class DiscoveryOrchestrationService:
         """
         from micboard.manufacturers import get_manufacturer_plugin
         from micboard.models import Manufacturer
-        from micboard.services.device_sync_service import DeviceSyncService
+        from micboard.services.hardware_sync_service import HardwareSyncService
 
         results: dict[str, Any] = {}
 
@@ -119,7 +119,7 @@ class DiscoveryOrchestrationService:
                     devices_data = plugin.get_devices() or []
 
                     # Bulk sync devices
-                    stats = DeviceSyncService.bulk_sync_devices(
+                    stats = HardwareSyncService.bulk_sync_devices(
                         manufacturer=mfg,
                         devices_data=devices_data,
                         organization_id=organization_id,
@@ -237,19 +237,16 @@ class DiscoveryOrchestrationService:
         devices_data: list[dict[str, Any]],
         organization_id: int | None = None,
     ) -> None:
-        """Emit minimal broadcast signal for UI updates.
-
-        This is the ONLY place signals should be used: for broadcasts/logging.
-        """
-        # Import or define minimal broadcast signal
+        """Broadcast refresh update (replacing signals)."""
         try:
-            from micboard.signals import devices_polled
+            from micboard.services.broadcast_service import BroadcastService
 
-            devices_polled.send(
-                DiscoveryOrchestrationService,
+            BroadcastService.broadcast_device_update(
                 manufacturer=manufacturer,
-                device_count=len(devices_data),
-                organization_id=organization_id,
+                data={
+                    "device_count": len(devices_data),
+                    "organization_id": organization_id,
+                },
             )
         except Exception as e:
-            logger.debug("Failed to emit refresh broadcast: %s", e)
+            logger.debug("Failed to broadcast refresh update: %s", e)

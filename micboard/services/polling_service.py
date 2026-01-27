@@ -23,7 +23,7 @@ class PollingService(PollingMixin):
     """Service for orchestrating device polling across manufacturers.
 
     Provides high-level API for triggering polls, checking health,
-    and broadcasting results. Uses DeviceService internally for
+    and broadcasting results. Uses HardwareService internally for
     manufacturer-specific operations.
     """
 
@@ -82,7 +82,7 @@ class PollingService(PollingMixin):
         return self.poll_manufacturer(manufacturer)
 
     def poll_manufacturer(self, manufacturer: Manufacturer) -> dict[str, Any]:
-        """Poll a specific manufacturer for device updates.
+        """Poll a specific manufacturer for hardware updates.
 
         Args:
             manufacturer: Manufacturer instance
@@ -90,15 +90,22 @@ class PollingService(PollingMixin):
         Returns:
             Dictionary with polling results
         """
-        from micboard.services.device_service import DeviceService
+        from micboard.services.hardware_sync_service import HardwareSyncService
         from micboard.services.signal_emitter import SignalEmitter
 
         logger.info("Starting poll for manufacturer: %s", manufacturer.name)
 
         try:
-            # Use DeviceService for the heavy lifting
-            service = DeviceService(manufacturer)
-            result = service.poll_and_sync_all()
+            # Use HardwareSyncService for the heavy lifting
+            stats = HardwareSyncService.sync_devices(manufacturer_code=manufacturer.code)
+            
+            # Map stats back to result format
+            result = {
+                "devices_created": stats.get("created", 0),
+                "devices_updated": stats.get("updated", 0),
+                "units_synced": 0,  # HardwareSyncService doesn't track units yet
+                "errors": stats.get("error_messages", []),
+            }
 
             # Broadcast updates if successful
             if not result.get("errors"):
@@ -151,7 +158,7 @@ class PollingService(PollingMixin):
 
             from micboard.models import WirelessChassis
             from micboard.serializers import ReceiverSummarySerializer
-            from micboard.services.device_lifecycle import DeviceStatus
+            from micboard.services.hardware_lifecycle import HardwareStatus
 
             channel_layer = get_channel_layer()
             if not channel_layer:
@@ -159,7 +166,7 @@ class PollingService(PollingMixin):
                 return
 
             # Serialize chassis data for broadcast - use status field
-            active_statuses = DeviceStatus.active_states()
+            active_statuses = HardwareStatus.active_states()
             chassis_qs = WirelessChassis.objects.filter(
                 manufacturer=manufacturer, status__in=active_statuses
             )
@@ -232,7 +239,7 @@ class PollingService(PollingMixin):
             Dictionary with health status
         """
         from micboard.models import Manufacturer, WirelessChassis
-        from micboard.services.device_lifecycle import DeviceStatus
+        from micboard.services.hardware_lifecycle import HardwareStatus
 
         manufacturers = Manufacturer.objects.filter(is_active=True)
 
@@ -248,7 +255,7 @@ class PollingService(PollingMixin):
         }
 
         online_statuses = {"online"}
-        active_statuses = DeviceStatus.active_states()
+        active_statuses = HardwareStatus.active_states()
 
         for manufacturer in manufacturers:
             chassis_qs = WirelessChassis.objects.filter(manufacturer=manufacturer)

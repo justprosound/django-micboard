@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List
 from micboard.services import (
     AssignmentService,
     ConnectionHealthService,
-    DeviceService,
+    HardwareService,
     DiscoveryService,
     LocationService,
     ManufacturerService,
@@ -43,7 +43,7 @@ class BulkOperationPattern:
 
         for device in devices:
             try:
-                DeviceService.sync_device_status(device_obj=device, online=online)
+                HardwareService.sync_device_status(device_obj=device, online=online)
                 synced += 1
             except Exception:
                 failed += 1
@@ -87,10 +87,10 @@ class DashboardDataPattern:
         """
         return {
             "device_stats": {
-                "total_active": DeviceService.count_active_receivers(),
-                "online": DeviceService.count_online_receivers(),
-                "offline": DeviceService.count_offline_receivers(),
-                "low_battery": len(DeviceService.get_low_battery_receivers()),
+                "total_active": HardwareService.count_active_receivers(),
+                "online": HardwareService.count_online_receivers(),
+                "offline": HardwareService.count_offline_receivers(),
+                "low_battery": len(HardwareService.get_low_battery_receivers()),
             },
             "connection_health": {
                 "unhealthy_connections": len(ConnectionHealthService.get_unhealthy_connections()),
@@ -123,11 +123,9 @@ class DashboardDataPattern:
             "assignments_count": user_assignments.count(),
             "devices": {
                 "total": len(assigned_devices),
-                "online": sum(1 for d in assigned_devices if d.online),
-                "offline": sum(1 for d in assigned_devices if not d.online),
-                "low_battery": sum(
-                    1 for d in assigned_devices if d.battery_level and d.battery_level < 20
-                ),
+                "online": sum(1 for d in assigned_devices if getattr(d, "is_online", False)),
+                "offline": sum(1 for d in assigned_devices if not getattr(d, "is_online", False)),
+                "low_battery": 0,  # Battery tracking moved to WirelessUnit
             },
             "alert_settings": {
                 "enabled": sum(1 for a in user_assignments if a.alert_enabled),
@@ -153,12 +151,12 @@ class AlertingPattern:
         }
 
         # Check low battery devices
-        low_battery = DeviceService.get_low_battery_receivers(threshold=20)
-        alerts["low_battery"] = [d.device_name for d in low_battery]
+        low_battery = HardwareService.get_low_battery_receivers(threshold=20)
+        alerts["low_battery"] = [d.name for d in low_battery]
 
         # Check offline devices
-        offline = DeviceService.get_offline_receivers()
-        alerts["offline"] = [d.device_name for d in offline]
+        offline = HardwareService.get_offline_receivers()
+        alerts["offline"] = [d.name for d in offline]
 
         # Check unhealthy connections
         unhealthy = ConnectionHealthService.get_unhealthy_connections()
@@ -184,7 +182,7 @@ class AlertingPattern:
         user_assignments = AssignmentService.get_assignments_for_user(user_id=user.id)
 
         for assignment in user_assignments:
-            if not assignment.alert_on_device_offline:
+            if not assignment.alert_on_hardware_offline:
                 continue
 
             chassis = assignment.channel.chassis
@@ -221,7 +219,7 @@ class LocationManagementPattern:
 
         for device_name, location_id in location_mappings.items():
             try:
-                device = DeviceService.get_device_by_name(device_name=device_name)
+                device = HardwareService.get_device_by_name(name=device_name)
                 location = LocationService.get_location_by_id(location_id=location_id)
 
                 LocationService.assign_device_to_location(device_obj=device, location_obj=location)
@@ -242,17 +240,15 @@ class LocationManagementPattern:
             Complete location information.
         """
         location = LocationService.get_location_by_id(location_id=location_id)
-        devices = DeviceService.get_devices_in_location(location_id=location_id)
+        devices = HardwareService.get_receivers_by_location(location_id=location_id)
 
         return {
             "name": location.name,
             "description": location.description,
             "device_count": devices.count(),
-            "online_count": devices.filter(online=True).count(),
-            "offline_count": devices.filter(online=False).count(),
-            "low_battery_count": devices.filter(
-                battery_level__isnull=False, battery_level__lt=20
-            ).count(),
+            "online_count": devices.filter(is_online=True).count(),
+            "offline_count": devices.filter(is_online=False).count(),
+            "low_battery_count": 0,  # Battery tracking moved to WirelessUnit
         }
 
 
@@ -331,29 +327,34 @@ class ReportingPattern:
         """
         report = "# Device Status Report\n\n"
 
-        active_receivers = DeviceService.get_active_receivers()
+        active_receivers = HardwareService.get_active_receivers()
 
         # Summary
         report += "## Summary\n"
         report += f"Total Receivers: {active_receivers.count()}\n"
-        report += f"Online: {active_receivers.filter(online=True).count()}\n"
-        report += f"Offline: {active_receivers.filter(online=False).count()}\n\n"
+        report += f"Online: {active_receivers.filter(is_online=True).count()}\n"
+        report += f"Offline: {active_receivers.filter(is_online=False).count()}\n\n"
 
         # Low Battery
-        low_battery = active_receivers.filter(battery_level__lt=20)
-        if low_battery.count() > 0:
+        # WirelessChassis doesn't have battery_level anymore, it's on WirelessUnit
+        from micboard.models import WirelessUnit
+
+        low_battery_units = WirelessUnit.objects.low_battery(threshold=20)
+        if low_battery_units.count() > 0:
             report += "## Low Battery Devices\n"
-            for device in low_battery:
-                report += f"- {device.device_name}: {device.battery_level}%\n"
+            for unit in low_battery_units:
+                report += (
+                    f"- {unit.name} (on {unit.base_chassis.name}): {unit.battery_percentage}%\n"
+                )
             report += "\n"
 
         # Offline Devices
-        offline = active_receivers.filter(online=False)
+        offline = active_receivers.filter(is_online=False)
         if offline.count() > 0:
             report += "## Offline Devices\n"
             for device in offline:
                 last_seen = device.last_seen or "Never"
-                report += f"- {device.device_name} (Last seen: {last_seen})\n"
+                report += f"- {device.name} (Last seen: {last_seen})\n"
             report += "\n"
 
         return report

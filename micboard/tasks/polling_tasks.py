@@ -12,16 +12,13 @@ import logging
 
 from django.utils import timezone
 
-from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import (
     Manufacturer,
     RFChannel,
     WirelessChassis,
     WirelessUnit,
 )
-from micboard.serializers import ReceiverSummarySerializer
-from micboard.services.alerts import check_device_offline_alerts, check_transmitter_alerts
-from micboard.signals.broadcast_signals import api_health_changed, devices_polled
+from micboard.services.alerts import check_hardware_offline_alerts, check_transmitter_alerts
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +41,7 @@ def poll_manufacturer_devices(manufacturer_id: int):
         result = service.poll_manufacturer(manufacturer)
 
         # Run alerts after polling
-        check_device_offline_alerts()
+        check_hardware_offline_alerts()
         check_transmitter_alerts()
 
         logger.info(
@@ -67,55 +64,9 @@ def poll_manufacturer_devices(manufacturer_id: int):
         logger.exception("Error polling devices for manufacturer ID %s: %s", manufacturer_id, e)
 
 
-def poll_manufacturer_devices_legacy(manufacturer_id: int):
-    """DEPRECATED: Legacy polling implementation kept for reference.
-    Use poll_manufacturer_devices() instead, which uses PollingService.
-    """
-    try:
-        manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
-
-        # Check API health before polling
-        health_data = plugin.get_client().check_health()
-        is_healthy = health_data.get("status") == "healthy"
-        logger.info("API health for %s: %s", manufacturer.name, health_data)
-
-        # Emit api_health_changed signal
-        api_health_changed.send(sender=None, manufacturer=manufacturer, health_data=health_data)
-
-        if not is_healthy:
-            logger.warning("Skipping poll for %s due to unhealthy API.", manufacturer.name)
-            return
-
-        api_data = plugin.get_devices()
-        if api_data:
-            updated_count = _update_models_from_api_data(api_data, manufacturer, plugin)
-            logger.info("Polled %d devices from %s", updated_count, manufacturer.name)
-
-            # Broadcast updated list via devices_polled signal
-            serialized_data = {
-                "receivers": ReceiverSummarySerializer(
-                    WirelessChassis.objects.filter(manufacturer=manufacturer), many=True
-                ).data
-            }
-            devices_polled.send(sender=None, manufacturer=manufacturer, data=serialized_data)
-
-            # Start real-time subscriptions for this manufacturer
-            _start_realtime_subscriptions(manufacturer)
-        else:
-            logger.warning("No device data received from %s", manufacturer.name)
-
-    except Manufacturer.DoesNotExist:
-        logger.warning(
-            "Manufacturer with ID %s not found for device polling task.", manufacturer_id
-        )
-    except Exception as e:
-        logger.exception("Error polling devices for manufacturer ID %s: %s", manufacturer_id, e)
-
-
 def _update_models_from_api_data(api_data, manufacturer, plugin):
     """Helper function to update Django models with API data.
+
     Extracted from poll_devices.py management command.
     """
     updated_count = 0
@@ -153,14 +104,14 @@ def _update_models_from_api_data(api_data, manufacturer, plugin):
 
 def _update_receiver(transformed_data, manufacturer, api_device_id):
     """Update or create a receiver from transformed API data."""
-    from micboard.services.device_lifecycle import get_lifecycle_manager
+    from micboard.services.hardware_lifecycle import get_lifecycle_manager
 
     receiver, created = WirelessChassis.objects.update_or_create(
         api_device_id=api_device_id,
         manufacturer=manufacturer,
         defaults={
             "ip": transformed_data.get("ip", ""),
-            "device_type": transformed_data.get("type", "unknown"),
+            "model": transformed_data.get("type", "unknown"),
             "name": transformed_data.get("name", ""),
             "firmware_version": transformed_data.get("firmware", ""),
             "last_seen": timezone.now(),
@@ -275,7 +226,7 @@ def _assign_transmitter_slot(channel, transformed_tx, api_device_id, channel_num
 
 def _mark_offline_receivers(manufacturer, active_receiver_ids):
     """Mark receivers that are no longer in API data as offline."""
-    from micboard.services.device_lifecycle import get_lifecycle_manager
+    from micboard.services.hardware_lifecycle import get_lifecycle_manager
 
     # Find receivers that should be marked offline
     offline_receivers = WirelessChassis.objects.filter(
@@ -304,11 +255,17 @@ def _mark_offline_receivers(manufacturer, active_receiver_ids):
         )
         for receiver in offline_receivers_refreshed:
             for channel in receiver.rf_channels.all():
-                check_device_offline_alerts(channel)
+                check_hardware_offline_alerts(channel)
 
 
 def _start_realtime_subscriptions(manufacturer):
     """Start real-time subscriptions for a manufacturer."""
+    from micboard.utils.dependencies import HAS_DJANGO_Q
+    
+    if not HAS_DJANGO_Q:
+        logger.debug("Django-Q not installed; skipping real-time subscription background tasks")
+        return
+
     try:
         from django_q.tasks import async_task
 

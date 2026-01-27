@@ -71,7 +71,7 @@ class BandPlanDetectionTester:
             for idx, device in enumerate(devices[:5], 1):
                 device_id = device.get("id", "N/A")
                 model = device.get("model", "N/A")
-                logger.info(f"  Device {idx}: id={device_id}, model={model}")
+                logger.info(f"  WirelessChassis {idx}: id={device_id}, model={model}")
 
             if len(devices) > 5:
                 logger.info(f"  ... and {len(devices) - 5} more")

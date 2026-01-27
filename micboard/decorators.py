@@ -99,6 +99,7 @@ def get_client_ip(request):
 
 def rate_limit_user(max_requests: int = 100, window_seconds: int = 60):
     """Rate limit decorator for authenticated users.
+
     Uses user ID instead of IP address for the cache key.
 
     Example:

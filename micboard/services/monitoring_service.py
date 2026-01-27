@@ -71,8 +71,8 @@ class MonitoringService:
         ).count()
 
         return {
-            "total_receivers": total_chassis,  # Maintaining key names for API compatibility
-            "online_receivers": online_chassis,
-            "offline_receivers": offline_chassis,
-            "low_battery_transmitters": low_battery_units,
+            "total_chassis": total_chassis,
+            "online_chassis": online_chassis,
+            "offline_chassis": offline_chassis,
+            "low_battery_units": low_battery_units,
         }

@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from micboard.admin.mixins import MicboardSortableAdmin
 from micboard.models import Charger, ChargerSlot
 
 
@@ -28,7 +29,7 @@ class ChargerSlotAdmin(admin.ModelAdmin):
 
 
 @admin.register(Charger)
-class ChargerAdmin(admin.ModelAdmin):
+class ChargerAdmin(MicboardSortableAdmin):
     list_display = (
         "name",
         "manufacturer",

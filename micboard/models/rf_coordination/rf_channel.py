@@ -52,7 +52,7 @@ class RFChannelQuerySet(TenantOptimizedQuerySet):
         """Get all send-direction links (chassis→field)."""
         return self.filter(link_direction__in=["send", "bidirectional"])
 
-    def with_device(self) -> RFChannelQuerySet:
+    def with_chassis(self) -> RFChannelQuerySet:
         """Optimize: select related chassis and location."""
         return self.select_related(
             "chassis",
@@ -87,9 +87,9 @@ class RFChannelManager(TenantOptimizedManager):
         """Get all send-direction links."""
         return self.get_queryset().send_links()
 
-    def with_device(self) -> RFChannelQuerySet:
+    def with_chassis(self) -> RFChannelQuerySet:
         """Optimize with chassis and location."""
-        return self.get_queryset().with_device()
+        return self.get_queryset().with_chassis()
 
     def with_wireless_unit(self) -> RFChannelQuerySet:
         """Optimize with wireless unit."""

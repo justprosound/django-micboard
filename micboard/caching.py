@@ -77,7 +77,7 @@ def invalidate_cache(pattern: str) -> int:
         Number of keys invalidated.
 
     Example:
-        invalidate_cache("micboard:DeviceService.*")
+        invalidate_cache("micboard:HardwareService.*")
     """
     # Note: This requires Django cache backend that supports pattern matching
     # (e.g., Redis). For simple cache backends, this is a no-op.
@@ -129,7 +129,7 @@ def cache_queryset(*, timeout: int = 300):
     Example:
         @cache_queryset(timeout=60)
         def get_active_devices() -> QuerySet:
-            return Device.objects.filter(active=True)
+            return WirelessChassis.objects.filter(is_online=True)
     """
 
     def decorator(func: Callable) -> Callable:

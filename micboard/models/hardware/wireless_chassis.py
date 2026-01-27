@@ -381,6 +381,8 @@ class WirelessChassis(models.Model):
 
     def save(self, *args, **kwargs) -> None:
         """Sync specs from device_specifications registry on save."""
+        created = self.pk is None
+
         if self.manufacturer and self.model:
             if hasattr(self.manufacturer, "code"):
                 mfg_code = self.manufacturer.code.lower()
@@ -439,6 +441,18 @@ class WirelessChassis(models.Model):
                         self.band_plan_max_mhz = band_plan["max_mhz"]
 
         super().save(*args, **kwargs)
+
+        # Handle post-save side effects via service (replacing signals)
+        from micboard.services.hardware import HardwareService
+
+        HardwareService.handle_chassis_save(chassis=self, created=created)
+
+    def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
+        """Handle side effects before deletion."""
+        from micboard.services.hardware import HardwareService
+
+        HardwareService.handle_chassis_delete(chassis=self)
+        return super().delete(*args, **kwargs)
 
     @property
     def hardware_identity(self) -> dict[str, str]:

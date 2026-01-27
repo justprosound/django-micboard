@@ -93,7 +93,6 @@ INSTALLED_APPS = [
 
     # Third-party apps
     'channels',
-    'rest_framework',
 
     # Micboard
     'micboard',

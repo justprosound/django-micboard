@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Shure System API: Real-Time Device Discovery Monitor.
+"""Shure System API: Real-Time WirelessChassis Discovery Monitor.
 
 Continuously monitors Shure System API for new device discoveries and state changes.
 Alerts in real-time when devices appear, go ONLINE, or change state.
@@ -89,7 +89,7 @@ class DiscoveryMonitor:
             )
 
         logger.info("=" * 80)
-        logger.info("Shure System API - Device Discovery Monitor")
+        logger.info("Shure System API - WirelessChassis Discovery Monitor")
         logger.info("=" * 80)
         logger.info(f"API: {base_url}")
         logger.info(f"Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")

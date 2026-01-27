@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 def start_sse_subscriptions(manufacturer_id: int):
     """Start SSE subscriptions for all active devices of a manufacturer.
+
     This runs indefinitely until stopped.
     """
     try:
@@ -133,12 +134,10 @@ async def _process_sse_update_async(plugin, device_id: str, data: dict[str, Any]
 
 
 async def _broadcast_sse_update_async(manufacturer, device_data: dict[str, Any]):
-    """Broadcast SSE update via WebSocket channels."""
+    """Broadcast SSE update via BroadcastService."""
     try:
-        from channels.layers import get_channel_layer
-
         from micboard.serializers import serialize_receiver
-        from micboard.signals.broadcast_signals import devices_polled
+        from micboard.services.broadcast_service import BroadcastService
 
         # Get the updated receiver data
         api_device_id = device_data.get("api_device_id")
@@ -151,20 +150,10 @@ async def _broadcast_sse_update_async(manufacturer, device_data: dict[str, Any])
                 )
                 serialized_data = {"receivers": [serialize_receiver(chassis, include_extra=True)]}
 
-                # Send via Django Channels
-                channel_layer = get_channel_layer()
-                if channel_layer:
-                    await channel_layer.group_send(
-                        "micboard_updates",
-                        {
-                            "type": "device_update",
-                            "manufacturer": manufacturer.code,
-                            "data": serialized_data,
-                        },
-                    )
-
-                # Also emit the devices_polled signal for compatibility
-                devices_polled.send(sender=None, manufacturer=manufacturer, data=serialized_data)
+                # Broadcast update
+                BroadcastService.broadcast_device_update(
+                    manufacturer=manufacturer, data=serialized_data
+                )
 
                 logger.debug("Broadcasted SSE update for device %s", api_device_id)
 

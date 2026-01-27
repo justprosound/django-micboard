@@ -37,7 +37,7 @@ section() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
-section "Django Micboard v25.01.15 - Release Verification"
+section "Django Micboard v26.01.27 - Release Verification"
 
 # ============================================================================
 # 1. Project Structure
@@ -45,7 +45,7 @@ section "Django Micboard v25.01.15 - Release Verification"
 
 section "1. Project Structure"
 
-[ -f "micboard/services.py" ] && pass "micboard/services.py exists" || fail "micboard/services.py missing"
+[ -d "micboard/services" ] && pass "micboard/services/ directory exists" || fail "micboard/services/ directory missing"
 [ -f "tests/conftest.py" ] && pass "tests/conftest.py exists" || fail "tests/conftest.py missing"
 [ -f "tests/test_models.py" ] && pass "tests/test_models.py exists" || fail "tests/test_models.py missing"
 [ -f "tests/test_services.py" ] && pass "tests/test_services.py exists" || fail "tests/test_services.py missing"
@@ -90,13 +90,11 @@ section "4. Code Quality Configuration"
 # Check pyproject.toml content
 grep -q "pytest" "pyproject.toml" && pass "pyproject.toml has pytest config" || fail "pyproject.toml missing pytest config"
 grep -q "coverage" "pyproject.toml" && pass "pyproject.toml has coverage config" || fail "pyproject.toml missing coverage config"
-grep -q "black" "pyproject.toml" && pass "pyproject.toml has black config" || fail "pyproject.toml missing black config"
-grep -q "version = \"25.01.15\"" "pyproject.toml" && pass "pyproject.toml has correct version" || fail "pyproject.toml wrong version"
+grep -q "ruff" "pyproject.toml" && pass "pyproject.toml has ruff config" || fail "pyproject.toml missing ruff config"
+grep -q "version = \"26.01.27\"" "pyproject.toml" && pass "pyproject.toml has correct version" || fail "pyproject.toml wrong version"
 
 # Check pre-commit config
-grep -q "black" ".pre-commit-config.yaml" && pass "pre-commit has black" || fail "pre-commit missing black"
-grep -q "isort" ".pre-commit-config.yaml" && pass "pre-commit has isort" || fail "pre-commit missing isort"
-grep -q "flake8" ".pre-commit-config.yaml" && pass "pre-commit has flake8" || fail "pre-commit missing flake8"
+grep -q "ruff" ".pre-commit-config.yaml" && pass "pre-commit has ruff" || fail "pre-commit missing ruff"
 grep -q "mypy" ".pre-commit-config.yaml" && pass "pre-commit has mypy" || fail "pre-commit missing mypy"
 grep -q "bandit" ".pre-commit-config.yaml" && pass "pre-commit has bandit" || fail "pre-commit missing bandit"
 
@@ -108,10 +106,10 @@ section "5. GitHub Actions Workflows"
 
 grep -q "pytest" ".github/workflows/ci.yml" && pass "ci.yml runs tests" || fail "ci.yml missing tests"
 grep -q "coverage" ".github/workflows/ci.yml" && pass "ci.yml runs coverage" || fail "ci.yml missing coverage"
-grep -q "black" ".github/workflows/ci.yml" && pass "ci.yml runs black" || fail "ci.yml missing black"
+grep -q "ruff" ".github/workflows/ci.yml" && pass "ci.yml runs ruff" || fail "ci.yml missing ruff"
 grep -q "matrix" ".github/workflows/ci.yml" && pass "ci.yml has matrix testing" || fail "ci.yml missing matrix testing"
 
-grep -q "CalVer\|25.01.15" ".github/workflows/release.yml" && pass "release.yml mentions CalVer" || warn "release.yml missing CalVer reference"
+grep -q "CalVer\|26.01.27" ".github/workflows/release.yml" && pass "release.yml mentions CalVer" || warn "release.yml missing CalVer reference"
 grep -q "PyPI\|pypi" ".github/workflows/release.yml" && pass "release.yml publishes to PyPI" || fail "release.yml missing PyPI publishing"
 grep -q "GitHub Release\|create-release" ".github/workflows/release.yml" && pass "release.yml creates GitHub release" || fail "release.yml missing GitHub release"
 
@@ -143,11 +141,11 @@ grep -q "@pytest.mark.e2e" tests/*.py && pass "E2E tests marked" || fail "E2E te
 
 section "7. Services Layer"
 
-[ -f "micboard/services.py" ] && {
-    grep -q "class DeviceService" "micboard/services.py" && pass "DeviceService exists" || fail "DeviceService missing"
-    grep -q "class SynchronizationService" "micboard/services.py" && pass "SynchronizationService exists" || fail "SynchronizationService missing"
-    grep -q "class LocationService" "micboard/services.py" && pass "LocationService exists" || fail "LocationService missing"
-    grep -q "class MonitoringService" "micboard/services.py" && pass "MonitoringService exists" || fail "MonitoringService missing"
+[ -d "micboard/services" ] && {
+    grep -r "class DeviceService" "micboard/services/" && pass "DeviceService exists" || fail "DeviceService missing"
+    grep -r "class SynchronizationService" "micboard/services/" && pass "SynchronizationService exists" || fail "SynchronizationService missing"
+    grep -r "class LocationService" "micboard/services/" && pass "LocationService exists" || fail "LocationService missing"
+    grep -r "class MonitoringService" "micboard/services/" && pass "MonitoringService exists" || fail "MonitoringService missing"
 }
 
 # ============================================================================
@@ -156,8 +154,8 @@ section "7. Services Layer"
 
 section "8. Version & Release Information"
 
-grep -q "25.01.15" "pyproject.toml" && pass "pyproject.toml has version 25.01.15" || fail "pyproject.toml missing version"
-grep -q "25.01.15\|v25.01.15" "CHANGELOG.md" && pass "CHANGELOG.md documents version" || fail "CHANGELOG.md missing version"
+grep -q "26.01.27" "pyproject.toml" && pass "pyproject.toml has version 26.01.27" || fail "pyproject.toml missing version"
+grep -q "26.01.27\|v26.01.27" "CHANGELOG.md" && pass "CHANGELOG.md documents version" || fail "CHANGELOG.md missing version"
 grep -q "CalVer\|YY.MM.DD" "CHANGELOG.md" && pass "CHANGELOG.md explains CalVer" || fail "CHANGELOG.md missing CalVer explanation"
 
 # ============================================================================
@@ -188,7 +186,7 @@ section "10. Scripts"
 section "11. Python Environment Check"
 
 PYTHON_VERSION=$(python --version 2>&1 | awk '{print $2}' | cut -d'.' -f1,2)
-[[ "$PYTHON_VERSION" =~ ^3\.(9|10|11|12)$ ]] && pass "Python version $PYTHON_VERSION supported" || warn "Python version $PYTHON_VERSION may not be supported"
+[[ "$PYTHON_VERSION" =~ ^3\.(9|10|11|12|13|14)$ ]] && pass "Python version $PYTHON_VERSION supported" || warn "Python version $PYTHON_VERSION may not be supported"
 
 # Check for test runner
 which pytest > /dev/null 2>&1 && pass "pytest installed" || warn "pytest not installed (run: pip install pytest)"
@@ -216,7 +214,7 @@ if [ $FAIL_COUNT -eq 0 ]; then
         echo -e "${YELLOW}⚠ Fix warnings before release${NC}"
         exit 1
     else
-        echo -e "${GREEN}✓ Ready for release v25.01.15!${NC}"
+        echo -e "${GREEN}✓ Ready for release v26.01.27!${NC}"
         exit 0
     fi
 else

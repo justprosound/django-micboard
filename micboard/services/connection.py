@@ -19,12 +19,12 @@ class ConnectionHealthService:
 
     @staticmethod
     def create_connection(
-        *, manufacturer_code: str, connection_type: str, status: str = "connecting"
+        *, chassis: WirelessChassis, connection_type: str, status: str = "connecting"
     ) -> RealTimeConnection:
         """Create a new real-time connection.
 
         Args:
-            manufacturer_code: Manufacturer code (e.g., 'shure').
+            chassis: WirelessChassis instance.
             connection_type: Type of connection ('sse', 'websocket', etc.).
             status: Initial connection status.
 
@@ -32,7 +32,7 @@ class ConnectionHealthService:
             Created RealTimeConnection object.
         """
         return RealTimeConnection.objects.create(
-            manufacturer_code=manufacturer_code,
+            chassis=chassis,
             connection_type=connection_type,
             status=status,
             connected_at=now() if status == "connected" else None,
@@ -55,7 +55,7 @@ class ConnectionHealthService:
 
         if status == "connected":
             connection.connected_at = now()
-            connection.last_heartbeat = now()
+            connection.last_message_at = now()
             connection.error_count = 0
         elif status in ("disconnected", "error"):
             connection.disconnected_at = now()
@@ -72,8 +72,8 @@ class ConnectionHealthService:
         Args:
             connection: RealTimeConnection instance.
         """
-        connection.last_heartbeat = now()
-        connection.save(update_fields=["last_heartbeat", "updated_at"])
+        connection.last_message_at = now()
+        connection.save(update_fields=["last_message_at", "updated_at"])
 
     @staticmethod
     def record_error(*, connection: RealTimeConnection, error_message: str) -> None:
@@ -83,9 +83,9 @@ class ConnectionHealthService:
             connection: RealTimeConnection instance.
             error_message: Error description.
         """
-        connection.last_error = error_message
+        connection.error_message = error_message
         connection.error_count = (connection.error_count or 0) + 1
-        connection.save(update_fields=["last_error", "error_count", "updated_at"])
+        connection.save(update_fields=["error_message", "error_count", "updated_at"])
 
     @staticmethod
     def is_healthy(*, connection: RealTimeConnection, heartbeat_timeout_seconds: int = 60) -> bool:
@@ -93,7 +93,7 @@ class ConnectionHealthService:
 
         A connection is healthy if:
         - Status is 'connected'
-        - Last heartbeat is recent (within timeout window)
+        - Last message is recent (within timeout window)
 
         Args:
             connection: RealTimeConnection instance.
@@ -105,11 +105,11 @@ class ConnectionHealthService:
         if connection.status != "connected":
             return False
 
-        if not connection.last_heartbeat:
+        if not connection.last_message_at:
             return False
 
         timeout = now() - timedelta(seconds=heartbeat_timeout_seconds)
-        return connection.last_heartbeat > timeout
+        return connection.last_message_at > timeout
 
     @staticmethod
     def get_active_connections() -> QuerySet:
@@ -131,7 +131,7 @@ class ConnectionHealthService:
             QuerySet of unhealthy RealTimeConnection objects.
         """
         timeout = now() - timedelta(seconds=heartbeat_timeout_seconds)
-        return RealTimeConnection.objects.filter(status="connected", last_heartbeat__lt=timeout)
+        return RealTimeConnection.objects.filter(status="connected", last_message_at__lt=timeout)
 
     @staticmethod
     def get_connections_by_manufacturer(*, manufacturer_code: str) -> QuerySet:
@@ -143,7 +143,7 @@ class ConnectionHealthService:
         Returns:
             QuerySet of RealTimeConnection objects.
         """
-        return RealTimeConnection.objects.filter(manufacturer_code=manufacturer_code).order_by(
+        return RealTimeConnection.objects.filter(chassis__manufacturer__code=manufacturer_code).order_by(
             "-created_at"
         )
 
@@ -210,9 +210,10 @@ class ConnectionHealthService:
 
         by_manufacturer = {}
         for mfg in RealTimeConnection.objects.values_list(
-            "manufacturer_code", flat=True
+            "chassis__manufacturer__code", flat=True
         ).distinct():
-            by_manufacturer[mfg] = RealTimeConnection.objects.filter(manufacturer_code=mfg).count()
+            if mfg:
+                by_manufacturer[mfg] = RealTimeConnection.objects.filter(chassis__manufacturer__code=mfg).count()
 
         return {
             "total_connections": total,

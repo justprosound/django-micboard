@@ -11,7 +11,7 @@ from django.core.management.base import BaseCommand
 
 from micboard.services import (
     ConnectionHealthService,
-    DeviceService,
+    HardwareService,
     ManufacturerService,
 )
 
@@ -158,16 +158,16 @@ class HealthCheckCommand(ServiceCommandMixin, BaseCommand):
 
         # Check devices
         self.print_info("Checking device status...")
-        active_receivers = DeviceService.get_active_receivers()
-        online_count = active_receivers.filter(online=True).count()
-        offline_count = active_receivers.filter(online=False).count()
+        active_receivers = HardwareService.get_active_receivers()
+        online_count = active_receivers.filter(is_online=True).count()
+        offline_count = active_receivers.filter(is_online=False).count()
 
         self.print_info(f"Total active receivers: {active_receivers.count()}")
         self.print_success(f"Online: {online_count}")
         self.print_warning(f"Offline: {offline_count}")
 
         # Check low battery
-        low_battery = DeviceService.get_low_battery_receivers(threshold=20)
+        low_battery = HardwareService.get_low_battery_receivers(threshold=20)
         if low_battery.count() > 0:
             self.print_warning(f"Low battery devices: {low_battery.count()}")
 
@@ -202,13 +202,14 @@ class ReportCommand(ServiceCommandMixin, BaseCommand):
         """Generate device report."""
         self.print_section("Device Report")
 
-        active_receivers = DeviceService.get_active_receivers()
+        active_receivers = HardwareService.get_active_receivers()
 
         rows = []
         for device in active_receivers[:10]:  # Top 10
-            status = "Online" if device.online else "Offline"
-            battery = f"{device.battery_level}%" if device.battery_level else "N/A"
-            rows.append([device.device_name, status, battery])
+            status = "Online" if device.is_online else "Offline"
+            # Chassis doesn't have battery_level
+            battery = "N/A"
+            rows.append([device.name, status, battery])
 
         self.print_table(rows, ["Device Name", "Status", "Battery"])
 

@@ -9,9 +9,11 @@ import json
 import logging
 from typing import Any
 
-try:
+from micboard.utils.dependencies import HAS_CHANNELS
+
+if HAS_CHANNELS:
     from channels.generic.websocket import AsyncWebsocketConsumer
-except ImportError:
+else:
     # Channels not installed, provide a stub
     class AsyncWebsocketConsumer:  # type: ignore[no-redef]
         pass

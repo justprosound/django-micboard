@@ -30,6 +30,34 @@ class MicboardConfig(models.Model):
         manufacturer_name = self.manufacturer.name if self.manufacturer else "Global"
         return f"{manufacturer_name}: {self.key}: {self.value}"
 
+    def save(self, *args, **kwargs):
+        """Trigger discovery scans when SHURE discovery config changes."""
+        super().save(*args, **kwargs)
+
+        if self.manufacturer and self.key in ("SHURE_DISCOVERY_CIDRS", "SHURE_DISCOVERY_FQDNS"):
+            from micboard.utils.dependencies import HAS_DJANGO_Q
+            if HAS_DJANGO_Q:
+                try:
+                    from django_q.tasks import async_task
+
+                    from micboard.tasks.discovery_tasks import run_manufacturer_discovery_task
+
+                    async_task(
+                        run_manufacturer_discovery_task,
+                        self.manufacturer.pk,
+                        True,  # scan_cidrs
+                        True,  # scan_fqdns
+                    )
+                except Exception:
+                    import logging
+
+                    logging.getLogger(__name__).exception(
+                        "Failed to trigger discovery on config change"
+                    )
+            else:
+                import logging
+                logging.getLogger(__name__).debug("Django-Q not installed; skipping discovery trigger on config change")
+
 
 class DiscoveryCIDR(models.Model):
     """CIDR ranges to be used for discovery scans."""
@@ -50,6 +78,40 @@ class DiscoveryCIDR(models.Model):
     def __str__(self) -> str:
         return f"{self.manufacturer.name} {self.cidr}"
 
+    def save(self, *args, **kwargs):
+        """Trigger scan when CIDR changes."""
+        super().save(*args, **kwargs)
+        self._trigger_discovery()
+
+    def delete(self, *args, **kwargs):
+        """Trigger scan when CIDR removed."""
+        manufacturer_pk = self.manufacturer_id
+        result = super().delete(*args, **kwargs)
+        self._trigger_discovery(manufacturer_pk)
+        return result
+
+    def _trigger_discovery(self, manufacturer_pk=None):
+        from micboard.utils.dependencies import HAS_DJANGO_Q
+        if HAS_DJANGO_Q:
+            try:
+                from django_q.tasks import async_task
+
+                from micboard.tasks.discovery_tasks import run_manufacturer_discovery_task
+
+                async_task(
+                    run_manufacturer_discovery_task,
+                    manufacturer_pk or self.manufacturer_id,
+                    True,  # scan_cidrs
+                    False,  # scan_fqdns
+                )
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).exception("Failed to trigger discovery on CIDR change")
+        else:
+            import logging
+            logging.getLogger(__name__).debug("Django-Q not installed; skipping discovery trigger on CIDR change")
+
 
 class DiscoveryFQDN(models.Model):
     """FQDN patterns or hostnames to resolve for discovery."""
@@ -69,6 +131,40 @@ class DiscoveryFQDN(models.Model):
 
     def __str__(self) -> str:
         return f"{self.manufacturer.name} {self.fqdn}"
+
+    def save(self, *args, **kwargs):
+        """Trigger scan when FQDN changes."""
+        super().save(*args, **kwargs)
+        self._trigger_discovery()
+
+    def delete(self, *args, **kwargs):
+        """Trigger scan when FQDN removed."""
+        manufacturer_pk = self.manufacturer_id
+        result = super().delete(*args, **kwargs)
+        self._trigger_discovery(manufacturer_pk)
+        return result
+
+    def _trigger_discovery(self, manufacturer_pk=None):
+        from micboard.utils.dependencies import HAS_DJANGO_Q
+        if HAS_DJANGO_Q:
+            try:
+                from django_q.tasks import async_task
+
+                from micboard.tasks.discovery_tasks import run_manufacturer_discovery_task
+
+                async_task(
+                    run_manufacturer_discovery_task,
+                    manufacturer_pk or self.manufacturer_id,
+                    False,  # scan_cidrs
+                    True,  # scan_fqdns
+                )
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).exception("Failed to trigger discovery on FQDN change")
+        else:
+            import logging
+            logging.getLogger(__name__).debug("Django-Q not installed; skipping discovery trigger on FQDN change")
 
 
 class DiscoveryJob(models.Model):

@@ -16,11 +16,11 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from micboard.models import Alert, RFChannel, WirelessUnit
+from micboard.models import Alert, PerformerAssignment, RFChannel, WirelessUnit
 from micboard.services.email import send_alert_email
 
 if TYPE_CHECKING:
-    from micboard.models import DeviceAssignment
+    from micboard.models import PerformerAssignment as PerformerAssignmentType
 
 User = get_user_model()
 
@@ -36,153 +36,180 @@ class AlertManager:
         Args:
             unit: WirelessUnit instance to check
         """
+        # Get active performer assignments for this unit
+        assignments = PerformerAssignment.objects.filter(
+            wireless_unit=unit, is_active=True
+        ).select_related("performer", "monitoring_group")
+
+        if not assignments.exists():
+            return
+
         # Battery alerts
-        self._check_battery_alerts(unit)
+        self._check_battery_alerts(unit, assignments)
 
         # Signal loss alerts
-        self._check_signal_alerts(unit)
+        self._check_signal_alerts(unit, assignments)
 
         # Audio level alerts
-        self._check_audio_alerts(unit)
+        self._check_audio_alerts(unit, assignments)
 
     def _check_assignments_alerts(
         self,
         unit: WirelessUnit,
+        assignments,
         alert_attr: str,
         condition_func: Callable[[WirelessUnit], bool],
         alert_type: str,
         message_func: Callable[[WirelessUnit], str],
     ) -> None:
         """Generic method to check alerts based on assignments and conditions."""
-        if not unit.assigned_resource:
-            return
-
-        assignments = unit.assigned_resource.assignments.filter(is_active=True)
-
         for assignment in assignments:
             if not getattr(assignment, alert_attr):
                 continue
 
             if condition_func(unit):
-                self._create_alert(
-                    channel=unit.assigned_resource,
-                    user=assignment.user,
-                    assignment=assignment,
-                    alert_type=alert_type,
-                    message=message_func(unit),
-                    channel_data=self._get_channel_snapshot(unit.assigned_resource),
+                # Get users in the monitoring group
+                group_users = (
+                    assignment.monitoring_group.user_profiles.all()
+                    if assignment.monitoring_group
+                    else []
                 )
 
-    def check_device_offline_alerts(self, channel: RFChannel) -> None:
-        """Check if device/channel is offline and create alerts.
+                for user_profile in group_users:
+                    self._create_alert(
+                        unit=unit,
+                        user=user_profile.user,
+                        performer_assignment=assignment,
+                        alert_type=alert_type,
+                        message=message_func(unit),
+                        unit_data=self._get_unit_snapshot(unit),
+                    )
+
+    def check_hardware_offline_alerts(self, unit: WirelessUnit) -> None:
+        """Check if device is offline and create alerts.
 
         Args:
-            channel: RFChannel instance to check
+            unit: WirelessUnit instance to check
         """
-        # Check if chassis is offline
-        if not channel.chassis.is_online:
-            self._create_device_offline_alert(channel)
-        else:
-            # Check if active unit is offline (no recent updates)
-            if channel.active_wireless_unit:
-                unit = channel.active_wireless_unit
-                if unit.status != "online":
-                    self._create_device_offline_alert(channel)
+        # Get active performer assignments with offline alerts enabled
+        assignments = PerformerAssignment.objects.filter(
+            wireless_unit=unit, is_active=True, alert_offline=True
+        ).select_related("performer", "monitoring_group")
 
-    def _check_battery_alerts(self, unit: WirelessUnit) -> None:
+        # Check if unit is offline
+        if unit.status != "online":
+            for assignment in assignments:
+                # Get users in the monitoring group
+                group_users = (
+                    assignment.monitoring_group.user_profiles.all()
+                    if assignment.monitoring_group
+                    else []
+                )
+
+                for user_profile in group_users:
+                    self._create_alert(
+                        unit=unit,
+                        user=user_profile.user,
+                        performer_assignment=assignment,
+                        alert_type="hardware_offline",
+                        message=f"Device offline: {unit.name}",
+                        unit_data=self._get_unit_snapshot(unit),
+                    )
+
+    def _check_battery_alerts(self, unit: WirelessUnit, assignments) -> None:
         """Check battery levels and create alerts."""
         battery_pct = unit.battery_percentage
-        if battery_pct is None or not unit.assigned_resource:
+        if battery_pct is None:
             return
 
-        # Get assignments for this channel
-        assignments = unit.assigned_resource.assignments.filter(is_active=True)
-
         for assignment in assignments:
-            if not assignment.alert_on_battery_low:
+            if not assignment.alert_battery_low:
                 continue
 
-            user_prefs = (
-                assignment.user.alert_preferences
-                if hasattr(assignment.user, "alert_preferences")
-                else None
+            # Get users in the monitoring group to notify
+            group_users = (
+                assignment.monitoring_group.user_profiles.all()
+                if assignment.monitoring_group
+                else []
             )
 
-            # Check critical battery level
-            critical_threshold = user_prefs.battery_critical_threshold if user_prefs else 10
-            if battery_pct <= critical_threshold:
-                self._create_alert(
-                    channel=unit.assigned_resource,
-                    user=assignment.user,
-                    assignment=assignment,
-                    alert_type="battery_critical",
-                    message=f"Battery critically low: {battery_pct}%",
-                    channel_data=self._get_channel_snapshot(unit.assigned_resource),
-                )
-            # Check low battery level
-            elif battery_pct <= (user_prefs.battery_low_threshold if user_prefs else 20):
-                self._create_alert(
-                    channel=unit.assigned_resource,
-                    user=assignment.user,
-                    assignment=assignment,
-                    alert_type="battery_low",
-                    message=f"Battery low: {battery_pct}%",
-                    channel_data=self._get_channel_snapshot(unit.assigned_resource),
+            for user_profile in group_users:
+                user_prefs = (
+                    user_profile.user.alert_preferences
+                    if hasattr(user_profile.user, "alert_preferences")
+                    else None
                 )
 
-    def _check_signal_alerts(self, unit: WirelessUnit) -> None:
+                # Check critical battery level
+                critical_threshold = user_prefs.battery_critical_threshold if user_prefs else 10
+                if battery_pct <= critical_threshold:
+                    self._create_alert(
+                        unit=unit,
+                        user=user_profile.user,
+                        performer_assignment=assignment,
+                        alert_type="battery_critical",
+                        message=(
+                            f"Battery critically low: {battery_pct}% - {assignment.performer.name}"
+                        ),
+                        unit_data=self._get_unit_snapshot(unit),
+                    )
+                # Check low battery level
+                elif battery_pct <= (user_prefs.battery_low_threshold if user_prefs else 20):
+                    self._create_alert(
+                        unit=unit,
+                        user=user_profile.user,
+                        performer_assignment=assignment,
+                        alert_type="battery_low",
+                        message=f"Battery low: {battery_pct}% - {assignment.performer.name}",
+                        unit_data=self._get_unit_snapshot(unit),
+                    )
+
+    def _check_signal_alerts(self, unit: WirelessUnit, assignments) -> None:
         """Check signal levels and create alerts."""
 
         def signal_condition(u):
-            return u.rf_level < -80  # dB threshold
+            return u.rf_level is not None and u.rf_level < -80  # dB threshold
 
         def signal_message(u):
             return f"Signal loss detected: RF level {u.rf_level}dB"
 
         self._check_assignments_alerts(
-            unit, "alert_on_signal_loss", signal_condition, "signal_loss", signal_message
+            unit, assignments, "alert_signal_loss", signal_condition, "signal_loss", signal_message
         )
 
-    def _check_audio_alerts(self, unit: WirelessUnit) -> None:
+    def _check_audio_alerts(self, unit: WirelessUnit, assignments) -> None:
         """Check audio levels and create alerts."""
 
         def audio_condition(u):
-            return u.audio_level < -40  # dB threshold
+            return u.audio_level is not None and u.audio_level < -40  # dB threshold
 
         def audio_message(u):
             return f"Audio level too low: {u.audio_level}dB"
 
         self._check_assignments_alerts(
-            unit, "alert_on_audio_low", audio_condition, "audio_low", audio_message
+            unit, assignments, "alert_on_audio_low", audio_condition, "audio_low", audio_message
         )
 
-    def _create_device_offline_alert(self, channel: RFChannel) -> None:
-        """Create device offline alerts for all assignments."""
-        assignments = channel.assignments.filter(is_active=True, alert_on_device_offline=True)
+    def _create_hardware_offline_alert(self, unit: WirelessUnit) -> None:
+        """Create device offline alerts for all assignments.
 
-        for assignment in assignments:
-            self._create_alert(
-                channel=channel,
-                user=assignment.user,
-                assignment=assignment,
-                alert_type="device_offline",
-                message=f"Device offline: {channel.chassis.name} Channel {channel.channel_number}",
-                channel_data=self._get_channel_snapshot(channel),
-            )
+        DEPRECATED: Use check_hardware_offline_alerts instead.
+        """
+        pass
 
     def _create_alert(
         self,
-        channel: RFChannel,
+        unit: WirelessUnit,
         user: Any,
-        assignment: DeviceAssignment,
+        performer_assignment: PerformerAssignmentType,
         alert_type: str,
         message: str,
-        channel_data: dict | None = None,
+        unit_data: dict | None = None,
     ) -> Alert:
         """Create an alert if one doesn't already exist for similar conditions."""
         # Check for existing similar alert in the last hour
         recent_alert = Alert.objects.filter(
-            channel=channel,
+            wireless_unit=unit,
             user=user,
             alert_type=alert_type,
             status__in=["pending", "sent"],
@@ -195,12 +222,12 @@ class AlertManager:
 
         # Create new alert
         alert = Alert.objects.create(
-            channel=channel,
+            wireless_unit=unit,
             user=user,
-            assignment=assignment,
+            performer_assignment=performer_assignment,
             alert_type=alert_type,
             message=message,
-            channel_data=channel_data or {},
+            unit_data=unit_data or {},
         )
 
         logger.info("Created alert: %s for user %s", alert, user.username)
@@ -216,26 +243,32 @@ class AlertManager:
         return cast(Alert, alert)
 
     def _get_channel_snapshot(self, channel: RFChannel) -> dict[str, Any]:
-        """Get a snapshot of channel state for alert context."""
+        """Get a snapshot of channel state for alert context.
+
+        DEPRECATED: Use _get_unit_snapshot instead.
+        """
+        return {}
+
+    def _get_unit_snapshot(self, unit: WirelessUnit) -> dict[str, Any]:
+        """Get a snapshot of unit state for alert context."""
         snapshot = {
-            "chassis_name": channel.chassis.name,
-            "chassis_ip": channel.chassis.ip,
-            "chassis_is_online": channel.chassis.is_online,
-            "channel_number": channel.channel_number,
+            "unit_name": unit.name,
+            "unit_slot": unit.slot,
+            "battery_percentage": unit.battery_percentage,
+            "audio_level": unit.audio_level,
+            "rf_level": unit.rf_level,
+            "status": unit.status,
+            "is_active": unit.status == "online",
             "timestamp": timezone.now().isoformat(),
         }
 
-        if channel.active_wireless_unit:
-            unit = channel.active_wireless_unit
+        # Include channel info if available
+        if hasattr(unit, "channel") and unit.channel:
             snapshot.update(
                 {
-                    "unit_name": unit.name,
-                    "unit_slot": unit.slot,
-                    "battery_percentage": unit.battery_percentage,
-                    "audio_level": unit.audio_level,
-                    "rf_level": unit.rf_level,
-                    "status": unit.status,
-                    "is_active": unit.status == "online",
+                    "channel_number": unit.channel.channel_number,
+                    "chassis_name": unit.channel.chassis.name if unit.channel.chassis else None,
+                    "chassis_ip": unit.channel.chassis.ip if unit.channel.chassis else None,
                 }
             )
 
@@ -251,9 +284,9 @@ def check_unit_alerts(unit):
     alert_manager.check_unit_alerts(unit)
 
 
-def check_device_offline_alerts(channel):
+def check_hardware_offline_alerts(unit):
     """Convenience function to check offline alerts for a channel."""
-    alert_manager.check_device_offline_alerts(channel)
+    alert_manager.check_hardware_offline_alerts(unit)
 
 
 def alerts_view(request: HttpRequest) -> HttpResponse:

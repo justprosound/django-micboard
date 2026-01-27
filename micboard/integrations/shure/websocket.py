@@ -9,7 +9,21 @@ import json
 import logging
 from typing import TYPE_CHECKING, Callable
 
-import websockets
+try:
+    import websockets
+
+    HAS_WEBSOCKETS = True
+    WebsocketClosedOK = websockets.exceptions.ConnectionClosedOK
+    WebsocketClosedError = websockets.exceptions.ConnectionClosedError
+except ImportError:  # pragma: no cover - optional dependency
+    websockets = None
+    HAS_WEBSOCKETS = False
+
+    class WebsocketClosedOK(Exception):
+        """Placeholder when websockets is unavailable."""
+
+    class WebsocketClosedError(Exception):
+        """Placeholder when websockets is unavailable."""
 
 if TYPE_CHECKING:
     from .client import ShureSystemAPIClient
@@ -39,6 +53,14 @@ async def connect_and_subscribe(
         ShureWebSocketError: If connection or subscription fails
     """
     from .client import ShureAPIError
+
+    if not HAS_WEBSOCKETS or not websockets:
+        logger.error(
+            "websockets dependency not installed; install django-micboard[websocket] to enable"
+        )
+        raise ShureWebSocketError(
+            "websockets dependency missing; install django-micboard[websocket] to enable"
+        )
 
     if not client.websocket_url:
         logger.error("Shure API WebSocket URL not configured")
@@ -96,9 +118,9 @@ async def connect_and_subscribe(
                     logger.exception("Error processing WebSocket message")
                     continue  # Don't let callback errors kill the connection
 
-    except websockets.exceptions.ConnectionClosedOK:
+    except WebsocketClosedOK:
         logger.info("Shure API WebSocket connection closed gracefully for device %s", device_id)
-    except websockets.exceptions.ConnectionClosedError:
+    except WebsocketClosedError:
         logger.exception(
             "Shure API WebSocket connection closed with error for device %s", device_id
         )

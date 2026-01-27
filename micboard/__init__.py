@@ -1,8 +1,8 @@
-"""Django Micboard - Shure Wireless Microphone Monitoring System.
+"""Django Micboard - Wireless Hardware Monitoring System.
 
-A community-driven open source Django app for monitoring Shure wireless microphone
-receivers via the Shure System API. Provides real-time WebSocket updates, device
-discovery, user assignments, and alert management.
+A community-driven open source Django app for monitoring wireless audio
+hardware via manufacturer APIs. Provides real-time WebSocket updates, hardware
+discovery, performer assignments, and alert management.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -18,7 +18,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "26.01.22"  # CalVer: YY.MM.DD
+__version__ = "26.01.27"  # CalVer: YY.MM.DD
 __license__ = "AGPL-3.0-or-later"
 
 # Modern Django automatically discovers AppConfig classes; no default_app_config needed

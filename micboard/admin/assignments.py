@@ -1,35 +1,78 @@
 from django.contrib import admin
 
-from micboard.models import Alert, DeviceAssignment, UserAlertPreference
+from micboard.admin.mixins import MicboardModelAdmin
+from micboard.models import Alert, Performer, PerformerAssignment, UserAlertPreference
 
 
-@admin.register(DeviceAssignment)
-class DeviceAssignmentAdmin(admin.ModelAdmin):
-    list_display = ("user", "get_role", "channel", "priority", "is_active")
-    list_filter = ("priority", "is_active", "user__profile__user_type")
-    search_fields = (
-        "user__username",
-        "user__first_name",
-        "user__last_name",
-        "channel__chassis__name",
+@admin.register(Performer)
+class PerformerAdmin(MicboardModelAdmin):
+    list_display = ("name", "title", "email", "phone", "is_active", "created_at")
+    list_filter = ("is_active", "created_at")
+    search_fields = ("name", "title", "email", "phone", "notes")
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        ("Basic Information", {"fields": ("name", "title", "photo", "is_active")}),
+        ("Contact Information", {"fields": ("email", "phone")}),
+        ("Additional Details", {"fields": ("notes",)}),
+        ("Metadata", {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
     )
 
-    @admin.display(description="Performer Title")
-    def get_role(self, obj):
-        return obj.user.profile.title if hasattr(obj.user, "profile") else "-"
 
-    raw_id_fields = ("user", "channel")
+@admin.register(PerformerAssignment)
+class PerformerAssignmentAdmin(MicboardModelAdmin):
+    list_display = (
+        "performer",
+        "wireless_unit",
+        "monitoring_group",
+        "priority",
+        "is_active",
+        "assigned_at",
+    )
+    list_filter = (
+        "priority",
+        "is_active",
+        "alert_on_battery_low",
+        "alert_on_signal_loss",
+        "alert_on_audio_low",
+        "alert_on_hardware_offline",
+    )
+    search_fields = ("performer__name", "wireless_unit__name", "monitoring_group__name", "notes")
+    readonly_fields = ("assigned_at", "updated_at", "assigned_by")
+    raw_id_fields = ("performer", "wireless_unit", "monitoring_group", "assigned_by")
+
+    fieldsets = (
+        (
+            "Assignment",
+            {"fields": ("performer", "wireless_unit", "monitoring_group", "priority", "is_active")},
+        ),
+        (
+            "Alert Settings",
+            {
+                "fields": (
+                    "alert_on_battery_low",
+                    "alert_on_signal_loss",
+                    "alert_on_audio_low",
+                    "alert_on_hardware_offline",
+                )
+            },
+        ),
+        ("Notes", {"fields": ("notes",)}),
+        (
+            "Audit Trail",
+            {"fields": ("assigned_by", "assigned_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
 
 
 @admin.register(UserAlertPreference)
-class UserAlertPreferenceAdmin(admin.ModelAdmin):
+class UserAlertPreferenceAdmin(MicboardModelAdmin):
     list_display = ("user", "notification_method", "battery_low_threshold", "quiet_hours_enabled")
     list_filter = ("notification_method", "quiet_hours_enabled")
     search_fields = ("user__username",)
 
 
 @admin.register(Alert)
-class AlertAdmin(admin.ModelAdmin):
+class AlertAdmin(MicboardModelAdmin):
     list_display = (
         "channel",
         "user",

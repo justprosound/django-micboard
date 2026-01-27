@@ -7,6 +7,7 @@ Contains:
 """
 
 from .charger import Charger, ChargerManager, ChargerQuerySet, ChargerSlot
+from .display_wall import DisplayWall, WallSection
 from .wireless_chassis import WirelessChassis, WirelessChassisManager, WirelessChassisQuerySet
 from .wireless_unit import WirelessUnit, WirelessUnitManager, WirelessUnitQuerySet
 
@@ -15,6 +16,8 @@ __all__ = [
     "ChargerManager",
     "ChargerQuerySet",
     "ChargerSlot",
+    "DisplayWall",
+    "WallSection",
     "WirelessChassis",
     "WirelessChassisManager",
     "WirelessChassisQuerySet",

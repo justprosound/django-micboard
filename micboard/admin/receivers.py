@@ -9,14 +9,14 @@ import logging
 from typing import Any, ClassVar
 
 from django.contrib import admin
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Q
 from django.shortcuts import render
 from django.urls import path
 from django.utils.html import format_html
 
 from micboard.admin.forms import WirelessChassisAdminForm
+from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import (
-    DeviceAssignment,
     RFChannel,
     WirelessChassis,
     WirelessUnit,
@@ -99,7 +99,7 @@ class RFChannelInline(admin.StackedInline):
 
 
 @admin.register(WirelessChassis)
-class WirelessChassisAdmin(admin.ModelAdmin):
+class WirelessChassisAdmin(MicboardModelAdmin):
     """Admin configuration for WirelessChassis model."""
 
     form = WirelessChassisAdminForm
@@ -127,7 +127,7 @@ class WirelessChassisAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (
-            "Device Identity",
+            "Hardware Identity",
             {
                 "fields": (
                     "role",
@@ -181,7 +181,7 @@ class WirelessChassisAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "Device Capabilities",
+            "Hardware Capabilities",
             {
                 "fields": (
                     "max_channels",
@@ -229,13 +229,6 @@ class WirelessChassisAdmin(admin.ModelAdmin):
             .prefetch_related(
                 "rf_channels__active_wireless_unit",
                 "rf_channels__active_iem_receiver",
-                Prefetch(
-                    "rf_channels__assignments",
-                    queryset=DeviceAssignment.objects.filter(is_active=True).select_related(
-                        "user", "location"
-                    ),
-                    to_attr="active_assignments",
-                ),
             )
             .annotate(
                 channel_count=Count("rf_channels"),
@@ -331,30 +324,29 @@ class WirelessChassisAdmin(admin.ModelAdmin):
     @admin.action(description="Mark selected chassis as online")
     def mark_online(self, request, queryset):
         """Mark selected chassis as online."""
-        from micboard.services import DeviceService
+        from micboard.services import HardwareService
 
         updated = 0
         for chassis in queryset:
-            DeviceService.sync_device_status(device_obj=chassis, online=True)
+            HardwareService.sync_hardware_status(obj=chassis, online=True)
             updated += 1
         self.message_user(request, f"{updated} chassis marked as online.")
 
     @admin.action(description="Mark selected chassis as offline")
     def mark_offline(self, request, queryset):
         """Mark selected chassis as offline."""
-        from micboard.services import DeviceService
+        from micboard.services import HardwareService
 
         updated = 0
         for chassis in queryset:
-            DeviceService.sync_device_status(device_obj=chassis, online=False)
+            HardwareService.sync_hardware_status(obj=chassis, online=False)
             updated += 1
         self.message_user(request, f"{updated} chassis marked as offline.")
 
     @admin.action(description="Sync selected chassis from API")
     def sync_from_api(self, request, queryset):
         """Sync selected chassis from manufacturer API."""
-        from django_q.tasks import async_task
-
+        from micboard.utils.dependencies import HAS_DJANGO_Q
         from micboard.tasks.polling_tasks import poll_manufacturer_devices
 
         # If all selected chassis belong to the same manufacturer, run
@@ -362,15 +354,23 @@ class WirelessChassisAdmin(admin.ModelAdmin):
         manufacturers = queryset.values_list("manufacturer", flat=True).distinct()
         if manufacturers.count() == 1:
             m_id = manufacturers.first()
-            try:
-                # Enqueue background task for polling
-                async_task(poll_manufacturer_devices, m_id)
-                self.message_user(request, "Discovery sync enqueued for background processing")
+            if HAS_DJANGO_Q:
+                try:
+                    from django_q.tasks import async_task
+                    # Enqueue background task for polling
+                    async_task(poll_manufacturer_devices, m_id)
+                    self.message_user(request, "Discovery sync enqueued for background processing")
+                    return
+                except Exception as e:
+                    logger.exception("Error enqueuing discovery sync from admin: %s", e)
+                    self.message_user(request, f"Error: {e}", level="error")
+                    # fall back to per-chassis sync after logging
+            else:
+                # Run synchronously
+                poll_manufacturer_devices(m_id)
+                self.message_user(request, "Discovery sync completed synchronously")
                 return
-            except Exception as e:
-                logger.exception("Error enqueuing discovery sync from admin: %s", e)
-                self.message_user(request, f"Error: {e}", level="error")
-                # fall back to per-chassis sync after logging
+
         synced = 0
         for chassis in queryset:
             try:
@@ -383,10 +383,10 @@ class WirelessChassisAdmin(admin.ModelAdmin):
                     chassis.firmware_version = transformed_data.get(
                         "firmware", chassis.firmware_version
                     )
-                    # Use DeviceService for status update
-                    from micboard.services import DeviceService
+                    # Use HardwareService for status update
+                    from micboard.services import HardwareService
 
-                    DeviceService.sync_device_status(device_obj=chassis, online=True)
+                    HardwareService.sync_hardware_status(obj=chassis, online=True)
                     synced += 1
             except Exception as e:
                 logger.error("Failed to sync %s: %s", chassis.api_device_id, e)

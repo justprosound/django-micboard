@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 def rate_limit(*, calls_per_second: float = 10.0):
     """Decorator to rate limit method calls.
+
     Uses token bucket algorithm with Django cache.
 
     Args:

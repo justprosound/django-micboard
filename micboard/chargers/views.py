@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 def charger_display(request: HttpRequest) -> HttpResponse:
     """View to display the status of networked charging stations and microphones.
+
     Data is retrieved from database chargers.
     """
     from micboard.models import Charger

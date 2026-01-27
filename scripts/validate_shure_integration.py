@@ -3,8 +3,8 @@
 
 This script demonstrates:
 1. API connectivity and health check
-2. Device discovery configuration
-3. Device polling and Django model updates
+2. WirelessChassis discovery configuration
+3. WirelessChassis polling and Django model updates
 4. WebSocket bi-directional sync capability
 5. Complete data flow from Shure API → Django models → WebSocket broadcast
 
@@ -32,7 +32,7 @@ from django.conf import settings
 
 from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.integrations.shure.plugin import ShurePlugin
-from micboard.models import Channel, Manufacturer, Receiver, Transmitter
+from micboard.models import RFChannel, Manufacturer, WirelessChassis, WirelessUnit
 
 
 def print_section(title: str):
@@ -93,7 +93,7 @@ def validate_api_connectivity():
 
 def validate_discovery_config(client: ShureSystemAPIClient):
     """Check device discovery configuration."""
-    print_section("3. Device Discovery Configuration")
+    print_section("3. WirelessChassis Discovery Configuration")
 
     try:
         discovery_ips = client.get_discovery_ips()
@@ -194,9 +194,9 @@ def validate_django_integration(manufacturer: Manufacturer, plugin: ShurePlugin)
     print_section("5. Django Model Integration")
 
     # Count existing records
-    receivers_count = Receiver.objects.filter(manufacturer=manufacturer).count()
-    channels_count = Channel.objects.filter(receiver__manufacturer=manufacturer).count()
-    transmitters_count = Transmitter.objects.filter(
+    receivers_count = WirelessChassis.objects.filter(manufacturer=manufacturer).count()
+    channels_count = RFChannel.objects.filter(receiver__manufacturer=manufacturer).count()
+    transmitters_count = WirelessUnit.objects.filter(
         channel__receiver__manufacturer=manufacturer
     ).count()
 

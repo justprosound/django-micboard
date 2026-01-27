@@ -55,33 +55,33 @@ class ManufacturerNotSupportedError(MicboardError):
         )
 
 
-class DeviceNotFoundError(MicboardError):
-    """Raised when device is not found."""
+class HardwareNotFoundError(MicboardError):
+    """Raised when hardware is not found."""
 
     def __init__(self, device_id: str, manufacturer_code: Optional[str] = None):
         """Initialize exception.
 
         Args:
-            device_id: Device identifier not found
+            device_id: Hardware identifier not found
             manufacturer_code: Optional manufacturer code for context
         """
         details = {"device_id": device_id}
         if manufacturer_code:
             details["manufacturer"] = manufacturer_code
 
-        message = f"Device '{device_id}' not found"
+        message = f"Hardware '{device_id}' not found"
         if manufacturer_code:
             message += f" for manufacturer '{manufacturer_code}'"
 
         super().__init__(
             message,
-            code="DEVICE_NOT_FOUND",
+            code="HARDWARE_NOT_FOUND",
             details=details,
         )
 
 
-class DeviceValidationError(MicboardError):
-    """Raised when device data is invalid."""
+class HardwareValidationError(MicboardError):
+    """Raised when hardware data is invalid."""
 
     def __init__(self, field: str, message: str):
         """Initialize exception.
@@ -92,7 +92,7 @@ class DeviceValidationError(MicboardError):
         """
         super().__init__(
             f"Validation error on {field}: {message}",
-            code="DEVICE_VALIDATION_ERROR",
+            code="HARDWARE_VALIDATION_ERROR",
             details={"field": field, "message": message},
         )
 

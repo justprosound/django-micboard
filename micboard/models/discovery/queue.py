@@ -45,7 +45,12 @@ class DiscoveryQueue(models.Model):
     # Device metadata
     device_type = models.CharField(
         max_length=20,
-        help_text="Device type/model",
+        help_text="Device role (receiver/transmitter/transceiver)",
+    )
+    model = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Full model number (e.g., ULXD4D)",
     )
     name = models.CharField(
         max_length=100,
@@ -286,23 +291,3 @@ class DeviceMovementLog(models.Model):
         if self.old_location and self.new_location and self.old_location != self.new_location:
             return "location_only"
         return "unknown"
-
-
-class Discovery(models.Model):
-    """Legacy discovery task model.
-    Maintained for compatibility with existing service layer.
-    """
-
-    name = models.CharField(max_length=100)
-    discovery_type = models.CharField(max_length=50)
-    target = models.CharField(max_length=255)
-    enabled = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Discovery Task"
-        verbose_name_plural = "Discovery Tasks"
-
-    def __str__(self) -> str:
-        return f"{self.name} ({self.discovery_type})"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Device Discovery & Population Script for Local Shure System API.
+"""WirelessChassis Discovery & Population Script for Local Shure System API.
 
 This script discovers live Shure devices on the VPN and populates the local
 Shure System API with real device data for testing and development.
@@ -69,10 +69,10 @@ class DeviceDiscovery:
         """Probe a single device at the given IP address.
 
         Args:
-            ip: Device IP address
+            ip: WirelessChassis IP address
 
         Returns:
-            Device info dict if successful, None otherwise
+            WirelessChassis info dict if successful, None otherwise
         """
         endpoints = [
             f"http://{ip}/api/v1/devices",
@@ -87,7 +87,7 @@ class DeviceDiscovery:
                     endpoint, timeout=self.timeout, verify=self.verify_ssl, allow_redirects=False
                 )
                 if response.status_code in [200, 401]:  # 401 means API exists but needs auth
-                    print(f"✓ Device found at {ip}")
+                    print(f"✓ WirelessChassis found at {ip}")
                     return {
                         "ip": ip,
                         "endpoint": endpoint,
@@ -176,7 +176,7 @@ class DeviceDiscovery:
         with open(filename, "w") as f:
             json.dump(manifest, f, indent=2)
 
-        print(f"\n✓ Device manifest saved to {filename}")
+        print(f"\n✓ WirelessChassis manifest saved to {filename}")
         print("  ⚠️  WARNING: Do not commit this file!")
         print("     It should be in .gitignore")
 
@@ -253,12 +253,12 @@ def main():
     # Populate subcommand
     populate_parser = subparsers.add_parser("populate", help="Populate local API")
     populate_parser.add_argument(
-        "--manifest", default="device_manifest.json", help="Device manifest file"
+        "--manifest", default="device_manifest.json", help="WirelessChassis manifest file"
     )
 
     # Test subcommand
     test_parser = subparsers.add_parser("test", help="Test device connectivity")
-    test_parser.add_argument("--ip", required=True, help="Device IP to test")
+    test_parser.add_argument("--ip", required=True, help="WirelessChassis IP to test")
 
     args = parser.parse_args()
 

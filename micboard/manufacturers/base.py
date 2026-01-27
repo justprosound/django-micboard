@@ -41,8 +41,9 @@ class BaseAPIClient(ABC):
 
 
 class BasePlugin(ABC):
-    """Minimal plugin base class — integrations should subclass this or the
-    project's more specific ManufacturerPlugin if available.
+    """Minimal plugin base class.
+
+    Integrations should subclass this or the project's ManufacturerPlugin.
     """
 
     def __init__(self, manufacturer: Any | None = None) -> None:

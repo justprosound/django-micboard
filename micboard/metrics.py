@@ -134,7 +134,7 @@ def track_service_metrics(func: Callable) -> Callable:
     """Decorator to track service method metrics.
 
     Example:
-        class DeviceService:
+        class HardwareService:
             @track_service_metrics
             @staticmethod
             def get_active_receivers() -> QuerySet:
