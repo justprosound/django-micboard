@@ -173,7 +173,7 @@ class DiscoveryQueueAdmin(admin.ModelAdmin):
                 ip=item.ip,
                 name=item.name,
                 model=item.model,
-                device_type=item.device_type,
+                role=item.device_type,  # Map device_type to role
                 firmware_version=item.firmware_version,
                 subnet_mask=item.subnet_mask,
                 gateway=item.gateway,

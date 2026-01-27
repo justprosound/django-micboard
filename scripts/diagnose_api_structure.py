@@ -99,7 +99,7 @@ def main():
             logger.info("      ⚠ frequency_band: not populated")
 
         # Show full model info
-        logger.info("\n5. Device model information:")
+        logger.info("\n5. WirelessChassis model information:")
         logger.info(f"      • model: {enriched.get('model', 'N/A')}")
         logger.info(f"      • model_variant: {enriched.get('model_variant', 'N/A')}")
         logger.info(f"      • serial_number: {enriched.get('serial_number', 'N/A')}")

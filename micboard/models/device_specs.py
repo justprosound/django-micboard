@@ -13,13 +13,27 @@ Supported Manufacturers: Shure, Sennheiser, Wisycom, ULBACO, etc.
 from __future__ import annotations
 
 import importlib.resources
+import logging
 
-import yaml
+try:
+    import yaml
+
+    HAS_YAML = True
+except ImportError:  # pragma: no cover - optional dependency
+    yaml = None
+    HAS_YAML = False
+
+
+logger = logging.getLogger(__name__)
 
 
 # Load device specifications from fixture
 def _load_device_specifications() -> dict[str, dict[str, dict]]:
     """Load device specifications from YAML fixture."""
+    if not HAS_YAML:
+        logger.warning("PyYAML not installed; device specifications are unavailable")
+        return {}
+
     try:
         # Try Python 3.9+ importlib.resources
         if hasattr(importlib.resources, "files"):
@@ -38,16 +52,16 @@ def _load_device_specifications() -> dict[str, dict[str, dict]]:
                 spec_yaml = f.read()
 
         return yaml.safe_load(spec_yaml) or {}
-    except Exception as e:
-        raise RuntimeError(f"Failed to load device specifications fixture: {e}") from None
+    except Exception:
+        logger.exception("Failed to load device specifications fixture")
+        return {}
 
 
 # Unified device specifications by manufacturer
 DEVICE_SPECIFICATIONS: dict[str, dict[str, dict]] = _load_device_specifications()
 
-# Verify fixture loaded correctly
 if not DEVICE_SPECIFICATIONS:
-    raise RuntimeError("Device specifications fixture is empty")
+    logger.warning("Device specifications fixture is empty or unavailable")
 
 
 def get_device_spec(*, manufacturer: str | None, model: str | None) -> dict | None:
@@ -132,6 +146,10 @@ def get_dante_support(*, manufacturer: str | None, model: str | None) -> bool:
 # Load band plan specifications from fixture
 def _load_band_plans() -> dict[str, dict[str, dict]]:
     """Load band plan specifications from YAML fixture."""
+    if not HAS_YAML:
+        logger.warning("PyYAML not installed; band plan specifications are unavailable")
+        return {}
+
     try:
         # Try Python 3.9+ importlib.resources
         if hasattr(importlib.resources, "files"):
@@ -152,6 +170,7 @@ def _load_band_plans() -> dict[str, dict[str, dict]]:
         return yaml.safe_load(spec_yaml) or {}
     except Exception:
         # If band plans fixture doesn't exist, return empty dict (non-critical)
+        logger.exception("Failed to load band plan specifications")
         return {}
 
 

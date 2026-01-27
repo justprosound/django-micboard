@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "demo.settings")
 django.setup()
 
-from micboard.models import ActivityLog, Manufacturer, Receiver
+from micboard.models import ActivityLog, Manufacturer, WirelessChassis
 from micboard.services.manufacturer_service import (
     device_discovered,
     device_offline,
@@ -39,7 +39,7 @@ def test_device_discovered():
         service_code="shure",
         device_data={
             "id": "test-receiver-001",
-            "name": "Test Receiver",
+            "name": "Test WirelessChassis",
             "type": "receiver",
             "model": "ULXD4D",
             "ip_address": "172.21.10.100",
@@ -71,18 +71,18 @@ def test_device_online():
     )
 
     # Get or create a receiver
-    receiver, created = Receiver.objects.get_or_create(
+    receiver, created = WirelessChassis.objects.get_or_create(
         manufacturer=manufacturer,
         api_device_id="test-receiver-001",
         defaults={
-            "name": "Test Receiver 001",
+            "name": "Test WirelessChassis 001",
             "device_type": "ulxd",
             "ip": "172.21.10.100",
             "is_active": False,
         },
     )
 
-    print(f"Receiver initial status: is_active={receiver.is_active}")
+    print(f"WirelessChassis initial status: is_active={receiver.is_active}")
 
     initial_count = ActivityLog.objects.count()
 
@@ -99,9 +99,9 @@ def test_device_online():
 
     # Check status updated
     if receiver.is_active:
-        print(f"✓ Receiver status updated: is_active={receiver.is_active}")
+        print(f"✓ WirelessChassis status updated: is_active={receiver.is_active}")
     else:
-        print(f"✗ Receiver status not updated: is_active={receiver.is_active}")
+        print(f"✗ WirelessChassis status not updated: is_active={receiver.is_active}")
 
     # Check ActivityLog created
     new_count = ActivityLog.objects.count()
@@ -119,7 +119,7 @@ def test_device_offline():
     print("\n=== Testing device_offline signal ===")
 
     manufacturer = Manufacturer.objects.get(code="shure")
-    receiver = Receiver.objects.get(
+    receiver = WirelessChassis.objects.get(
         manufacturer=manufacturer,
         api_device_id="test-receiver-001",
     )
@@ -127,7 +127,7 @@ def test_device_offline():
     # Ensure receiver is online first
     receiver.is_active = True
     receiver.save()
-    print(f"Receiver initial status: is_active={receiver.is_active}")
+    print(f"WirelessChassis initial status: is_active={receiver.is_active}")
 
     initial_count = ActivityLog.objects.count()
 
@@ -144,9 +144,9 @@ def test_device_offline():
 
     # Check status updated
     if not receiver.is_active:
-        print(f"✓ Receiver status updated: is_active={receiver.is_active}")
+        print(f"✓ WirelessChassis status updated: is_active={receiver.is_active}")
     else:
-        print(f"✗ Receiver status not updated: is_active={receiver.is_active}")
+        print(f"✗ WirelessChassis status not updated: is_active={receiver.is_active}")
 
     # Check ActivityLog created
     new_count = ActivityLog.objects.count()
@@ -230,7 +230,7 @@ def test_device_synced():
 def main():
     """Run all signal tests."""
     print("=" * 60)
-    print("Testing Device Lifecycle Signal Handlers")
+    print("Testing WirelessChassis Lifecycle Signal Handlers")
     print("=" * 60)
 
     results = {

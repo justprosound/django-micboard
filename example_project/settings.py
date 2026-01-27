@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     # Core app
     "micboard",
+    "micboard.chargers",
 ]
 
 MIDDLEWARE = [

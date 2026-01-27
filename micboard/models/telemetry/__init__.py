@@ -16,6 +16,4 @@ __all__ = [
     "APIHealthLog",
     "WirelessUnitSession",
     "WirelessUnitSample",
-    "TransmitterSession",
-    "TransmitterSample",
 ]

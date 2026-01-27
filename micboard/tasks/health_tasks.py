@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import APIHealthLog, Manufacturer, RealTimeConnection
-from micboard.signals.broadcast_signals import api_health_changed
+from micboard.services.broadcast_service import BroadcastService
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ def check_manufacturer_api_health(manufacturer_id: int):
         cache.set(f"api_health_{manufacturer.code}", health_status, timeout=60)
         logger.info("API health for %s: %s", manufacturer.code, health_status)
 
-        # Emit api_health_changed signal
-        api_health_changed.send(sender=None, manufacturer=manufacturer, health_data=health_status)
+        # Broadcast health status
+        BroadcastService.broadcast_api_health(manufacturer=manufacturer, health_data=health_status)
 
     except Manufacturer.DoesNotExist:
         logger.warning(
@@ -60,7 +60,7 @@ def check_realtime_connection_health():
         for connection in stale_connections:
             logger.warning(
                 "Real-time connection for %s appears stale (last message: %s)",
-                connection.receiver,
+                connection.chassis,
                 connection.last_message_at,
             )
             connection.mark_disconnected("Connection appears stale - no messages received")
@@ -72,7 +72,7 @@ def check_realtime_connection_health():
         )
 
         for connection in old_error_connections:
-            logger.info("Resetting old error state for connection: %s", connection.receiver)
+            logger.info("Resetting old error state for connection: %s", connection.chassis)
             connection.status = "disconnected"
             connection.error_count = 0
             connection.error_message = ""

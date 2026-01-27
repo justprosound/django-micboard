@@ -47,14 +47,14 @@ class ConnectionHealthMiddleware(MiddlewareMixin):
                     heartbeat_timeout_seconds=60
                 )
 
-                if unhealthy:
+                if unhealthy.exists():
                     logger.warning(
                         f"Unhealthy connections detected: "
-                        f"{[c['manufacturer_code'] for c in unhealthy]}"
+                        f"{[c.chassis.manufacturer.code for c in unhealthy]}"
                     )
 
                     # Store in request for use in views
-                    request.unhealthy_connections = unhealthy  # type: ignore[attr-defined]
+                    request.unhealthy_connections = list(unhealthy)  # type: ignore[attr-defined]
             except Exception as e:
                 logger.error(f"Error checking connection health: {e}")
 

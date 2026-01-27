@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from django.contrib import admin, messages
 from django.utils.html import format_html
 
+from micboard.admin.mixins import MicboardModelAdmin
+
 if TYPE_CHECKING:
     from django.db.models import QuerySet
     from django.http import HttpRequest
@@ -22,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class BaseDeviceAdmin(admin.ModelAdmin):
+class BaseHardwareAdmin(MicboardModelAdmin):
     """Base admin class for device models (Receiver, Transmitter, Charger).
 
     Provides common functionality:
@@ -224,7 +226,7 @@ class AdminListFilterMixin:
     MANUFACTURER_FILTERS = ("manufacturer",)
 
     # Device type filters
-    DEVICE_TYPE_FILTERS = ("device_type",)
+    HARDWARE_TYPE_FILTERS = ("device_type",)
 
     # Date filters
     DATE_FILTERS = ("created_at", "updated_at")
@@ -317,7 +319,7 @@ class AdminAuditMixin:
 
 
 # Convenience function to create a configured admin class
-def create_device_admin(
+def create_hardware_admin(
     *,
     actions: list[str] | None = None,
     list_filters: list[str] | None = None,
@@ -340,8 +342,8 @@ def create_device_admin(
         Configured admin class
     """
 
-    class ConfiguredDeviceAdmin(
-        BaseDeviceAdmin,
+    class ConfiguredHardwareAdmin(
+        BaseHardwareAdmin,
         AdminCustomColorMixin,
         AdminAuditMixin,
     ):
@@ -400,13 +402,13 @@ def create_device_admin(
             if not attr_name.startswith("_"):
                 attr = getattr(base, attr_name)
                 if callable(attr) and hasattr(attr, "short_description"):
-                    setattr(ConfiguredDeviceAdmin, attr_name, attr)
+                    setattr(ConfiguredHardwareAdmin, attr_name, attr)
 
     # Set list display, filters, and actions
     if list_display:
-        ConfiguredDeviceAdmin.list_display_fields = list_display
+        ConfiguredHardwareAdmin.list_display_fields = list_display
     if list_filters:
-        ConfiguredDeviceAdmin.common_list_filters = list_filters
+        ConfiguredHardwareAdmin.common_list_filters = list_filters
 
     actions_list = actions or []
     if include_status_actions:
@@ -417,6 +419,6 @@ def create_device_admin(
         actions_list.extend(["approve", "reject"])
 
     if actions_list:
-        ConfiguredDeviceAdmin.actions = actions_list
+        ConfiguredHardwareAdmin.actions = actions_list
 
-    return ConfiguredDeviceAdmin
+    return ConfiguredHardwareAdmin

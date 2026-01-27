@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Django-Micboard: Test Device Creation & Polling Integration.
+"""Django-Micboard: Test WirelessChassis Creation & Polling Integration.
 
 This script:
 1. Creates 3 test devices via Django models (hostname, FQDN, IP)
-2. Verifies Device, Transmitter, Receiver models are created
+2. Verifies WirelessChassis, WirelessUnit, WirelessChassis models are created
 3. Runs poll_devices to fetch real data from Shure API
 4. Confirms models are updated with actual device state
 
@@ -34,7 +34,7 @@ django.setup()
 from django.conf import settings
 
 from micboard.integrations.shure.client import ShureSystemAPIClient
-from micboard.models import Channel, Manufacturer, Receiver, Transmitter
+from micboard.models import RFChannel, Manufacturer, WirelessChassis, WirelessUnit
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -62,7 +62,7 @@ class DeviceTestingFramework:
 
         self.client = ShureSystemAPIClient(base_url=base_url, verify_ssl=verify_ssl)
         logger.info("=" * 80)
-        logger.info("Django-Micboard Device Testing Framework")
+        logger.info("Django-Micboard WirelessChassis Testing Framework")
         logger.info("=" * 80)
         logger.info(f"\nShure API: {base_url}")
 
@@ -104,10 +104,10 @@ class DeviceTestingFramework:
 
     def create_test_receiver_by_hostname(
         self, manufacturer: "Manufacturer", api_devices: List[Dict]
-    ) -> "Receiver":
+    ) -> "WirelessChassis":
         """Create test receiver using hostname."""
         logger.info("\n" + "-" * 80)
-        logger.info("Test 1: Receiver Creation by Hostname")
+        logger.info("Test 1: WirelessChassis Creation by Hostname")
         logger.info("-" * 80)
 
         if not api_devices:
@@ -120,7 +120,7 @@ class DeviceTestingFramework:
         hostname = f"ulxd-{ip.split('.')[-1]}"
 
         try:
-            receiver, created = Receiver.objects.get_or_create(
+            receiver, created = WirelessChassis.objects.get_or_create(
                 manufacturer=manufacturer,
                 api_device_id=ip,
                 defaults={
@@ -135,7 +135,7 @@ class DeviceTestingFramework:
             )
 
             status = "created" if created else "found"
-            logger.info(f"✓ Receiver created by hostname: {receiver.name}")
+            logger.info(f"✓ WirelessChassis created by hostname: {receiver.name}")
             logger.info(f"  API ID: {receiver.api_device_id}")
             logger.info(f"  IP: {receiver.ip}")
             logger.info(f"  Status: {status}")
@@ -147,10 +147,10 @@ class DeviceTestingFramework:
 
     def create_test_receiver_by_fqdn(
         self, manufacturer: "Manufacturer", api_devices: List[Dict]
-    ) -> "Receiver":
+    ) -> "WirelessChassis":
         """Create test receiver using FQDN."""
         logger.info("\n" + "-" * 80)
-        logger.info("Test 2: Receiver Creation by FQDN")
+        logger.info("Test 2: WirelessChassis Creation by FQDN")
         logger.info("-" * 80)
 
         if len(api_devices) < 2:
@@ -163,7 +163,7 @@ class DeviceTestingFramework:
         fqdn = f"shure-ulxd-{ip.split('.')[-1]}.campus.local"
 
         try:
-            receiver, created = Receiver.objects.get_or_create(
+            receiver, created = WirelessChassis.objects.get_or_create(
                 manufacturer=manufacturer,
                 api_device_id=ip,
                 defaults={
@@ -178,7 +178,7 @@ class DeviceTestingFramework:
             )
 
             status = "created" if created else "found"
-            logger.info(f"✓ Receiver created by FQDN: {receiver.name}")
+            logger.info(f"✓ WirelessChassis created by FQDN: {receiver.name}")
             logger.info(f"  API ID: {receiver.api_device_id}")
             logger.info(f"  IP: {receiver.ip}")
             logger.info(f"  Status: {status}")
@@ -190,10 +190,10 @@ class DeviceTestingFramework:
 
     def create_test_receiver_by_ip(
         self, manufacturer: "Manufacturer", api_devices: List[Dict]
-    ) -> "Receiver":
+    ) -> "WirelessChassis":
         """Create test receiver using IP address."""
         logger.info("\n" + "-" * 80)
-        logger.info("Test 3: Receiver Creation by IP Address")
+        logger.info("Test 3: WirelessChassis Creation by IP Address")
         logger.info("-" * 80)
 
         if len(api_devices) < 3:
@@ -205,7 +205,7 @@ class DeviceTestingFramework:
         ip = api_device.get("id")
 
         try:
-            receiver, created = Receiver.objects.get_or_create(
+            receiver, created = WirelessChassis.objects.get_or_create(
                 manufacturer=manufacturer,
                 api_device_id=ip,
                 defaults={
@@ -220,7 +220,7 @@ class DeviceTestingFramework:
             )
 
             status = "created" if created else "found"
-            logger.info(f"✓ Receiver created by IP: {receiver.name}")
+            logger.info(f"✓ WirelessChassis created by IP: {receiver.name}")
             logger.info(f"  API ID: {receiver.api_device_id}")
             logger.info(f"  IP: {receiver.ip}")
             logger.info(f"  Status: {status}")
@@ -230,18 +230,18 @@ class DeviceTestingFramework:
             logger.error(f"✗ Failed to create receiver by IP: {e}")
             return None
 
-    def verify_models(self, receivers: List["Receiver"]):
-        """Verify Receiver, Channel, Transmitter models."""
+    def verify_models(self, receivers: List["WirelessChassis"]):
+        """Verify WirelessChassis, RFChannel, WirelessUnit models."""
         logger.info("\n" + "-" * 80)
         logger.info("Test 4: Model Verification")
         logger.info("-" * 80)
 
         logger.info("\nReceiver Models:")
-        logger.info(f"  Total Receivers: {Receiver.objects.count()}")
-        logger.info(f"  Active Receivers: {Receiver.objects.filter(is_active=True).count()}")
+        logger.info(f"  Total Receivers: {WirelessChassis.objects.count()}")
+        logger.info(f"  Active Receivers: {WirelessChassis.objects.filter(is_active=True).count()}")
 
         for receiver in receivers:
-            logger.info(f"\n  Receiver: {receiver.name}")
+            logger.info(f"\n  WirelessChassis: {receiver.name}")
             logger.info(f"    API ID: {receiver.api_device_id}")
             logger.info(f"    IP: {receiver.ip}")
             logger.info(f"    Model: {receiver.device_type}")
@@ -249,14 +249,14 @@ class DeviceTestingFramework:
             logger.info(f"    Active: {receiver.is_active}")
 
             # Check channels
-            channels = Channel.objects.filter(receiver=receiver)
+            channels = RFChannel.objects.filter(receiver=receiver)
             logger.info(f"    Channels: {channels.count()}")
 
             # Check transmitters
-            transmitters = Transmitter.objects.filter(channel__receiver=receiver)
+            transmitters = WirelessUnit.objects.filter(channel__receiver=receiver)
             logger.info(f"    Transmitters: {transmitters.count()}")
 
-    def simulate_polling(self, receivers: List["Receiver"]):
+    def simulate_polling(self, receivers: List["WirelessChassis"]):
         """Simulate what poll_devices command will do."""
         logger.info("\n" + "-" * 80)
         logger.info("Test 5: Polling Simulation")
@@ -276,7 +276,7 @@ class DeviceTestingFramework:
                 )
 
                 if api_device:
-                    logger.info(f"\n✓ Receiver {receiver.name} found in API:")
+                    logger.info(f"\n✓ WirelessChassis {receiver.name} found in API:")
                     logger.info(f"  API State: {api_device.get('state')}")
                     logger.info(f"  Model: {api_device.get('model')}")
                     logger.info(
@@ -287,19 +287,19 @@ class DeviceTestingFramework:
                     )
 
                     # In real polling, this would:
-                    # 1. Update Receiver model with state
-                    # 2. Create/update Channel and Transmitter models
+                    # 1. Update WirelessChassis model with state
+                    # 2. Create/update RFChannel and WirelessUnit models
                     # 3. Broadcast via WebSocket
                     # 4. Trigger alerts if state changed
 
                 else:
-                    logger.warning(f"⚠ Receiver {receiver.name} NOT found in API")
+                    logger.warning(f"⚠ WirelessChassis {receiver.name} NOT found in API")
                     logger.info("  (This is normal if device hasn't been discovered yet)")
 
             logger.info("\n✓ Polling simulation complete")
             logger.info("  In production, manage.py poll_devices will:")
             logger.info("    1. Fetch all devices from Shure API")
-            logger.info("    2. Update Receiver/Channel/Transmitter models")
+            logger.info("    2. Update WirelessChassis/RFChannel/WirelessUnit models")
             logger.info("    3. Broadcast state changes via WebSocket")
             logger.info("    4. Trigger configured alerts")
 
@@ -312,8 +312,8 @@ class DeviceTestingFramework:
         logger.info("Cleanup: Removing Test Receivers")
         logger.info("-" * 80)
 
-        count = Receiver.objects.count()
-        Receiver.objects.all().delete()
+        count = WirelessChassis.objects.count()
+        WirelessChassis.objects.all().delete()
         logger.info(f"✓ Deleted {count} test receiver(s)")
 
     def print_summary(self, api_devices: int, created_receivers: int):
@@ -327,13 +327,13 @@ class DeviceTestingFramework:
 
         logger.info("\nDjango Models:")
         logger.info(f"  Receivers created: {created_receivers}")
-        logger.info(f"  Total in database: {Receiver.objects.count()}")
-        logger.info(f"  Channels: {Channel.objects.count()}")
-        logger.info(f"  Transmitters: {Transmitter.objects.count()}")
+        logger.info(f"  Total in database: {WirelessChassis.objects.count()}")
+        logger.info(f"  Channels: {RFChannel.objects.count()}")
+        logger.info(f"  Transmitters: {WirelessUnit.objects.count()}")
 
         logger.info("\nNext Steps:")
         logger.info("  1. Run: python manage.py poll_devices")
-        logger.info("     This will poll the API and update Receiver/Channel/Transmitter models")
+        logger.info("     This will poll the API and update WirelessChassis/RFChannel/WirelessUnit models")
         logger.info("  2. Monitor with: python scripts/shure_discovery_monitor.py")
         logger.info("  3. Start Django dev server: python manage.py runserver")
         logger.info("  4. Access admin: http://localhost:8000/admin")

@@ -78,19 +78,25 @@ class Command(BaseCommand):
                 self.stdout.write(f"Polling {manufacturer.name} ({manufacturer.code})...")
 
                 if use_async:
-                    try:
-                        # PollingService handle async internally or via task wrapper
-                        from django_q.tasks import async_task
+                    from micboard.utils.dependencies import HAS_DJANGO_Q
+                    if HAS_DJANGO_Q:
+                        try:
+                            # PollingService handle async internally or via task wrapper
+                            from django_q.tasks import async_task
 
-                        from micboard.tasks.polling_tasks import poll_manufacturer_devices
+                            from micboard.tasks.polling_tasks import poll_manufacturer_devices
 
-                        async_task(poll_manufacturer_devices, manufacturer.id)
-                        self.stdout.write(
-                            self.style.SUCCESS(
-                                f"Enqueued async polling task for {manufacturer.name}"
+                            async_task(poll_manufacturer_devices, manufacturer.id)
+                            self.stdout.write(
+                                self.style.SUCCESS(
+                                    f"Enqueued async polling task for {manufacturer.name}"
+                                )
                             )
-                        )
-                    except ImportError:
+                        except Exception as e:
+                            self.stderr.write(
+                                self.style.ERROR(f"Failed to enqueue async task: {e}")
+                            )
+                    else:
                         self.stderr.write(
                             self.style.ERROR("Django-Q not installed. Cannot run async.")
                         )

@@ -8,18 +8,17 @@ location, and connection health monitoring.
 from __future__ import annotations
 
 # Implementation services
-from .assignment import AssignmentService
 from .connection import ConnectionHealthService
-from .device_service import DeviceService
-from .discovery import DiscoveryService
+from .hardware_deduplication_service import HardwareDeduplicationService, get_hardware_deduplication_service
+from .hardware import HardwareService, NormalizedHardware
+from .hardware_lifecycle import HardwareLifecycleManager, get_lifecycle_manager
+from .hardware_sync_service import HardwareSyncService
 
 # Core exceptions
 from .exceptions import (
-    AssignmentAlreadyExistsError,
-    AssignmentNotFoundError,
     ConnectionError,
-    DeviceNotFoundError,
     DiscoveryError,
+    HardwareNotFoundError,
     LocationAlreadyExistsError,
     LocationNotFoundError,
     ManufacturerPluginError,
@@ -28,23 +27,30 @@ from .exceptions import (
 from .location import LocationService
 from .manufacturer import ManufacturerService
 from .monitoring_service import MonitoringService
+from .performer import PerformerService
+from .performer_assignment import PerformerAssignmentService
 from .polling_service import PollingService, get_polling_service
-from .synchronization_service import SynchronizationService
+from .hardware_sync_service import HardwareSyncService
 from .utils import PaginatedResult, SyncResult, filter_by_search, paginate_queryset
 
 __all__ = [
     # Core Services
-    "AssignmentService",
     "ConnectionHealthService",
-    "DeviceService",
-    "DiscoveryService",
+    "HardwareDeduplicationService",
+    "HardwareService",
+    "HardwareSyncService",
+    "HardwareLifecycleManager",
+    "NormalizedHardware",
     "LocationService",
     "ManufacturerService",
     "MonitoringService",
+    "PerformerService",
+    "PerformerAssignmentService",
     "PollingService",
-    "SynchronizationService",
     # Service Accessors
     "get_polling_service",
+    "get_lifecycle_manager",
+    "get_hardware_deduplication_service",
     # Utilities
     "SyncResult",
     "PaginatedResult",
@@ -52,10 +58,8 @@ __all__ = [
     "filter_by_search",
     # Exceptions
     "MicboardServiceError",
-    "AssignmentAlreadyExistsError",
-    "AssignmentNotFoundError",
     "ConnectionError",
-    "DeviceNotFoundError",
+    "HardwareNotFoundError",
     "DiscoveryError",
     "LocationAlreadyExistsError",
     "LocationNotFoundError",

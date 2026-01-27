@@ -209,6 +209,15 @@ class ChargerSlot(models.Model):
         help_text="Whether this slot is functional",
     )
 
+    performer_assignment = models.ForeignKey(
+        "micboard.PerformerAssignment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="charger_slots",
+        help_text="Performer formally assigned to this slot (optional)",
+    )
+
     class Meta:
         verbose_name = "Charger Slot"
         verbose_name_plural = "Charger Slots"

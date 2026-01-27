@@ -48,9 +48,15 @@ class ShureDataTransformer:
 
             result = {
                 "id": device_id,
-                "ip": api_data.get("ip_address", api_data.get("ipAddress", "")),
+                "ip": api_data.get("ip")
+                or api_data.get("ip_address")
+                or api_data.get("ipAddress")
+                or "",
                 "type": device_type,
-                "name": identity.get("model", ""),
+                "name": api_data.get("name")
+                or api_data.get("device_name")
+                or api_data.get("deviceName")
+                or identity.get("model", ""),
                 "firmware": identity.get("firmware", ""),
                 # Additional device details (populated if present or via enrichment)
                 "serial": api_data.get("serial_number", api_data.get("serialNumber")),

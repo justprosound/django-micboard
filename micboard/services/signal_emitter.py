@@ -32,57 +32,10 @@ class SignalEmitter:
         *,
         async_emit: bool = False,
     ) -> None:
-        """Emit devices_polled signal after successful polling.
+        """Broadcast device polled event (replacing signals)."""
+        from micboard.services.broadcast_service import BroadcastService
 
-        Signal payload:
-        {
-            "manufacturer": Manufacturer instance,
-            "manufacturer_code": str,
-            "data": {
-                "devices_created": int,
-                "devices_updated": int,
-                "units_synced": int,
-                "errors": list[str],
-                ...
-            }
-        }
-
-        Args:
-            manufacturer: Manufacturer that was polled
-            data: Polling result dict
-            async_emit: If True, emit asynchronously
-        """
-        try:
-            from micboard.signals.broadcast_signals import devices_polled
-
-            payload = {
-                "manufacturer": manufacturer,
-                "manufacturer_code": manufacturer.code,
-                "data": data,
-            }
-
-            if async_emit:
-                try:
-                    from asgiref.sync import async_to_sync
-
-                    async_to_sync(SignalEmitter._emit_async)(devices_polled, SignalEmitter, payload)
-                except Exception:
-                    logger.exception("Failed to emit devices_polled signal asynchronously")
-                    # Fall back to synchronous
-                    devices_polled.send(sender=SignalEmitter, **payload)
-            else:
-                devices_polled.send(sender=SignalEmitter, **payload)
-
-            logger.debug(
-                "Emitted devices_polled signal for %s",
-                manufacturer.name,
-            )
-
-        except Exception:
-            logger.exception(
-                "Failed to emit devices_polled signal for %s",
-                manufacturer.name,
-            )
+        BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=data)
 
     @staticmethod
     def emit_api_health_changed(
@@ -91,50 +44,10 @@ class SignalEmitter:
         *,
         previous_status: str | None = None,
     ) -> None:
-        """Emit api_health_changed signal when API health status changes.
+        """Broadcast API health change (replacing signals)."""
+        from micboard.services.broadcast_service import BroadcastService
 
-        Signal payload:
-        {
-            "manufacturer": Manufacturer instance,
-            "manufacturer_code": str,
-            "health_data": {
-                "status": "healthy" | "degraded" | "unhealthy",
-                "timestamp": ISO string,
-                "details": {...}
-            },
-            "previous_status": str or None
-        }
-
-        Args:
-            manufacturer: Manufacturer whose API was checked
-            health_data: Standardized health check result
-            previous_status: Previous health status (for change detection)
-        """
-        try:
-            from micboard.signals.broadcast_signals import api_health_changed
-
-            payload = {
-                "manufacturer": manufacturer,
-                "manufacturer_code": manufacturer.code,
-                "health_data": health_data,
-            }
-
-            if previous_status:
-                payload["previous_status"] = previous_status
-
-            api_health_changed.send(sender=SignalEmitter, **payload)
-
-            logger.debug(
-                "Emitted api_health_changed signal for %s: %s",
-                manufacturer.name,
-                health_data.get("status"),
-            )
-
-        except Exception:
-            logger.exception(
-                "Failed to emit api_health_changed signal for %s",
-                manufacturer.name,
-            )
+        BroadcastService.broadcast_api_health(manufacturer=manufacturer, health_data=health_data)
 
     @staticmethod
     def emit_device_status_changed(
@@ -145,99 +58,29 @@ class SignalEmitter:
         device_name: str | None = None,
         manufacturer: Manufacturer | None = None,
     ) -> None:
-        """Emit device_status_changed signal when device status changes.
+        """Broadcast device status change (replacing signals)."""
+        from micboard.services.broadcast_service import BroadcastService
 
-        Signal payload:
-        {
-            "device_id": int,
-            "device_name": str or None,
-            "old_status": str,
-            "new_status": str,
-            "manufacturer": Manufacturer or None,
-            "manufacturer_code": str or None
-        }
-
-        Args:
-            device_id: Device ID
-            old_status: Previous status
-            new_status: New status
-            device_name: Optional device name
-            manufacturer: Optional manufacturer
-        """
-        try:
-            from micboard.signals.broadcast_signals import device_status_changed
-
-            payload = {
-                "device_id": device_id,
-                "old_status": old_status,
-                "new_status": new_status,
-            }
-
-            if device_name:
-                payload["device_name"] = device_name
-            if manufacturer:
-                payload["manufacturer"] = manufacturer
-                payload["manufacturer_code"] = manufacturer.code
-
-            device_status_changed.send(sender=SignalEmitter, **payload)
-
-            logger.debug(
-                "Emitted device_status_changed signal for device %s: %s → %s",
-                device_id,
-                old_status,
-                new_status,
-            )
-
-        except Exception:
-            logger.exception(
-                "Failed to emit device_status_changed signal for device %s",
-                device_id,
-            )
+        BroadcastService.broadcast_device_status(
+            service_code=manufacturer.code if manufacturer else "unknown",
+            device_id=device_id,
+            device_type="Unknown",  # Model type not easily available here
+            status=new_status,
+            is_active=new_status == "online",
+        )
 
     @staticmethod
     def emit_sync_completed(
         manufacturer: Manufacturer,
         result: dict[str, Any],
     ) -> None:
-        """Emit sync_completed signal after device sync completes.
+        """Broadcast sync completion (replacing signals)."""
+        from micboard.services.broadcast_service import BroadcastService
 
-        Signal payload:
-        {
-            "manufacturer": Manufacturer instance,
-            "manufacturer_code": str,
-            "result": {
-                "devices_created": int,
-                "devices_updated": int,
-                "errors": list[str],
-                ...
-            }
-        }
-
-        Args:
-            manufacturer: Manufacturer that was synced
-            result: Sync result dict
-        """
-        try:
-            from micboard.signals.broadcast_signals import sync_completed
-
-            payload = {
-                "manufacturer": manufacturer,
-                "manufacturer_code": manufacturer.code,
-                "result": result,
-            }
-
-            sync_completed.send(sender=SignalEmitter, **payload)
-
-            logger.debug(
-                "Emitted sync_completed signal for %s",
-                manufacturer.name,
-            )
-
-        except Exception:
-            logger.exception(
-                "Failed to emit sync_completed signal for %s",
-                manufacturer.name,
-            )
+        BroadcastService.broadcast_sync_completion(
+            service_code=manufacturer.code,
+            sync_result=result,
+        )
 
     @staticmethod
     def emit_discovery_approved(
@@ -245,42 +88,14 @@ class SignalEmitter:
         manufacturer_code: str,
         device_count: int,
     ) -> None:
-        """Emit discovery_approved signal when devices are approved from queue.
+        """Broadcast discovery approval (replacing signals)."""
+        from micboard.services.broadcast_service import BroadcastService
 
-        Signal payload:
-        {
-            "queue_item_id": int,
-            "manufacturer_code": str,
-            "device_count": int
-        }
-
-        Args:
-            queue_item_id: DiscoveryQueue item ID
-            manufacturer_code: Manufacturer code
-            device_count: Number of devices approved
-        """
-        try:
-            from micboard.signals.broadcast_signals import discovery_approved
-
-            payload = {
-                "queue_item_id": queue_item_id,
-                "manufacturer_code": manufacturer_code,
-                "device_count": device_count,
-            }
-
-            discovery_approved.send(sender=SignalEmitter, **payload)
-
-            logger.debug(
-                "Emitted discovery_approved signal for queue item %s: %d devices",
-                queue_item_id,
-                device_count,
-            )
-
-        except Exception:
-            logger.exception(
-                "Failed to emit discovery_approved signal for queue item %s",
-                queue_item_id,
-            )
+        BroadcastService.broadcast_discovery_approved(
+            queue_item_id=queue_item_id,
+            manufacturer_code=manufacturer_code,
+            device_count=device_count,
+        )
 
     @staticmethod
     def emit_error(
@@ -290,53 +105,15 @@ class SignalEmitter:
         manufacturer: Manufacturer | None = None,
         device_id: int | None = None,
     ) -> None:
-        """Emit error signal for notable errors.
+        """Broadcast error notification (replacing signals)."""
+        from micboard.services.broadcast_service import BroadcastService
 
-        Signal payload:
-        {
-            "error_type": str,
-            "error_message": str,
-            "manufacturer": Manufacturer or None,
-            "device_id": int or None,
-            "timestamp": ISO string
-        }
-
-        Args:
-            error_type: Type of error (e.g., "api_error", "sync_error")
-            error_message: Error message
-            manufacturer: Optional manufacturer
-            device_id: Optional device ID
-        """
-        try:
-            from django.utils import timezone
-
-            from micboard.signals.broadcast_signals import error_occurred
-
-            payload = {
-                "error_type": error_type,
-                "error_message": error_message,
-                "timestamp": timezone.now().isoformat(),
-            }
-
-            if manufacturer:
-                payload["manufacturer"] = manufacturer
-                payload["manufacturer_code"] = manufacturer.code
-            if device_id:
-                payload["device_id"] = device_id
-
-            error_occurred.send(sender=SignalEmitter, **payload)
-
-            logger.debug(
-                "Emitted error signal: %s - %s",
-                error_type,
-                error_message,
-            )
-
-        except Exception:
-            logger.exception(
-                "Failed to emit error signal for %s",
-                error_type,
-            )
+        BroadcastService.broadcast_error(
+            error_type=error_type,
+            error_message=error_message,
+            manufacturer_code=manufacturer.code if manufacturer else None,
+            device_id=device_id,
+        )
 
     @staticmethod
     async def _emit_async(signal, sender, payload):

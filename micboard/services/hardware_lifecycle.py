@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DeviceStatus(str, Enum):
+class HardwareStatus(str, Enum):
     """Device lifecycle states."""
 
     DISCOVERED = "discovered"  # Found via discovery, not yet configured
@@ -55,7 +55,7 @@ class DeviceStatus(str, Enum):
         return [cls.OFFLINE.value, cls.MAINTENANCE.value, cls.RETIRED.value]
 
 
-class DeviceLifecycleManager:
+class HardwareLifecycleManager:
     """Centralized manager for device lifecycle operations.
 
     Handles:
@@ -69,38 +69,38 @@ class DeviceLifecycleManager:
 
     # Valid state transitions (from_state -> [to_states])
     VALID_TRANSITIONS: Dict[str, List[str]] = {
-        DeviceStatus.DISCOVERED.value: [
-            DeviceStatus.PROVISIONING.value,
-            DeviceStatus.OFFLINE.value,
-            DeviceStatus.RETIRED.value,
+        HardwareStatus.DISCOVERED.value: [
+            HardwareStatus.PROVISIONING.value,
+            HardwareStatus.OFFLINE.value,
+            HardwareStatus.RETIRED.value,
         ],
-        DeviceStatus.PROVISIONING.value: [
-            DeviceStatus.ONLINE.value,
-            DeviceStatus.OFFLINE.value,
-            DeviceStatus.DISCOVERED.value,
+        HardwareStatus.PROVISIONING.value: [
+            HardwareStatus.ONLINE.value,
+            HardwareStatus.OFFLINE.value,
+            HardwareStatus.DISCOVERED.value,
         ],
-        DeviceStatus.ONLINE.value: [
-            DeviceStatus.DEGRADED.value,
-            DeviceStatus.OFFLINE.value,
-            DeviceStatus.MAINTENANCE.value,
+        HardwareStatus.ONLINE.value: [
+            HardwareStatus.DEGRADED.value,
+            HardwareStatus.OFFLINE.value,
+            HardwareStatus.MAINTENANCE.value,
         ],
-        DeviceStatus.DEGRADED.value: [
-            DeviceStatus.ONLINE.value,
-            DeviceStatus.OFFLINE.value,
-            DeviceStatus.MAINTENANCE.value,
+        HardwareStatus.DEGRADED.value: [
+            HardwareStatus.ONLINE.value,
+            HardwareStatus.OFFLINE.value,
+            HardwareStatus.MAINTENANCE.value,
         ],
-        DeviceStatus.OFFLINE.value: [
-            DeviceStatus.ONLINE.value,
-            DeviceStatus.DEGRADED.value,
-            DeviceStatus.MAINTENANCE.value,
-            DeviceStatus.RETIRED.value,
+        HardwareStatus.OFFLINE.value: [
+            HardwareStatus.ONLINE.value,
+            HardwareStatus.DEGRADED.value,
+            HardwareStatus.MAINTENANCE.value,
+            HardwareStatus.RETIRED.value,
         ],
-        DeviceStatus.MAINTENANCE.value: [
-            DeviceStatus.ONLINE.value,
-            DeviceStatus.OFFLINE.value,
-            DeviceStatus.RETIRED.value,
+        HardwareStatus.MAINTENANCE.value: [
+            HardwareStatus.ONLINE.value,
+            HardwareStatus.OFFLINE.value,
+            HardwareStatus.RETIRED.value,
         ],
-        DeviceStatus.RETIRED.value: [],  # Terminal state
+        HardwareStatus.RETIRED.value: [],  # Terminal state
     }
 
     def __init__(
@@ -232,7 +232,7 @@ class DeviceLifecycleManager:
         """Mark device as discovered."""
         return self.transition_device(
             device,
-            DeviceStatus.DISCOVERED.value,
+            HardwareStatus.DISCOVERED.value,
             reason="Device discovered via API",
             metadata=device_data,
         )
@@ -246,7 +246,7 @@ class DeviceLifecycleManager:
         """Mark device as online/operational."""
         return self.transition_device(
             device,
-            DeviceStatus.ONLINE.value,
+            HardwareStatus.ONLINE.value,
             reason="Device responding to polls",
             metadata=health_data,
         )
@@ -257,7 +257,7 @@ class DeviceLifecycleManager:
         """Mark device as degraded (functional but with issues)."""
         return self.transition_device(
             device,
-            DeviceStatus.DEGRADED.value,
+            HardwareStatus.DEGRADED.value,
             reason="Device has warnings or performance issues",
             metadata={"warnings": warnings or []},
         )
@@ -266,7 +266,7 @@ class DeviceLifecycleManager:
         self, device: WirelessChassis | WirelessUnit, *, reason: str = "Not responding"
     ) -> bool:
         """Mark device as offline."""
-        return self.transition_device(device, DeviceStatus.OFFLINE.value, reason=reason)
+        return self.transition_device(device, HardwareStatus.OFFLINE.value, reason=reason)
 
     def mark_maintenance(
         self, device: WirelessChassis | WirelessUnit, *, reason: str = "Administrative action"
@@ -274,7 +274,7 @@ class DeviceLifecycleManager:
         """Mark device as in maintenance mode."""
         return self.transition_device(
             device,
-            DeviceStatus.MAINTENANCE.value,
+            HardwareStatus.MAINTENANCE.value,
             reason=reason,
             sync_to_api=True,  # Push to API to disable alerts
         )
@@ -283,7 +283,7 @@ class DeviceLifecycleManager:
         self, device: WirelessChassis | WirelessUnit, *, reason: str = "Decommissioned"
     ) -> bool:
         """Mark device as retired (terminal state)."""
-        return self.transition_device(device, DeviceStatus.RETIRED.value, reason=reason)
+        return self.transition_device(device, HardwareStatus.RETIRED.value, reason=reason)
 
     @transaction.atomic
     def update_device_from_api(
@@ -414,10 +414,10 @@ class DeviceLifecycleManager:
         Returns:
             Current health status
         """
-        if device.status == DeviceStatus.MAINTENANCE.value:
+        if device.status == HardwareStatus.MAINTENANCE.value:
             return "maintenance"
 
-        if device.status == DeviceStatus.RETIRED.value:
+        if device.status == HardwareStatus.RETIRED.value:
             return "retired"
 
         if not device.last_seen:
@@ -429,14 +429,14 @@ class DeviceLifecycleManager:
 
         if time_since > threshold:
             # Auto-transition to offline
-            if device.status != DeviceStatus.OFFLINE.value:
+            if device.status != HardwareStatus.OFFLINE.value:
                 self.mark_offline(
                     device, reason=f"No response for {time_since.total_seconds():.0f}s"
                 )
             return "offline"
 
         # Device is responsive
-        if device.status == DeviceStatus.OFFLINE.value:
+        if device.status == HardwareStatus.OFFLINE.value:
             # Auto-recover to online
             self.mark_online(device)
 
@@ -479,7 +479,7 @@ class DeviceLifecycleManager:
 
         threshold = timezone.now() - timedelta(minutes=timeout_minutes)
         stale = WirelessChassis.objects.filter(last_seen__lt=threshold).exclude(
-            status__in=[DeviceStatus.MAINTENANCE.value, DeviceStatus.RETIRED.value]
+            status__in=[HardwareStatus.MAINTENANCE.value, HardwareStatus.RETIRED.value]
         )
 
         updated = 0
@@ -558,7 +558,7 @@ class DeviceLifecycleManager:
 
     def handle_missing_device(self, device: WirelessChassis | WirelessUnit) -> bool:
         """Mark device missing during poll as offline."""
-        return self.transition_device(device, DeviceStatus.OFFLINE.value, reason="Missing in poll")
+        return self.transition_device(device, HardwareStatus.OFFLINE.value, reason="Missing in poll")
 
     def get_state_history(self, device: WirelessChassis | WirelessUnit):
         """Placeholder for future state history backend."""
@@ -573,12 +573,12 @@ class DeviceLifecycleManager:
         return to_status in self.VALID_TRANSITIONS.get(from_status, [])
 
     def _map_api_state_to_status(self, api_state: str, current_status: str) -> str:
-        """Map manufacturer API state to DeviceStatus."""
+        """Map manufacturer API state to HardwareStatus."""
         state_mapping = {
-            "ONLINE": DeviceStatus.ONLINE.value,
-            "DISCOVERING": DeviceStatus.PROVISIONING.value,
-            "OFFLINE": DeviceStatus.OFFLINE.value,
-            "UNKNOWN": DeviceStatus.DISCOVERED.value,
+            "ONLINE": HardwareStatus.ONLINE.value,
+            "DISCOVERING": HardwareStatus.PROVISIONING.value,
+            "OFFLINE": HardwareStatus.OFFLINE.value,
+            "UNKNOWN": HardwareStatus.DISCOVERED.value,
         }
         return state_mapping.get(api_state, current_status)
 
@@ -627,6 +627,6 @@ def get_structured_logger():
     return get_structured_logger()
 
 
-def get_lifecycle_manager(service_code: Optional[str] = None) -> DeviceLifecycleManager:
+def get_lifecycle_manager(service_code: Optional[str] = None) -> HardwareLifecycleManager:
     """Get device lifecycle manager instance."""
-    return DeviceLifecycleManager(service_code=service_code)
+    return HardwareLifecycleManager(service_code=service_code)

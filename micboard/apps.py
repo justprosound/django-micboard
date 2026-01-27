@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class MicboardConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "micboard"
-    verbose_name = "Micboard - Shure Wireless Monitoring"
+    verbose_name = "Micboard - Wireless Hardware Monitoring"
 
     # Default configuration
     default_config: ClassVar[dict[str, str | int | float | bool | list[int] | None]] = {
@@ -40,8 +40,16 @@ class MicboardConfig(AppConfig):
         # Validate configuration without mutating project settings
         self._validate_configuration()
 
-        # Import signals to register them
-        from micboard import signals as _signals  # noqa: F401
+        # Register system checks
+        from django.core.checks import Tags, register
+        from micboard.checks import check_micboard_configuration
+        register(check_micboard_configuration, Tags.compatibility)
+
+        # Import health checks to trigger registration if django-health-check is present
+        try:
+            import micboard.checks  # noqa
+        except ImportError:
+            pass
 
         # Advise about recommended middleware (do not modify settings)
         self._register_security_middleware()

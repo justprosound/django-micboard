@@ -13,6 +13,7 @@ User = get_user_model()
 
 class UserAlertPreference(models.Model):
     """Global alert preferences per user.
+
     Device-specific preferences override these defaults.
     """
 
@@ -50,7 +51,7 @@ class UserAlertPreference(models.Model):
     default_alert_audio_low = models.BooleanField(
         default=False, help_text="Default alert setting for audio low"
     )
-    default_alert_device_offline = models.BooleanField(
+    default_alert_hardware_offline = models.BooleanField(
         default=True, help_text="Default alert setting for device offline"
     )
 
@@ -115,8 +116,8 @@ class Alert(models.Model):
         ("battery_critical", "Battery Critical"),
         ("signal_loss", "Signal Loss"),
         ("audio_low", "Audio Low"),
-        ("device_offline", "Device Offline"),
-        ("device_online", "Device Online"),
+        ("hardware_offline", "Device Offline"),
+        ("hardware_online", "Device Online"),
     ]
 
     ALERT_STATUS: ClassVar[list[tuple[str, str]]] = [
@@ -140,7 +141,7 @@ class Alert(models.Model):
         help_text="User who should receive the alert",
     )
     assignment = models.ForeignKey(
-        "micboard.DeviceAssignment",
+        "micboard.PerformerAssignment",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -210,7 +211,7 @@ class Alert(models.Model):
     @property
     def severity(self) -> str:
         """Return severity level based on alert type."""
-        if self.alert_type in ["battery_critical", "device_offline"]:
+        if self.alert_type in ["battery_critical", "hardware_offline"]:
             return "High"
         if self.alert_type in ["signal_loss"]:
             return "Medium"

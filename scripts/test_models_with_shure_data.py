@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Django-Micboard: Model Population Test with Real Shure Device Data.
+"""Django-Micboard: Model Population Test with Real Shure WirelessChassis Data.
 
-Test that Device, Transmitter, Receiver models can be properly populated
+Test that WirelessChassis, WirelessUnit, WirelessChassis models can be properly populated
 with real data from the Shure System API.
 
 Usage:
@@ -23,8 +23,8 @@ Examples:
     python scripts/test_models_with_shure_data.py --clear
 
 This script validates:
-    ✓ Device model creation from API data
-    ✓ Transmitter/Receiver relationship creation
+    ✓ WirelessChassis model creation from API data
+    ✓ WirelessUnit/WirelessChassis relationship creation
     ✓ Property storage (firmware, serial, state)
     ✓ Model querysets and filtering
     ✓ Real-time state tracking
@@ -32,7 +32,7 @@ This script validates:
 
 Once this passes, the polling command will automatically:
     1. Fetch devices from Shure System API
-    2. Create/update Device, Transmitter, Receiver models
+    2. Create/update WirelessChassis, WirelessUnit, WirelessChassis models
     3. Broadcast updates via WebSocket
     4. Store telemetry data
 """
@@ -54,8 +54,8 @@ from django.conf import settings
 from django.db.models import Count
 
 from micboard.integrations.shure.client import ShureSystemAPIClient
-from micboard.models import Device, Location
-from micboard.models.telemetry import DeviceTelemetry
+from micboard.models import WirelessChassis, Location
+from micboard.models.telemetry import WirelessUnitSample
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -111,8 +111,8 @@ class ModelPopulationTester:
 
     def populate_device_from_api_data(
         self, api_device: Dict[str, Any], location: Location
-    ) -> Device:
-        """Create or update a Device model from Shure API data.
+    ) -> WirelessChassis:
+        """Create or update a WirelessChassis model from Shure API data.
 
         API device structure:
         {
@@ -135,7 +135,7 @@ class ModelPopulationTester:
         serial = properties.get("serial_number", "Unknown")
 
         # Create or update device
-        device, created = Device.objects.update_or_create(
+        device, created = WirelessChassis.objects.update_or_create(
             manufacturer="Shure",
             device_id=device_id,
             defaults={
@@ -161,7 +161,7 @@ class ModelPopulationTester:
     def test_basic_population(self, devices: List[Dict[str, Any]]) -> bool:
         """Test basic device population."""
         logger.info("\n" + "=" * 80)
-        logger.info("TEST 1: Basic Device Population")
+        logger.info("TEST 1: Basic WirelessChassis Population")
         logger.info("=" * 80)
 
         if not devices:
@@ -176,7 +176,7 @@ class ModelPopulationTester:
                 self.populate_device_from_api_data(device_data, location)
 
             # Verify devices were created
-            device_count = Device.objects.filter(location=location).count()
+            device_count = WirelessChassis.objects.filter(location=location).count()
             logger.info(f"\n✓ Successfully populated {device_count} devices")
 
             self.test_results["Basic Population"] = True
@@ -192,27 +192,27 @@ class ModelPopulationTester:
     def test_device_queries(self) -> bool:
         """Test device query functionality."""
         logger.info("\n" + "=" * 80)
-        logger.info("TEST 2: Device Queries")
+        logger.info("TEST 2: WirelessChassis Queries")
         logger.info("=" * 80)
 
         try:
             # Total devices
-            total = Device.objects.count()
+            total = WirelessChassis.objects.count()
             logger.info(f"✓ Total devices: {total}")
 
             # Online devices
-            online = Device.objects.filter(is_online=True).count()
+            online = WirelessChassis.objects.filter(is_online=True).count()
             logger.info(f"✓ Online devices: {online}")
 
             # By manufacturer
-            shure = Device.objects.filter(manufacturer="Shure").count()
+            shure = WirelessChassis.objects.filter(manufacturer="Shure").count()
             logger.info(f"✓ Shure devices: {shure}")
 
             # By model
             model_counts = {}
-            for device in Device.objects.values("model").distinct():
+            for device in WirelessChassis.objects.values("model").distinct():
                 model = device["model"]
-                count = Device.objects.filter(model=model).count()
+                count = WirelessChassis.objects.filter(model=model).count()
                 model_counts[model] = count
 
             logger.info("✓ Devices by model:")
@@ -220,11 +220,11 @@ class ModelPopulationTester:
                 logger.info(f"    {model}: {count}")
 
             logger.info("✓ All queries successful")
-            self.test_results["Device Queries"] = True
+            self.test_results["WirelessChassis Queries"] = True
             return True
         except Exception as e:
             logger.error(f"✗ Query test failed: {e}")
-            self.test_results["Device Queries"] = False
+            self.test_results["WirelessChassis Queries"] = False
             return False
 
     def test_state_tracking(self) -> bool:
@@ -235,7 +235,7 @@ class ModelPopulationTester:
 
         try:
             # Get first device
-            device = Device.objects.first()
+            device = WirelessChassis.objects.first()
             if not device:
                 logger.warning("⊘ Skipped (no devices)")
                 return True
@@ -258,7 +258,7 @@ class ModelPopulationTester:
             logger.info(f"  Updated seen: {device.last_seen}")
 
             # Verify in database
-            refreshed = Device.objects.get(id=device.id)
+            refreshed = WirelessChassis.objects.get(id=device.id)
             assert refreshed.state == device.state
             logger.info("✓ State changes persisted correctly")
 
@@ -281,7 +281,7 @@ class ModelPopulationTester:
         logger.info("=" * 80)
 
         try:
-            device = Device.objects.first()
+            device = WirelessChassis.objects.first()
             if not device:
                 logger.warning("⊘ Skipped (no devices)")
                 return True
@@ -289,7 +289,7 @@ class ModelPopulationTester:
             logger.info(f"\nTesting telemetry for: {device.name}")
 
             # Create telemetry entry
-            telemetry = DeviceTelemetry.objects.create(
+            telemetry = WirelessUnitSample.objects.create(
                 device=device,
                 battery_level=85,
                 rf_level=-45,
@@ -303,7 +303,7 @@ class ModelPopulationTester:
             logger.info(f"    Temperature: {telemetry.temperature}°C")
 
             # Query telemetry
-            latest = DeviceTelemetry.objects.filter(device=device).latest("timestamp")
+            latest = WirelessUnitSample.objects.filter(device=device).latest("timestamp")
             assert latest.battery_level == 85
             logger.info("✓ Telemetry retrieval successful")
 
@@ -322,7 +322,7 @@ class ModelPopulationTester:
         logger.info("=" * 80)
 
         try:
-            device = Device.objects.first()
+            device = WirelessChassis.objects.first()
             if not device:
                 logger.warning("⊘ Skipped (no devices)")
                 return True
@@ -334,7 +334,7 @@ class ModelPopulationTester:
                 logger.info(f"  ✓ Location: {device.location.name}")
 
                 # Get all devices in this location
-                devices_in_location = Device.objects.filter(location=device.location).count()
+                devices_in_location = WirelessChassis.objects.filter(location=device.location).count()
                 logger.info(f"  ✓ Devices in location: {devices_in_location}")
 
             # Check transmitters/receivers
@@ -363,11 +363,11 @@ class ModelPopulationTester:
 
         try:
             # Get device count
-            count = Device.objects.count()
+            count = WirelessChassis.objects.count()
             logger.info(f"✓ Total devices in database: {count}")
 
             # Check for null required fields
-            devices_no_name = Device.objects.filter(name__isnull=True).count()
+            devices_no_name = WirelessChassis.objects.filter(name__isnull=True).count()
             if devices_no_name > 0:
                 logger.warning(f"  ⚠ Devices with no name: {devices_no_name}")
             else:
@@ -375,7 +375,7 @@ class ModelPopulationTester:
 
             # Check for duplicate IDs
             duplicates = (
-                Device.objects.values("device_id", "manufacturer")
+                WirelessChassis.objects.values("device_id", "manufacturer")
                 .annotate(count=Count("id"))
                 .filter(count__gt=1)
             )
@@ -409,10 +409,10 @@ class ModelPopulationTester:
         logger.info("-" * 80)
         logger.info(f"Result: {passed}/{total} tests passed")
 
-        # Device statistics
-        device_count = Device.objects.count()
-        online_count = Device.objects.filter(is_online=True).count()
-        offline_count = Device.objects.filter(is_online=False).count()
+        # WirelessChassis statistics
+        device_count = WirelessChassis.objects.count()
+        online_count = WirelessChassis.objects.filter(is_online=True).count()
+        offline_count = WirelessChassis.objects.filter(is_online=False).count()
 
         logger.info("\nDevice Statistics:")
         logger.info(f"  Total: {device_count}")
@@ -434,7 +434,7 @@ class ModelPopulationTester:
         """Run all tests."""
         if clear:
             logger.info("Clearing existing devices...")
-            count = Device.objects.all().delete()
+            count = WirelessChassis.objects.all().delete()
             logger.info("✓ Deleted existing devices")
 
         devices = self.get_devices_from_api()

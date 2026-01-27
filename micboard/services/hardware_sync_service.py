@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from micboard.models import Location
 
 
-class SynchronizationService:
+class HardwareSyncService:
     """Business logic for device synchronization and offline detection."""
 
     @staticmethod
@@ -49,7 +49,7 @@ class SynchronizationService:
             manufacturer_code=manufacturer_code
         )
 
-        # Convert ManufacturerService result format to SynchronizationService format
+        # Convert ManufacturerService result format to HardwareSyncService format
         stats = {
             "total_devices": result["devices_added"] + result["devices_updated"],
             "created": result["devices_added"],

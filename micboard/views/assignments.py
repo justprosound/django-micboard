@@ -1,96 +1,66 @@
-from django.contrib.auth import get_user_model
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.shortcuts import get_object_or_404, redirect, render
+"""Assignment views for performer-device binding."""
+
+from django.contrib.auth.decorators import login_required
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import redirect, render
 from django.views.generic import ListView
 
-from micboard.models import DeviceAssignment, RFChannel
-
-User = get_user_model()
+from micboard.models import PerformerAssignment
 
 
-class AssignmentListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
-    """View for Technicians to manage Performer-Channel assignments."""
+class AssignmentListView(ListView):
+    """List all performer assignments."""
 
-    model = DeviceAssignment
-    template_name = "micboard/assignments.html"
+    model = PerformerAssignment
+    template_name = "micboard/assignments/list.html"
     context_object_name = "assignments"
-    permission_required = "micboard.change_deviceassignment"
+    paginate_by = 50
 
     def get_queryset(self):
-        return (
-            DeviceAssignment.objects.active()
-            .select_related("user__profile", "channel__chassis", "channel__chassis__manufacturer")
-            .order_by("channel__chassis__name", "channel__channel_number")
+        """Filter assignments by user permissions."""
+        # TODO: Implement user-based filtering
+        return PerformerAssignment.objects.all().select_related(
+            "performer", "wireless_unit", "monitoring_group"
         )
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # Provide lists for the create/edit forms
-        context["performers"] = User.objects.filter(profile__user_type="performer").order_by(
-            "username"
-        )
-        context["channels"] = (
-            RFChannel.objects.filter(enabled=True)
-            .select_related("chassis")
-            .order_by("chassis__name", "channel_number")
-        )
-        return context
+
+@login_required
+def create_assignment(request: HttpRequest) -> HttpResponse:
+    """Create a new performer assignment."""
+    if request.method == "GET":
+        return render(request, "micboard/assignments/form.html", {})
+    elif request.method == "POST":
+        # TODO: Implement create logic with form validation
+        return redirect("assignments")
+    return HttpResponse("Method not allowed", status=405)
 
 
-def update_assignment(request, pk):
-    """HTMX handler to update an assignment."""
-    if request.method != "POST":
+@login_required
+def update_assignment(request: HttpRequest, pk: int) -> HttpResponse:
+    """Update an existing assignment."""
+    try:
+        assignment = PerformerAssignment.objects.get(pk=pk)
+    except PerformerAssignment.DoesNotExist:
+        return HttpResponse("Not found", status=404)
+
+    if request.method == "GET":
+        return render(request, "micboard/assignments/form.html", {"assignment": assignment})
+    elif request.method == "POST":
+        # TODO: Implement update logic with form validation
+        return redirect("assignments")
+    return HttpResponse("Method not allowed", status=405)
+
+
+@login_required
+def delete_assignment(request: HttpRequest, pk: int) -> HttpResponse:
+    """Delete an assignment."""
+    try:
+        assignment = PerformerAssignment.objects.get(pk=pk)
+    except PerformerAssignment.DoesNotExist:
+        return HttpResponse("Not found", status=404)
+
+    if request.method == "POST":
+        assignment.delete()
         return redirect("assignments")
 
-    assignment = get_object_or_404(DeviceAssignment, pk=pk)
-
-    # Simple form handling for now - could be upgraded to Django Forms
-    user_id = request.POST.get("user")
-    priority = request.POST.get("priority")
-    notes = request.POST.get("notes")
-
-    if user_id:
-        assignment.user = get_object_or_404(User, pk=user_id)
-    if priority:
-        assignment.priority = priority
-    if notes is not None:
-        assignment.notes = notes
-
-    assignment.save()
-
-    # Return the updated row partial
-    context = {
-        "assignment": assignment,
-        "performers": User.objects.filter(profile__user_type="performer").order_by("username"),
-    }
-    return render(request, "micboard/partials/assignment_row.html", context)
-
-
-def create_assignment(request):
-    """HTMX handler to create a new assignment."""
-    if request.method != "POST":
-        return redirect("assignments")
-
-    user_id = request.POST.get("user")
-    channel_id = request.POST.get("channel")
-    priority = request.POST.get("priority", "normal")
-
-    if user_id and channel_id:
-        user = get_object_or_404(User, pk=user_id)
-        channel = get_object_or_404(RFChannel, pk=channel_id)
-
-        DeviceAssignment.objects.create(
-            user=user, channel=channel, priority=priority, is_active=True
-        )
-
-    return redirect("assignments")
-
-
-def delete_assignment(request, pk):
-    """HTMX handler to delete (deactivate) an assignment."""
-    if request.method == "DELETE":
-        assignment = get_object_or_404(DeviceAssignment, pk=pk)
-        assignment.is_active = False
-        assignment.save()
-        return render(request, "micboard/partials/empty.html")  # Return empty string to remove row
-    return redirect("assignments")
+    return render(request, "micboard/assignments/confirm_delete.html", {"assignment": assignment})

@@ -28,9 +28,9 @@ def sync_receiver_discovery(chassis_id: int):
     try:
         chassis = WirelessChassis.objects.get(pk=chassis_id)
         discovery_service = DiscoveryService()
-        if chassis.ip_address:
+        if chassis.ip:
             discovery_service.add_discovery_candidate(
-                chassis.ip_address, chassis.manufacturer, source="chassis_save"
+                chassis.ip, chassis.manufacturer, source="chassis_save"
             )
     except WirelessChassis.DoesNotExist:
         logger.warning("WirelessChassis with ID %s not found for discovery sync.", chassis_id)
@@ -252,7 +252,7 @@ def _poll_and_create_receivers(
                 _rx, created = WirelessChassis.objects.update_or_create(
                     api_device_id=device_id,
                     manufacturer=manufacturer,
-                    defaults={"ip": ip, "name": name, "is_active": True},
+                    defaults={"ip": ip, "name": name, "is_online": True},
                 )
                 if created:
                     summary["created_receivers"] += 1
@@ -275,10 +275,10 @@ def _submit_missing_ips(
 
     # Check WirelessChassis objects (configured devices)
     for chassis in WirelessChassis.objects.filter(manufacturer=manufacturer):
-        if not chassis.ip_address:
+        if not chassis.ip:
             continue
-        if chassis.ip_address not in discovered_ips:
-            missing_ips.append(chassis.ip_address)
+        if chassis.ip not in discovered_ips:
+            missing_ips.append(chassis.ip)
 
     # Also check DiscoveredDevice objects (devices found but not yet configured)
     from micboard.models import DiscoveredDevice
@@ -353,16 +353,16 @@ def _finalize_job(job: DiscoveryJob, summary: dict[str, Any]) -> None:
 
 
 def _broadcast_results(manufacturer: Manufacturer) -> None:
-    """Broadcast updated device list via signals."""
+    """Broadcast updated device list via BroadcastService."""
     try:
         from micboard.serializers import ReceiverSummarySerializer
-        from micboard.signals.broadcast_signals import devices_polled
+        from micboard.services.broadcast_service import BroadcastService
 
         serialized_data = {
             "receivers": ReceiverSummarySerializer(
                 WirelessChassis.objects.filter(manufacturer=manufacturer), many=True
             ).data
         }
-        devices_polled.send(sender=None, manufacturer=manufacturer, data=serialized_data)
+        BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=serialized_data)
     except Exception:
-        logger.debug("Failed to emit devices_polled signal from discovery_sync")
+        logger.debug("Failed to broadcast results from discovery_sync")

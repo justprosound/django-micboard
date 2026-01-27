@@ -10,97 +10,58 @@ from typing import TYPE_CHECKING
 from asgiref.sync import sync_to_async
 
 from micboard.services import (
-    AssignmentService,
     ConnectionHealthService,
-    DeviceService,
+    HardwareService,
     LocationService,
     ManufacturerService,
 )
 
 if TYPE_CHECKING:
-    from django.contrib.auth.models import User
     from django.db.models import QuerySet
 
-    from micboard.models import DeviceAssignment, Location, WirelessChassis, WirelessUnit
+    from micboard.models import Location, WirelessChassis, WirelessUnit
 
 
-class AsyncDeviceService:
-    """Async wrapper for DeviceService."""
+class AsyncHardwareService:
+    """Async wrapper for HardwareService."""
 
     @staticmethod
     async def get_active_receivers() -> QuerySet:
         """Async: Get all active receivers."""
-        return await sync_to_async(DeviceService.get_active_receivers)()
+        return await sync_to_async(HardwareService.get_active_receivers)()
 
     @staticmethod
     async def get_online_receivers() -> QuerySet:
         """Async: Get all online receivers."""
-        return await sync_to_async(DeviceService.get_online_receivers)()
+        return await sync_to_async(HardwareService.get_online_receivers)()
 
     @staticmethod
     async def get_receiver_by_id(*, receiver_id: int) -> WirelessChassis:
         """Async: Get receiver by ID."""
-        return await sync_to_async(DeviceService.get_receiver_by_id)(receiver_id=receiver_id)
+        return await sync_to_async(HardwareService.get_receiver_by_id)(receiver_id=receiver_id)
 
     @staticmethod
     async def sync_device_status(*, device_obj, online: bool) -> None:
         """Async: Sync device online status."""
-        return await sync_to_async(DeviceService.sync_device_status)(
+        return await sync_to_async(HardwareService.sync_device_status)(
             device_obj=device_obj, online=online
         )
 
     @staticmethod
     async def get_low_battery_receivers(*, threshold: int = 20) -> QuerySet:
         """Async: Get receivers with low battery."""
-        return await sync_to_async(DeviceService.get_low_battery_receivers)(threshold=threshold)
+        return await sync_to_async(HardwareService.get_low_battery_receivers)(threshold=threshold)
 
     @staticmethod
     async def get_active_transmitters() -> QuerySet:
         """Async: Get all active transmitters."""
-        return await sync_to_async(DeviceService.get_active_transmitters)()
+        return await sync_to_async(HardwareService.get_active_transmitters)()
 
     @staticmethod
     async def get_transmitter_by_id(*, transmitter_id: int) -> WirelessUnit:
         """Async: Get transmitter by ID."""
-        return await sync_to_async(DeviceService.get_transmitter_by_id)(
+        return await sync_to_async(HardwareService.get_transmitter_by_id)(
             transmitter_id=transmitter_id
-        )
-
-
-class AsyncAssignmentService:
-    """Async wrapper for AssignmentService."""
-
-    @staticmethod
-    async def create_assignment(
-        *, user: User, channel, alert_enabled: bool = False, notes: str = ""
-    ) -> DeviceAssignment:
-        """Async: Create user-channel assignment."""
-        return await sync_to_async(AssignmentService.create_assignment)(
-            user=user, channel=channel, alert_enabled=alert_enabled, notes=notes
-        )
-
-    @staticmethod
-    async def get_assignments_for_user(*, user_id: int) -> QuerySet:
-        """Async: Get all assignments for user."""
-        return await sync_to_async(AssignmentService.get_assignments_for_user)(user=user_id)
-
-    @staticmethod
-    async def get_assignments_for_device(*, device_id: int) -> QuerySet:
-        """Async: Get all assignments for device."""
-        return await sync_to_async(AssignmentService.get_assignments_for_device)(
-            device_id=device_id
-        )
-
-    @staticmethod
-    async def delete_assignment(*, assignment_obj: DeviceAssignment) -> None:
-        """Async: Delete assignment."""
-        return await sync_to_async(AssignmentService.delete_assignment)(assignment=assignment_obj)
-
-    @staticmethod
-    async def update_alert_status(*, assignment_obj: DeviceAssignment, alert_enabled: bool) -> None:
-        """Async: Update assignment alert status."""
-        return await sync_to_async(AssignmentService.update_alert_status)(
-            assignment=assignment_obj, alert_enabled=alert_enabled
         )
 
 

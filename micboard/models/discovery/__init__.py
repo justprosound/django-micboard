@@ -5,7 +5,6 @@ from .configuration import ManufacturerConfiguration
 from .manufacturer import Manufacturer
 from .queue import (
     DeviceMovementLog,
-    Discovery,
     DiscoveryQueue,
 )
 from .registry import (
@@ -26,5 +25,4 @@ __all__ = [
     "DiscoveredDevice",
     "DiscoveryQueue",
     "DeviceMovementLog",
-    "Discovery",
 ]

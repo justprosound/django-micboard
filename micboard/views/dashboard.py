@@ -7,14 +7,20 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404, render
 
 # Updated imports
-from micboard.models import Alert, Building, Group, Manufacturer, Room, WirelessChassis
+from micboard.models import Alert, Building, Manufacturer, MonitoringGroup, Room, WirelessChassis
+from micboard.filters import HAS_DJANGO_FILTERS, WirelessChassisFilter
 
 User = get_user_model()
 
 
 def get_filtered_receivers(request: HttpRequest, manufacturer_code: Optional[str], **filters):
     """Helper function to get filtered receivers for dashboard views."""
-    qs = WirelessChassis.objects.for_user(request.user).filter(**filters)
+    qs = WirelessChassis.objects.for_user(user=request.user).filter(**filters)
+
+    if HAS_DJANGO_FILTERS:
+        # Use django-filter if available
+        f = WirelessChassisFilter(request.GET, queryset=qs)
+        qs = f.qs
 
     if manufacturer_code:
         # Use the manager method if available or filter directly
@@ -31,15 +37,15 @@ def index(request: HttpRequest):
     buildings = Building.objects.all()
     rooms = Room.objects.all()
     users = User.objects.all()
-    manufacturers = Manufacturer.objects.filter(status__in=["online", "degraded", "provisioning"])
+    manufacturers = Manufacturer.objects.filter(is_active=True)
     alert_types = Alert.ALERT_TYPES
 
     # Filter receivers based on user permissions
-    user_receivers = WirelessChassis.objects.for_user(request.user)
+    user_receivers = WirelessChassis.objects.for_user(user=request.user)
 
     context = {
         "device_count": user_receivers.count(),
-        "group_count": Group.objects.count(),
+        "group_count": MonitoringGroup.objects.count(),
         "buildings": buildings,
         "rooms": rooms,
         "users": users,
@@ -60,7 +66,11 @@ def device_type_view(request: HttpRequest, device_type: str):
 
     # Map device_type to role if necessary, or filter by role
     # Assuming device_type param maps to WirelessChassis.role
-    receivers = get_filtered_receivers(request, manufacturer_code, role=device_type, is_online=True)
+    # Handle 'all' case - show all devices regardless of type
+    if device_type == 'all':
+        receivers = get_filtered_receivers(request, manufacturer_code, is_online=True)
+    else:
+        receivers = get_filtered_receivers(request, manufacturer_code, role=device_type, is_online=True)
 
     context = {
         "device_type": device_type,
@@ -71,6 +81,10 @@ def device_type_view(request: HttpRequest, device_type: str):
 
 def single_building_view(request: HttpRequest, building: str):
     """View to display receivers in a specific building."""
+    # Handle special 'all' case
+    if building == 'all':
+        return all_buildings_view(request)
+    
     manufacturer_code = request.GET.get("manufacturer")
 
     # Get the Building object
@@ -90,14 +104,14 @@ def single_building_view(request: HttpRequest, building: str):
 
 
 def user_view(request: HttpRequest, username: str):
-    """View to display receivers assigned to a specific user."""
+    """View to display receivers assigned to a specific performer."""
     manufacturer_code = request.GET.get("manufacturer")
 
-    # Path: rf_channels -> assignments -> user
+    # Filter by performer (field_units -> performer_assignments -> performer -> name)
     receivers = get_filtered_receivers(
         request,
         manufacturer_code,
-        rf_channels__assignments__user__username=username,
+        field_units__performer_assignments__performer__name=username,
         is_online=True,
     )
 
@@ -110,10 +124,21 @@ def user_view(request: HttpRequest, username: str):
 
 def room_view(request: HttpRequest, building: str, room: str):
     """View to display receivers in a specific room."""
+    # Handle special 'all' cases
+    if building == 'all' and room == 'all':
+        return all_rooms_view(request)
+    elif building == 'all':
+        return all_buildings_view(request)
+    
     manufacturer_code = request.GET.get("manufacturer")
 
     # Get the Building and Room objects
     building_obj = get_object_or_404(Building, name=building)
+    
+    # Handle 'all' rooms in a specific building
+    if room == 'all':
+        return rooms_in_building_view(request, building)
+    
     room_obj = get_object_or_404(Room, building=building_obj, name=room)
 
     receivers = get_filtered_receivers(
@@ -136,9 +161,14 @@ def priority_view(request: HttpRequest, priority: str):
     """View to display receivers with a specific assignment priority."""
     manufacturer_code = request.GET.get("manufacturer")
 
-    receivers = get_filtered_receivers(
-        request, manufacturer_code, rf_channels__assignments__priority=priority, is_online=True
-    )
+    # Handle 'all' case - show all priorities
+    if priority == 'all':
+        receivers = get_filtered_receivers(request, manufacturer_code, is_online=True)
+    else:
+        # Correct path: chassis -> field_units -> performer_assignments -> priority
+        receivers = get_filtered_receivers(
+            request, manufacturer_code, field_units__performer_assignments__priority=priority, is_online=True
+        )
 
     context = {
         "priority": priority,

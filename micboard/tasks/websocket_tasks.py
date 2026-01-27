@@ -8,7 +8,13 @@ import asyncio
 import logging
 from typing import Any
 
-from django_q.tasks import async_task
+from micboard.utils.dependencies import HAS_DJANGO_Q
+
+if HAS_DJANGO_Q:
+    from django_q.tasks import async_task
+else:
+    def async_task(func):
+        return func
 
 from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.manufacturers import get_manufacturer_plugin
@@ -149,12 +155,10 @@ async def _process_websocket_update_async(plugin, device_id: str, data: dict[str
 
 
 async def _broadcast_websocket_update_async(manufacturer, device_data: dict[str, Any]):
-    """Broadcast WebSocket update via WebSocket channels."""
+    """Broadcast WebSocket update via BroadcastService."""
     try:
-        from channels.layers import get_channel_layer
-
         from micboard.serializers import serialize_receiver
-        from micboard.signals.broadcast_signals import devices_polled
+        from micboard.services.broadcast_service import BroadcastService
 
         # Get the updated chassis data
         api_device_id = device_data.get("api_device_id")
@@ -167,20 +171,10 @@ async def _broadcast_websocket_update_async(manufacturer, device_data: dict[str,
                 )
                 serialized_data = {"receivers": [serialize_receiver(chassis, include_extra=True)]}
 
-                # Send via Django Channels
-                channel_layer = get_channel_layer()
-                if channel_layer:
-                    await channel_layer.group_send(
-                        "micboard_updates",
-                        {
-                            "type": "device_update",
-                            "manufacturer": manufacturer.code,
-                            "data": serialized_data,
-                        },
-                    )
-
-                # Also emit the devices_polled signal for compatibility
-                devices_polled.send(sender=None, manufacturer=manufacturer, data=serialized_data)
+                # Broadcast update
+                BroadcastService.broadcast_device_update(
+                    manufacturer=manufacturer, data=serialized_data
+                )
 
                 logger.debug("Broadcasted WebSocket update for device %s", api_device_id)
 

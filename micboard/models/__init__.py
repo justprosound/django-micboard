@@ -26,7 +26,6 @@ from .audit import (
 from .discovery import (
     DeviceMovementLog,
     DiscoveredDevice,
-    Discovery,
     DiscoveryCIDR,
     DiscoveryFQDN,
     DiscoveryJob,
@@ -42,6 +41,8 @@ from .hardware import (
     ChargerManager,
     ChargerQuerySet,
     ChargerSlot,
+    DisplayWall,
+    WallSection,
     WirelessChassis,
     WirelessChassisManager,
     WirelessChassisQuerySet,
@@ -60,10 +61,9 @@ from .locations import (
 # Monitoring domain
 from .monitoring import (
     Alert,
-    Assignment,
-    DeviceAssignment,
-    Group,
     MonitoringGroup,
+    Performer,
+    PerformerAssignment,
     UserAlertPreference,
 )
 
@@ -103,6 +103,8 @@ __all__ = [
     "ChargerManager",
     "ChargerQuerySet",
     "ChargerSlot",
+    "DisplayWall",
+    "WallSection",
     "WirelessChassis",
     "WirelessChassisManager",
     "WirelessChassisQuerySet",
@@ -122,16 +124,14 @@ __all__ = [
     "Room",
     # Monitoring
     "Alert",
-    "Assignment",
-    "DeviceAssignment",
     "UserAlertPreference",
-    "Group",
     "MonitoringGroup",
+    "Performer",
+    "PerformerAssignment",
     # Discovery
     "DeviceMovementLog",
-    "Discovery",
-    "DiscoveryCIDR",
     "DiscoveredDevice",
+    "DiscoveryCIDR",
     "DiscoveryFQDN",
     "DiscoveryJob",
     "DiscoveryQueue",

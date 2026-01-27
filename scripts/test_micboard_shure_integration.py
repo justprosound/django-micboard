@@ -21,7 +21,7 @@ Examples:
 
 This script validates:
     ✓ Shure API client initialization
-    ✓ Device fetching and transformation
+    ✓ WirelessChassis fetching and transformation
     ✓ Serialization of device data
     ✓ WebSocket URL generation from API URL
     ✓ Ready for polling and WebSocket subscriptions
@@ -110,7 +110,7 @@ class MicboardIntegrationTester:
     def test_device_fetching(self) -> tuple[bool, List[Dict[str, Any]]]:
         """Test fetching devices from API."""
         logger.info("\n" + "-" * 80)
-        logger.info("Test 2: Device Fetching")
+        logger.info("Test 2: WirelessChassis Fetching")
         logger.info("-" * 80)
 
         try:
@@ -130,7 +130,7 @@ class MicboardIntegrationTester:
     def test_device_data_structure(self, devices: List[Dict[str, Any]]) -> bool:
         """Test device data structure."""
         logger.info("\n" + "-" * 80)
-        logger.info("Test 3: Device Data Structure")
+        logger.info("Test 3: WirelessChassis Data Structure")
         logger.info("-" * 80)
 
         if not devices:
@@ -141,7 +141,7 @@ class MicboardIntegrationTester:
 
         try:
             for i, device in enumerate(devices[:3]):  # Test first 3
-                logger.info(f"\n  Device {i + 1}:")
+                logger.info(f"\n  WirelessChassis {i + 1}:")
 
                 # Check required fields
                 for field in required_fields:
@@ -163,16 +163,16 @@ class MicboardIntegrationTester:
             if len(devices) > 3:
                 logger.info(f"\n  ... and {len(devices) - 3} more devices")
 
-            logger.info("\n✓ Device data structure valid")
+            logger.info("\n✓ WirelessChassis data structure valid")
             return True
         except Exception as e:
-            logger.error(f"✗ Device data structure check failed: {e}")
+            logger.error(f"✗ WirelessChassis data structure check failed: {e}")
             return False
 
     def test_device_transformation(self, devices: List[Dict[str, Any]]) -> bool:
         """Test device data transformation."""
         logger.info("\n" + "-" * 80)
-        logger.info("Test 4: Device Transformation")
+        logger.info("Test 4: WirelessChassis Transformation")
         logger.info("-" * 80)
 
         if not devices:
@@ -190,10 +190,10 @@ class MicboardIntegrationTester:
             logger.info(f"\n  Transforming device: {device.get('id')}")
             logger.info("  (Would be used in polling for model updates)")
 
-            logger.info("✓ Device transformation ready for polling")
+            logger.info("✓ WirelessChassis transformation ready for polling")
             return True
         except Exception as e:
-            logger.error(f"✗ Device transformation test failed: {e}")
+            logger.error(f"✗ WirelessChassis transformation test failed: {e}")
             return False
 
     def test_websocket_url(self) -> bool:
@@ -221,7 +221,7 @@ class MicboardIntegrationTester:
     def test_serialization(self, devices: List[Dict[str, Any]]) -> bool:
         """Test device serialization."""
         logger.info("\n" + "-" * 80)
-        logger.info("Test 6: Device Serialization")
+        logger.info("Test 6: WirelessChassis Serialization")
         logger.info("-" * 80)
 
         if not devices:
@@ -256,7 +256,7 @@ class MicboardIntegrationTester:
                 "API Client": self.client is not None,
                 "Session": self.client.session is not None,
                 "Base URL": bool(self.client.base_url),
-                "Device endpoint": True,  # We already tested this
+                "WirelessChassis endpoint": True,  # We already tested this
             }
 
             all_ready = all(checks.values())
@@ -313,14 +313,14 @@ class MicboardIntegrationTester:
         # Run tests
         results["Client Initialization"] = self.test_client_initialization()
         success, devices = self.test_device_fetching()
-        results["Device Fetching"] = success
+        results["WirelessChassis Fetching"] = success
         device_count = len(devices)
 
         if sample_size and devices:
             devices = devices[:sample_size]
 
-        results["Device Data Structure"] = self.test_device_data_structure(devices)
-        results["Device Transformation"] = self.test_device_transformation(devices)
+        results["WirelessChassis Data Structure"] = self.test_device_data_structure(devices)
+        results["WirelessChassis Transformation"] = self.test_device_transformation(devices)
         results["WebSocket URL"] = self.test_websocket_url()
         results["Serialization"] = self.test_serialization(devices)
         results["Polling Readiness"] = self.test_polling_readiness()

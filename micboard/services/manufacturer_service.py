@@ -14,7 +14,7 @@ Architecture:
   ├─ Lifecycle management
   └─ Configuration overrides
 
-  DeviceLifecycleManager handles all state transitions
+  HardwareLifecycleManager handles all state transitions
 """
 
 from __future__ import annotations
@@ -25,15 +25,9 @@ from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional, Type
 
 from django.core.exceptions import ImproperlyConfigured
-from django.dispatch import Signal
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
-
-# Minimal signals for UI/WebSocket broadcasting only
-# Business logic moved to DeviceLifecycleManager
-device_status_changed = Signal()  # For WebSocket broadcasts
-sync_completed = Signal()  # For UI notifications
 
 
 class ManufacturerServiceConfig:
@@ -109,7 +103,7 @@ class ManufacturerService(ABC):
         self._poll_count = 0
 
         # Initialize lifecycle manager for this service
-        from micboard.services.device_lifecycle import get_lifecycle_manager
+        from micboard.services.hardware_lifecycle import get_lifecycle_manager
 
         self._lifecycle_manager = get_lifecycle_manager(service_code=self.code)
 
@@ -290,7 +284,7 @@ class ManufacturerService(ABC):
         )
         return True
 
-    # Device lifecycle methods (use DeviceLifecycleManager directly)
+    # Device lifecycle methods (use HardwareLifecycleManager directly)
 
     def update_device_from_api(
         self,
@@ -327,14 +321,14 @@ class ManufacturerService(ABC):
         """
         return self._lifecycle_manager.sync_device_to_api(device, self, fields=fields)
 
-    def mark_device_online(self, device, *, health_data: Optional[Dict[str, Any]] = None) -> bool:
+    def mark_hardware_online(self, device, *, health_data: Optional[Dict[str, Any]] = None) -> bool:
         """Mark device as online."""
         success = self._lifecycle_manager.mark_online(device, health_data=health_data)
         if success:
             self._emit_status_changed(device)
         return success
 
-    def mark_device_offline(self, device, *, reason: str = "Not responding") -> bool:
+    def mark_hardware_offline(self, device, *, reason: str = "Not responding") -> bool:
         """Mark device as offline."""
         success = self._lifecycle_manager.mark_offline(device, reason=reason)
         if success:
@@ -363,29 +357,29 @@ class ManufacturerService(ABC):
     # Minimal signal emission for UI updates
 
     def _emit_status_changed(self, device) -> None:
-        """Emit signal for WebSocket broadcast (minimal signal use)."""
+        """Broadcast status change via service (replacing signals)."""
+        from micboard.services.broadcast_service import BroadcastService
+
         is_online = getattr(device, "is_online", device.status == "online")
-        device_status_changed.send(
-            sender=self.__class__,
+        BroadcastService.broadcast_device_status(
             service_code=self.code,
             device_id=device.pk,
             device_type=device.__class__.__name__,
             status=device.status,
             is_active=is_online,
-            timestamp=timezone.now(),
         )
 
     def emit_sync_complete(self, sync_result: Dict[str, Any]) -> None:
-        """Emit signal when sync/poll is complete (for UI notification)."""
+        """Broadcast sync completion via service (replacing signals)."""
+        from micboard.services.broadcast_service import BroadcastService
+
         logger.info(
             f"Sync complete for {self.code}",
             extra={"service": self.code, "sync_result": sync_result},
         )
-        sync_completed.send(
-            sender=self.__class__,
+        BroadcastService.broadcast_sync_completion(
             service_code=self.code,
             sync_result=sync_result,
-            timestamp=timezone.now(),
         )
 
 

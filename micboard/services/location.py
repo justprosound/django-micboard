@@ -5,14 +5,17 @@ Manages locations and provides location-based device queries.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
+from django.db import models
 from django.db.models import Count, QuerySet
 
 from micboard.models import Location, WirelessChassis
 
 if TYPE_CHECKING:
     pass
+
+_ModelT = TypeVar("_ModelT", bound=models.Model)
 
 
 class LocationService:
@@ -86,7 +89,7 @@ class LocationService:
         organization_id: int | None = None,
         site_id: int | None = None,
         campus_id: int | None = None,
-    ) -> QuerySet:
+    ) -> QuerySet[Location]:
         """Get all locations.
 
         Args:
@@ -99,7 +102,7 @@ class LocationService:
         """
         from django.conf import settings
 
-        qs = Location.objects.all()
+        qs: QuerySet[Location] = Location.objects.all()
 
         # Apply tenant filtering if enabled
         if getattr(settings, "MICBOARD_MSP_ENABLED", False):
@@ -114,7 +117,7 @@ class LocationService:
         return qs.order_by("name")
 
     @staticmethod
-    def get_location_device_counts() -> QuerySet:
+    def get_location_device_counts() -> QuerySet[Location]:
         """Get locations with their device counts.
 
         Returns:
@@ -125,7 +128,7 @@ class LocationService:
         )
 
     @staticmethod
-    def get_devices_in_location(*, location: Location) -> QuerySet:
+    def get_hardware_in_location(*, location: Location) -> QuerySet[WirelessChassis]:
         """Get all active devices in a location.
 
         Args:

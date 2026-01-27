@@ -4,7 +4,7 @@
 Tests:
 1. New device detection
 2. Duplicate device detection (by serial number)
-3. Device movement detection (IP change)
+3. WirelessChassis movement detection (IP change)
 4. IP conflict detection (different device, same IP)
 5. MAC address matching
 """
@@ -22,13 +22,13 @@ if project_root not in sys.path:
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "demo.settings")
 django.setup()
 
-from micboard.models import Manufacturer, Receiver
+from micboard.models import Manufacturer, WirelessChassis
 from micboard.services.deduplication_service import get_deduplication_service
 
 
 def test_new_device():
     """Test detection of new device."""
-    print("\n=== Test 1: New Device Detection ===")
+    print("\n=== Test 1: New WirelessChassis Detection ===")
 
     manufacturer, _ = Manufacturer.objects.get_or_create(
         code="shure",
@@ -68,13 +68,13 @@ def test_duplicate_by_serial():
     )
 
     # Create receiver
-    receiver = Receiver.objects.create(
+    receiver = WirelessChassis.objects.create(
         manufacturer=manufacturer,
         api_device_id="test-device-2",
         serial_number="TEST-002",
         mac_address="00:11:22:33:44:66",
         ip="192.168.1.101",
-        name="Test Receiver 2",
+        name="Test WirelessChassis 2",
     )
 
     dedup_service = get_deduplication_service(manufacturer)
@@ -88,7 +88,7 @@ def test_duplicate_by_serial():
 
     print(f"  Is New: {result.is_new}")
     print(f"  Is Duplicate: {result.is_duplicate}")
-    print(f"  Existing Device: {result.existing_device}")
+    print(f"  Existing WirelessChassis: {result.existing_device}")
     assert result.is_duplicate, "Expected duplicate"
     assert result.existing_device == receiver, "Should match existing receiver"
     print("  ✓ PASSED")
@@ -96,7 +96,7 @@ def test_duplicate_by_serial():
 
 def test_device_movement():
     """Test detection of device IP movement."""
-    print("\n=== Test 3: Device Movement Detection (IP Change) ===")
+    print("\n=== Test 3: WirelessChassis Movement Detection (IP Change) ===")
 
     manufacturer, _ = Manufacturer.objects.get_or_create(
         code="shure",
@@ -107,13 +107,13 @@ def test_device_movement():
     )
 
     # Create receiver with specific IP
-    receiver = Receiver.objects.create(
+    receiver = WirelessChassis.objects.create(
         manufacturer=manufacturer,
         api_device_id="test-device-3",
         serial_number="TEST-003",
         mac_address="00:11:22:33:44:77",
         ip="192.168.1.102",
-        name="Test Receiver 3",
+        name="Test WirelessChassis 3",
     )
 
     dedup_service = get_deduplication_service(manufacturer)
@@ -148,13 +148,13 @@ def test_ip_conflict():
     )
 
     # Create receiver with specific IP
-    existing_receiver = Receiver.objects.create(
+    existing_receiver = WirelessChassis.objects.create(
         manufacturer=manufacturer,
         api_device_id="test-device-4",
         serial_number="TEST-004",
         mac_address="00:11:22:33:44:88",
         ip="192.168.1.103",
-        name="Test Receiver 4",
+        name="Test WirelessChassis 4",
     )
 
     dedup_service = get_deduplication_service(manufacturer)
@@ -169,9 +169,9 @@ def test_ip_conflict():
     print(f"  Is Conflict: {result.is_conflict}")
     print(f"  Conflict Type: {result.conflict_type}")
     print(
-        f"  Existing Device: {result.existing_device.serial_number if result.existing_device else 'N/A'}"
+        f"  Existing WirelessChassis: {result.existing_device.serial_number if result.existing_device else 'N/A'}"
     )
-    print("  New Device Serial: TEST-005")
+    print("  New WirelessChassis Serial: TEST-005")
     assert result.is_conflict, "Expected IP conflict"
     assert result.conflict_type == "ip_conflict", "Should detect IP conflict"
     print("  ✓ PASSED")
@@ -190,13 +190,13 @@ def test_mac_address_matching():
     )
 
     # Create receiver with MAC but no serial
-    receiver = Receiver.objects.create(
+    receiver = WirelessChassis.objects.create(
         manufacturer=manufacturer,
         api_device_id="test-device-6",
         serial_number="",  # No serial
         mac_address="00:11:22:33:44:AA",
         ip="192.168.1.104",
-        name="Test Receiver 6",
+        name="Test WirelessChassis 6",
     )
 
     dedup_service = get_deduplication_service(manufacturer)
@@ -210,7 +210,7 @@ def test_mac_address_matching():
 
     print(f"  Is Duplicate: {result.is_duplicate}")
     print("  Matched By: MAC Address")
-    print(f"  Existing Device: {result.existing_device}")
+    print(f"  Existing WirelessChassis: {result.existing_device}")
     assert result.is_duplicate, "Expected duplicate match by MAC"
     assert result.existing_device == receiver, "Should match by MAC address"
     print("  ✓ PASSED")
@@ -219,13 +219,13 @@ def test_mac_address_matching():
 def cleanup_test_data():
     """Remove test receivers."""
     print("\n=== Cleaning Up Test Data ===")
-    deleted_count, _ = Receiver.objects.filter(serial_number__startswith="TEST-").delete()
+    deleted_count, _ = WirelessChassis.objects.filter(serial_number__startswith="TEST-").delete()
     print(f"  Deleted {deleted_count} test receiver(s)")
 
 
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print("Device Deduplication Service Test Suite")
+    print("WirelessChassis Deduplication Service Test Suite")
     print("=" * 60)
 
     try:

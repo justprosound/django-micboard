@@ -5,7 +5,7 @@ This package organizes admin classes by functional area:
 - channels: RFChannel, WirelessUnit administration
 - discovery: DiscoveryCIDR, DiscoveryFQDN, DiscoveryJob administration
 - discovery_admin: DiscoveryQueue, DeviceMovementLog administration
-- assignments: DeviceAssignment, Alert, UserAlertPreference administration
+- assignments: Performer, PerformerAssignment, Alert, UserAlertPreference administration
 - monitoring: Location, MonitoringGroup, Group, Config, DiscoveredDevice administration
 """
 
@@ -15,7 +15,10 @@ from .assignments import (
     AlertAdmin as AlertAdmin,
 )
 from .assignments import (
-    DeviceAssignmentAdmin as DeviceAssignmentAdmin,
+    PerformerAdmin as PerformerAdmin,
+)
+from .assignments import (
+    PerformerAssignmentAdmin as PerformerAssignmentAdmin,
 )
 from .assignments import (
     UserAlertPreferenceAdmin as UserAlertPreferenceAdmin,
@@ -56,9 +59,6 @@ from .monitoring import (
     DiscoveredDeviceAdmin as DiscoveredDeviceAdmin,
 )
 from .monitoring import (
-    GroupAdmin as GroupAdmin,
-)
-from .monitoring import (
     LocationAdmin as LocationAdmin,
 )
 from .monitoring import (
@@ -75,19 +75,19 @@ __all__ = [
     "ChargerAdmin",
     "ChargerSlotAdmin",
     "ConfigurationAuditLogAdmin",
-    "DeviceAssignmentAdmin",
     "DeviceMovementLogAdmin",
     "DiscoveryCIDRAdmin",
     "DiscoveryFQDNAdmin",
     "DiscoveryJobAdmin",
     "DiscoveryQueueAdmin",
     "DiscoveredDeviceAdmin",
-    "GroupAdmin",
     "LocationAdmin",
     "ManufacturerAdmin",
     "ManufacturerConfigurationAdmin",
     "MicboardConfigAdmin",
     "MonitoringGroupAdmin",
+    "PerformerAdmin",
+    "PerformerAssignmentAdmin",
     "RFChannelAdmin",
     "WirelessUnitAdmin",
     "WirelessChassisAdmin",

@@ -2,7 +2,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 from django.views.generic import ListView
 
-from micboard.models import Charger, DeviceAssignment, UserProfile
+from micboard.models import Charger, PerformerAssignment, UserProfile
 
 
 class ChargerDashboardView(LoginRequiredMixin, ListView):
@@ -19,25 +19,22 @@ class ChargerDashboardView(LoginRequiredMixin, ListView):
         context["display_width_px"] = profile.display_width_px
 
         # Build mapping of serial -> performer info for docked units
-        # This is a bit complex since slots are decoupled.
-        # We find active assignments for any channel that has an active unit with matching serial.
+        # Get all active assignments with performer info
         serial_to_performer = {}
 
-        # Get all active assignments with performer info
-        assignments = DeviceAssignment.objects.filter(is_active=True).select_related(
-            "user__profile", "channel__active_wireless_unit"
+        assignments = PerformerAssignment.objects.filter(is_active=True).select_related(
+            "performer", "wireless_unit"
         )
 
         for assignment in assignments:
-            unit = assignment.channel.active_wireless_unit
+            unit = assignment.wireless_unit
             if unit and unit.serial_number:
                 serial_to_performer[unit.serial_number] = {
-                    "name": assignment.user.get_full_name() or assignment.user.username,
-                    "title": assignment.user.profile.title,
-                    "photo_url": assignment.user.profile.photo.url
-                    if assignment.user.profile.photo
+                    "name": assignment.performer.name,
+                    "title": assignment.performer.title or "",
+                    "photo_url": assignment.performer.photo.url
+                    if assignment.performer.photo
                     else None,
-                    "role": assignment.user.profile.get_user_type_display(),
                 }
 
         context["serial_to_performer"] = serial_to_performer

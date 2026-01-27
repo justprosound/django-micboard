@@ -109,7 +109,7 @@ class HealthChecker:
 
     def check_devices(self) -> Dict[str, Any]:
         """Check device discovery status."""
-        logger.info("\n2. Device Discovery Check")
+        logger.info("\n2. WirelessChassis Discovery Check")
         logger.info("-" * 70)
 
         if not self.client:
@@ -138,7 +138,7 @@ class HealthChecker:
 
             return {"device_count": len(devices), "devices": devices}
         except Exception as e:
-            logger.error(f"✗ Device check failed: {e}")
+            logger.error(f"✗ WirelessChassis check failed: {e}")
             return {}
 
     def check_discovery_ips(self) -> Dict[str, Any]:
@@ -183,7 +183,7 @@ class HealthChecker:
             return {}
 
         endpoints = {
-            "/api/v1/devices": "Device listing",
+            "/api/v1/devices": "WirelessChassis listing",
             "/api/v1/config/discovery/ips": "IP discovery configuration",
         }
 
