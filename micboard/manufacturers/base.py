@@ -47,6 +47,7 @@ class BasePlugin(ABC):
     """
 
     def __init__(self, manufacturer: Any | None = None) -> None:
+        """Initialize plugin base with an optional manufacturer instance."""
         self.manufacturer = manufacturer
 
     @property

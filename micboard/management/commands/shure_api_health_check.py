@@ -12,6 +12,7 @@ class HealthChecker:
     """Perform health checks on Shure System API."""
 
     def __init__(self):
+        """Initialize health checker and configure Shure System API client."""
         config = getattr(settings, "MICBOARD_CONFIG", {})
         base_url = config.get("SHURE_API_BASE_URL", "https://localhost:10000")
         shared_key = config.get("SHURE_API_SHARED_KEY")

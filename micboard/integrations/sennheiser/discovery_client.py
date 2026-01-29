@@ -15,6 +15,7 @@ class SennheiserDiscoveryClient:
     """Client for managing Sennheiser SSCv2 API discovery IPs."""
 
     def __init__(self, api_client: BaseAPIClient):
+        """Initialize discovery sub-client with the parent API client."""
         self.api_client = api_client
 
     @rate_limit(calls_per_second=1.0)

@@ -15,6 +15,7 @@ class ShureDiscoveryClient:
     """Client for managing Shure System API discovery IPs."""
 
     def __init__(self, api_client: BaseAPIClient):
+        """Initialize discovery client with parent API client."""
         self.api_client = api_client
 
     @rate_limit(calls_per_second=1.0)  # Discovery operations are less frequent

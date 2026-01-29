@@ -13,6 +13,7 @@ class ShureAPITester:
     """Test suite for Shure System API integration."""
 
     def __init__(self, shared_key=None, verify_ssl=True):
+        """Initialize Shure API tester with shared key and SSL verification flag."""
         self.shared_key = shared_key or getattr(settings, "MICBOARD_CONFIG", {}).get(
             "SHURE_API_SHARED_KEY"
         )

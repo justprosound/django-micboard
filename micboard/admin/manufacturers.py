@@ -27,6 +27,7 @@ class ManufacturerAdminForm(forms.ModelForm):
         fields = "__all__"
 
     def __init__(self, *args, **kwargs):
+        """Initialize the manufacturer admin form and populate plugin choices."""
         super().__init__(*args, **kwargs)
         # Dynamically populate manufacturer code choices from available plugins
         plugin_codes = []
@@ -97,6 +98,7 @@ class ManufacturerAdmin(MicboardModelAdmin):
 
         class AdminWithSettingsForm(form):
             def __init__(self, *args, **kw):
+                """Wrap the admin form and inject manufacturer settings fields when editing."""
                 super().__init__(*args, **kw)
                 if obj:
                     settings_form = ManufacturerSettingsForm(initial={"manufacturer": obj.pk})

@@ -16,6 +16,7 @@ class DiscoveryMonitor:
     """Real-time device discovery monitor for Shure System API."""
 
     def __init__(self, check_interval: int = 5, summary_interval: int = 60):
+        """Initialize monitor with check and summary intervals and prepare client."""
         self.check_interval = check_interval
         self.summary_interval = summary_interval
         self.last_summary = time.time()

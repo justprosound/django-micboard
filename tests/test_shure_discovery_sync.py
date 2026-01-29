@@ -9,6 +9,7 @@ from micboard.tasks.discovery_tasks import _submit_missing_ips
 
 class FakeShureDiscoveryService:
     def __init__(self):
+        """Fake discovery service used in tests to capture added IPs."""
         self.added: list[tuple[str, str, str]] = []
 
     def add_discovery_candidate(

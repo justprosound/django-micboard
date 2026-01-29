@@ -102,6 +102,7 @@ class UserActivityMiddleware:
     """Updates UserProfile.last_active_at for authenticated users."""
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """Create middleware with a Django-style get_response callable for user activity updates."""
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
@@ -144,6 +145,7 @@ class SecurityHeadersMiddleware:
     """
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """Create middleware that applies security headers to responses."""
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
@@ -188,6 +190,7 @@ class SecurityLoggingMiddleware:
     """
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        """Create security logging middleware with the provided get_response callable."""
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
