@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from django.db import transaction
 from django.utils import timezone
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from micboard.models import WirelessChassis, WirelessUnit
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from django.core.cache import cache
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from micboard.models import Manufacturer, Organization, Site
 
 logger = logging.getLogger(__name__)

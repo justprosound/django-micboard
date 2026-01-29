@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from micboard.models import ActivityLog, APIHealthLog, ServiceSyncLog
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from django.contrib.auth.models import User
 
 logger = logging.getLogger(__name__)

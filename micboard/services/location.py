@@ -12,7 +12,7 @@ from django.db.models import Count, QuerySet
 
 from micboard.models import Location, WirelessChassis
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     pass
 
 _ModelT = TypeVar("_ModelT", bound=models.Model)

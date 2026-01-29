@@ -14,7 +14,7 @@ from django.core.mail import EmailMessage, get_connection
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from micboard.models import Alert
 
 logger = logging.getLogger(__name__)

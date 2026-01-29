@@ -1,11 +1,12 @@
 """Tests for settings management system."""
 
+from django.contrib.sites.models import Site
 from django.db import IntegrityError
 from django.test import TestCase
 
 from micboard.models.discovery import Manufacturer
-from micboard.models.multitenancy import Organization, Site
 from micboard.models.settings import Setting, SettingDefinition
+from micboard.multitenancy.models import Organization
 from micboard.services.manufacturer_config_registry import ManufacturerConfigRegistry
 from micboard.services.settings_registry import SettingsRegistry
 

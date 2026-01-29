@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 
 from django.db.models import QuerySet
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     pass
 
 logger = logging.getLogger(__name__)

@@ -19,7 +19,7 @@ from django.utils import timezone
 from micboard.models import Alert, PerformerAssignment, WirelessUnit
 from micboard.services.email import send_alert_email
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from micboard.models import PerformerAssignment as PerformerAssignmentType
 
 User = get_user_model()
