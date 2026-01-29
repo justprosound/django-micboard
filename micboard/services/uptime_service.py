@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from micboard.models import WirelessChassis
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     pass
 
 logger = logging.getLogger(__name__)

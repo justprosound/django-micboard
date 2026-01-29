@@ -15,7 +15,7 @@ from django.db.models import QuerySet
 
 from micboard.models import WirelessChassis, WirelessUnit
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     pass
 
 logger = logging.getLogger(__name__)

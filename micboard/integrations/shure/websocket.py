@@ -32,12 +32,14 @@ from typing import TYPE_CHECKING, Callable
 
 try:
     import websockets
+    from websockets import exceptions as websockets_exceptions
 
     HAS_WEBSOCKETS = True
-    WebsocketClosedOKError = websockets.exceptions.ConnectionClosedOK
-    WebsocketConnectionClosedError = websockets.exceptions.ConnectionClosedError
+    WebsocketClosedOKError = websockets_exceptions.ConnectionClosedOK
+    WebsocketConnectionClosedError = websockets_exceptions.ConnectionClosedError
 except ImportError:  # pragma: no cover - optional dependency
     websockets = None
+    websockets_exceptions = None
     HAS_WEBSOCKETS = False
 
     class WebsocketClosedOKError(Exception):

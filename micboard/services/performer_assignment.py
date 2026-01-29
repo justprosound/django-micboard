@@ -12,7 +12,7 @@ from django.db.models import QuerySet
 
 from micboard.models import PerformerAssignment
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from django.contrib.auth.models import User
 
 logger = logging.getLogger(__name__)

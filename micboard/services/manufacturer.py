@@ -13,7 +13,7 @@ from django.utils import timezone
 from micboard.models import ManufacturerConfiguration
 from micboard.services.plugin_registry import PluginRegistry
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from micboard.manufacturers.base import ManufacturerPlugin
 
 

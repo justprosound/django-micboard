@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from micboard.services.base_polling_mixin import PollingMixin
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from micboard.models import Manufacturer
 
 logger = logging.getLogger(__name__)

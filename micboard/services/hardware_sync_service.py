@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from micboard.services.manufacturer import ManufacturerService
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from micboard.models import Location
 
 

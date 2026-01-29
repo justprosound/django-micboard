@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from micboard.services.settings_registry import SettingsRegistry
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from micboard.models import Manufacturer
 
 logger = logging.getLogger(__name__)

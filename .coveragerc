@@ -10,4 +10,17 @@ show_missing = True
 skip_covered = True
 exclude_lines =
     pragma: no cover
+    def __repr__
+    def __str__
     if __name__ == .__main__.:
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if False:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+    if TYPE_CHECKING:
+    except ImportError
+    except ModuleNotFoundError
