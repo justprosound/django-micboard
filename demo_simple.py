@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Simple demonstration showing the key concepts of manufacturer-agnostic architecture.
+
 This doesn't require live API connections - just shows the code structure.
 """
 

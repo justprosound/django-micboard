@@ -27,7 +27,7 @@ client = plugin.get_client()
 # Get devices
 devices = client.get_devices()
 
-for _i, dev in enumerate(devices[:3]):
+for _i, _dev in enumerate(devices[:3]):
     pass
 
 # Check which devices have serial numbers

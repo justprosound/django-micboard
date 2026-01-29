@@ -110,5 +110,5 @@ charger_count = Charger.objects.filter(manufacturer=manufacturer).count()
 for _chassis in WirelessChassis.objects.filter(manufacturer=manufacturer)[:5]:
     pass
 
-for charger in Charger.objects.filter(manufacturer=manufacturer)[:5]:
+for _charger in Charger.objects.filter(manufacturer=manufacturer)[:5]:
     pass

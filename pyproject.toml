@@ -283,8 +283,21 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "micboard/apps.py" = ["T20"]
+"micboard/cli_tools.py" = ["T201"]  # CLI tools legitimately use print()
+"micboard/query_optimization.py" = ["T201"]  # Debug utilities legitimately use print()
 "*/migrations/*.py" = ["ALL"]
 "example_project/*.py" = ["S105", "S106"]
+# Standalone Django scripts that require django.setup() before imports
+"approve_discovery.py" = ["E402"]
+"check_charger_fields.py" = ["E402"]
+"check_chassis_fields.py" = ["E402"]
+"check_devices.py" = ["E402"]
+"demo_architecture.py" = ["E402"]
+"demo_simple.py" = ["E402"]
+"run_discovery.py" = ["E402"]
+"run_discovery_api_only.py" = ["E402"]
+"run_discovery_verbose.py" = ["E402"]
+"setup_discovery.py" = ["E402"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
