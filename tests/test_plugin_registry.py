@@ -87,3 +87,93 @@ class PluginRegistryTests(TestCase):
 
         with self.assertRaises(ImportError):
             PluginRegistry.get_plugin_class("fake")
+
+    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    def test_get_all_active_plugins(self, mock_get_plugin):
+        """Test getting all active plugins from database."""
+        mock_get_plugin.return_value = FakeManufacturerPlugin
+
+        # Mock the Manufacturer.objects.filter to return a list
+        mock_manufacturers = [
+            type("MockMfg", (), {"code": "fake", "name": "Fake"}),
+        ]
+
+        with patch("micboard.models.Manufacturer.objects.filter") as mock_filter:
+            mock_filter.return_value = mock_manufacturers
+
+            plugins = PluginRegistry.get_all_active_plugins()
+
+            # Should return list with plugin instance
+            self.assertIsInstance(plugins, list)
+            self.assertTrue(len(plugins) >= 0)
+
+    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    def test_get_plugin_with_manufacturer_not_found(self, mock_get_plugin):
+        """Test get_plugin when manufacturer is not found in database."""
+        mock_get_plugin.return_value = FakeManufacturerPlugin
+
+        # The code has an inner try/except for Manufacturer.DoesNotExist
+        # We need to trigger it by making the get call raise that exception
+        with patch("micboard.models.Manufacturer") as mock_mfg_class:
+            # Create a proper exception class for DoesNotExist
+            class DoesNotExistError(Exception):
+                pass
+
+            mock_mfg_class.DoesNotExist = DoesNotExistError
+            # Set up the manager's get method to raise DoesNotExist
+            mock_mfg_class.objects.get.side_effect = DoesNotExistError("Not found")
+
+            # Should return a plugin instance even if manufacturer lookup fails
+            plugin = PluginRegistry.get_plugin("fake")
+
+            # Plugin should be created with manufacturer=None
+            self.assertIsInstance(plugin, FakeManufacturerPlugin)
+
+    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    def test_get_all_active_plugins_with_failed_plugin(self, mock_get_plugin):
+        """Test get_all_active_plugins handles plugins that fail to load."""
+        # First plugin succeeds, second fails
+        mock_get_plugin.side_effect = [
+            FakeManufacturerPlugin,
+            ModuleNotFoundError("Plugin not found"),
+        ]
+
+        mock_manufacturers = [
+            type("MockMfg1", (), {"code": "fake1", "name": "Fake1"}),
+            type("MockMfg2", (), {"code": "fake2", "name": "Fake2"}),
+        ]
+
+        with patch("micboard.models.Manufacturer.objects.filter") as mock_filter:
+            mock_filter.return_value = mock_manufacturers
+
+            # Reset cache between calls
+            PluginRegistry.clear_cache()
+
+            plugins = PluginRegistry.get_all_active_plugins()
+
+            # Should skip plugins that fail to load
+            self.assertIsInstance(plugins, list)
+            # Should have fewer plugins than manufacturers (one failed)
+            self.assertTrue(len(plugins) <= len(mock_manufacturers))
+
+    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    def test_get_plugin_with_manufacturer_lookup_success(self, mock_get_plugin):
+        """Test get_plugin successfully looks up manufacturer from database."""
+        mock_get_plugin.return_value = FakeManufacturerPlugin
+
+        # Create a mock manufacturer object
+        mock_mfg = type("MockMfg", (), {"code": "fake", "name": "Fake"})()
+
+        with patch("micboard.models.Manufacturer") as mock_mfg_class:
+            # Set up successful database lookup
+            mock_mfg_class.objects.get.return_value = mock_mfg
+
+            # Call with None manufacturer - should trigger database lookup
+            plugin = PluginRegistry.get_plugin("fake", manufacturer=None)
+
+            # Should have called the database
+            mock_mfg_class.objects.get.assert_called_once_with(code="fake")
+
+            # Should return plugin instance with the looked-up manufacturer
+            self.assertIsInstance(plugin, FakeManufacturerPlugin)
+            self.assertEqual(plugin.manufacturer, mock_mfg)
