@@ -100,19 +100,19 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container" role="main">
         <div class="header">
-            <h1>Micboard Alert</h1>
+            <h1 style="font-size: 1.5em;">Micboard Alert</h1>
             <div class="timestamp">Generated at {{ timestamp|date:"M j, Y g:i A" }}</div>
         </div>
 
-        <div class="alert-badge alert-{{ alert.status|default:'normal' }}">
+        <div class="alert-badge alert-{{ alert.status|default:'normal' }}" aria-label="Alert type: {{ alert.get_alert_type_display }}">
             {{ alert.get_alert_type_display }}
         </div>
 
         <h2 class="alert-title">{{ alert.message }}</h2>
 
-        <div class="alert-details">
+        <div class="alert-details" aria-label="Alert details">
             <div class="detail-row">
                 <span class="detail-label">Device:</span>
                 <span class="detail-value">{{ alert.channel.receiver.name }} ({{ alert.channel.receiver.ip }})</span>
@@ -141,7 +141,7 @@
             </div>
         </div>
 
-        <div class="actions">
+        <div class="actions" role="group" aria-label="Alert actions">
             <a href="{{ site_url }}" class="btn btn-primary">View Dashboard</a>
             <a href="{{ site_url }}/admin/micboard/alert/{{ alert.id }}/change/" class="btn btn-secondary">Manage Alert</a>
         </div>

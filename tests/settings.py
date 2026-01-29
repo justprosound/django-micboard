@@ -29,7 +29,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "micboard.urls"
+ROOT_URLCONF = "tests.urls"
 
 TEMPLATES = [
     {
@@ -43,16 +43,25 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
             ],
+            "string_if_invalid": "TEMPLATE ERROR: {0}",
         },
     },
 ]
 
+# Use in-memory SQLite database for faster test execution
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": ":memory:",
     }
 }
 
+# Static files configuration for testing
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "tests" / "staticfiles"
+
+# Media files configuration for testing
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "tests" / "media"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

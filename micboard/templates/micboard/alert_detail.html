@@ -1,23 +1,24 @@
 
+
 {% extends 'micboard/base.html' %}
 {% load static %}
 
 {% block title %}Alert Details - micboard{% endblock %}
 
 {% block content %}
-<div class="container my-5">
+<div class="container my-5" role="main">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'micboard:index' %}">Home</a></li>
             <li class="breadcrumb-item"><a href="{% url 'micboard:alerts' %}">Alerts</a></li>
-            <li class="breadcrumb-item active">Alert #{{ alert.id }}</li>
+            <li class="breadcrumb-item active" aria-current="page">Alert #{{ alert.id }}</li>
         </ol>
     </nav>
     <div class="row">
         <div class="col-md-8">
             <div class="card mb-4">
                 <div class="card-header">
-                    <h3 class="card-title mb-0">
+                    <h1 class="card-title h4 mb-0">
                         {{ alert.get_alert_type_display }} Alert
                         {% if alert.status == "pending" %}
                             <span class="badge bg-warning ms-2">Pending</span>
@@ -28,14 +29,14 @@
                         {% elif alert.status == "failed" %}
                             <span class="badge bg-danger ms-2">Failed</span>
                         {% endif %}
-                    </h3>
+                    </h1>
                 </div>
                 <div class="card-body">
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <strong>Channel:</strong><br>
                             {{ alert.channel }}
-                            {% if alert.assignment %}<br><small class="text-muted">{{ alert.assignment.location }}</small>{% endif %}
+                            {% if alert.assignment %}<br><span class="text-muted">{{ alert.assignment.location }}</span>{% endif %}
                         </div>
                         <div class="col-md-6">
                             <strong>User:</strong><br>
@@ -46,13 +47,13 @@
                         <div class="col-md-6">
                             <strong>Created:</strong><br>
                             {{ alert.created_at|date:"M d, Y H:i:s" }}<br>
-                            <small class="text-muted">{{ alert.created_at|timesince }} ago</small>
+                            <span class="text-muted">{{ alert.created_at|timesince }} ago</span>
                         </div>
                         <div class="col-md-6">
                             {% if alert.sent_at %}
                             <strong>Sent:</strong><br>
                             {{ alert.sent_at|date:"M d, Y H:i:s" }}<br>
-                            <small class="text-muted">{{ alert.sent_at|timesince }} ago</small>
+                            <span class="text-muted">{{ alert.sent_at|timesince }} ago</span>
                             {% else %}
                             <strong>Status:</strong><br>
                             <span class="text-muted">Not yet sent</span>
@@ -64,28 +65,28 @@
                         <div class="col-md-6">
                             <strong>Acknowledged:</strong><br>
                             {{ alert.acknowledged_at|date:"M d, Y H:i:s" }}<br>
-                            <small class="text-muted">{{ alert.acknowledged_at|timesince }} ago</small>
+                            <span class="text-muted">{{ alert.acknowledged_at|timesince }} ago</span>
                         </div>
                         {% if alert.resolved_at %}
                         <div class="col-md-6">
                             <strong>Resolved:</strong><br>
                             {{ alert.resolved_at|date:"M d, Y H:i:s" }}<br>
-                            <small class="text-muted">{{ alert.resolved_at|timesince }} ago</small>
+                            <span class="text-muted">{{ alert.resolved_at|timesince }} ago</span>
                         </div>
                         {% endif %}
                     </div>
                     {% endif %}
                     <div class="mb-3">
                         <strong>Message:</strong>
-                        <div class="alert alert-light mt-2">{{ alert.message }}</div>
+                        <div class="alert alert-light mt-2" role="region" aria-label="Alert message">{{ alert.message }}</div>
                     </div>
                     {% if alert.channel_data %}
                     <div class="mb-3">
                         <strong>Channel Data at Alert Time:</strong>
-                        <pre class="bg-light p-3 rounded mt-2"><code>{{ alert.channel_data|safe }}</code></pre>
+                        <pre class="bg-light p-3 rounded mt-2" aria-label="Channel data"><code>{{ alert.channel_data|safe }}</code></pre>
                     </div>
                     {% endif %}
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2" role="group" aria-label="Alert actions">
                         <a href="{% url 'micboard:alerts' %}" class="btn btn-secondary">&larr; Back to Alerts</a>
                         {% if alert.status == "pending" %}
                         <form method="post" action="{% url 'micboard:acknowledge_alert' alert.id %}" style="display: inline;">
@@ -105,24 +106,24 @@
         </div>
         <div class="col-md-4">
             <div class="card mb-4">
-                <div class="card-header"><h5 class="card-title mb-0">Timeline</h5></div>
+                <div class="card-header"><h2 class="card-title h5 mb-0">Timeline</h2></div>
                 <div class="card-body">
                     <div class="timeline" style="position: relative; padding-left: 30px;">
                         <div class="timeline-item" style="position: relative; margin-bottom: 20px;">
                             <div class="timeline-marker bg-primary" style="position: absolute; left: -22px; top: 5px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px #e9ecef;"></div>
                             <div class="timeline-content" style="background: #f8f9fa; padding: 10px 15px; border-radius: 4px; border-left: 3px solid #007bff;">
-                                <h6 class="timeline-title" style="margin: 0 0 5px 0; font-size: 0.9rem; font-weight: bold;">Alert Created</h6>
+                                <h3 class="timeline-title h6" style="margin: 0 0 5px 0; font-size: 0.9rem; font-weight: bold;">Alert Created</h3>
                                 <p class="timeline-text" style="margin: 0; font-size: 0.85rem; color: #6c757d;">{{ alert.created_at|date:"M d, Y H:i:s" }}</p>
-                                <small class="text-muted">{{ alert.created_at|timesince }} ago</small>
+                                <span class="text-muted">{{ alert.created_at|timesince }} ago</span>
                             </div>
                         </div>
                         {% if alert.sent_at %}
                         <div class="timeline-item" style="position: relative; margin-bottom: 20px;">
                             <div class="timeline-marker bg-info" style="position: absolute; left: -22px; top: 5px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px #e9ecef;"></div>
                             <div class="timeline-content" style="background: #f8f9fa; padding: 10px 15px; border-radius: 4px; border-left: 3px solid #17a2b8;">
-                                <h6 class="timeline-title" style="margin: 0 0 5px 0; font-size: 0.9rem; font-weight: bold;">Alert Sent</h6>
+                                <h3 class="timeline-title h6" style="margin: 0 0 5px 0; font-size: 0.9rem; font-weight: bold;">Alert Sent</h3>
                                 <p class="timeline-text" style="margin: 0; font-size: 0.85rem; color: #6c757d;">{{ alert.sent_at|date:"M d, Y H:i:s" }}</p>
-                                <small class="text-muted">{{ alert.sent_at|timesince }} ago</small>
+                                <span class="text-muted">{{ alert.sent_at|timesince }} ago</span>
                             </div>
                         </div>
                         {% endif %}
@@ -130,9 +131,9 @@
                         <div class="timeline-item" style="position: relative; margin-bottom: 20px;">
                             <div class="timeline-marker bg-warning" style="position: absolute; left: -22px; top: 5px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px #e9ecef;"></div>
                             <div class="timeline-content" style="background: #f8f9fa; padding: 10px 15px; border-radius: 4px; border-left: 3px solid #ffc107;">
-                                <h6 class="timeline-title" style="margin: 0 0 5px 0; font-size: 0.9rem; font-weight: bold;">Alert Acknowledged</h6>
+                                <h3 class="timeline-title h6" style="margin: 0 0 5px 0; font-size: 0.9rem; font-weight: bold;">Alert Acknowledged</h3>
                                 <p class="timeline-text" style="margin: 0; font-size: 0.85rem; color: #6c757d;">{{ alert.acknowledged_at|date:"M d, Y H:i:s" }}</p>
-                                <small class="text-muted">{{ alert.acknowledged_at|timesince }} ago</small>
+                                <span class="text-muted">{{ alert.acknowledged_at|timesince }} ago</span>
                             </div>
                         </div>
                         {% endif %}
@@ -140,9 +141,9 @@
                         <div class="timeline-item" style="position: relative; margin-bottom: 20px;">
                             <div class="timeline-marker bg-success" style="position: absolute; left: -22px; top: 5px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px #e9ecef;"></div>
                             <div class="timeline-content" style="background: #f8f9fa; padding: 10px 15px; border-radius: 4px; border-left: 3px solid #28a745;">
-                                <h6 class="timeline-title" style="margin: 0 0 5px 0; font-size: 0.9rem; font-weight: bold;">Alert Resolved</h6>
+                                <h3 class="timeline-title h6" style="margin: 0 0 5px 0; font-size: 0.9rem; font-weight: bold;">Alert Resolved</h3>
                                 <p class="timeline-text" style="margin: 0; font-size: 0.85rem; color: #6c757d;">{{ alert.resolved_at|date:"M d, Y H:i:s" }}</p>
-                                <small class="text-muted">{{ alert.resolved_at|timesince }} ago</small>
+                                <span class="text-muted">{{ alert.resolved_at|timesince }} ago</span>
                             </div>
                         </div>
                         {% endif %}
@@ -151,7 +152,7 @@
             </div>
             {% if alert.assignment %}
             <div class="card">
-                <div class="card-header"><h5 class="card-title mb-0">Related Assignment</h5></div>
+                <div class="card-header"><h2 class="card-title h5 mb-0">Related Assignment</h2></div>
                 <div class="card-body">
                     <p><strong>Location:</strong> {{ alert.assignment.location }}</p>
                     <p><strong>Priority:</strong> {{ alert.assignment.get_priority_display }}</p>

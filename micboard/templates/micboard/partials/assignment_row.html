@@ -1,27 +1,29 @@
-<tr id="assignment-{{ assignment.id }}" class="assignment-row">
+<tr id="assignment-{{ assignment.id }}" class="assignment-row" role="row" aria-label="Assignment for {{ assignment.performer.name }}">
   <td>{{ assignment.performer.name }}</td>
   <td>{{ assignment.wireless_unit.name }}</td>
   <td>{{ assignment.monitoring_group.name }}</td>
-  <td><span class="badge bg-{{ assignment.priority }}">{{ assignment.get_priority_display }}</span></td>
+  <td><span class="badge" style="background-color:{% if assignment.priority == 'high' %}#a60000{% elif assignment.priority == 'critical' %}#f7b500{% else %}#005a00{% endif %};color:#fff;">{{ assignment.get_priority_display }}</span></td>
   <td>
     {% if assignment.is_active %}
-      <span class="badge bg-success">Active</span>
+      <span class="badge" style="background-color:#005a00;color:#fff;">Active</span>
     {% else %}
-      <span class="badge bg-secondary">Inactive</span>
+      <span class="badge" style="background-color:#333;color:#fff;">Inactive</span>
     {% endif %}
   </td>
   <td>
-    <button class="btn btn-sm btn-warning"
+    <button class="btn btn-sm btn-warning" style="background-color:#f7b500;color:#111;border-color:#f7b500;"
             hx-get="{% url 'micboard:update_assignment' assignment.id %}"
             hx-target="#assignment-form-container"
-            hx-swap="innerHTML">
+            hx-swap="innerHTML"
+            aria-label="Edit assignment for {{ assignment.performer.name }}">
       Edit
     </button>
-    <button class="btn btn-sm btn-danger"
+    <button class="btn btn-sm btn-danger" style="background-color:#a60000;color:#fff;border-color:#a60000;"
             hx-delete="{% url 'micboard:delete_assignment' assignment.id %}"
             hx-confirm="Delete this assignment?"
             hx-target="#assignment-{{ assignment.id }}"
-            hx-swap="outerHTML">
+            hx-swap="outerHTML"
+            aria-label="Delete assignment for {{ assignment.performer.name }}">
       Delete
     </button>
   </td>

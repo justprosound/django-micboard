@@ -29,6 +29,9 @@ class ManufacturerService:
 
         Returns:
             ManufacturerPlugin instance or None if not found.
+
+        TODO: Ensure all plugin/service config is resolved via SettingsRegistry,
+        and that all plugin logic is vendor-agnostic and multi-tenant safe.
         """
         return PluginRegistry.get_plugin(manufacturer_code)
 

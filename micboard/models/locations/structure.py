@@ -97,12 +97,18 @@ class Building(models.Model):
 
     def save(self, *args, **kwargs) -> None:
         """Auto-assign regulatory domain based on country if not set."""
+        from django.db import OperationalError, ProgrammingError
+
         from micboard.models.rf_coordination import RegulatoryDomain
 
         if self.country and not self.regulatory_domain:
-            domain = RegulatoryDomain.objects.filter(country_code=self.country.upper()).first()
-            if domain:
-                self.regulatory_domain = domain
+            try:
+                domain = RegulatoryDomain.objects.filter(country_code=self.country.upper()).first()
+                if domain:
+                    self.regulatory_domain = domain
+            except (ProgrammingError, OperationalError):
+                # Table doesn't exist yet (e.g., during migrations or tests)
+                pass
 
         super().save(*args, **kwargs)
 

@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p>This is a stub for the settings overrides diff view. It will show where tenant/site/manufacturer settings differ from global defaults.</p>
+<ul>
+  {% for override in overrides %}
+    <li>
+      <strong>{{ override.label }} ({{ override.key }})</strong><br>
+      Global: <code>{{ override.global }}</code><br>
+      {% if override.org_overrides %}
+        Org overrides: <code>{{ override.org_overrides|length }}</code><br>
+      {% endif %}
+      {% if override.site_overrides %}
+        Site overrides: <code>{{ override.site_overrides|length }}</code><br>
+      {% endif %}
+      {% if override.mfg_overrides %}
+        Manufacturer overrides: <code>{{ override.mfg_overrides|length }}</code><br>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>
+<p><strong>TODO:</strong> Implement a table or diff UI for overrides by scope.</p>
+{% endblock %}

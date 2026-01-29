@@ -23,15 +23,10 @@ class MicboardConfig(AppConfig):
     # Store resolved configuration (merged defaults + user settings)
     _resolved_config: ClassVar[dict[str, Any] | None] = None
 
-    # Default configuration
+    # Default configuration (moved to settings registry)
+    # TODO: Ensure all manufacturer-specific config (e.g., SHURE_API_*) is migrated to the SettingsRegistry.
+    #       Do not add vendor-specific keys here; use the registry for all manufacturer, site, or tenant config.
     default_config: ClassVar[dict[str, str | int | float | bool | list[int] | None]] = {
-        "SHURE_API_BASE_URL": "http://localhost:8080",
-        "SHURE_API_SHARED_KEY": None,
-        "SHURE_API_TIMEOUT": 10,
-        "SHURE_API_VERIFY_SSL": True,
-        "SHURE_API_MAX_RETRIES": 3,
-        "SHURE_API_RETRY_BACKOFF": 0.5,
-        "SHURE_API_RETRY_STATUS_CODES": [429, 500, 502, 503, 504],
         "POLL_INTERVAL": 5,
         "CACHE_TIMEOUT": 30,
         "TRANSMITTER_INACTIVITY_SECONDS": 10,
@@ -52,6 +47,7 @@ class MicboardConfig(AppConfig):
                 "Micboard configuration not yet initialized. "
                 "Ensure Django apps are loaded before accessing config."
             )
+        # NOTE: Manufacturer-specific config is now resolved via SettingsRegistry, not here.
         return cls._resolved_config
 
     def ready(self):
@@ -79,6 +75,12 @@ class MicboardConfig(AppConfig):
             logger.debug("django-health-check not installed, skipping health check registration")
 
         # Advise about recommended middleware (do not modify settings)
+        #
+        # NOTE: All manufacturer/vendor-specific config should be accessed via SettingsRegistry.
+        #       Example:
+        #           from micboard.services.settings_registry import SettingsRegistry
+        #           api_url = SettingsRegistry.get('API_BASE_URL', manufacturer=manufacturer)
+        #       Remove any direct SHURE_API_* or similar usage from app config.
         self._register_security_middleware()
 
         logger.info("Micboard app initialized (configuration validated)")

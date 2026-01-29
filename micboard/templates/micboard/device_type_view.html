@@ -11,9 +11,9 @@
                 <div class="col-md-4 mb-3">
                     <div class="card h-100">
                         <div class="card-body">
-                            <h5 class="card-title">{{ device_type.name }}</h5>
+                            <h2 class="card-title h5">{{ device_type.name }}</h2>
                             <p class="card-text">{{ device_type.description|default:"No description." }}</p>
-                            <a href="{% url 'micboard:device_type_view' device_type=device_type.code %}" class="btn btn-primary btn-sm">View Devices</a>
+                            <a href="{% url 'micboard:device_type_view' device_type=device_type.code %}" class="btn btn-primary btn-sm">View devices for {{ device_type.name }}</a>
                         </div>
                     </div>
                 </div>

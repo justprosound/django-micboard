@@ -1,0 +1,132 @@
+// Accessibility and AAA compliance styles for kiosk and global use
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.kiosk-header {
+    padding: 20px;
+    background: rgba(0,0,0,0.3);
+    text-align: center;
+    border-bottom: 2px solid rgba(255,255,255,0.1);
+}
+.kiosk-header h1 {
+    font-size: 2.5em;
+    margin-bottom: 5px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+.kiosk-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+.sections-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+.section {
+    background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 20px;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+.section-title {
+    font-size: 1.5em;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(255,255,255,0.2);
+}
+.performers-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+}
+.performer-card {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    padding: 15px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+.performer-card:hover, .performer-card:focus-within {
+    background: rgba(0,0,0,0.5);
+    border-color: rgba(255,255,255,0.4);
+    transform: translateY(-2px);
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+.performer-photo {
+    width: 100%;
+    height: 120px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    margin-bottom: 10px;
+    object-fit: cover;
+    display: block;
+}
+.performer-photo.no-photo {
+    background: rgba(100,150,200,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1em;
+}
+.performer-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 5px;
+}
+.performer-title {
+    font-size: 0.9em;
+    opacity: 0.8;
+    margin-bottom: 10px;
+}
+.performer-stats {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+.stat {
+    flex: 1;
+    text-align: center;
+    font-size: 0.9em;
+}
+.stat-label {
+    opacity: 0.7;
+    font-size: 0.8em;
+}
+.stat-value {
+    font-weight: bold;
+    font-size: 1.1em;
+}
+.battery { color: #4ade80; }
+.signal { color: #60a5fa; }
+.frequency { color: #fbbf24; }
+.status-good { color: #4ade80; }
+.status-warning { color: #fbbf24; }
+.status-critical { color: #f87171; }
+.kiosk-footer {
+    background: rgba(0,0,0,0.3);
+    padding: 10px 20px;
+    text-align: center;
+    font-size: 0.9em;
+    opacity: 0.7;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+.no-performers {
+    opacity: 0.6;
+    text-align: center;
+    padding: 20px;
+}

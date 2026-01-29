@@ -1,19 +1,19 @@
-<div class="channel-card" id="channel-{{ channel.id }}">
-  <div class="card">
-    <div class="card-header">
-      <strong>Channel {{ channel.channel_number }}</strong>
-      <span class="badge bg-{{ channel.resource_state }}">{{ channel.get_resource_state_display }}</span>
+<div class="channel-card" id="channel-{{ channel.id }}" role="region" aria-label="Channel {{ channel.channel_number }}" style="background-color:#fff;color:#111;border:2px solid #111;padding:1rem;">
+  <div class="card" style="background-color:#fff;color:#111;">
+    <div class="card-header" style="background-color:#fff;color:#111;">
+      <strong style="color:#111;">Channel {{ channel.channel_number }}</strong>
+      <span class="badge bg-{{ channel.resource_state }}" style="background-color:{% if channel.resource_state == 'danger' %}#a60000{% elif channel.resource_state == 'warning' %}#b36b00{% else %}#005a00{% endif %};color:#fff;">{{ channel.get_resource_state_display }}</span>
     </div>
-    <div class="card-body">
+    <div class="card-body" style="color:#111;">
       {% if channel.active_wireless_unit %}
-        <div class="unit-info">
-          <p><strong>{{ channel.active_wireless_unit.name }}</strong></p>
-          <p>Battery: {{ channel.active_wireless_unit.battery_percentage|default:"--" }}%</p>
-          <p>RF: {{ channel.rf_signal_strength|default:"--" }} dB</p>
-          <p>Audio: {{ channel.audio_level|default:"--" }} dB</p>
+        <div class="unit-info" aria-label="Active wireless unit {{ channel.active_wireless_unit.name }}">
+          <p><strong style="color:#111;">{{ channel.active_wireless_unit.name }}</strong></p>
+          <p style="color:#444;">Battery: <span aria-label="Battery level">{{ channel.active_wireless_unit.battery_percentage|default:"--" }}%</span></p>
+          <p style="color:#444;">RF: <span aria-label="RF signal strength">{{ channel.rf_signal_strength|default:"--" }} dB</span></p>
+          <p style="color:#444;">Audio: <span aria-label="Audio level">{{ channel.audio_level|default:"--" }} dB</span></p>
         </div>
       {% else %}
-        <p class="text-muted">No active unit</p>
+        <p class="text-muted" style="color:#444;">No active unit</p>
       {% endif %}
     </div>
   </div>

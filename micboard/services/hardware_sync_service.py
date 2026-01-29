@@ -36,13 +36,10 @@ class HardwareSyncService:
             dry_run: If True, don't save changes to database.
 
         Returns:
-            Dictionary with sync statistics:
-            {
-                'total_devices': int,
-                'created': int,
-                'updated': int,
-                'errors': int
-            }
+            Dictionary with sync statistics.
+
+        TODO: Ensure all manufacturer-specific config is resolved via SettingsRegistry,
+        and that this logic is vendor-agnostic and multi-tenant safe.
         """
         # Use ManufacturerService for the core sync logic
         result = ManufacturerService.sync_devices_for_manufacturer(

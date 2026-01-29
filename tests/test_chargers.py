@@ -12,7 +12,7 @@ class ChargerDisplayViewTest(TestCase):
         self.location = Location.objects.create(name="Test Room", building=self.building)
 
     def test_charger_display_no_chargers(self):
-        request = self.factory.get(reverse("charger_display"))
+        request = self.factory.get(reverse("micboard:charger_display"))
         response = charger_display(request)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "No charging stations found.")
@@ -28,7 +28,7 @@ class ChargerDisplayViewTest(TestCase):
         )
 
         # Test with no slots first
-        request = self.factory.get(reverse("charger_display"))
+        request = self.factory.get(reverse("micboard:charger_display"))
         response = charger_display(request)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Test Charger")
