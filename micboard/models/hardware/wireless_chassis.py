@@ -390,6 +390,7 @@ class WirelessChassis(models.Model):
         from micboard.services.device_specs import DeviceSpecService
 
         created = self.pk is None
+        band_plan = None
 
         # Apply device specifications from registry
         if self.manufacturer and self.model:

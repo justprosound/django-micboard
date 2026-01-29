@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import json
 
 import requests
 
@@ -56,7 +55,6 @@ def main():
     if not matrix:
         # Safe fallback: Django 4.2 and Python 3.11 (both LTS and widely supported)
         matrix = [{"django-version": "4.2", "python-version": "3.11"}]
-    print(json.dumps({"include": matrix}))
 
 
 if __name__ == "__main__":

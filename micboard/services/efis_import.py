@@ -11,8 +11,9 @@ import logging
 from datetime import timedelta
 from typing import Sequence
 
-import requests
 from django.utils import timezone
+
+import requests
 from requests import RequestException
 
 from micboard.models import (
