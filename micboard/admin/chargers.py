@@ -1,11 +1,11 @@
 from django.contrib import admin
 
-from micboard.admin.mixins import MicboardSortableAdmin
+from micboard.admin.mixins import MicboardModelAdmin, MicboardSortableAdmin
 from micboard.models import Charger, ChargerSlot
 
 
 @admin.register(ChargerSlot)
-class ChargerSlotAdmin(admin.ModelAdmin):
+class ChargerSlotAdmin(MicboardModelAdmin):
     list_display = (
         "charger",
         "slot_number",
@@ -16,6 +16,7 @@ class ChargerSlotAdmin(admin.ModelAdmin):
     )
     list_filter = ("charger", "occupied", "device_status")
     search_fields = ("charger__name", "device_serial", "device_model")
+    list_select_related = ("charger",)
 
     @admin.display(description="Device Info")
     def device_info(self, obj):
@@ -40,6 +41,7 @@ class ChargerAdmin(MicboardSortableAdmin):
         "location",
     )
     list_filter = ("manufacturer", "device_type", "status", "location")
-    search_fields = ("name", "api_device_id", "ip")
+    search_fields = ("name", "serial_number", "ip")
+    list_select_related = ("manufacturer", "location")
     readonly_fields = ("last_seen",)
     ordering = ("order", "manufacturer__name", "name")

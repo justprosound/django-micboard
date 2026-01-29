@@ -18,7 +18,8 @@ def expand_cidrs(cidrs: list[str], max_hosts: int = 1024) -> Iterator[str]:
     for cidr in cidrs:
         try:
             net = ipaddress.ip_network(cidr, strict=False)
-        except Exception:
+        except (ValueError, ipaddress.AddressValueError, ipaddress.NetmaskValueError):
+            # Invalid CIDR notation - skip silently as this is expected during user input
             continue
         # Skip very large networks unless explicitly allowed
         hosts = list(net.hosts())
@@ -45,7 +46,8 @@ def resolve_fqdns(fqdns: list[str]) -> dict:
             infos = socket.getaddrinfo(fqdn, None)
             ips = list({info[4][0] for info in infos})
             result[fqdn] = ips
-        except Exception:
+        except (socket.gaierror, OSError):
+            # DNS resolution failed or network error - return empty list
             result[fqdn] = []
     return result
 

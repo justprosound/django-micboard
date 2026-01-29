@@ -4,9 +4,10 @@ import ipaddress
 import logging
 from typing import Optional, Union, cast
 
-from asgiref.sync import async_to_sync
 from django.core.cache import cache
 from django.utils import timezone
+
+from asgiref.sync import async_to_sync
 
 try:
     from channels.layers import get_channel_layer
@@ -16,7 +17,7 @@ except ImportError:
         return None
 
 
-from micboard.discovery.legacy import expand_cidrs, resolve_fqdns
+from micboard.discovery.network_utils import expand_cidrs, resolve_fqdns
 from micboard.manufacturers import get_manufacturer_plugin
 from micboard.manufacturers.base import BaseAPIClient
 from micboard.models import DiscoveryCIDR, DiscoveryFQDN, Manufacturer, WirelessChassis
@@ -138,9 +139,13 @@ class DiscoveryService:
         candidate_ips: list[str] = []
 
         # 1. IPs from existing chassis for this manufacturer
-        for ch in WirelessChassis.objects.filter(manufacturer=manufacturer):
-            if ch.ip:
-                candidate_ips.append(ch.ip)
+        chassis_ips = (
+            WirelessChassis.objects.filter(manufacturer=manufacturer)
+            .exclude(ip__isnull=True)
+            .exclude(ip="")
+            .values_list("ip", flat=True)
+        )
+        candidate_ips.extend(chassis_ips)
 
         # 2. IPs from DiscoveryCIDR
         if scan_cidrs:
@@ -191,11 +196,11 @@ class DiscoveryService:
 
     def get_all_managed_ips(self) -> set[str]:
         """Returns a set of all IP addresses currently managed by any manufacturer."""
-        managed_ips = set()
-        for ch in WirelessChassis.objects.all():
-            if ch.ip:
-                managed_ips.add(ch.ip)
-        return managed_ips
+        return set(
+            WirelessChassis.objects.exclude(ip__isnull=True)
+            .exclude(ip="")
+            .values_list("ip", flat=True)
+        )
 
     def get_manufacturer_for_ip(self, ip_address: str) -> Union[Manufacturer, None]:
         """Returns the manufacturer managing a given IP address, if any."""

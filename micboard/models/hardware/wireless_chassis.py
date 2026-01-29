@@ -182,6 +182,7 @@ class WirelessChassis(models.Model):
     mac_address = models.CharField(
         max_length=17,
         blank=True,
+        null=True,
         db_index=True,
         help_text="MAC address for hardware-level device identity",
     )
@@ -196,6 +197,11 @@ class WirelessChassis(models.Model):
         max_length=100,
         blank=True,
         help_text="Human-readable name for the device",
+    )
+    fqdn = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Validated FQDN (PTR + forward lookup)",
     )
     description = models.CharField(
         max_length=255,
@@ -381,38 +387,27 @@ class WirelessChassis(models.Model):
 
     def save(self, *args, **kwargs) -> None:
         """Sync specs from device_specifications registry on save."""
+        from micboard.services.device_specs import DeviceSpecService
+
         created = self.pk is None
 
+        # Apply device specifications from registry
         if self.manufacturer and self.model:
-            if hasattr(self.manufacturer, "code"):
-                mfg_code = self.manufacturer.code.lower()
-            else:
-                mfg_code = "unknown"
-            self.max_channels = get_channel_count(
-                manufacturer=mfg_code,
-                model=self.model,
-            )
-            self.dante_capable = get_dante_support(
-                manufacturer=mfg_code,
-                model=self.model,
-            )
+            DeviceSpecService.apply_specs_to_chassis(self)
 
+            # Also set device role if not already set
             if not self.role:
+                from micboard.utils.device_registry import get_device_role
+
+                if hasattr(self.manufacturer, "code"):
+                    mfg_code = self.manufacturer.code.lower()
+                else:
+                    mfg_code = "unknown"
+
                 self.role = get_device_role(
                     manufacturer=mfg_code,
                     model=self.model,
                 )
-
-        # Auto-populate band plan frequencies when band_plan_name is set
-        if self.band_plan_name and self.manufacturer:
-            if hasattr(self.manufacturer, "code"):
-                mfg_code = self.manufacturer.code.lower()
-            else:
-                mfg_code = "unknown"
-
-            # Try to look up band plan from registry
-            band_key = self.band_plan_name.lower().replace(" ", "_").replace("-", "_")
-            band_plan = get_band_plan(manufacturer=mfg_code, band_plan_key=band_key)
 
             if band_plan:
                 # Use registry data

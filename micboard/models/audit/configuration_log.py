@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -13,14 +11,21 @@ from micboard.models.discovery.configuration import ManufacturerConfiguration
 class ConfigurationAuditLog(models.Model):
     """Audit log for configuration changes."""
 
-    ACTION_CHOICES: ClassVar[tuple] = (
-        ("create", "Create"),
-        ("update", "Update"),
-        ("delete", "Delete"),
-        ("validate", "Validate"),
-        ("apply", "Apply"),
-        ("test", "Test"),
-    )
+    class Action(models.TextChoices):
+        """Actions performed on configuration."""
+
+        CREATE = "create", "Create"
+        UPDATE = "update", "Update"
+        DELETE = "delete", "Delete"
+        VALIDATE = "validate", "Validate"
+        APPLY = "apply", "Apply"
+        TEST = "test", "Test"
+
+    class Result(models.TextChoices):
+        """Result of configuration action."""
+
+        SUCCESS = "success", "Success"
+        FAILED = "failed", "Failed"
 
     # What changed
     configuration = models.ForeignKey(
@@ -31,7 +36,7 @@ class ConfigurationAuditLog(models.Model):
     )
     action = models.CharField(
         max_length=20,
-        choices=ACTION_CHOICES,
+        choices=Action.choices,
         help_text="Action performed",
     )
 
@@ -58,8 +63,8 @@ class ConfigurationAuditLog(models.Model):
     )
     result = models.CharField(
         max_length=20,
-        choices=[("success", "Success"), ("failed", "Failed")],
-        default="success",
+        choices=Result.choices,
+        default=Result.SUCCESS,
         help_text="Result of the action",
     )
     error_message = models.TextField(

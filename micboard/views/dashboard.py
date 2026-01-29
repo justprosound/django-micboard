@@ -5,10 +5,12 @@ from typing import Optional
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404, render
+from django.views.decorators.http import require_http_methods
+
+from micboard.filters import HAS_DJANGO_FILTERS, WirelessChassisFilter
 
 # Updated imports
-from micboard.models import Alert, Building, Manufacturer, MonitoringGroup, Room, WirelessChassis
-from micboard.filters import HAS_DJANGO_FILTERS, WirelessChassisFilter
+from micboard.models import Building, MonitoringGroup, Room, WirelessChassis
 
 User = get_user_model()
 
@@ -32,34 +34,26 @@ def get_filtered_receivers(request: HttpRequest, manufacturer_code: Optional[str
     return qs.distinct()
 
 
+@require_http_methods(["GET"])
 def index(request: HttpRequest):
     """Main dashboard view."""
-    buildings = Building.objects.all()
-    rooms = Room.objects.all()
-    users = User.objects.all()
-    manufacturers = Manufacturer.objects.filter(is_active=True)
-    alert_types = Alert.ALERT_TYPES
-
     # Filter receivers based on user permissions
     user_receivers = WirelessChassis.objects.for_user(user=request.user)
 
     context = {
         "device_count": user_receivers.count(),
         "group_count": MonitoringGroup.objects.count(),
-        "buildings": buildings,
-        "rooms": rooms,
-        "users": users,
-        "manufacturers": manufacturers,
-        "alert_types": alert_types,
     }
     return render(request, "micboard/index.html", context)
 
 
+@require_http_methods(["GET"])
 def about(request: HttpRequest):
     """About page."""
     return render(request, "micboard/about.html")
 
 
+@require_http_methods(["GET"])
 def device_type_view(request: HttpRequest, device_type: str):
     """View to display receivers of a specific type."""
     manufacturer_code = request.GET.get("manufacturer")
@@ -67,10 +61,12 @@ def device_type_view(request: HttpRequest, device_type: str):
     # Map device_type to role if necessary, or filter by role
     # Assuming device_type param maps to WirelessChassis.role
     # Handle 'all' case - show all devices regardless of type
-    if device_type == 'all':
+    if device_type == "all":
         receivers = get_filtered_receivers(request, manufacturer_code, is_online=True)
     else:
-        receivers = get_filtered_receivers(request, manufacturer_code, role=device_type, is_online=True)
+        receivers = get_filtered_receivers(
+            request, manufacturer_code, role=device_type, is_online=True
+        )
 
     context = {
         "device_type": device_type,
@@ -79,12 +75,13 @@ def device_type_view(request: HttpRequest, device_type: str):
     return render(request, "micboard/device_type_view.html", context)
 
 
+@require_http_methods(["GET"])
 def single_building_view(request: HttpRequest, building: str):
     """View to display receivers in a specific building."""
     # Handle special 'all' case
-    if building == 'all':
+    if building == "all":
         return all_buildings_view(request)
-    
+
     manufacturer_code = request.GET.get("manufacturer")
 
     # Get the Building object
@@ -103,6 +100,7 @@ def single_building_view(request: HttpRequest, building: str):
     return render(request, "micboard/building_view.html", context)
 
 
+@require_http_methods(["GET"])
 def user_view(request: HttpRequest, username: str):
     """View to display receivers assigned to a specific performer."""
     manufacturer_code = request.GET.get("manufacturer")
@@ -122,23 +120,24 @@ def user_view(request: HttpRequest, username: str):
     return render(request, "micboard/user_view.html", context)
 
 
+@require_http_methods(["GET"])
 def room_view(request: HttpRequest, building: str, room: str):
     """View to display receivers in a specific room."""
     # Handle special 'all' cases
-    if building == 'all' and room == 'all':
+    if building == "all" and room == "all":
         return all_rooms_view(request)
-    elif building == 'all':
+    elif building == "all":
         return all_buildings_view(request)
-    
+
     manufacturer_code = request.GET.get("manufacturer")
 
     # Get the Building and Room objects
     building_obj = get_object_or_404(Building, name=building)
-    
+
     # Handle 'all' rooms in a specific building
-    if room == 'all':
+    if room == "all":
         return rooms_in_building_view(request, building)
-    
+
     room_obj = get_object_or_404(Room, building=building_obj, name=room)
 
     receivers = get_filtered_receivers(
@@ -157,17 +156,21 @@ def room_view(request: HttpRequest, building: str, room: str):
     return render(request, "micboard/room_view.html", context)
 
 
+@require_http_methods(["GET"])
 def priority_view(request: HttpRequest, priority: str):
     """View to display receivers with a specific assignment priority."""
     manufacturer_code = request.GET.get("manufacturer")
 
     # Handle 'all' case - show all priorities
-    if priority == 'all':
+    if priority == "all":
         receivers = get_filtered_receivers(request, manufacturer_code, is_online=True)
     else:
         # Correct path: chassis -> field_units -> performer_assignments -> priority
         receivers = get_filtered_receivers(
-            request, manufacturer_code, field_units__performer_assignments__priority=priority, is_online=True
+            request,
+            manufacturer_code,
+            field_units__performer_assignments__priority=priority,
+            is_online=True,
         )
 
     context = {
@@ -177,28 +180,31 @@ def priority_view(request: HttpRequest, priority: str):
     return render(request, "micboard/priority_view.html", context)
 
 
+@require_http_methods(["GET"])
 def all_buildings_view(request: HttpRequest):
     """View to display all buildings."""
-    buildings = Building.objects.all()
+    buildings = Building.objects.all().order_by("name")
     context = {
         "buildings": buildings,
     }
     return render(request, "micboard/all_buildings_view.html", context)
 
 
+@require_http_methods(["GET"])
 def all_rooms_view(request: HttpRequest):
     """View to display all rooms."""
-    rooms = Room.objects.all()
+    rooms = Room.objects.select_related("building").order_by("building__name", "name")
     context = {
         "rooms": rooms,
     }
     return render(request, "micboard/all_rooms_view.html", context)
 
 
+@require_http_methods(["GET"])
 def rooms_in_building_view(request: HttpRequest, building: str):
     """View to display all rooms within a specific building."""
     building_obj = get_object_or_404(Building, name=building)
-    rooms = Room.objects.filter(building=building_obj)
+    rooms = Room.objects.filter(building=building_obj).order_by("name")
     context = {
         "building_name": building,
         "rooms": rooms,

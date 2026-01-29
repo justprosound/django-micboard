@@ -12,6 +12,7 @@ from django.contrib import admin, messages
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 
+from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import Manufacturer
 from micboard.services.discovery_service_new import DiscoveryService
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @admin.register(Manufacturer)
-class ManufacturerAdmin(admin.ModelAdmin):
+class ManufacturerAdmin(MicboardModelAdmin):
     """Admin for Manufacturer with a view to manage discovery IPs."""
 
     list_display = ("name", "code", "is_active")
@@ -42,7 +43,16 @@ class ManufacturerAdmin(admin.ModelAdmin):
         GET: Show current discovery IPs.
         POST: Remove selected IP(s).
         """
-        manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
+        try:
+            manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
+        except Manufacturer.DoesNotExist:
+            self.message_user(
+                request,
+                f"Manufacturer with ID {manufacturer_id} not found",
+                level=messages.ERROR,
+            )
+            return redirect("admin:micboard_manufacturer_changelist")
+
         discovery_service = DiscoveryService()  # Instantiate DiscoveryService
 
         ips: list[str] = []  # Initialize ips once

@@ -62,6 +62,16 @@ repos:
       - id: django-upgrade
         args: [--target-version, "5.1"]
 
+  # Prevent accidental migration modifications
+  - repo: local
+    hooks:
+      - id: protect-migrations
+        name: Protect Django migrations
+        entry: "ERROR: Direct modification of migrations is not allowed. Use makemigrations to create new migrations."
+        language: fail
+        files: 'micboard/migrations/\d{4}_.*\.py$'
+        exclude: '__init__\.py$'
+
 exclude: |
   (?x)^(
       migrations/|

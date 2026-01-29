@@ -14,6 +14,8 @@ from .sessions import (
 
 __all__ = [
     "APIHealthLog",
+    "TransmitterSample",
+    "TransmitterSession",
     "WirelessUnitSession",
     "WirelessUnitSample",
 ]

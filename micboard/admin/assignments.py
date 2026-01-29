@@ -37,6 +37,7 @@ class PerformerAssignmentAdmin(MicboardModelAdmin):
         "alert_on_hardware_offline",
     )
     search_fields = ("performer__name", "wireless_unit__name", "monitoring_group__name", "notes")
+    list_select_related = ("performer", "wireless_unit", "monitoring_group", "assigned_by")
     readonly_fields = ("assigned_at", "updated_at", "assigned_by")
     raw_id_fields = ("performer", "wireless_unit", "monitoring_group", "assigned_by")
 
@@ -69,6 +70,7 @@ class UserAlertPreferenceAdmin(MicboardModelAdmin):
     list_display = ("user", "notification_method", "battery_low_threshold", "quiet_hours_enabled")
     list_filter = ("notification_method", "quiet_hours_enabled")
     search_fields = ("user__username",)
+    list_select_related = ("user",)
 
 
 @admin.register(Alert)
@@ -89,5 +91,6 @@ class AlertAdmin(MicboardModelAdmin):
         "user__username",
         "message",
     )
+    list_select_related = ("channel", "channel__chassis", "user", "assignment")
     readonly_fields = ("created_at", "acknowledged_at", "resolved_at", "is_overdue")
     date_hierarchy = "created_at"

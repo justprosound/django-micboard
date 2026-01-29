@@ -5,11 +5,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import socket
 from typing import Any
 
 from django.core.cache import cache
 from django.utils import timezone
 
+from micboard.integrations.common.utils import validate_hostname
 from micboard.models import (
     DiscoveryCIDR,
     DiscoveryFQDN,
@@ -21,6 +24,45 @@ from micboard.models import (
 from micboard.services.discovery_service_new import DiscoveryService
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_validated_fqdn(ip: str) -> str | None:
+    """Resolve PTR and validate forward lookup matches the IP."""
+    try:
+        hostname, _, _ = socket.gethostbyaddr(ip)
+    except Exception:
+        return None
+
+    if not hostname:
+        return None
+
+    fqdn = hostname.rstrip(".")
+    if not validate_hostname(fqdn):
+        return None
+
+    try:
+        infos = socket.getaddrinfo(fqdn, None)
+        ips = {info[4][0] for info in infos}
+    except Exception:
+        return None
+
+    return fqdn if ip in ips else None
+
+
+def _humanize_fqdn(fqdn: str) -> str:
+    """Convert an FQDN into a human-friendly device name."""
+    label = fqdn.split(".")[0]
+    label = re.sub(r"[_-]+", " ", label)
+    label = re.sub(r"(wm)(\d*)$", r" WM\2", label, flags=re.IGNORECASE)
+    label = re.sub(r"([a-zA-Z])([0-9])", r"\1 \2", label)
+    label = re.sub(r"\s+", " ", label).strip()
+    words = []
+    for word in label.split(" "):
+        if word.lower() == "wm":
+            words.append("WM")
+        else:
+            words.append(word.capitalize())
+    return " ".join(words)
 
 
 def sync_receiver_discovery(chassis_id: int):
@@ -218,6 +260,10 @@ def _persist_supported_models(manufacturer: Manufacturer, client: Any) -> None:
             logger.debug("Could not fetch supported device models from API")
 
         if models:
+            # Ensure models is a list of strings, not a MagicMock
+            if not isinstance(models, list):
+                models = list(models)
+
             key = "SHURE_SUPPORTED_MODELS"
             cfg_obj, created = MicboardConfig.objects.get_or_create(
                 key=key, manufacturer=manufacturer, defaults={"value": json.dumps(models)}
@@ -233,7 +279,9 @@ def _persist_supported_models(manufacturer: Manufacturer, client: Any) -> None:
 def _poll_and_create_receivers(
     manufacturer: Manufacturer, plugin: Any, summary: dict[str, Any]
 ) -> list[dict[str, Any]] | None:
-    """Poll API for devices and create/update receivers. Return api_devices or None on failure."""
+    """Poll API for devices and create/update DiscoveryQueue entries."""
+    from micboard.models import DiscoveryQueue
+
     api_devices: list[dict[str, Any]] = []
     try:
         api_devices = plugin.get_devices() or []
@@ -241,19 +289,61 @@ def _poll_and_create_receivers(
             logger.info("No devices returned from API")
         else:
             for dev in api_devices:
-                device_id = dev.get("id") or dev.get("api_device_id")
+                device_id = dev.get("id") or dev.get("api_device_id") or dev.get("deviceId")
+                serial = dev.get("serial") or dev.get("serialNumber")
                 ip = dev.get("ip") or dev.get("ipAddress") or dev.get("ipv4")
                 name = dev.get("name") or dev.get("model") or ""
+                model = dev.get("model") or dev.get("deviceType") or ""
 
-                if not device_id or not ip:
-                    logger.warning("Skipping device with missing id/ip: %s", dev)
+                fqdn = _resolve_validated_fqdn(ip) if ip else None
+                if fqdn:
+                    dev.setdefault("fqdn", fqdn)
+                    dev.setdefault("ptr_validated", True)
+                    if not name or name == model or name == ip:
+                        name = _humanize_fqdn(fqdn)
+
+                if not serial or not ip:
+                    logger.warning("Skipping device with missing serial/ip: %s", dev)
                     continue
 
-                _rx, created = WirelessChassis.objects.update_or_create(
-                    api_device_id=device_id,
+                # Determine device type
+                device_type = dev.get("type", "UNKNOWN")
+                if "SBC" in model.upper() or "charger" in device_type.lower():
+                    device_type = "charger"
+                elif "transmitter" in device_type.lower():
+                    device_type = "transmitter"
+                elif "transceiver" in device_type.lower():
+                    device_type = "transceiver"
+                else:
+                    device_type = "receiver"
+
+                # Create/Update DiscoveryQueue entry
+                q_entry, created = DiscoveryQueue.objects.update_or_create(
                     manufacturer=manufacturer,
-                    defaults={"ip": ip, "name": name, "is_online": True},
+                    serial_number=serial,
+                    defaults={
+                        "api_device_id": device_id or "",
+                        "ip": ip,
+                        "name": name,
+                        "fqdn": fqdn or "",
+                        "model": model,
+                        "device_type": device_type,
+                        "firmware_version": dev.get("firmware")
+                        or dev.get("firmware_version")
+                        or dev.get("firmwareVersion", ""),
+                        "metadata": dev,
+                        "status": "pending",
+                    },
                 )
+
+                # Auto-check for duplicates/movements
+                conflicts = q_entry.check_for_duplicates()
+                q_entry.is_duplicate = conflicts["is_duplicate"]
+                q_entry.is_ip_conflict = conflicts["is_ip_conflict"]
+                q_entry.existing_device = conflicts["existing_device"]
+                q_entry.existing_charger = conflicts["existing_charger"]
+                q_entry.save()
+
                 if created:
                     summary["created_receivers"] += 1
         return api_devices
@@ -311,7 +401,7 @@ def _submit_scanned_candidates(
     """Expand CIDRs and resolve FQDNs and submit candidates."""
     ips_to_submit: list[str] = []
     if scan_cidrs and cidrs:
-        from micboard.discovery.legacy import expand_cidrs
+        from micboard.discovery.network_utils import expand_cidrs
 
         for cidr in cidrs:
             for ip in expand_cidrs([cidr], max_hosts=max_hosts):
@@ -319,7 +409,7 @@ def _submit_scanned_candidates(
                     ips_to_submit.append(ip)
 
     if scan_fqdns and fqdns:
-        from micboard.discovery.legacy import resolve_fqdns
+        from micboard.discovery.network_utils import resolve_fqdns
 
         resolved = resolve_fqdns(fqdns)
         for _f, ips in resolved.items():
@@ -355,13 +445,21 @@ def _finalize_job(job: DiscoveryJob, summary: dict[str, Any]) -> None:
 def _broadcast_results(manufacturer: Manufacturer) -> None:
     """Broadcast updated device list via BroadcastService."""
     try:
-        from micboard.serializers import ReceiverSummarySerializer
         from micboard.services.broadcast_service import BroadcastService
 
+        chassis_qs = WirelessChassis.objects.filter(manufacturer=manufacturer)
         serialized_data = {
-            "receivers": ReceiverSummarySerializer(
-                WirelessChassis.objects.filter(manufacturer=manufacturer), many=True
-            ).data
+            "receivers": [
+                {
+                    "id": chassis.id,
+                    "api_device_id": chassis.api_device_id,
+                    "name": chassis.name,
+                    "ip": str(chassis.ip) if chassis.ip else None,
+                    "status": chassis.status,
+                    "model": chassis.model,
+                }
+                for chassis in chassis_qs
+            ]
         }
         BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=serialized_data)
     except Exception:

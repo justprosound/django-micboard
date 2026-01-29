@@ -1,252 +1,192 @@
-"""Performer service for managing performer lifecycle operations.
+"""Performer service layer for managing performer records.
 
-Handles CRUD operations for performers and their metadata.
+Handles performer CRUD operations, search, and list helpers.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import logging
+from typing import Any
 
 from django.db.models import QuerySet
 
 from micboard.models import Performer
 
-if TYPE_CHECKING:
-    pass
+logger = logging.getLogger(__name__)
 
 
 class PerformerService:
-    """Business logic for performer management."""
+    """Business logic for performers."""
+
+    @staticmethod
+    def get_active_performers() -> QuerySet[Performer]:
+        """Get all active performers.
+
+        Returns:
+            QuerySet of active performers ordered by name
+        """
+        return Performer.objects.filter(is_active=True).order_by("name")
+
+    @staticmethod
+    def search_performers(*, query: str) -> QuerySet[Performer]:
+        """Search performers by name, title, or contact info.
+
+        Args:
+            query: Search query string
+
+        Returns:
+            QuerySet matching performers
+        """
+        from django.db.models import Q
+
+        return Performer.objects.filter(
+            Q(name__icontains=query)
+            | Q(title__icontains=query)
+            | Q(email__icontains=query)
+            | Q(phone__icontains=query)
+        ).distinct()
 
     @staticmethod
     def create_performer(
         *,
         name: str,
         title: str = "",
-        role_description: str = "",
         email: str = "",
         phone: str = "",
-        photo_file=None,
+        role_description: str = "",
         notes: str = "",
     ) -> Performer:
         """Create a new performer.
 
         Args:
-            name: Performer name.
-            title: Role or title (e.g., "Lead Vocalist").
-            role_description: Description of role.
-            email: Contact email.
-            phone: Contact phone.
-            photo_file: Image file for photo.
-            notes: Notes about performer.
+            name: Performer name (required)
+            title: Role or title
+            email: Contact email
+            phone: Contact phone
+            role_description: Description of role and requirements
+            notes: Additional notes
 
         Returns:
-            Created Performer.
+            Created Performer instance
         """
-        if not name or not name.strip():
-            raise ValueError("Performer name is required")
-
         performer = Performer.objects.create(
-            name=name.strip(),
-            title=title.strip(),
-            role_description=role_description.strip(),
-            email=email.strip(),
-            phone=phone.strip(),
-            notes=notes.strip(),
+            name=name,
+            title=title,
+            email=email,
+            phone=phone,
+            role_description=role_description,
+            notes=notes,
+            is_active=True,
         )
-
-        if photo_file:
-            performer.photo = photo_file
-            performer.save(update_fields=["photo"])
-
+        logger.info(f"Created performer: {performer.name}")
         return performer
 
     @staticmethod
     def update_performer(
-        *,
         performer: Performer,
+        *,
         name: str | None = None,
         title: str | None = None,
-        role_description: str | None = None,
         email: str | None = None,
         phone: str | None = None,
-        photo_file=None,
+        role_description: str | None = None,
         notes: str | None = None,
+        is_active: bool | None = None,
     ) -> Performer:
-        """Update performer metadata.
+        """Update performer information.
 
         Args:
-            performer: Performer to update.
-            name: New name or None to skip.
-            title: New title or None to skip.
-            role_description: New role description or None to skip.
-            email: New email or None to skip.
-            phone: New phone or None to skip.
-            photo_file: New photo file or None to skip.
-            notes: New notes or None to skip.
+            performer: Performer instance to update
+            name: New name (if provided)
+            title: New title (if provided)
+            email: New email (if provided)
+            phone: New phone (if provided)
+            role_description: New role description (if provided)
+            notes: New notes (if provided)
+            is_active: New active status (if provided)
 
         Returns:
-            Updated Performer.
+            Updated Performer instance
         """
-        updated_fields: list[str] = []
+        if name is not None:
+            performer.name = name
+        if title is not None:
+            performer.title = title
+        if email is not None:
+            performer.email = email
+        if phone is not None:
+            performer.phone = phone
+        if role_description is not None:
+            performer.role_description = role_description
+        if notes is not None:
+            performer.notes = notes
+        if is_active is not None:
+            performer.is_active = is_active
 
-        if name is not None and performer.name != name.strip():
-            performer.name = name.strip()
-            updated_fields.append("name")
-
-        if title is not None and performer.title != title.strip():
-            performer.title = title.strip()
-            updated_fields.append("title")
-
-        if role_description is not None and performer.role_description != role_description.strip():
-            performer.role_description = role_description.strip()
-            updated_fields.append("role_description")
-
-        if email is not None and performer.email != email.strip():
-            performer.email = email.strip()
-            updated_fields.append("email")
-
-        if phone is not None and performer.phone != phone.strip():
-            performer.phone = phone.strip()
-            updated_fields.append("phone")
-
-        if notes is not None and performer.notes != notes.strip():
-            performer.notes = notes.strip()
-            updated_fields.append("notes")
-
-        if photo_file is not None:
-            performer.photo = photo_file
-            updated_fields.append("photo")
-
-        if updated_fields:
-            performer.save(update_fields=updated_fields)
-
+        performer.save()
+        logger.info(f"Updated performer: {performer.name}")
         return performer
 
     @staticmethod
-    def delete_performer(*, performer: Performer) -> None:
-        """Delete a performer and all related assignments.
-
-        Args:
-            performer: Performer to delete.
-        """
-        performer.delete()
-
-    @staticmethod
-    def get_performer_by_id(*, performer_id: int) -> Performer | None:
-        """Get a performer by ID.
-
-        Args:
-            performer_id: Performer database ID.
-
-        Returns:
-            Performer or None if not found.
-        """
-        return Performer.objects.filter(id=performer_id).first()
-
-    @staticmethod
-    def get_performer_by_name(*, name: str) -> Performer | None:
-        """Get a performer by name (case-insensitive).
-
-        Args:
-            name: Performer name to search.
-
-        Returns:
-            Performer or None if not found.
-        """
-        return Performer.objects.filter(name__iexact=name).first()
-
-    @staticmethod
-    def get_all_performers(*, active_only: bool = True) -> QuerySet[Performer]:
-        """Get all performers.
-
-        Args:
-            active_only: If True, only return active performers.
-
-        Returns:
-            QuerySet of Performer objects.
-        """
-        qs = Performer.objects.all()
-        if active_only:
-            qs = qs.filter(is_active=True)
-        return qs.order_by("name")
-
-    @staticmethod
-    def search_performers(*, query: str, active_only: bool = True) -> list[Performer]:
-        """Search performers by name or title.
-
-        Args:
-            query: Search string.
-            active_only: If True, only search active performers.
-
-        Returns:
-            List of matching performers.
-        """
-        from django.db.models import Q
-
-        qs = Performer.objects.filter(Q(name__icontains=query) | Q(title__icontains=query))
-
-        if active_only:
-            qs = qs.filter(is_active=True)
-
-        return list(qs.order_by("name"))
-
-    @staticmethod
-    def deactivate_performer(*, performer: Performer) -> Performer:
+    def deactivate_performer(performer: Performer) -> None:
         """Deactivate a performer (soft delete).
 
         Args:
-            performer: Performer to deactivate.
-
-        Returns:
-            Updated performer.
+            performer: Performer to deactivate
         """
         performer.is_active = False
         performer.save(update_fields=["is_active"])
-        return performer
+        logger.info(f"Deactivated performer: {performer.name}")
 
     @staticmethod
-    def reactivate_performer(*, performer: Performer) -> Performer:
-        """Reactivate a deactivated performer.
+    def get_performer_assignments(performer: Performer) -> QuerySet:
+        """Get all assignments for a performer.
 
         Args:
-            performer: Performer to reactivate.
+            performer: Performer instance
 
         Returns:
-            Updated performer.
+            QuerySet of PerformerAssignment objects
         """
-        performer.is_active = True
-        performer.save(update_fields=["is_active"])
-        return performer
+        from micboard.models import PerformerAssignment
+
+        return PerformerAssignment.objects.filter(performer=performer).select_related(
+            "wireless_unit", "monitoring_group"
+        )
 
     @staticmethod
-    def count_total_performers(*, active_only: bool = True) -> int:
-        """Count total performers.
+    def get_monitoring_groups_for_performer(performer: Performer) -> QuerySet:
+        """Get all monitoring groups that manage a performer.
 
         Args:
-            active_only: If True, count only active performers.
+            performer: Performer instance
 
         Returns:
-            Total count.
+            QuerySet of MonitoringGroup objects
         """
-        qs = Performer.objects.all()
-        if active_only:
-            qs = qs.filter(is_active=True)
-        return qs.count()
+        from micboard.models import MonitoringGroup
+
+        return MonitoringGroup.objects.filter(performer_assignments__performer=performer).distinct()
 
     @staticmethod
-    def get_performers_with_assignments(*, active_only: bool = True) -> QuerySet[Performer]:
-        """Get performers that have active assignments.
+    def get_performer_details(performer: Performer) -> dict[str, Any]:
+        """Get comprehensive detail about a performer including assignments.
 
         Args:
-            active_only: If True, only return active performers.
+            performer: Performer instance
 
         Returns:
-            QuerySet of performers with assignments.
+            Dictionary with performer info and relations
         """
-        qs = Performer.objects.filter(assignments__is_active=True).distinct()
+        assignments = PerformerService.get_performer_assignments(performer)
+        groups = PerformerService.get_monitoring_groups_for_performer(performer)
 
-        if active_only:
-            qs = qs.filter(is_active=True)
-
-        return qs.order_by("name")
+        return {
+            "performer": performer,
+            "assignments": assignments,
+            "assignment_count": assignments.count(),
+            "monitoring_groups": groups,
+            "group_count": groups.count(),
+            "is_active": performer.is_active,
+            "last_updated": performer.updated_at,
+        }

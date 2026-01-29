@@ -13,8 +13,10 @@ from micboard.utils.dependencies import HAS_DJANGO_Q
 if HAS_DJANGO_Q:
     from django_q.tasks import async_task
 else:
+
     def async_task(func):
         return func
+
 
 from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.manufacturers import get_manufacturer_plugin
@@ -157,7 +159,6 @@ async def _process_websocket_update_async(plugin, device_id: str, data: dict[str
 async def _broadcast_websocket_update_async(manufacturer, device_data: dict[str, Any]):
     """Broadcast WebSocket update via BroadcastService."""
     try:
-        from micboard.serializers import serialize_receiver
         from micboard.services.broadcast_service import BroadcastService
 
         # Get the updated chassis data
@@ -169,7 +170,18 @@ async def _broadcast_websocket_update_async(manufacturer, device_data: dict[str,
                 chassis = WirelessChassis.objects.get(
                     manufacturer=manufacturer, api_device_id=api_device_id
                 )
-                serialized_data = {"receivers": [serialize_receiver(chassis, include_extra=True)]}
+                serialized_data = {
+                    "receivers": [
+                        {
+                            "id": chassis.id,
+                            "api_device_id": chassis.api_device_id,
+                            "name": chassis.name,
+                            "ip": str(chassis.ip) if chassis.ip else None,
+                            "status": chassis.status,
+                            "model": chassis.model,
+                        }
+                    ]
+                }
 
                 # Broadcast update
                 BroadcastService.broadcast_device_update(

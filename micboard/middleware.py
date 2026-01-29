@@ -55,8 +55,8 @@ class ConnectionHealthMiddleware(MiddlewareMixin):
 
                     # Store in request for use in views
                     request.unhealthy_connections = list(unhealthy)  # type: ignore[attr-defined]
-            except Exception as e:
-                logger.error(f"Error checking connection health: {e}")
+            except Exception:
+                logger.exception("Error checking connection health")
 
 
 class PerformanceMonitoringMiddleware(MiddlewareMixin):
@@ -94,6 +94,40 @@ class APIVersionMiddleware(MiddlewareMixin):
             from micboard import __version__
 
             response["X-API-Version"] = __version__
+
+        return response
+
+
+class UserActivityMiddleware:
+    """Updates UserProfile.last_active_at for authenticated users."""
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        response = self.get_response(request)
+
+        if request.user.is_authenticated:
+            from django.utils import timezone
+
+            from micboard.models import UserProfile
+
+            # Throttle updates to avoid high DB churn (e.g., once every 5 mins)
+            # Use cache or session to check last update
+            update_threshold = 300  # seconds
+            last_update = request.session.get("last_activity_update", 0)
+            now = time.time()
+
+            if now - last_update > update_threshold:
+                try:
+                    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+                    profile.last_active_at = timezone.now()
+                    profile.save(update_fields=["last_active_at"])
+                    request.session["last_activity_update"] = now
+                except Exception:
+                    logger.exception(
+                        "Failed to update user activity profile for user %s", request.user.username
+                    )
 
         return response
 

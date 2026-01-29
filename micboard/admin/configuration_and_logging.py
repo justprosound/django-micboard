@@ -6,6 +6,7 @@ from django.contrib import admin, messages
 from django.urls import reverse
 from django.utils.html import format_html
 
+from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import (
     ActivityLog,
     ConfigurationAuditLog,
@@ -15,7 +16,7 @@ from micboard.models import (
 
 
 @admin.register(ManufacturerConfiguration)
-class ManufacturerConfigurationAdmin(admin.ModelAdmin):
+class ManufacturerConfigurationAdmin(MicboardModelAdmin):
     """Admin for ManufacturerConfiguration."""
 
     list_display = (
@@ -29,6 +30,7 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
     )
     list_filter = ("is_active", "is_valid", "created_at")
     search_fields = ("code", "name")
+    list_select_related = ("updated_by",)
     readonly_fields = (
         "created_at",
         "updated_at",
@@ -110,13 +112,12 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
 
         errors = obj.validation_errors.get("errors", [])
         if not errors:
-            return format_html('<span style="color: green;"><strong>✓ Valid</strong></span>')
+            return "✓ Valid"
 
-        error_html = "<br>".join(format_html("<li>{}</li>", error) for error in errors)
-        return format_html(
-            '<span style="color: red;"><strong>✗ Invalid</strong></span><ul>{}</ul>',
-            error_html,
-        )
+        error_list = "; ".join(str(error) for error in errors[:3])  # Show first 3 errors
+        if len(errors) > 3:
+            error_list += f" (+{len(errors) - 3} more)"
+        return f"✗ Invalid: {error_list}"
 
     @admin.action(description="Validate selected configurations")
     def validate_config(self, request, queryset: object) -> None:
@@ -180,7 +181,7 @@ class ManufacturerConfigurationAdmin(admin.ModelAdmin):
 
 
 @admin.register(ConfigurationAuditLog)
-class ConfigurationAuditLogAdmin(admin.ModelAdmin):
+class ConfigurationAuditLogAdmin(MicboardModelAdmin):
     """Admin for ConfigurationAuditLog."""
 
     list_display = (
@@ -192,6 +193,7 @@ class ConfigurationAuditLogAdmin(admin.ModelAdmin):
     )
     list_filter = ("action", "result", "created_at")
     search_fields = ("configuration__code", "created_by__username")
+    list_select_related = ("configuration", "created_by")
     readonly_fields = (
         "configuration",
         "action",
@@ -255,7 +257,7 @@ class ConfigurationAuditLogAdmin(admin.ModelAdmin):
 
 
 @admin.register(ActivityLog)
-class ActivityLogAdmin(admin.ModelAdmin):
+class ActivityLogAdmin(MicboardModelAdmin):
     """Admin for ActivityLog."""
 
     list_display = (
@@ -268,6 +270,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
     )
     list_filter = ("activity_type", "operation", "status", "created_at")
     search_fields = ("summary", "user__username", "service_code")
+    list_select_related = ("user", "content_type")
     readonly_fields = (
         "activity_type",
         "operation",
@@ -349,13 +352,12 @@ class ActivityLogAdmin(admin.ModelAdmin):
             "service": "#ff9900",
             "sync": "#00cc00",
             "config": "#9900cc",
-            "discovery": "#00cccc",
-            "alert": "#cc0000",
+            "discovery": "var(--link-fg, #00cccc)",
+            "alert": "var(--error-fg, #cc0000)",
         }
-        color = colors.get(obj.activity_type, "#666666")
+        color = colors.get(obj.activity_type, "var(--body-fg, #666666)")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; '
-            'border-radius: 3px;">{}</span>',
+            '<span style="color: {};">{}</span>',
             color,
             obj.get_activity_type_display(),
         )
@@ -372,12 +374,11 @@ class ActivityLogAdmin(admin.ModelAdmin):
             "stop": "#cc0000",
             "success": "#00cc00",
             "failure": "#cc0000",
-            "warning": "#ff9900",
+            "warning": "var(--warning-fg, #ff9900)",
         }
-        color = colors.get(obj.operation, "#666666")
+        color = colors.get(obj.operation, "var(--body-fg, #666666)")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; '
-            'border-radius: 3px;">{}</span>',
+            '<span style="color: {};">{}</span>',
             color,
             obj.get_operation_display(),
         )
@@ -403,21 +404,20 @@ class ActivityLogAdmin(admin.ModelAdmin):
     def status_badge(self, obj: ActivityLog) -> str:
         """Display status as colored badge."""
         colors = {
-            "success": "#00cc00",
-            "failed": "#cc0000",
-            "warning": "#ff9900",
+            "success": "var(--success-fg, green)",
+            "failed": "var(--error-fg, red)",
+            "warning": "var(--warning-fg, orange)",
         }
-        color = colors.get(obj.status, "#666666")
+        color = colors.get(obj.status, "var(--body-quiet-color, gray)")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; '
-            'border-radius: 3px;">{}</span>',
+            '<span style="color: {};">{}</span>',
             color,
             obj.status.upper(),
         )
 
 
 @admin.register(ServiceSyncLog)
-class ServiceSyncLogAdmin(admin.ModelAdmin):
+class ServiceSyncLogAdmin(MicboardModelAdmin):
     """Admin for ServiceSyncLog."""
 
     list_display = (
@@ -431,6 +431,7 @@ class ServiceSyncLogAdmin(admin.ModelAdmin):
     )
     list_filter = ("sync_type", "status", "started_at")
     search_fields = ("service__name", "service__code")
+    list_select_related = ("service",)
     readonly_fields = (
         "service",
         "sync_type",
@@ -499,14 +500,13 @@ class ServiceSyncLogAdmin(admin.ModelAdmin):
     def sync_type_badge(self, obj: ServiceSyncLog) -> str:
         """Display sync type as badge."""
         colors = {
-            "full": "#0066cc",
-            "incremental": "#00cc00",
-            "health_check": "#ff9900",
+            "refresh": "var(--link-fg, #0099cc)",
+            "discovery": "var(--success-fg, #00cc00)",
+            "health_check": "var(--warning-fg, #ff9900)",
         }
-        color = colors.get(obj.sync_type, "#666666")
+        color = colors.get(obj.sync_type, "var(--body-quiet-color, gray)")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; '
-            'border-radius: 3px;">{}</span>',
+            '<span style="color: {};">{}</span>',
             color,
             obj.get_sync_type_display(),
         )
@@ -515,14 +515,13 @@ class ServiceSyncLogAdmin(admin.ModelAdmin):
     def status_badge(self, obj: ServiceSyncLog) -> str:
         """Display status as colored badge."""
         colors = {
-            "success": "#00cc00",
-            "partial": "#ff9900",
-            "failed": "#cc0000",
+            "success": "var(--success-fg, green)",
+            "partial": "var(--warning-fg, orange)",
+            "failed": "var(--error-fg, red)",
         }
-        color = colors.get(obj.status, "#666666")
+        color = colors.get(obj.status, "var(--body-quiet-color, gray)")
         return format_html(
-            '<span style="background: {}; color: white; padding: 3px 8px; '
-            'border-radius: 3px;">{}</span>',
+            '<span style="color: {};">{}</span>',
             color,
             obj.status.upper(),
         )

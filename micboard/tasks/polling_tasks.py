@@ -169,13 +169,17 @@ def _update_channel_and_transmitter(receiver, channel_info, plugin, api_device_i
             "base_chassis": receiver,
             "battery": transformed_tx.get("battery", 255),
             "battery_charge": transformed_tx.get("battery_charge"),
+            "battery_type": transformed_tx.get("battery_type", ""),
+            "battery_runtime": transformed_tx.get("runtime", ""),
+            "battery_health": transformed_tx.get("battery_health", ""),
+            "battery_cycles": transformed_tx.get("battery_cycles"),
+            "battery_temperature_c": transformed_tx.get("battery_temperature_c"),
             "audio_level": transformed_tx.get("audio_level", 0),
             "rf_level": transformed_tx.get("rf_level", 0),
             "frequency": transformed_tx.get("frequency", ""),
             "antenna": transformed_tx.get("antenna", ""),
             "tx_offset": transformed_tx.get("tx_offset", 255),
             "quality": transformed_tx.get("quality", 255),
-            "battery_runtime": transformed_tx.get("runtime", ""),
             "status": transformed_tx.get("status", ""),
             "name": transformed_tx.get("name", ""),
         },
@@ -261,7 +265,7 @@ def _mark_offline_receivers(manufacturer, active_receiver_ids):
 def _start_realtime_subscriptions(manufacturer):
     """Start real-time subscriptions for a manufacturer."""
     from micboard.utils.dependencies import HAS_DJANGO_Q
-    
+
     if not HAS_DJANGO_Q:
         logger.debug("Django-Q not installed; skipping real-time subscription background tasks")
         return

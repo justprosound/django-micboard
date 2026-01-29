@@ -2,9 +2,11 @@
 
 import importlib.util
 
+
 def is_installed(package_name: str) -> bool:
     """Check if a Python package is installed."""
     return importlib.util.find_spec(package_name) is not None
+
 
 # Core optional features
 HAS_CHANNELS = is_installed("channels")

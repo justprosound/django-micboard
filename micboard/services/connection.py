@@ -11,7 +11,7 @@ from typing import Any
 from django.db.models import QuerySet
 from django.utils.timezone import now
 
-from micboard.models import RealTimeConnection
+from micboard.models import RealTimeConnection, WirelessChassis
 
 
 class ConnectionHealthService:
@@ -143,9 +143,9 @@ class ConnectionHealthService:
         Returns:
             QuerySet of RealTimeConnection objects.
         """
-        return RealTimeConnection.objects.filter(chassis__manufacturer__code=manufacturer_code).order_by(
-            "-created_at"
-        )
+        return RealTimeConnection.objects.filter(
+            chassis__manufacturer__code=manufacturer_code
+        ).order_by("-created_at")
 
     @staticmethod
     def cleanup_stale_connections(*, max_age_hours: int = 24) -> int:
@@ -213,7 +213,9 @@ class ConnectionHealthService:
             "chassis__manufacturer__code", flat=True
         ).distinct():
             if mfg:
-                by_manufacturer[mfg] = RealTimeConnection.objects.filter(chassis__manufacturer__code=mfg).count()
+                by_manufacturer[mfg] = RealTimeConnection.objects.filter(
+                    chassis__manufacturer__code=mfg
+                ).count()
 
         return {
             "total_connections": total,

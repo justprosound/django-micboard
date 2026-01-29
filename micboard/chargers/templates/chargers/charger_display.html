@@ -16,6 +16,7 @@
                             <h5 class="mb-0">{{ station.name }} ({{ station.status|capfirst }})</h5>
                         </div>
                         <div class="card-body">
+                            {% if station.slots %}
                                 <ul class="list-group list-group-flush">
                                     {% for slot in station.slots %}
                                         <li class="list-group-item d-flex justify-content-between align-items-center">

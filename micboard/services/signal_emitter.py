@@ -33,9 +33,15 @@ class SignalEmitter:
         async_emit: bool = False,
     ) -> None:
         """Broadcast device polled event (replacing signals)."""
-        from micboard.services.broadcast_service import BroadcastService
+        try:
+            from channels.layers import get_channel_layer
 
-        BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=data)
+            if get_channel_layer():
+                from micboard.services.broadcast_service import BroadcastService
+
+                BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=data)
+        except ImportError:
+            logger.debug("Channels not available, skipping broadcast for device update")
 
     @staticmethod
     def emit_api_health_changed(
@@ -45,9 +51,17 @@ class SignalEmitter:
         previous_status: str | None = None,
     ) -> None:
         """Broadcast API health change (replacing signals)."""
-        from micboard.services.broadcast_service import BroadcastService
+        try:
+            from channels.layers import get_channel_layer
 
-        BroadcastService.broadcast_api_health(manufacturer=manufacturer, health_data=health_data)
+            if get_channel_layer():
+                from micboard.services.broadcast_service import BroadcastService
+
+                BroadcastService.broadcast_api_health(
+                    manufacturer=manufacturer, health_data=health_data
+                )
+        except ImportError:
+            logger.debug("Channels not available, skipping broadcast for API health change")
 
     @staticmethod
     def emit_device_status_changed(

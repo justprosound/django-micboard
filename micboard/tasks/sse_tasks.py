@@ -136,7 +136,6 @@ async def _process_sse_update_async(plugin, device_id: str, data: dict[str, Any]
 async def _broadcast_sse_update_async(manufacturer, device_data: dict[str, Any]):
     """Broadcast SSE update via BroadcastService."""
     try:
-        from micboard.serializers import serialize_receiver
         from micboard.services.broadcast_service import BroadcastService
 
         # Get the updated receiver data
@@ -148,7 +147,18 @@ async def _broadcast_sse_update_async(manufacturer, device_data: dict[str, Any])
                 chassis = WirelessChassis.objects.get(
                     manufacturer=manufacturer, api_device_id=api_device_id
                 )
-                serialized_data = {"receivers": [serialize_receiver(chassis, include_extra=True)]}
+                serialized_data = {
+                    "receivers": [
+                        {
+                            "id": chassis.id,
+                            "api_device_id": chassis.api_device_id,
+                            "name": chassis.name,
+                            "ip": str(chassis.ip) if chassis.ip else None,
+                            "status": chassis.status,
+                            "model": chassis.model,
+                        }
+                    ]
+                }
 
                 # Broadcast update
                 BroadcastService.broadcast_device_update(

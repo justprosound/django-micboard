@@ -11,12 +11,14 @@ from typing import TYPE_CHECKING, Any, Callable, cast
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_http_methods
 
-from micboard.models import Alert, PerformerAssignment, RFChannel, WirelessUnit
+from micboard.models import Alert, PerformerAssignment, WirelessUnit
 from micboard.services.email import send_alert_email
 
 if TYPE_CHECKING:
@@ -190,13 +192,6 @@ class AlertManager:
             unit, assignments, "alert_on_audio_low", audio_condition, "audio_low", audio_message
         )
 
-    def _create_hardware_offline_alert(self, unit: WirelessUnit) -> None:
-        """Create device offline alerts for all assignments.
-
-        DEPRECATED: Use check_hardware_offline_alerts instead.
-        """
-        pass
-
     def _create_alert(
         self,
         unit: WirelessUnit,
@@ -242,13 +237,6 @@ class AlertManager:
 
         return cast(Alert, alert)
 
-    def _get_channel_snapshot(self, channel: RFChannel) -> dict[str, Any]:
-        """Get a snapshot of channel state for alert context.
-
-        DEPRECATED: Use _get_unit_snapshot instead.
-        """
-        return {}
-
     def _get_unit_snapshot(self, unit: WirelessUnit) -> dict[str, Any]:
         """Get a snapshot of unit state for alert context."""
         snapshot = {
@@ -289,6 +277,8 @@ def check_hardware_offline_alerts(unit):
     alert_manager.check_hardware_offline_alerts(unit)
 
 
+@login_required
+@require_http_methods(["GET"])
 def alerts_view(request: HttpRequest) -> HttpResponse:
     """View to display and manage system alerts."""
     status_filter = request.GET.get("status", "pending")
@@ -328,6 +318,8 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
     return render(request, "micboard/alerts.html", context)
 
 
+@login_required
+@require_http_methods(["GET"])
 def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """View to display detailed information about a specific alert."""
     alert = get_object_or_404(Alert.objects.select_related("channel", "user"), id=alert_id)
@@ -338,22 +330,20 @@ def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     return render(request, "micboard/alert_detail.html", context)
 
 
+@login_required
+@require_http_methods(["POST"])
 def acknowledge_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """View to acknowledge an alert."""
-    if request.method != "POST":
-        return redirect("alert_detail", alert_id=alert_id)
-
     alert = get_object_or_404(Alert, id=alert_id)
-    alert.acknowledge(request.user if request.user.is_authenticated else None)
+    alert.acknowledge(request.user)
     messages.success(request, f"Alert '{alert}' has been acknowledged.")
     return redirect(request.headers.get("referer") or "alerts")
 
 
+@login_required
+@require_http_methods(["POST"])
 def resolve_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """View to resolve an alert."""
-    if request.method != "POST":
-        return redirect("alert_detail", alert_id=alert_id)
-
     alert = get_object_or_404(Alert, id=alert_id)
     alert.resolve()
     messages.success(request, f"Alert '{alert}' has been resolved.")

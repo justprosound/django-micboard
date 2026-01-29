@@ -20,19 +20,19 @@
                         <div class="col-md-6">
                             <h5>Quick Links</h5>
                             <ul class="list-unstyled">
-                                <li><a href="{% url 'alerts' %}">System Alerts</a></li>
-                                <li><a href="{% url 'about' %}">About</a></li>
+                                <li><a href="{% url 'micboard:alerts' %}">System Alerts</a></li>
+                                <li><a href="{% url 'micboard:about' %}">About</a></li>
                                 <li><a href="https://github.com/justprosound/django-micboard" target="_blank">GitHub Project</a></li>
                             </ul>
                         </div>
                         <div class="col-md-6">
                             <h5>Views</h5>
                             <ul class="list-unstyled">
-                                <li><a href="{% url 'all_buildings_view' %}">By Building</a></li>
-                                <li><a href="{% url 'room_view' building='all' room='all' %}">By Room</a></li>
-                                <li><a href="{% url 'device_type_view' device_type='all' %}">By Device Type</a></li>
-                                <li><a href="{% url 'priority_view' priority='high' %}">By Priority</a></li>
-                                <li><a href="{% url 'charger_dashboard' %}">Charger Dashboard</a></li>
+                                <li><a href="{% url 'micboard:all_buildings_view' %}">By Building</a></li>
+                                <li><a href="{% url 'micboard:room_view' building='all' room='all' %}">By Room</a></li>
+                                <li><a href="{% url 'micboard:device_type_view' device_type='all' %}">By Device Type</a></li>
+                                <li><a href="{% url 'micboard:priority_view' priority='high' %}">By Priority</a></li>
+                                <li><a href="{% url 'micboard:charger_dashboard' %}">Charger Dashboard</a></li>
                             </ul>
                         </div>
                     </div>

@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Any, Iterable
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import ManufacturerConfiguration
+from micboard.services.plugin_registry import PluginRegistry
 
 if TYPE_CHECKING:
     from micboard.manufacturers.base import ManufacturerPlugin
@@ -30,19 +30,7 @@ class ManufacturerService:
         Returns:
             ManufacturerPlugin instance or None if not found.
         """
-        try:
-            plugin_class = get_manufacturer_plugin(manufacturer_code)
-            # Instantiate the plugin - we need a manufacturer instance
-            from micboard.models import Manufacturer
-
-            try:
-                manufacturer = Manufacturer.objects.get(code=manufacturer_code)
-                return plugin_class(manufacturer)
-            except Manufacturer.DoesNotExist:
-                # Create a dummy manufacturer for testing
-                return plugin_class(None)
-        except (ValueError, ModuleNotFoundError):
-            return None
+        return PluginRegistry.get_plugin(manufacturer_code)
 
     @staticmethod
     def sync_devices_for_manufacturer(
@@ -71,7 +59,9 @@ class ManufacturerService:
             }
         """
         from micboard.models import Manufacturer
-        from micboard.services.hardware_deduplication_service import get_hardware_deduplication_service
+        from micboard.services.hardware_deduplication_service import (
+            get_hardware_deduplication_service,
+        )
         from micboard.services.hardware_lifecycle import get_lifecycle_manager
 
         try:

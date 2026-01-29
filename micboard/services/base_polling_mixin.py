@@ -143,9 +143,15 @@ class PollingMixin:
     ) -> None:
         """Broadcast device polled event (replacing signals)."""
         try:
-            from micboard.services.broadcast_service import BroadcastService
+            try:
+                from channels.layers import get_channel_layer
 
-            BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=result)
+                if get_channel_layer():
+                    from micboard.services.broadcast_service import BroadcastService
+
+                    BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=result)
+            except ImportError:
+                pass
             logger.debug("Broadcasted device update for %s", manufacturer.name)
 
         except Exception:
@@ -156,11 +162,17 @@ class PollingMixin:
     ) -> None:
         """Broadcast API health change (replacing signals)."""
         try:
-            from micboard.services.broadcast_service import BroadcastService
+            try:
+                from channels.layers import get_channel_layer
 
-            BroadcastService.broadcast_api_health(
-                manufacturer=manufacturer, health_data=health_status
-            )
+                if get_channel_layer():
+                    from micboard.services.broadcast_service import BroadcastService
+
+                    BroadcastService.broadcast_api_health(
+                        manufacturer=manufacturer, health_data=health_status
+                    )
+            except ImportError:
+                pass
             logger.debug("Broadcasted API health change for %s", manufacturer.name)
 
         except Exception:

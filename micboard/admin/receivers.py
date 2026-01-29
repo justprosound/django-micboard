@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.db.models import Count, Q
 from django.shortcuts import render
 from django.urls import path
@@ -17,6 +17,7 @@ from django.utils.html import format_html
 from micboard.admin.forms import WirelessChassisAdminForm
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import (
+    Accessory,
     RFChannel,
     WirelessChassis,
     WirelessUnit,
@@ -49,53 +50,15 @@ class RFChannelInline(admin.StackedInline):
 
     model = RFChannel
     fk_name = "chassis"
-    extra = 0  # Don't show empty forms
-    readonly_fields = ("channel_number", "get_wireless_unit_info", "get_assignment_info")
-    fields = ("channel_number", "get_wireless_unit_info", "get_assignment_info")
-    can_delete = False
 
-    @admin.display(description="Wireless Unit")
-    def get_wireless_unit_info(self, obj):
-        """Show wireless unit information for this channel."""
-        unit = obj.active_wireless_unit or obj.active_iem_receiver
-        if unit:
-            battery_pct = unit.battery_percentage or "?"
-            battery_color = (
-                "green" if unit.battery_percentage and unit.battery_percentage > 25 else "red"
-            )
-            return format_html(
-                "<div><strong>Type {}:</strong> {}<br>"
-                "<span style='color: {}'>Battery: {}%</span> | "
-                "Audio: {} dB | RF: {} dBm<br>"
-                "Status: {} | Updated: {}</div>",
-                unit.device_type,
-                unit.name or f"Unit {obj.channel_number}",
-                battery_color,
-                battery_pct,
-                unit.audio_level,
-                unit.rf_level,
-                unit.status or "Unknown",
-                unit.updated_at.strftime("%H:%M:%S") if unit.updated_at else "Never",
-            )
-        return "<em>No wireless unit assigned</em>"
 
-    @admin.display(description="Assignment")
-    def get_assignment_info(self, obj):
-        """Show assignment information for this channel."""
-        assignments = obj.assignments.filter(is_active=True)
-        if assignments.exists():
-            assignment = assignments.first()
-            return format_html(
-                "<div><strong>User:</strong> {}<br>"
-                "<strong>Location:</strong> {}<br>"
-                "<strong>Priority:</strong> {}<br>"
-                "<strong>Group:</strong> {}</div>",
-                assignment.user.username,
-                assignment.location.full_address if assignment.location else "Not set",
-                assignment.priority.title(),
-                assignment.monitoring_group.name if assignment.monitoring_group else "None",
-            )
-        return "<em>No active assignment</em>"
+class AccessoryInline(admin.TabularInline):
+    """Inline admin for managing accessories attached to a chassis."""
+
+    model = Accessory
+    extra = 1
+    fields = ("category", "name", "assigned_to", "condition", "is_available", "checked_out_date")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(WirelessChassis)
@@ -112,18 +75,129 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         "status_indicator",
         "band_plan_display",
         "band_plan_regulatory_status_display",
-        "channel_count",
-        "active_units",
+        "channel_count_display",
+        "active_units_display",
         "last_seen",
     )
     list_filter = ("role", "status", "manufacturer")
     search_fields = ("name", "ip", "api_device_id")
-    inlines: ClassVar[list] = [RFChannelInline]
+    list_select_related = ("manufacturer", "location")
+    inlines: ClassVar[list] = [RFChannelInline, AccessoryInline]
     readonly_fields = ("last_seen", "get_hardware_summary")
     date_hierarchy = "last_seen"
     actions: ClassVar[list[str]] = ["mark_online", "mark_offline", "sync_from_api"]
-    change_form_template = "admin/micboard/wireless_chassis_change_form.html"
-    change_list_template = "admin/micboard/wireless_chassis_changelist.html"
+
+    def save_model(self, request, obj, form, change):
+        """Save model with deduplication checks and bi-directional sync."""
+        from micboard.manufacturers import get_manufacturer_plugin
+        from micboard.services.hardware_deduplication_service import (
+            get_hardware_deduplication_service,
+        )
+
+        # Only check deduplication on new objects
+        if not change and obj.manufacturer:
+            dedup_service = get_hardware_deduplication_service(obj.manufacturer)
+            result = dedup_service.check_device(
+                serial_number=obj.serial_number or None,
+                mac_address=obj.mac_address or None,
+                ip=obj.ip,
+                api_device_id=obj.api_device_id,
+                manufacturer=obj.manufacturer,
+            )
+
+            if result.is_conflict:
+                messages.error(
+                    request,
+                    f"⚠️ Device conflict detected: {result.conflict_reason}. "
+                    "This device may already exist with different identifiers.",
+                )
+                # Still allow save but warn admin
+            elif result.is_duplicate:
+                messages.warning(
+                    request,
+                    f"ℹ️ Possible duplicate detected. Existing device: {result.existing_device}. "
+                    "Proceeding with save.",
+                )
+
+        # Save the object
+        super().save_model(request, obj, form, change)
+
+        # Bi-directional sync: Add IP to manufacturer's discovery list
+        if obj.ip and obj.manufacturer:
+            try:
+                plugin_class = get_manufacturer_plugin(obj.manufacturer.code)
+                plugin = plugin_class(obj.manufacturer)
+
+                # Check if plugin supports discovery IP management
+                if hasattr(plugin, "add_discovery_ips"):
+                    success = plugin.add_discovery_ips([obj.ip])
+                    if success:
+                        messages.success(
+                            request,
+                            f"✅ Added {obj.ip} to {obj.manufacturer.name} discovery list for automatic monitoring.",
+                        )
+                    else:
+                        messages.warning(
+                            request,
+                            f"⚠️ Could not add {obj.ip} to {obj.manufacturer.name} discovery list. "
+                            "Device may not be automatically monitored.",
+                        )
+            except Exception as e:
+                logger.warning(
+                    "Failed to add IP %s to discovery list for %s: %s",
+                    obj.ip,
+                    obj.manufacturer.code,
+                    e,
+                )
+                messages.warning(
+                    request,
+                    f"⚠️ Could not sync with {obj.manufacturer.name} API: {e}",
+                )
+
+    def delete_model(self, request, obj):
+        """Delete model and remove from manufacturer's discovery list."""
+        from micboard.manufacturers import get_manufacturer_plugin
+
+        # Bi-directional sync: Remove IP from discovery list
+        if obj.ip and obj.manufacturer:
+            try:
+                plugin_class = get_manufacturer_plugin(obj.manufacturer.code)
+                plugin = plugin_class(obj.manufacturer)
+
+                if hasattr(plugin, "remove_discovery_ips"):
+                    success = plugin.remove_discovery_ips([obj.ip])
+                    if success:
+                        messages.success(
+                            request,
+                            f"✅ Removed {obj.ip} from {obj.manufacturer.name} discovery list.",
+                        )
+            except Exception as e:
+                logger.warning("Failed to remove IP %s from discovery list: %s", obj.ip, e)
+
+        super().delete_model(request, obj)
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                _channel_count=Count("rf_channels", distinct=True),
+                _active_units_count=Count(
+                    "rf_channels",
+                    filter=Q(rf_channels__active_wireless_unit__isnull=False)
+                    | Q(rf_channels__active_iem_receiver__isnull=False),
+                    distinct=True,
+                ),
+            )
+        )
+
+    @admin.display(description="Channels", ordering="_channel_count")
+    def channel_count_display(self, obj):
+        return getattr(obj, "_channel_count", 0)
+
+    @admin.display(description="Active Units", ordering="_active_units_count")
+    def active_units_display(self, obj):
+        return getattr(obj, "_active_units_count", 0)
 
     fieldsets = (
         (
@@ -273,18 +347,6 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         """Display manufacturer name."""
         return obj.manufacturer.name if obj.manufacturer else "Unknown"
 
-    @admin.display(description="Channels")
-    def channel_count(self, obj):
-        """Show number of RF channels."""
-        return obj.rf_channels.count()
-
-    @admin.display(description="Active Units")
-    def active_units(self, obj):
-        """Show number of active wireless units."""
-        return obj.rf_channels.filter(
-            Q(active_wireless_unit__isnull=False) | Q(active_iem_receiver__isnull=False)
-        ).count()
-
     @admin.display(description="Hardware Layout")
     def get_hardware_summary(self, obj):
         """Show hardware summary for this chassis."""
@@ -300,7 +362,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             user_info = assignments.first().user.username if assignments.exists() else "Unassigned"
             summary.append(f"CH{channel.channel_number}: {unit_info} → {user_info}")
 
-        return format_html("<br>".join(summary))
+        return " | ".join(summary)
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
@@ -315,10 +377,10 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         """Display colored status indicator."""
         if obj.is_online:
             return format_html(
-                '<span style="color: green; font-weight: bold;">● Online</span>',
+                '<span style="color: var(--success-fg, green); font-weight: bold;">● Online</span>',
             )
         return format_html(
-            '<span style="color: red; font-weight: bold;">● Offline</span>',
+            '<span style="color: var(--error-fg, red); font-weight: bold;">● Offline</span>',
         )
 
     @admin.action(description="Mark selected chassis as online")
@@ -346,8 +408,8 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.action(description="Sync selected chassis from API")
     def sync_from_api(self, request, queryset):
         """Sync selected chassis from manufacturer API."""
-        from micboard.utils.dependencies import HAS_DJANGO_Q
         from micboard.tasks.polling_tasks import poll_manufacturer_devices
+        from micboard.utils.dependencies import HAS_DJANGO_Q
 
         # If all selected chassis belong to the same manufacturer, run
         # centralized discovery sync which will import/update devices.
@@ -357,6 +419,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             if HAS_DJANGO_Q:
                 try:
                     from django_q.tasks import async_task
+
                     # Enqueue background task for polling
                     async_task(poll_manufacturer_devices, m_id)
                     self.message_user(request, "Discovery sync enqueued for background processing")

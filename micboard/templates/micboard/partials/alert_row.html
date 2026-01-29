@@ -1,0 +1,25 @@
+<tr id="alert-{{ alert.id }}" class="alert-row alert-{{ alert.severity }}">
+  <td>{{ alert.created_at|date:"Y-m-d H:i" }}</td>
+  <td><span class="badge bg-{{ alert.alert_type }}">{{ alert.get_alert_type_display }}</span></td>
+  <td>{{ alert.message }}</td>
+  <td>
+    {% if alert.wireless_unit %}
+      {{ alert.wireless_unit.name }}
+    {% else %}
+      --
+    {% endif %}
+  </td>
+  <td>
+    <span class="badge bg-{{ alert.status }}">{{ alert.get_status_display }}</span>
+  </td>
+  <td>
+    {% if alert.status == 'active' %}
+      <button class="btn btn-sm btn-primary"
+              hx-post="{% url 'micboard:alert_acknowledge' alert.id %}"
+              hx-target="#alert-{{ alert.id }}"
+              hx-swap="outerHTML">
+        Acknowledge
+      </button>
+    {% endif %}
+  </td>
+</tr>

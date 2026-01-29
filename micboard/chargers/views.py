@@ -2,6 +2,7 @@ import logging
 
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
+from django.templatetags.static import static
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +14,7 @@ def charger_display(request: HttpRequest) -> HttpResponse:
     """
     from micboard.models import Charger
 
-    chargers = (
-        Charger.objects.filter(is_active=True)
-        .order_by("order")
-        .prefetch_related("slots__transmitter")
-    )
+    chargers = Charger.objects.filter(is_active=True).order_by("order").prefetch_related("slots")
 
     charging_stations_data = []
     for charger in chargers:
@@ -25,15 +22,18 @@ def charger_display(request: HttpRequest) -> HttpResponse:
         for slot in charger.slots.all().order_by("slot_number"):
             slot_data = {
                 "slot_number": slot.slot_number,
-                "image": None,  # TODO: add image field if needed
+                "image": None,
             }
-            if slot.transmitter:
-                tx = slot.transmitter
+            if slot.occupied:
+                image_path = "micboard/images/field_unit_default.svg"
+                if slot.device_model and slot.device_model.upper() == "ULXD1":
+                    image_path = "micboard/images/ulxd1_wl185.svg"
                 slot_data.update(
                     {
-                        "mic_name": tx.name or f"Slot {tx.slot}",
-                        "battery_level": tx.battery_percentage or 0,
-                        "charging": slot.charging_status,
+                        "mic_name": slot.device_model or f"Slot {slot.slot_number}",
+                        "battery_level": slot.battery_percent or 0,
+                        "charging": slot.device_status == "charging",
+                        "image": static(image_path),
                     }
                 )
             else:
@@ -48,8 +48,8 @@ def charger_display(request: HttpRequest) -> HttpResponse:
 
         charging_stations_data.append(
             {
-                "id": charger.api_device_id,
-                "name": charger.name or f"Charger {charger.api_device_id}",
+                "id": charger.serial_number,
+                "name": charger.name or f"Charger {charger.serial_number}",
                 "status": "online" if charger.status == "online" else "offline",
                 "slots": station_slots,
             }

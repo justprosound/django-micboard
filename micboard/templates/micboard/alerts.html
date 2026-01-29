@@ -72,7 +72,7 @@
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">Filter</button>
-                    <a href="{% url 'alerts' %}" class="btn btn-secondary">Clear</a>
+                    <a href="{% url 'micboard:alerts' %}" class="btn btn-secondary">Clear</a>
                 </div>
             </form>
         </div>
@@ -93,7 +93,7 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody hx-get="{% url 'micboard:alerts' %}" hx-trigger="every 5s" hx-swap="innerHTML" hx-select="tbody > *">
                         {% for alert in alerts %}
                         <tr class="{% if alert.is_overdue and alert.status == 'pending' %}table-warning{% endif %}">
                             <td>
@@ -124,19 +124,19 @@
                             </td>
                             <td>
                                 {{ alert.message|truncatechars:50 }}
-                                {% if alert.message|length > 50 %}<br><a href="{% url 'alert_detail' alert.id %}" class="small">View full message</a>{% endif %}
+                                {% if alert.message|length > 50 %}<br><a href="{% url 'micboard:alert_detail' alert.id %}" class="small">View full message</a>{% endif %}
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'alert_detail' alert.id %}" class="btn btn-outline-primary btn-sm">View</a>
+                                    <a href="{% url 'micboard:alert_detail' alert.id %}" class="btn btn-outline-primary btn-sm">View</a>
                                     {% if alert.status == "pending" %}
-                                    <form method="post" action="{% url 'acknowledge_alert' alert.id %}" style="display: inline;">
+                                    <form method="post" action="{% url 'micboard:acknowledge_alert' alert.id %}" style="display: inline;">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-outline-info btn-sm">Acknowledge</button>
                                     </form>
                                     {% endif %}
                                     {% if alert.status in "pending,acknowledged" %}
-                                    <form method="post" action="{% url 'resolve_alert' alert.id %}" style="display: inline;">
+                                    <form method="post" action="{% url 'micboard:resolve_alert' alert.id %}" style="display: inline;">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-outline-success btn-sm">Resolve</button>
                                     </form>
@@ -174,7 +174,7 @@
             {% else %}
             <div class="text-center py-5">
                 <p class="text-muted">No alerts found matching the current filters.</p>
-                <a href="{% url 'alerts' %}" class="btn btn-primary">Clear Filters</a>
+                <a href="{% url 'micboard:alerts' %}" class="btn btn-primary">Clear Filters</a>
             </div>
             {% endif %}
         </div>

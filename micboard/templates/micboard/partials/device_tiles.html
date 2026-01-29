@@ -1,0 +1,56 @@
+<div class="row g-3" id="device-tiles">
+  {% for unit in units %}
+  <div class="col-md-4 col-lg-3">
+    <div class="card device-tile">
+      <div class="card-body">
+        <h6 class="card-title">{{ unit.name }}</h6>
+        <p class="card-text text-muted small">{{ unit.chassis.name }}</p>
+
+        {% if unit.battery_level %}
+        <div class="mb-2">
+          <small>Battery</small>
+          <div class="progress" style="height: 8px;">
+            <div class="progress-bar bg-{% if unit.battery_level < 20 %}danger{% elif unit.battery_level < 50 %}warning{% else %}success{% endif %}"
+                 style="width: {{ unit.battery_level }}%">
+            </div>
+          </div>
+          <small class="text-muted">{{ unit.battery_level }}%</small>
+        </div>
+        {% endif %}
+
+        {% if unit.rf_level %}
+        <div class="mb-2">
+          <small>RF Signal</small>
+          <div class="progress" style="height: 8px;">
+            <div class="progress-bar bg-{% if unit.rf_level < 30 %}danger{% elif unit.rf_level < 70 %}warning{% else %}success{% endif %}"
+                 style="width: {{ unit.rf_level }}%">
+            </div>
+          </div>
+          <small class="text-muted">{{ unit.rf_level }}%</small>
+        </div>
+        {% endif %}
+
+        {% if unit.audio_level %}
+        <div class="mb-2">
+          <small>Audio</small>
+          <div class="progress" style="height: 8px;">
+            <div class="progress-bar bg-info" style="width: {{ unit.audio_level }}%"></div>
+          </div>
+          <small class="text-muted">{{ unit.audio_level }}%</small>
+        </div>
+        {% endif %}
+
+        <div class="mt-2">
+          <span class="badge bg-{% if unit.is_active %}success{% else %}secondary{% endif %}">
+            {% if unit.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="col-12">
+    <p class="text-muted text-center">No devices found</p>
+  </div>
+  {% endfor %}
+</div>

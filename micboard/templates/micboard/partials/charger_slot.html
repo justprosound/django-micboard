@@ -1,0 +1,17 @@
+<div class="charger-slot" id="slot-{{ slot.id }}">
+  <div class="slot-status {% if slot.occupied %}occupied{% else %}empty{% endif %}">
+    <div class="slot-number">{{ slot.slot_number }}</div>
+    {% if slot.occupied %}
+      <div class="device-info">
+        <p><strong>{{ slot.device_model }}</strong></p>
+        <p>{{ slot.device_serial }}</p>
+        <div class="battery-indicator">
+          <div class="battery-bar" style="width: {{ slot.battery_percent }}%"></div>
+          <span>{{ slot.battery_percent }}%</span>
+        </div>
+      </div>
+    {% else %}
+      <p class="text-muted">Empty</p>
+    {% endif %}
+  </div>
+</div>

@@ -558,7 +558,9 @@ class HardwareLifecycleManager:
 
     def handle_missing_device(self, device: WirelessChassis | WirelessUnit) -> bool:
         """Mark device missing during poll as offline."""
-        return self.transition_device(device, HardwareStatus.OFFLINE.value, reason="Missing in poll")
+        return self.transition_device(
+            device, HardwareStatus.OFFLINE.value, reason="Missing in poll"
+        )
 
     def get_state_history(self, device: WirelessChassis | WirelessUnit):
         """Placeholder for future state history backend."""

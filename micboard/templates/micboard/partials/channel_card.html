@@ -1,0 +1,20 @@
+<div class="channel-card" id="channel-{{ channel.id }}">
+  <div class="card">
+    <div class="card-header">
+      <strong>Channel {{ channel.channel_number }}</strong>
+      <span class="badge bg-{{ channel.resource_state }}">{{ channel.get_resource_state_display }}</span>
+    </div>
+    <div class="card-body">
+      {% if channel.active_wireless_unit %}
+        <div class="unit-info">
+          <p><strong>{{ channel.active_wireless_unit.name }}</strong></p>
+          <p>Battery: {{ channel.active_wireless_unit.battery_percentage|default:"--" }}%</p>
+          <p>RF: {{ channel.rf_signal_strength|default:"--" }} dB</p>
+          <p>Audio: {{ channel.audio_level|default:"--" }} dB</p>
+        </div>
+      {% else %}
+        <p class="text-muted">No active unit</p>
+      {% endif %}
+    </div>
+  </div>
+</div>

@@ -57,6 +57,11 @@ class DiscoveryQueue(models.Model):
         blank=True,
         help_text="Device name from API",
     )
+    fqdn = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Validated FQDN (PTR + forward lookup)",
+    )
     firmware_version = models.CharField(
         max_length=50,
         blank=True,
@@ -105,6 +110,14 @@ class DiscoveryQueue(models.Model):
         related_name="discovery_queue_entries",
         help_text="Existing device if this is a duplicate/movement",
     )
+    existing_charger = models.ForeignKey(
+        "micboard.Charger",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="discovery_queue_entries",
+        help_text="Existing charger if this is a duplicate/movement",
+    )
     is_duplicate = models.BooleanField(
         default=False,
         help_text="True if serial_number matches existing device",
@@ -140,32 +153,36 @@ class DiscoveryQueue(models.Model):
 
     def check_for_duplicates(self) -> dict[str, Any]:
         """Check if this device already exists in the system."""
-        from micboard.models.hardware import WirelessChassis
+        from micboard.models.hardware import Charger, WirelessChassis
 
         result: dict[str, Any] = {
             "is_duplicate": False,
             "is_ip_conflict": False,
             "existing_device": None,
+            "existing_charger": None,
             "conflict_type": None,
         }
 
         # Check for serial number match (primary deduplication)
         if self.serial_number:
+            # Check Chassis
             try:
                 existing = WirelessChassis.objects.get(serial_number=self.serial_number)
                 result["is_duplicate"] = True
                 result["existing_device"] = existing
-
-                # Check if IP changed (device moved)
-                if existing.ip != self.ip:
-                    result["conflict_type"] = "moved"
-                elif existing.manufacturer != self.manufacturer:
-                    result["conflict_type"] = "manufacturer_mismatch"
-                else:
-                    result["conflict_type"] = "duplicate"
-
+                result["conflict_type"] = "moved" if existing.ip != self.ip else "duplicate"
                 return result
             except WirelessChassis.DoesNotExist:
+                pass
+
+            # Check Charger
+            try:
+                existing = Charger.objects.get(serial_number=self.serial_number)
+                result["is_duplicate"] = True
+                result["existing_charger"] = existing
+                result["conflict_type"] = "moved" if existing.ip != self.ip else "duplicate"
+                return result
+            except Charger.DoesNotExist:
                 pass
 
         # Check for IP conflict (different device, same IP)
@@ -173,14 +190,26 @@ class DiscoveryQueue(models.Model):
             existing = WirelessChassis.objects.get(ip=self.ip)
             result["is_ip_conflict"] = True
             result["existing_device"] = existing
-
-            # If serial numbers don't match, it's a true conflict
-            if self.serial_number and existing.serial_number != self.serial_number:
-                result["conflict_type"] = "ip_conflict"
-            else:
-                result["conflict_type"] = "metadata_update"
-
+            result["conflict_type"] = (
+                "ip_conflict"
+                if self.serial_number and existing.serial_number != self.serial_number
+                else "metadata_update"
+            )
+            return result
         except WirelessChassis.DoesNotExist:
+            pass
+
+        try:
+            existing = Charger.objects.get(ip=self.ip)
+            result["is_ip_conflict"] = True
+            result["existing_charger"] = existing
+            result["conflict_type"] = (
+                "ip_conflict"
+                if self.serial_number and existing.serial_number != self.serial_number
+                else "metadata_update"
+            )
+            return result
+        except Charger.DoesNotExist:
             pass
 
         return result

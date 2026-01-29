@@ -51,6 +51,12 @@ from .hardware import (
     WirelessUnitQuerySet,
 )
 
+# Integration domain
+from .integrations import (
+    Accessory,
+    ManufacturerAPIServer,
+)
+
 # Locations domain
 from .locations import (
     Building,
@@ -153,4 +159,7 @@ __all__ = [
     # Users
     "UserProfile",
     "UserView",
+    # Integrations
+    "ManufacturerAPIServer",
+    "Accessory",
 ]

@@ -156,6 +156,13 @@ class SennheiserDataTransformer:
 
             slot = tx_data.get("slot", channel_num)
 
+            # Battery health data (extract from API)
+            battery_health = tx_data.get("battery_health", tx_data.get("batteryHealth", ""))
+            battery_cycles = tx_data.get("battery_cycles", tx_data.get("batteryCycles"))
+            battery_temperature_c = tx_data.get(
+                "battery_temperature_c", tx_data.get("batteryTemperatureC")
+            )
+
             extra = {
                 "encryption": tx_data.get("encryption"),
                 "rf_quality": tx_data.get("rf_quality", tx_data.get("rfQuality")),
@@ -166,16 +173,14 @@ class SennheiserDataTransformer:
                 },
                 "clip": tx_data.get("clip"),
                 "peak": tx_data.get("peak"),
-                "battery_health": tx_data.get("battery_health", tx_data.get("batteryHealth")),
-                "battery_cycles": tx_data.get("battery_cycles", tx_data.get("batteryCycles")),
-                "battery_temperature_c": tx_data.get(
-                    "battery_temperature_c", tx_data.get("batteryTemperatureC")
-                ),
             }
 
             return {
                 "battery": battery_bars,
                 "battery_charge": battery_charge,
+                "battery_health": battery_health,
+                "battery_cycles": battery_cycles,
+                "battery_temperature_c": battery_temperature_c,
                 "audio_level": audio_level,
                 "rf_level": rf_level,
                 "frequency": str(frequency) if frequency else "",

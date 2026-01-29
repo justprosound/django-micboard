@@ -7,10 +7,9 @@ default settings, signal registration, and startup configuration validation.
 from __future__ import annotations
 
 import logging
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from django.apps import AppConfig
-from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 logger = logging.getLogger(__name__)
@@ -20,6 +19,9 @@ class MicboardConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "micboard"
     verbose_name = "Micboard - Wireless Hardware Monitoring"
+
+    # Store resolved configuration (merged defaults + user settings)
+    _resolved_config: ClassVar[dict[str, Any] | None] = None
 
     # Default configuration
     default_config: ClassVar[dict[str, str | int | float | bool | list[int] | None]] = {
@@ -35,21 +37,46 @@ class MicboardConfig(AppConfig):
         "TRANSMITTER_INACTIVITY_SECONDS": 10,
     }
 
+    @classmethod
+    def get_config(cls) -> dict[str, Any]:
+        """Get resolved configuration (merged defaults + user settings).
+
+        Returns:
+            Merged configuration dictionary.
+
+        Raises:
+            RuntimeError: If configuration not yet initialized (Django apps not loaded).
+        """
+        if cls._resolved_config is None:
+            raise RuntimeError(
+                "Micboard configuration not yet initialized. "
+                "Ensure Django apps are loaded before accessing config."
+            )
+        return cls._resolved_config
+
     def ready(self):
         """Initialize app when Django starts."""
-        # Validate configuration without mutating project settings
-        self._validate_configuration()
+        from django.conf import settings
+
+        # Merge user config with defaults without mutating settings
+        user_config = getattr(settings, "MICBOARD_CONFIG", {})
+        self._resolved_config = {**self.default_config, **user_config}
+
+        # Validate merged configuration
+        self._validate_configuration(self._resolved_config)
 
         # Register system checks
         from django.core.checks import Tags, register
+
         from micboard.checks import check_micboard_configuration
+
         register(check_micboard_configuration, Tags.compatibility)
 
         # Import health checks to trigger registration if django-health-check is present
         try:
             import micboard.checks  # noqa
         except ImportError:
-            pass
+            logger.debug("django-health-check not installed, skipping health check registration")
 
         # Advise about recommended middleware (do not modify settings)
         self._register_security_middleware()
@@ -82,15 +109,17 @@ class MicboardConfig(AppConfig):
                 "settings.MIDDLEWARE:\n" + "\n".join(f"    {m}" for m in missing)
             )
 
-    def _validate_configuration(self):
-        """Validate MICBOARD_CONFIG settings."""
-        config = getattr(settings, "MICBOARD_CONFIG", {})
+    def _validate_configuration(self, config: dict[str, Any]):
+        """Validate merged configuration.
 
-        # Merge with defaults
-        merged_config = {**self.default_config, **config}
+        Args:
+            config: Merged configuration dictionary to validate.
 
+        Raises:
+            ImproperlyConfigured: If configuration is invalid.
+        """
         # Validate required URL
-        base_url = merged_config.get("SHURE_API_BASE_URL")
+        base_url = config.get("SHURE_API_BASE_URL")
         if not base_url:
             raise ImproperlyConfigured(
                 "MICBOARD_CONFIG['SHURE_API_BASE_URL'] is required. "
@@ -106,7 +135,7 @@ class MicboardConfig(AppConfig):
             "TRANSMITTER_INACTIVITY_SECONDS",
         ]
         for key in numeric_settings:
-            value = merged_config.get(key)
+            value = config.get(key)
             if value is not None and not isinstance(value, (int, float)):
                 raise ImproperlyConfigured(
                     f"MICBOARD_CONFIG['{key}'] must be a number, got {type(value).__name__}"
@@ -115,8 +144,5 @@ class MicboardConfig(AppConfig):
                 raise ImproperlyConfigured(
                     f"MICBOARD_CONFIG['{key}'] must be positive, got {value}"
                 )
-
-        # Apply merged config back to settings for consistency
-        settings.MICBOARD_CONFIG = merged_config
 
         logger.debug("Micboard configuration validated successfully")

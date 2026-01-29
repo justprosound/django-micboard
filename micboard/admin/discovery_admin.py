@@ -12,6 +12,7 @@ from django.contrib import admin, messages
 from django.utils import timezone
 from django.utils.html import format_html
 
+from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import DeviceMovementLog, DiscoveryQueue
 
 if TYPE_CHECKING:
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @admin.register(DiscoveryQueue)
-class DiscoveryQueueAdmin(admin.ModelAdmin):
+class DiscoveryQueueAdmin(MicboardModelAdmin):
     """Admin interface for managing discovered devices awaiting review."""
 
     list_display = (
@@ -52,8 +53,10 @@ class DiscoveryQueueAdmin(admin.ModelAdmin):
         "reviewed_at",
         "reviewed_by",
         "existing_device",
+        "existing_charger",
         "conflict_analysis",
     )
+    list_select_related = ("manufacturer", "existing_device", "existing_charger")
     fieldsets = (
         (
             "Device Information",
@@ -64,6 +67,7 @@ class DiscoveryQueueAdmin(admin.ModelAdmin):
                     "serial_number",
                     "mac_address",
                     "name",
+                    "fqdn",
                     "device_type",
                     "model",
                     "firmware_version",
@@ -88,6 +92,7 @@ class DiscoveryQueueAdmin(admin.ModelAdmin):
                     "is_duplicate",
                     "is_ip_conflict",
                     "existing_device",
+                    "existing_charger",
                     "notes",
                     "reviewed_at",
                     "reviewed_by",
@@ -112,12 +117,11 @@ class DiscoveryQueueAdmin(admin.ModelAdmin):
             "approved": "green",
             "rejected": "red",
             "imported": "blue",
-            "duplicate": "gray",
+            "duplicate": "var(--body-quiet-color, gray)",
         }
         color = colors.get(obj.status, "gray")
         return format_html(
-            '<span style="background-color: {}; color: white; padding: 3px 8px; '
-            'border-radius: 3px; font-weight: bold;">{}</span>',
+            '<span style="color: {};">{}</span>',
             color,
             obj.status.upper(),
         )
@@ -149,41 +153,63 @@ class DiscoveryQueueAdmin(admin.ModelAdmin):
         """Display conflict details from check_for_duplicates."""
         conflicts = obj.check_for_duplicates()
         if not conflicts:
-            return format_html('<span style="color: green;">✓ No conflicts detected</span>')
+            return "✓ No conflicts detected"
 
         parts = []
         for key, value in conflicts.items():
             if value:
-                parts.append(f"<strong>{key}:</strong> {value}")
-        return format_html("<br>".join(parts))
+                parts.append(f"{key}: {value}")
+        return " | ".join(parts)
 
     @admin.action(description="Approve selected devices for import")
     def approve_devices(self, request: HttpRequest, queryset):
         """Approve devices and mark them for import."""
-        from micboard.models import WirelessChassis
+        from micboard.models import Charger, WirelessChassis
 
         count = 0
         for item in queryset.filter(status="pending"):
-            # Create receiver from discovery data
-            receiver = WirelessChassis.objects.create(
-                manufacturer=item.manufacturer,
-                api_device_id=item.api_device_id,
-                serial_number=item.serial_number,
-                mac_address=item.mac_address,
-                ip=item.ip,
-                name=item.name,
-                model=item.model,
-                role=item.device_type,  # Map device_type to role
-                firmware_version=item.firmware_version,
-                subnet_mask=item.subnet_mask,
-                gateway=item.gateway,
-            )
+            if item.device_type.lower() == "charger":
+                # Create/Update Charger
+                charger, created = Charger.objects.update_or_create(
+                    serial_number=item.serial_number,
+                    defaults={
+                        "manufacturer": item.manufacturer,
+                        "ip": item.ip,
+                        "name": item.name,
+                        "fqdn": item.fqdn,
+                        "model": item.model,
+                        "firmware_version": item.firmware_version,
+                        "status": "online",
+                        "is_active": True,
+                    },
+                )
+                item.existing_charger = charger
+            else:
+                # Create/Update WirelessChassis
+                receiver, created = WirelessChassis.objects.update_or_create(
+                    serial_number=item.serial_number,
+                    defaults={
+                        "manufacturer": item.manufacturer,
+                        "api_device_id": item.api_device_id,
+                        "mac_address": item.mac_address,
+                        "ip": item.ip,
+                        "name": item.name,
+                        "fqdn": item.fqdn,
+                        "model": item.model,
+                        "role": item.device_type,  # Map device_type to role
+                        "firmware_version": item.firmware_version,
+                        "subnet_mask": item.subnet_mask,
+                        "gateway": item.gateway,
+                        "is_online": True,
+                        "status": "online",
+                    },
+                )
+                item.existing_device = receiver
 
             # Update discovery queue status
             item.status = "imported"
             item.reviewed_at = timezone.now()
             item.reviewed_by = request.user
-            item.existing_device = receiver
             item.save()
             count += 1
 
@@ -212,7 +238,7 @@ class DiscoveryQueueAdmin(admin.ModelAdmin):
 
 
 @admin.register(DeviceMovementLog)
-class DeviceMovementLogAdmin(admin.ModelAdmin):
+class DeviceMovementLogAdmin(MicboardModelAdmin):
     """Admin interface for tracking and acknowledging device movements."""
 
     list_display = (
@@ -234,6 +260,7 @@ class DeviceMovementLogAdmin(admin.ModelAdmin):
         "new_ip",
         "reason",
     )
+    list_select_related = ("device", "device__manufacturer", "old_location", "new_location")
     readonly_fields = (
         "device",
         "old_ip",

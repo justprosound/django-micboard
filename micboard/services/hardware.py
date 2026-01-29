@@ -12,12 +12,11 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from django.db import models
 from django.db.models import QuerySet
-from django.utils import timezone
 
 from micboard.models import WirelessChassis, WirelessUnit
 
 if TYPE_CHECKING:
-    from django.contrib.auth.models import User
+    pass
 
 logger = logging.getLogger(__name__)
 _ModelT = TypeVar("_ModelT", bound=models.Model)
@@ -225,12 +224,14 @@ class HardwareService:
     @staticmethod
     def handle_chassis_save(*, chassis: WirelessChassis, created: bool) -> None:
         """Handle side effects of saving a chassis."""
-        from django.conf import settings
-        from django.core.cache import cache
+        import logging
 
-        from micboard.signals import async_to_sync, get_channel_layer, logger
+        from django.conf import settings
+
         from micboard.tasks.discovery_tasks import sync_receiver_discovery
-        from micboard.utils.dependencies import HAS_CHANNELS, HAS_DJANGO_Q
+        from micboard.utils.dependencies import HAS_DJANGO_Q
+
+        logger = logging.getLogger(__name__)
 
         # 1. Ensure channels match model capacity
         try:
@@ -249,11 +250,42 @@ class HardwareService:
         except Exception:
             logger.exception("Error ensuring channel count for chassis: %s", chassis.name)
 
-        # 2. Schedule discovery sync
+        # 2. Bi-directional sync: Add IP to manufacturer's discovery list
+        if chassis.ip and chassis.manufacturer and created:
+            try:
+                from micboard.services.plugin_registry import PluginRegistry
+
+                plugin = PluginRegistry.get_plugin(chassis.manufacturer.code, chassis.manufacturer)
+
+                # Check if plugin supports discovery IP management
+                if plugin and hasattr(plugin, "add_discovery_ips"):
+                    success = plugin.add_discovery_ips([chassis.ip])
+                    if success:
+                        logger.info(
+                            "✅ Added %s to %s discovery list for automatic monitoring",
+                            chassis.ip,
+                            chassis.manufacturer.name,
+                        )
+                    else:
+                        logger.warning(
+                            "⚠️ Could not add %s to %s discovery list",
+                            chassis.ip,
+                            chassis.manufacturer.name,
+                        )
+            except Exception as e:
+                logger.warning(
+                    "Failed to add IP %s to discovery list for %s: %s",
+                    chassis.ip,
+                    chassis.manufacturer.code,
+                    e,
+                )
+
+        # 3. Schedule discovery sync
         if not getattr(settings, "TESTING", False) and chassis.ip:
             if HAS_DJANGO_Q:
                 try:
                     from django_q.tasks import async_task
+
                     async_task(sync_receiver_discovery, chassis.pk)
                 except Exception:
                     logger.exception("Failed to schedule discovery task")
@@ -263,52 +295,45 @@ class HardwareService:
                 except Exception:
                     logger.exception("Failed to run discovery synchronously")
 
-        # 3. Broadcasting and Caching
-        try:
-            if created:
-                logger.info("Chassis created: %s at %s", chassis.name, chassis.ip)
-                cache.delete("micboard_device_data")
-            else:
-                if not chassis.is_online and HAS_CHANNELS:
-                    channel_layer = get_channel_layer()
-                    if channel_layer:
-                        async_to_sync(channel_layer.group_send)(
-                            "micboard_updates",
-                            {
-                                "type": "chassis_status",
-                                "chassis_id": chassis.api_device_id,
-                                "is_online": False,
-                            },
-                        )
-                logger.debug("Chassis updated: %s", chassis.name)
-        except Exception:
-            logger.exception("Error handling chassis save side effects")
+        if created:
+            logger.info("Chassis created: %s at %s", chassis.name, chassis.ip)
+        else:
+            logger.debug("Chassis updated: %s", chassis.name)
 
     @staticmethod
     def handle_chassis_delete(*, chassis: WirelessChassis) -> None:
         """Handle side effects of deleting a chassis."""
-        from django.core.cache import cache
+        import logging
 
-        from micboard.signals import async_to_sync, get_channel_layer, logger
-        from micboard.utils.dependencies import HAS_CHANNELS
+        logger = logging.getLogger(__name__)
+        logger.info("Chassis deleted: %s (%s)", chassis.name, chassis.api_device_id)
 
-        try:
-            # Clear cache
-            cache_keys = [
-                f"chassis_{chassis.api_device_id}",
-                f"channels_{chassis.api_device_id}",
-                "micboard_device_data",
-            ]
-            cache.delete_many(cache_keys)
+        # Bi-directional sync: Remove IP from manufacturer's discovery list
+        if chassis.ip and chassis.manufacturer:
+            try:
+                from micboard.services.plugin_registry import PluginRegistry
 
-            # Notify WebSockets
-            if HAS_CHANNELS:
-                channel_layer = get_channel_layer()
-                if channel_layer:
-                    async_to_sync(channel_layer.group_send)(
-                        "micboard_updates",
-                        {"type": "chassis_deleted", "chassis_id": chassis.api_device_id},
-                    )
-            logger.info("Chassis deleted: %s (%s)", chassis.name, chassis.api_device_id)
-        except Exception:
-            logger.exception("Error handling chassis deletion side effects")
+                plugin = PluginRegistry.get_plugin(chassis.manufacturer.code, chassis.manufacturer)
+
+                # Check if plugin supports discovery IP management
+                if plugin and hasattr(plugin, "remove_discovery_ips"):
+                    success = plugin.remove_discovery_ips([chassis.ip])
+                    if success:
+                        logger.info(
+                            "✅ Removed %s from %s discovery list",
+                            chassis.ip,
+                            chassis.manufacturer.name,
+                        )
+                    else:
+                        logger.warning(
+                            "⚠️ Could not remove %s from %s discovery list",
+                            chassis.ip,
+                            chassis.manufacturer.name,
+                        )
+            except Exception as e:
+                logger.warning(
+                    "Failed to remove IP %s from discovery list for %s: %s",
+                    chassis.ip,
+                    chassis.manufacturer.code,
+                    e,
+                )
