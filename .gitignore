@@ -44,8 +44,8 @@ coverage.xml
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-media/
-staticfiles/
+/staticfiles/
+/media/
 
 # Environments
 .env
@@ -68,6 +68,7 @@ ENV/
 # Node / JS
 node_modules/
 package-lock.json
+yarn.lock
 
 # MkDocs build output
 site/
@@ -84,3 +85,8 @@ device_inventory*.json
 # Local development scripts
 scripts/local_*.py
 scripts/*_local.py
+
+# Build artifacts
+*.pyc
+*.so
+.eggs/

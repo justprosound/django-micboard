@@ -25,6 +25,7 @@ __license__ = "AGPL-3.0-or-later"
 
 # Public API - convenience imports for common use cases
 from micboard.apps import MicboardConfig
+from micboard.conf import config as settings
 
 
 def __getattr__(name: str):
@@ -37,6 +38,10 @@ def __getattr__(name: str):
         from micboard import services
 
         return services
+    elif name == "conf":
+        from micboard import conf
+
+        return conf
     elif name == "get_config":
         return MicboardConfig.get_config
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -47,6 +52,8 @@ __all__ = [
     "__license__",
     "MicboardConfig",
     "get_config",
+    "settings",
+    "conf",
     "models",
     "services",
 ]

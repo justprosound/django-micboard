@@ -2,23 +2,22 @@
 include README.md
 include LICENSE
 include CONTRIBUTING.md
+include CHANGELOG.md
 include pyproject.toml
+include .env.example
 
 # Include app package data
 recursive-include micboard/static *.js *.css *.scss *.map
 recursive-include micboard/templates *.html
 recursive-include micboard/management *.py
 recursive-include micboard/migrations *.py
+recursive-include micboard/fixtures *.yaml *.yml *.json
 
 # Exclude development, test, and cache files
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * .DS_Store
 recursive-exclude * .git*
-recursive-exclude tests *
-recursive-exclude docs *
-recursive-exclude example_project *
-recursive-exclude scripts *
 exclude .gitignore .pre-commit-config.yaml pytest.ini mkdocs.yml
-exclude *.sh *.py
-exclude SECURITY.md ARCHITECTURE_*.md *_SUMMARY.md *_TRACKING.md
+exclude *.sh
+exclude SECURITY.md ARCHITECTURE_*.md *_SUMMARY.md *_TRACKING.md *_WORKSHEET.md IMPLEMENTATION_*.md BREAKING_*.md LINTING_*.md MIGRATION_*.md PERFORMER_*.md REFACTORING_*.md SETTINGS_*.md QUICK_START*.md BATTERY_*.md
