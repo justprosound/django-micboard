@@ -21,6 +21,7 @@ class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
     """Client for interacting with Shure System API with connection pooling and retry logic."""
 
     def __init__(self, base_url: str | None = None, verify_ssl: bool | None = None):
+        """Initialize Shure API client, configure auth, and compose sub-clients."""
         super().__init__(base_url, verify_ssl)
         from micboard.apps import MicboardConfig
 

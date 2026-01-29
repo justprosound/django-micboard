@@ -14,6 +14,7 @@ class FakeManufacturerPlugin:
     manufacturer = None
 
     def __init__(self, manufacturer=None):
+        """Create a fake plugin tied to an optional manufacturer for tests."""
         self.manufacturer = manufacturer
 
     def get_devices(self):

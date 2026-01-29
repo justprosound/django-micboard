@@ -16,6 +16,7 @@ class ShureDeviceClient:
     """Client for interacting with Shure System API for device data."""
 
     def __init__(self, api_client: BaseAPIClient):
+        """Create a device client bound to the parent API client."""
         self.api_client = api_client
         self.transformer = ShureDataTransformer()
 

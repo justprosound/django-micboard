@@ -139,6 +139,7 @@ class SettingValueForm(ModelForm):
         fields = ["definition", "organization", "site", "manufacturer", "value"]
 
     def __init__(self, *args, **kwargs):
+        """Initialize value form and adjust help text based on definition type."""
         super().__init__(*args, **kwargs)
 
         # Make value a textarea but use smaller size for boolean/integer

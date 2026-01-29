@@ -103,6 +103,7 @@ class CachedProperty:
     """
 
     def __init__(self, func: Callable):
+        """Initialize the cached property descriptor for a callable."""
         self.func = func
         self.name = func.__name__
 

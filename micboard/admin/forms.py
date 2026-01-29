@@ -22,6 +22,7 @@ class WirelessChassisAdminForm(forms.ModelForm):
         fields = "__all__"
 
     def __init__(self, *args, **kwargs):
+        """Initialize the form and populate dynamic band plan choices."""
         super().__init__(*args, **kwargs)
 
         # Populate band plan choices based on manufacturer

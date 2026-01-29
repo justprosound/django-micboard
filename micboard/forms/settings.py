@@ -52,6 +52,7 @@ class BulkSettingConfigForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        """Initialize the bulk settings form and dynamically add fields for active definitions."""
         super().__init__(*args, **kwargs)
 
         # Populate manufacturer choices
@@ -226,6 +227,7 @@ class ManufacturerSettingsForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        """Initialize the manufacturer settings form and load manufacturer queryset."""
         super().__init__(*args, **kwargs)
         from micboard.models.discovery import Manufacturer
 

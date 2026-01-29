@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "example_project.settings")
 django.setup()
 
-from micboard.models import DiscoveryCIDR, DiscoveryFQDN, Manufacturer
-from micboard.tasks.discovery_tasks import run_discovery_sync_task
+from micboard.models import DiscoveryCIDR, DiscoveryFQDN, Manufacturer  # noqa: E402
+from micboard.tasks.discovery_tasks import run_discovery_sync_task  # noqa: E402
 
 # Get or create Shure manufacturer
 try:

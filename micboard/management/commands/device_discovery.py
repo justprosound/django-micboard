@@ -13,6 +13,7 @@ class DeviceDiscovery:
     """Discovers and populates Shure devices from VPN sources."""
 
     def __init__(self, *, timeout: int = 5, verify_ssl: bool = False):
+        """Initialize discovery helper with request timeout and SSL verification settings."""
         self.timeout = timeout
         self.verify_ssl = verify_ssl
         self.discovered_devices: List[Dict[str, Any]] = []
@@ -93,6 +94,7 @@ class LocalPopulation:
     """Populate local Shure System API with discovered devices."""
 
     def __init__(self, api_base: str = "http://localhost:8000"):
+        """Initialize local population helper with API base and a HTTP session."""
         self.api_base = api_base.rstrip("/")
         self.session = requests.Session()
 

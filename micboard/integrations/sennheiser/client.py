@@ -19,6 +19,7 @@ class SennheiserSystemAPIClient(BasePollingMixin, BaseHTTPClient):
     """Client for interacting with Sennheiser SSCv2 API with connection pooling and retry logic."""
 
     def __init__(self):
+        """Initialize Sennheiser API client and compose sub-clients."""
         super().__init__()
 
         # Compose sub-clients
