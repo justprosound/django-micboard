@@ -74,13 +74,13 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
     def status_colored(self, obj):
         """Display status with color coding."""
         colors = {
-            "connected": "green",
-            "connecting": "orange",
-            "disconnected": "gray",
-            "error": "red",
-            "stopped": "blue",
+            "connected": "var(--success-fg, green)",
+            "connecting": "var(--warning-fg, orange)",
+            "disconnected": "var(--body-quiet-color, gray)",
+            "error": "var(--error-fg, red)",
+            "stopped": "var(--link-fg, blue)",
         }
-        color = colors.get(obj.status, "black")
+        color = colors.get(obj.status, "var(--body-fg, black)")
         return format_html('<span style="color: {};">{}</span>', color, obj.get_status_display())
 
     @admin.display(description="Duration")

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
-from django.conf import settings
 from requests.auth import HTTPDigestAuth
 
 from micboard.integrations.base_http_client import BaseHTTPClient, BasePollingMixin
@@ -23,7 +22,9 @@ class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
 
     def __init__(self, base_url: str | None = None, verify_ssl: bool | None = None):
         super().__init__(base_url, verify_ssl)
-        config = getattr(settings, "MICBOARD_CONFIG", {})
+        from micboard.apps import MicboardConfig
+
+        config = MicboardConfig.get_config()
 
         # Respect an explicit websocket URL from config; store it on a
         # private attribute because `websocket_url` is a read-only property.

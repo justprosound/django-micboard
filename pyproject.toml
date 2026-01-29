@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "AGPL-3.0-or-later"}
 authors = [
-    {name = "Django Micboard Contributors", email = "contribute@example.com"}
+    {name = "Django Micboard Contributors"}
 ]
 keywords = [
     "django",
@@ -27,7 +27,9 @@ classifiers = [
     "Framework :: Django",
     "Framework :: Django :: 4.2",
     "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
     "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Natural Language :: English",
     "Operating System :: OS Independent",
@@ -39,6 +41,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Communications",
     "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Multimedia :: Sound/Audio",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
@@ -49,46 +53,63 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-channels = [
-    "channels>=4.0",
-    "channels-redis>=4.0",
-]
+# Background task processing for polling, discovery, and async operations
 tasks = [
     "django-q2>=1.4.0",
 ]
-filters = [
+# Server-side real-time broadcast layer for internal pub/sub patterns
+# (NOT for browser WebSockets - frontend uses HTMX)
+realtime = [
+    "channels>=4.0",
+    "channels-redis>=4.0",
+]
+# Backend integration with Shure System API hardware WebSocket endpoint
+# for receiving real-time device telemetry (battery, RF, audio levels).
+# NOT for browser WebSockets - frontend uses HTMX polling/SSE.
+# See: micboard/integrations/shure/websocket.py
+shure = [
+    "websockets>=12.0.0",
+]
+# API filtering capabilities for viewsets
+api = [
     "django-filter>=23.0",
 ]
-import-export = [
-    "django-import-export>=4.0",
-]
+# Admin interface enhancements (date ranges, sortable lists)
 admin-ui = [
     "django-admin-rangefilter>=0.13.0",
     "django-admin-sortable2>=2.2.0",
 ]
+# CSV/Excel import/export in admin
+import-export = [
+    "django-import-export>=4.0",
+]
+# Modern admin theme
+admin-theme = [
+    "django-unfold>=0.30.0",
+]
+# Model change history tracking
 audit = [
     "django-simple-history>=3.5.0",
 ]
+# Redis-based caching for improved performance
 performance = [
     "django-redis>=5.4.0",
     "hiredis>=3.0.0",
 ]
-admin-theme = [
-    "django-unfold>=0.30.0",
-]
+# Health check endpoints
 health-check = [
     "django-health-check>=3.18.0",
 ]
+# Field-level encryption
 security = [
     "django-cryptography>=1.1",
 ]
-websocket = [
-    "websockets>=12.0.0",
-]
-yaml = [
+# YAML fixture loading for device specs
+fixtures = [
     "PyYAML>=6.0.0",
 ]
-images = [
+# Image upload support (performer photos, venue logos)
+media = [
     "Pillow>=10.0.0",
 ]
 dev = [
@@ -115,21 +136,22 @@ docs = [
     "sphinx-autodoc-typehints>=1.18",
 ]
 all = [
-    "channels>=4.0",
-    "channels-redis>=4.0",
-    "django-q2>=1.4.0",
-    "django-filter>=23.0",
-    "django-import-export>=4.0",
-    "django-admin-rangefilter>=0.13.0",
-    "django-admin-sortable2>=2.2.0",
-    "django-simple-history>=3.5.0",
-    "django-redis>=5.4.0",
-    "django-unfold>=0.30.0",
-    "django-health-check>=3.18.0",
-    "django-cryptography>=1.1",
-    "websockets>=12.0.0",
-    "PyYAML>=6.0.0",
-    "Pillow>=10.0.0",
+    "django-q2>=1.4.0",  # tasks
+    "channels>=4.0",  # realtime
+    "channels-redis>=4.0",  # realtime
+    "websockets>=12.0.0",  # shure
+    "django-filter>=23.0",  # api
+    "django-admin-rangefilter>=0.13.0",  # admin-ui
+    "django-admin-sortable2>=2.2.0",  # admin-ui
+    "django-import-export>=4.0",  # import-export
+    "django-unfold>=0.30.0",  # admin-theme
+    "django-simple-history>=3.5.0",  # audit
+    "django-redis>=5.4.0",  # performance
+    "hiredis>=3.0.0",  # performance
+    "django-health-check>=3.18.0",  # health-check
+    "django-cryptography>=1.1",  # security
+    "PyYAML>=6.0.0",  # fixtures
+    "Pillow>=10.0.0",  # media
     "pytest>=7.0",
     "pytest-django>=4.5",
     "pytest-cov>=4.0",
@@ -152,11 +174,11 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/django-micboard"
+Homepage = "https://github.com/justprosound/django-micboard"
 Documentation = "https://django-micboard.readthedocs.io"
-Repository = "https://github.com/yourusername/django-micboard.git"
-"Bug Tracker" = "https://github.com/yourusername/django-micboard/issues"
-Changelog = "https://github.com/yourusername/django-micboard/blob/main/CHANGELOG.md"
+Repository = "https://github.com/justprosound/django-micboard.git"
+"Bug Tracker" = "https://github.com/justprosound/django-micboard/issues"
+Changelog = "https://github.com/justprosound/django-micboard/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 packages = ["micboard"]
@@ -166,6 +188,9 @@ micboard = [
     "templates/**/*.html",
     "static/**/*.js",
     "static/**/*.css",
+    "static/**/*.scss",
+    "static/**/*.map",
+    "migrations/*.py",
 ]
 
 # ============================================================================
@@ -243,20 +268,38 @@ directory = "htmlcov"
 [tool.ruff]
 line-length = 100
 target-version = "py39"
-extend-exclude = ["scripts/"]
+extend-exclude = [
+    "migrations",
+    "scripts/",
+    "example_project/",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "D", "N", "Q", "B"]
+select = ["E", "F", "I", "W", "D", "N", "Q", "B", "T20"]
 ignore = [
-    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107"
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "E501"
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"micboard/apps.py" = ["T20"]
+"*/migrations/*.py" = ["ALL"]
+"example_project/*.py" = ["S105", "S106"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint.isort]
+known-first-party = ["micboard"]
+section-order = ["future", "standard-library", "django", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.isort.sections]
+django = ["django"]
+
 [tool.ruff.format]
 docstring-code-format = true
 docstring-code-line-length = 88
+quote-style = "double"
 
 [tool.mypy]
 plugins = ["mypy_django_plugin.main"]

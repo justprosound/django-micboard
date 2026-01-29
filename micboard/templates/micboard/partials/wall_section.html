@@ -1,0 +1,18 @@
+<div class="wall-section" id="section-{{ section.id }}"
+     hx-get="{% url 'micboard:wall_section_partial' section.id %}"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML">
+  <h3>{{ section.name }}</h3>
+  <div class="chargers-grid">
+    {% for charger_data in data.chargers %}
+      <div class="charger-block">
+        <h4>{{ charger_data.name }}</h4>
+        <div class="slots-grid">
+          {% for slot in charger_data.slots %}
+            {% include "micboard/partials/charger_slot.html" %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>

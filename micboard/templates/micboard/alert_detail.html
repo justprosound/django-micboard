@@ -8,8 +8,8 @@
 <div class="container my-5">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'alerts' %}">Alerts</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'micboard:index' %}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'micboard:alerts' %}">Alerts</a></li>
             <li class="breadcrumb-item active">Alert #{{ alert.id }}</li>
         </ol>
     </nav>
@@ -86,15 +86,15 @@
                     </div>
                     {% endif %}
                     <div class="d-flex gap-2">
-                        <a href="{% url 'alerts' %}" class="btn btn-secondary">&larr; Back to Alerts</a>
+                        <a href="{% url 'micboard:alerts' %}" class="btn btn-secondary">&larr; Back to Alerts</a>
                         {% if alert.status == "pending" %}
-                        <form method="post" action="{% url 'acknowledge_alert' alert.id %}" style="display: inline;">
+                        <form method="post" action="{% url 'micboard:acknowledge_alert' alert.id %}" style="display: inline;">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-info">Acknowledge Alert</button>
                         </form>
                         {% endif %}
                         {% if alert.status in "pending,acknowledged" %}
-                        <form method="post" action="{% url 'resolve_alert' alert.id %}" style="display: inline;">
+                        <form method="post" action="{% url 'micboard:resolve_alert' alert.id %}" style="display: inline;">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-success">Mark as Resolved</button>
                         </form>

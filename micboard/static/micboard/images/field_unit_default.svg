@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Wireless unit">
+  <rect width="120" height="120" fill="#1f2937" rx="12"/>
+  <rect x="28" y="20" width="64" height="80" fill="#111827" rx="8"/>
+  <rect x="36" y="30" width="48" height="12" fill="#374151" rx="4"/>
+  <rect x="36" y="50" width="48" height="38" fill="#4b5563" rx="4"/>
+  <rect x="50" y="92" width="20" height="6" fill="#6b7280" rx="3"/>
+  <text x="60" y="112" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#e5e7eb">Wireless Unit</text>
+</svg>

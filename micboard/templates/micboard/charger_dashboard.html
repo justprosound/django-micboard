@@ -95,7 +95,7 @@
             <small class="text-muted">Display Width: {{ display_width_px }}px</small>
         </div>
 
-        <form class="d-flex gap-2" hx-post="{% url 'charger_dashboard' %}" hx-target=".charger-container" hx-select=".charger-container" hx-swap="outerHTML">
+        <form class="d-flex gap-2" hx-post="{% url 'micboard:charger_dashboard' %}" hx-target=".charger-container" hx-select=".charger-container" hx-swap="outerHTML">
             {% csrf_token %}
             <input type="number" name="display_width_px" value="{{ display_width_px }}" class="form-control form-control-sm" style="width: 100px;">
             <button type="submit" class="btn btn-sm btn-outline-light">Set Width</button>
@@ -104,7 +104,7 @@
 
     <div id="charger-grid"
          class="charger-grid"
-         hx-get="{% url 'charger_dashboard' %}"
+         hx-get="{% url 'micboard:charger_dashboard' %}"
          hx-trigger="every 10s"
          hx-swap="innerHTML"
          hx-select=".charger-grid">

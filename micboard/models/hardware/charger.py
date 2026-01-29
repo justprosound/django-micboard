@@ -81,6 +81,11 @@ class Charger(models.Model):
         blank=True,
         help_text="Charger name/label (e.g., 'Charger A - Stage', 'Backup Charger')",
     )
+    fqdn = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Validated FQDN (PTR + forward lookup)",
+    )
 
     order = models.PositiveIntegerField(
         default=0,

@@ -1,0 +1,391 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Hardware Gap Analysis{% endblock %}
+
+{% block extrahead %}
+<style>
+    .gap-analysis-container {
+        max-width: 1200px;
+        margin: 20px;
+    }
+
+    .gap-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .gap-card h3 {
+        margin-top: 0;
+        color: #333;
+        border-bottom: 2px solid #417690;
+        padding-bottom: 10px;
+    }
+
+    .gap-metric {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin: 15px 0;
+    }
+
+    .metric-box {
+        background: #f5f5f5;
+        border-left: 4px solid #417690;
+        padding: 15px;
+        border-radius: 4px;
+    }
+
+    .metric-box h4 {
+        margin: 0 0 10px 0;
+        font-size: 14px;
+        color: #666;
+        text-transform: uppercase;
+    }
+
+    .metric-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: #417690;
+    }
+
+    .metric-pct {
+        font-size: 14px;
+        color: #999;
+        margin-top: 5px;
+    }
+
+    .status-critical {
+        border-left-color: #dc3545;
+        background: #fff5f5;
+    }
+
+    .status-critical .metric-value {
+        color: #dc3545;
+    }
+
+    .status-warning {
+        border-left-color: #ffc107;
+        background: #fffbf0;
+    }
+
+    .status-warning .metric-value {
+        color: #ff9800;
+    }
+
+    .status-ok {
+        border-left-color: #28a745;
+        background: #f5fff5;
+    }
+
+    .status-ok .metric-value {
+        color: #28a745;
+    }
+
+    .gap-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+
+    .gap-table thead {
+        background: #417690;
+        color: white;
+    }
+
+    .gap-table th,
+    .gap-table td {
+        padding: 10px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .gap-table tbody tr:hover {
+        background: #f9f9f9;
+    }
+
+    .gap-table .high-gap {
+        background: #fff5f5;
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .gap-table .medium-gap {
+        background: #fffbf0;
+        color: #ff9800;
+    }
+
+    .gap-table .low-gap {
+        background: #f5fff5;
+        color: #28a745;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: bold;
+        color: white;
+    }
+
+    .badge-primary {
+        background-color: #417690;
+    }
+
+    .badge-danger {
+        background-color: #dc3545;
+    }
+
+    .badge-warning {
+        background-color: #ffc107;
+        color: #333;
+    }
+
+    .badge-success {
+        background-color: #28a745;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+    }
+
+    .alert {
+        padding: 12px;
+        margin-bottom: 15px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+    }
+
+    .alert-info {
+        color: #31708f;
+        background-color: #d9edf7;
+        border-color: #bce8f1;
+    }
+
+    .alert-warning {
+        color: #8a6d3b;
+        background-color: #fcf8e3;
+        border-color: #faebcc;
+    }
+
+    .alert-danger {
+        color: #a94442;
+        background-color: #f2dede;
+        border-color: #ebccd1;
+    }
+
+    .progress-bar {
+        height: 20px;
+        background-color: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background-color: #417690;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gap-analysis-container">
+    <h1>Hardware Inventory Gap Analysis</h1>
+
+    {% if needs_attention.high > 0 %}
+    <div class="alert alert-danger">
+        <strong>⚠️ Immediate Attention Required:</strong>
+        {{ needs_attention.high }} devices without accessories configured. Consider adding essential items like microphones and packs.
+    </div>
+    {% endif %}
+
+    {% if needs_attention.medium > 0 %}
+    <div class="alert alert-warning">
+        <strong>📋 Missing Data:</strong>
+        {{ needs_attention.medium }} devices missing IP addresses or other core fields.
+    </div>
+    {% endif %}
+
+    <!-- Summary Metrics -->
+    <div class="gap-card">
+        <h3>📊 Overall Inventory Status</h3>
+        <div class="gap-metric">
+            <div class="metric-box">
+                <h4>Total Devices</h4>
+                <div class="metric-value">{{ total_chassis }}</div>
+            </div>
+            <div class="metric-box">
+                <h4>Without Accessories</h4>
+                <div class="metric-value {% if chassis_without_accessories > total_chassis|add:"-50" %}status-critical{% elif chassis_without_accessories > 0 %}status-warning{% else %}status-ok{% endif %}">
+                    {{ chassis_without_accessories }}
+                </div>
+                <div class="metric-pct">{{ chassis_without_accessories|add:"100"|mul:"100"|div:total_chassis|floatformat:1 }}% of total</div>
+            </div>
+            <div class="metric-box">
+                <h4>Last Polled Missing</h4>
+                <div class="metric-value {% if last_polled_gap > 0 %}status-warning{% else %}status-ok{% endif %}">
+                    {{ last_polled_gap }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Missing Core Fields -->
+    <div class="gap-card">
+        <h3>🔴 Missing Core Data</h3>
+        <table class="gap-table">
+            <thead>
+                <tr>
+                    <th>Data Field</th>
+                    <th>Missing Count</th>
+                    <th>Percentage</th>
+                    <th>Progress</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for field, count in missing_fields.items %}
+                <tr class="{% if missing_fields_pct|dict_lookup:field > 20 %}high-gap{% elif missing_fields_pct|dict_lookup:field > 5 %}medium-gap{% else %}low-gap{% endif %}">
+                    <td>{{ field }}</td>
+                    <td>{{ count }}</td>
+                    <td><span class="badge {% if missing_fields_pct|dict_lookup:field > 20 %}badge-danger{% elif missing_fields_pct|dict_lookup:field > 5 %}badge-warning{% else %}badge-success{% endif %}">{{ missing_fields_pct|dict_lookup:field }}%</span></td>
+                    <td style="width: 200px;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ 100|add:"-missing_fields_pct"|dict_lookup:field|floatformat:0 }}%;">
+                                {{ 100|add:"-missing_fields_pct"|dict_lookup:field|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Device Breakdown by Model -->
+    <div class="gap-card">
+        <h3>🎛️ Device Breakdown by Model</h3>
+        <table class="gap-table">
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th>Count</th>
+                    <th>Avg Accessories</th>
+                    <th>Without IP</th>
+                    <th>Without Accessories</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in devices_by_model_with_gaps %}
+                <tr>
+                    <td><strong>{{ item.model }}</strong></td>
+                    <td><span class="badge badge-primary">{{ item.count }}</span></td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            {{ item.accessories_avg|floatformat:1 }}
+                            {% if item.accessories_avg > 0 %}
+                                <span class="badge badge-success">✓</span>
+                            {% else %}
+                                <span class="badge badge-warning">⚠️</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if item.missing_ip > 0 %}
+                            <span class="badge badge-danger">{{ item.missing_ip }}</span>
+                        {% else %}
+                            <span class="badge badge-success">✓</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.without_accessories > 0 %}
+                            <span class="badge badge-warning">{{ item.without_accessories }}</span>
+                        {% else %}
+                            <span class="badge badge-success">✓</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Accessories Status -->
+    <div class="gap-card">
+        <h3>🎤 Accessories by Type</h3>
+        {% if accessories_by_type %}
+            <table class="gap-table">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Total</th>
+                        <th>Available</th>
+                        <th>Unavailable</th>
+                        <th>Needs Repair</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in accessories_by_type %}
+                    <tr>
+                        <td><strong>{{ item.category|title }}</strong></td>
+                        <td>
+                            <span class="badge badge-primary">{{ item.total }}</span>
+                        </td>
+                        <td>
+                            {{ item.total|add:"-unavailable"|add:"-needs_repair" }}
+                        </td>
+                        <td>
+                            {% if item.unavailable > 0 %}
+                                <span class="badge badge-danger">{{ item.unavailable }}</span>
+                            {% else %}
+                                <span class="badge badge-success">0</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.needs_repair > 0 %}
+                                <span class="badge badge-warning">{{ item.needs_repair }}</span>
+                            {% else %}
+                                <span class="badge badge-success">0</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: #999;">No accessories configured yet. Add field unit accessories (microphones, packs, IEM earbuds) to devices.</p>
+        {% endif %}
+    </div>
+
+    <!-- Recommendations -->
+    <div class="gap-card">
+        <h3>💡 Recommendations</h3>
+        <ul>
+            {% if chassis_without_accessories > 0 %}
+                <li><strong>Add Accessories:</strong> {{ chassis_without_accessories }} devices don't have any field accessories assigned. Consider adding microphones, wireless packs, and IEM earbuds.</li>
+            {% endif %}
+            {% if missing_fields.IP %}
+                <li><strong>IP Address Discovery:</strong> {{ missing_fields.IP }} devices are missing IP addresses. Run device discovery or manually configure these.</li>
+            {% endif %}
+            {% if missing_fields.Manufacturer %}
+                <li><strong>Manufacturer Data:</strong> Ensure all devices have manufacturer information for proper API integration.</li>
+            {% endif %}
+            <li><strong>Regular Polling:</strong> Set up automatic health checks to keep device status and telemetry current.</li>
+            <li><strong>Accessory Tracking:</strong> Maintain detailed records of lav mics, packs, and guest IEM earbuds for proper field operations.</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

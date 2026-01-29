@@ -228,7 +228,8 @@ class LocalPopulation:
 
         for device in devices:
             print(f"  Adding: {device['ip']}")
-            # TODO: Add device to local API via endpoint
+            # Note: Device population from manifest requires API endpoint implementation
+            # Currently this is a placeholder for future enhancement
 
         print(f"✓ Populated {len(devices)} devices")
         return True

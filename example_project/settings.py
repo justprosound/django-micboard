@@ -1,3 +1,12 @@
+"""Django settings for example_project.
+
+⚠️ **DEVELOPMENT/DEMO ONLY** ⚠️
+
+This is an example project for demonstrating django-micboard integration.
+DO NOT use these settings in production. See docs/installation.md for
+proper configuration guidance.
+"""
+
 from __future__ import annotations
 
 import os
@@ -6,20 +15,29 @@ from pathlib import Path
 # Base directory of the repository
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Security settings
+# ============================================================================
+# SECURITY WARNING: This is a development/demo configuration only!
+# ============================================================================
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() == "true"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
 # Applications
 INSTALLED_APPS = [
+    "unfold",
+    "unfold.contrib.filters",
+    "unfold.contrib.import_export",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "django.contrib.staticfiles",
     "django.contrib.sites",
+    "django.contrib.staticfiles",
+    "import_export",
+    "adminsortable2",
+    "simple_history",
+    "rangefilter",
     # Core app
     "micboard",
     "micboard.chargers",
@@ -81,5 +99,34 @@ SITE_ID = 1
 
 # Optional Micboard-specific config
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": "https://localhost:10000",
+    # Single server configuration (backward compatible)
+    "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"),
+    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
+    "SHURE_API_VERIFY_SSL": os.environ.get("MICBOARD_SHURE_API_VERIFY_SSL", "false").lower()
+    in ("true", "1", "yes"),
+    # Multi-location API servers configuration
+    # Each server can be associated with a specific location
+    "MANUFACTURER_API_SERVERS": {
+        # "main_venue": {
+        #     "manufacturer": "shure",
+        #     "base_url": "https://shure-api-1.example.com:10000",
+        #     "shared_key": os.environ.get("SHURE_API_KEY_MAIN"),
+        #     "verify_ssl": False,
+        #     "location_id": 1,  # Optional: Django Location model ID
+        #     "enabled": True,
+        # },
+        # "satellite_venue": {
+        #     "manufacturer": "shure",
+        #     "base_url": "https://shure-api-2.example.com:10000",
+        #     "shared_key": os.environ.get("SHURE_API_KEY_SAT"),
+        #     "verify_ssl": False,
+        #     "location_id": 2,
+        #     "enabled": True,
+        # },
+    },
+    # Audit retention
+    "ACTIVITY_LOG_RETENTION_DAYS": 90,
+    "SERVICE_SYNC_LOG_RETENTION_DAYS": 30,
+    "API_HEALTH_LOG_RETENTION_DAYS": 7,
+    "AUDIT_ARCHIVE_PATH": "audit_archives",
 }

@@ -100,3 +100,42 @@ class HardwareSyncService:
 
         # Re-query to return the updated devices
         return WirelessChassis.objects.filter(id__in=offline_device_ids)
+
+    @staticmethod
+    def bulk_sync_devices(
+        *,
+        manufacturer,
+        devices_data: list[dict],
+        organization_id: int | None = None,
+    ) -> dict[str, int]:
+        """Bulk synchronize devices from API data.
+
+        This method is called during refresh operations to sync device data
+        from manufacturer APIs into the local database.
+
+        Args:
+            manufacturer: Manufacturer instance
+            devices_data: List of device data dicts from API
+            organization_id: Optional organization ID for MSP filtering
+
+        Returns:
+            Dictionary with sync statistics:
+            {
+                'total': int,
+                'added': int,
+                'updated': int,
+                'errors': int
+            }
+        """
+        # Delegate to ManufacturerService which has the full sync logic
+        result = ManufacturerService.sync_devices_for_manufacturer(
+            manufacturer_code=manufacturer.code
+        )
+
+        # Convert to expected format
+        return {
+            "total": result["devices_added"] + result["devices_updated"],
+            "added": result["devices_added"],
+            "updated": result["devices_updated"],
+            "errors": len(result["errors"]),
+        }

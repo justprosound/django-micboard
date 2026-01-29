@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Any, Dict, List
 from micboard.services import (
     AssignmentService,
     ConnectionHealthService,
-    HardwareService,
     DiscoveryService,
+    HardwareService,
     LocationService,
     ManufacturerService,
 )

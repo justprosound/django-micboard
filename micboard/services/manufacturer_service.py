@@ -358,29 +358,43 @@ class ManufacturerService(ABC):
 
     def _emit_status_changed(self, device) -> None:
         """Broadcast status change via service (replacing signals)."""
-        from micboard.services.broadcast_service import BroadcastService
+        try:
+            from channels.layers import get_channel_layer
 
-        is_online = getattr(device, "is_online", device.status == "online")
-        BroadcastService.broadcast_device_status(
-            service_code=self.code,
-            device_id=device.pk,
-            device_type=device.__class__.__name__,
-            status=device.status,
-            is_active=is_online,
-        )
+            if not get_channel_layer():
+                return
+            from micboard.services.broadcast_service import BroadcastService
+
+            is_online = getattr(device, "is_online", device.status == "online")
+            BroadcastService.broadcast_device_status(
+                service_code=self.code,
+                device_id=device.pk,
+                device_type=device.__class__.__name__,
+                status=device.status,
+                is_active=is_online,
+            )
+        except ImportError:
+            pass
 
     def emit_sync_complete(self, sync_result: Dict[str, Any]) -> None:
         """Broadcast sync completion via service (replacing signals)."""
-        from micboard.services.broadcast_service import BroadcastService
-
         logger.info(
             f"Sync complete for {self.code}",
             extra={"service": self.code, "sync_result": sync_result},
         )
-        BroadcastService.broadcast_sync_completion(
-            service_code=self.code,
-            sync_result=sync_result,
-        )
+        try:
+            from channels.layers import get_channel_layer
+
+            if not get_channel_layer():
+                return
+            from micboard.services.broadcast_service import BroadcastService
+
+            BroadcastService.broadcast_sync_completion(
+                service_code=self.code,
+                sync_result=sync_result,
+            )
+        except ImportError:
+            pass
 
 
 class ServiceRegistry:

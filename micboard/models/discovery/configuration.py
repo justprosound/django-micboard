@@ -100,18 +100,10 @@ class ManufacturerConfiguration(models.Model):
             - is_valid: boolean
             - errors: list of error messages
         """
-        # Delayed import to avoid circular dependency if service imports model
-        # from micboard.services.manufacturer_service import get_service
-
         errors = []
 
-        # ... logic skipped for brevity as we are just moving the model ...
-        # (Assuming the logic remains valid or imports are handled)
-        # Re-implementing the logic from the original file:
-
+        # Delayed import to avoid circular dependency
         try:
-            # We need to be careful with imports here.
-            # Assuming get_service is available or will be.
             from micboard.services.manufacturer_service import get_service
 
             service = get_service(self.code)

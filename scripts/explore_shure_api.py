@@ -34,7 +34,7 @@ def explore_endpoint(path, method="GET"):
             try:
                 data = resp.json()
                 print(json.dumps(data, indent=2)[:2000])  # Limit output
-            except:
+            except Exception:
                 print(resp.text[:2000])
         else:
             print(f"Error: {resp.text[:500]}")

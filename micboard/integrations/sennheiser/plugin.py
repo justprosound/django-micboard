@@ -69,3 +69,15 @@ class SennheiserPlugin(ManufacturerPlugin):
     def check_health(self) -> dict[str, Any]:
         """Perform health check against Sennheiser SSCv2 API."""
         return self.client.check_health()
+
+    def add_discovery_ips(self, ips: list[str]) -> bool:
+        """Add IP addresses to the Sennheiser SSCv2 API manual discovery list."""
+        return self.client.add_discovery_ips(ips)
+
+    def get_discovery_ips(self) -> list[str]:
+        """Retrieve the current manual discovery IPs from Sennheiser SSCv2 API."""
+        return self.client.get_discovery_ips()
+
+    def remove_discovery_ips(self, ips: list[str]) -> bool:
+        """Remove IP addresses from the Sennheiser SSCv2 API manual discovery list."""
+        return self.client.remove_discovery_ips(ips)

@@ -220,13 +220,6 @@ class RFChannel(models.Model):
         help_text="Currently active IEM receiver on this channel (SEND direction)",
     )
 
-    image = models.ImageField(
-        upload_to="channel_images/",
-        null=True,
-        blank=True,
-        help_text="Reusable image assigned to this channel",
-    )
-
     objects = RFChannelManager()
 
     class Meta:

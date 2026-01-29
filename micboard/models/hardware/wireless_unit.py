@@ -188,6 +188,41 @@ class WirelessUnit(models.Model):
         help_text="Battery type (e.g., 'Lithium-Ion', 'AA Alkaline')",
     )
 
+    # Battery health tracking (from manufacturer API)
+    BATTERY_HEALTH_CHOICES: ClassVar[list[tuple[str, str]]] = [
+        ("excellent", "Excellent"),
+        ("good", "Good"),
+        ("fair", "Fair"),
+        ("poor", "Poor"),
+        ("critical", "Critical"),
+        ("unknown", "Unknown"),
+    ]
+
+    battery_health = models.CharField(
+        max_length=20,
+        blank=True,
+        choices=BATTERY_HEALTH_CHOICES,
+        help_text="Battery health status from manufacturer API",
+    )
+    battery_health_description = models.TextField(
+        blank=True,
+        help_text="Descriptive text for battery health status (from API /battery-health/description)",
+    )
+    battery_level_description = models.TextField(
+        blank=True,
+        help_text="Descriptive text for battery level (from API /battery-level/description)",
+    )
+    battery_cycles = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of battery charge cycles",
+    )
+    battery_temperature_c = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Battery temperature in Celsius",
+    )
+
     # Transmitter metrics (mic_transmitter / transceiver)
     audio_level = models.IntegerField(
         default=0,
@@ -292,7 +327,16 @@ class WirelessUnit(models.Model):
         return min(100, max(0, self.battery * 100 // self.UNKNOWN_BYTE_VALUE))
 
     def get_battery_health(self) -> str:
-        """Compute battery health status from percentage."""
+        """Get battery health status.
+
+        Returns manufacturer API battery_health if available,
+        otherwise computes from battery_percentage.
+        """
+        # Prefer API-provided battery health
+        if self.battery_health and self.battery_health != "unknown":
+            return self.battery_health
+
+        # Fallback: compute from percentage
         pct = self.battery_percentage
         if pct is None:
             return "unknown"
@@ -301,8 +345,21 @@ class WirelessUnit(models.Model):
         if pct > 25:
             return "fair"
         if pct > 10:
-            return "low"
+            return "poor"
         return "critical"
+
+    def get_battery_health_display_icon(self) -> str:
+        """Get visual icon for battery health."""
+        health = self.get_battery_health()
+        icons = {
+            "excellent": "🔋✨",
+            "good": "🔋",
+            "fair": "🔋⚠️",
+            "poor": "🪫",
+            "critical": "🪫❗",
+            "unknown": "❓",
+        }
+        return icons.get(health, "❓")
 
     def is_active_at_time(self, at_time: datetime | None = None) -> bool:
         """Check if unit is active at given time (or now)."""

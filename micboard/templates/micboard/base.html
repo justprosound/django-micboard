@@ -15,32 +15,32 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-fluid">
-        <a class="navbar-brand" href="{% url 'index' %}">micboard</a>
+        <a class="navbar-brand" href="{% url 'micboard:index' %}">micboard</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
           <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav me-auto">
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'index' %}">Dashboard</a>
+              <a class="nav-link" href="{% url 'micboard:index' %}">Dashboard</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'alerts' %}">Alerts</a>
+              <a class="nav-link" href="{% url 'micboard:alerts' %}">Alerts</a>
             </li>
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                 Views
               </a>
               <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="{% url 'single_building_view' building='all' %}">By Building</a></li>
-                <li><a class="dropdown-item" href="{% url 'room_view' building='all' room='all' %}">By Room</a></li>
-                <li><a class="dropdown-item" href="{% url 'device_type_view' device_type='all' %}">By Device Type</a></li>
-                <li><a class="dropdown-item" href="{% url 'priority_view' priority='high' %}">By Priority</a></li>
-                <li><a class="dropdown-item" href="{% url 'charger_display' %}">Charger Display</a></li>
+                <li><a class="dropdown-item" href="{% url 'micboard:single_building_view' building='all' %}">By Building</a></li>
+                <li><a class="dropdown-item" href="{% url 'micboard:room_view' building='all' room='all' %}">By Room</a></li>
+                <li><a class="dropdown-item" href="{% url 'micboard:device_type_view' device_type='all' %}">By Device Type</a></li>
+                <li><a class="dropdown-item" href="{% url 'micboard:priority_view' priority='high' %}">By Priority</a></li>
+                <li><a class="dropdown-item" href="{% url 'micboard:charger_display' %}">Charger Display</a></li>
               </ul>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'about' %}">About</a>
+              <a class="nav-link" href="{% url 'micboard:about' %}">About</a>
             </li>
           </ul>
         </div>

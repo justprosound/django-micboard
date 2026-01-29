@@ -126,7 +126,7 @@
         <p id="update-time">Loading...</p>
     </div>
 
-    <div class="kiosk-content" hx-get="{% url 'kiosk_data' wall.id %}"
+    <div class="kiosk-content" hx-get="{% url 'micboard:kiosk_data' wall.id %}"
          hx-target="this" hx-trigger="load, every {{ wall.refresh_interval_seconds }}s"
          hx-swap="innerHTML">
 

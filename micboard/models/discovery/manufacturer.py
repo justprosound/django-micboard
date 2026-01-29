@@ -52,6 +52,7 @@ class Manufacturer(models.Model):
         # Only trigger when not created and when is_active toggled True
         if (not created) and self.is_active and not old_active:
             from micboard.utils.dependencies import HAS_DJANGO_Q
+
             if HAS_DJANGO_Q:
                 try:
                     from django_q.tasks import async_task
@@ -68,13 +69,18 @@ class Manufacturer(models.Model):
                     # Don't let task scheduling failures break the save
                     import logging
 
-                    logging.getLogger(__name__).exception("Failed to trigger discovery on activation")
+                    logging.getLogger(__name__).exception(
+                        "Failed to trigger discovery on activation"
+                    )
             else:
                 import logging
-                logging.getLogger(__name__).debug("Django-Q not installed; skipping discovery task trigger")
+
+                logging.getLogger(__name__).debug(
+                    "Django-Q not installed; skipping discovery task trigger"
+                )
 
     def get_plugin_class(self):
         """Get the plugin class for this manufacturer."""
-        from micboard.manufacturers import get_manufacturer_plugin
+        from micboard.services.plugin_registry import PluginRegistry
 
-        return get_manufacturer_plugin(self.code)
+        return PluginRegistry.get_plugin_class(self.code)

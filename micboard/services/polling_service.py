@@ -98,7 +98,7 @@ class PollingService(PollingMixin):
         try:
             # Use HardwareSyncService for the heavy lifting
             stats = HardwareSyncService.sync_devices(manufacturer_code=manufacturer.code)
-            
+
             # Map stats back to result format
             result = {
                 "devices_created": stats.get("created", 0),
@@ -157,7 +157,6 @@ class PollingService(PollingMixin):
             from channels.layers import get_channel_layer
 
             from micboard.models import WirelessChassis
-            from micboard.serializers import ReceiverSummarySerializer
             from micboard.services.hardware_lifecycle import HardwareStatus
 
             channel_layer = get_channel_layer()
@@ -170,7 +169,17 @@ class PollingService(PollingMixin):
             chassis_qs = WirelessChassis.objects.filter(
                 manufacturer=manufacturer, status__in=active_statuses
             )
-            serialized = ReceiverSummarySerializer(chassis_qs, many=True).data
+            serialized = [
+                {
+                    "id": chassis.id,
+                    "api_device_id": chassis.api_device_id,
+                    "name": chassis.name,
+                    "ip": str(chassis.ip) if chassis.ip else None,
+                    "status": chassis.status,
+                    "model": chassis.model,
+                }
+                for chassis in chassis_qs
+            ]
 
             # Send to WebSocket group
             async_to_sync(channel_layer.group_send)(

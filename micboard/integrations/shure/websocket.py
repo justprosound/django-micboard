@@ -1,6 +1,27 @@
 """WebSocket support for real-time Shure System API device updates.
 
-This module provides WebSocket connection handling for subscribing to live device updates.
+⚠️ IMPORTANT: This module is for BACKEND-TO-HARDWARE communication only.
+
+This WebSocket client subscribes to the Shure System API's hardware endpoint
+(/api/v1/subscriptions/websocket/create) to receive push notifications when
+device state changes (battery levels, RF signal, audio meters, etc.).
+
+This is NOT related to browser WebSockets for the frontend UI. Browser updates
+are handled via HTMX polling/SSE, not WebSockets. This module enables the Django
+backend to receive real-time telemetry from Shure hardware without constant polling.
+
+Shure System API WebSocket Flow:
+1. Connect to wss://{device-ip}:2420/api/v1/subscriptions/websocket/create
+2. Receive transportId from initial message
+3. POST to /api/v1/devices/{id}/identify/subscription/{transport_id}
+4. Receive JSON messages when device state changes
+5. Update database and trigger HTMX updates to connected browsers
+
+Optional Dependency:
+    This requires the 'websockets' package. Install with:
+    pip install django-micboard[websocket]
+
+See docs/shure-integration.md for full details on Shure System API integration.
 """
 
 from __future__ import annotations
@@ -13,17 +34,18 @@ try:
     import websockets
 
     HAS_WEBSOCKETS = True
-    WebsocketClosedOK = websockets.exceptions.ConnectionClosedOK
-    WebsocketClosedError = websockets.exceptions.ConnectionClosedError
+    WebsocketClosedOKError = websockets.exceptions.ConnectionClosedOK
+    WebsocketConnectionClosedError = websockets.exceptions.ConnectionClosedError
 except ImportError:  # pragma: no cover - optional dependency
     websockets = None
     HAS_WEBSOCKETS = False
 
-    class WebsocketClosedOK(Exception):
+    class WebsocketClosedOKError(Exception):
         """Placeholder when websockets is unavailable."""
 
-    class WebsocketClosedError(Exception):
+    class WebsocketConnectionClosedError(Exception):
         """Placeholder when websockets is unavailable."""
+
 
 if TYPE_CHECKING:
     from .client import ShureSystemAPIClient
@@ -118,9 +140,9 @@ async def connect_and_subscribe(
                     logger.exception("Error processing WebSocket message")
                     continue  # Don't let callback errors kill the connection
 
-    except WebsocketClosedOK:
+    except WebsocketClosedOKError:
         logger.info("Shure API WebSocket connection closed gracefully for device %s", device_id)
-    except WebsocketClosedError:
+    except WebsocketConnectionClosedError:
         logger.exception(
             "Shure API WebSocket connection closed with error for device %s", device_id
         )

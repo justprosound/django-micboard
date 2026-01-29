@@ -23,7 +23,7 @@ shure:
       - "ULXD4Q-GV"
 
   ulxd4gv:
-    channels: 4
+    channels: 1
     role: "receiver"
     dante: false
     name: "ULX-D4 (Standard)"

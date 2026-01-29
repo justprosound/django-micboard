@@ -7,10 +7,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from functools import wraps
 from typing import Any, Callable
 
 from django.core.cache import cache
+
+logger = logging.getLogger(__name__)
 
 
 def cache_key(*args, **kwargs) -> str:
@@ -85,7 +88,7 @@ def invalidate_cache(pattern: str) -> int:
         if hasattr(cache, "delete_pattern"):
             return cache.delete_pattern(pattern)
     except Exception:
-        pass
+        logger.exception("Error invalidating cache pattern: %s", pattern)
     return 0
 
 

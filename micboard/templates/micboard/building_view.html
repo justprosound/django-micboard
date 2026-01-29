@@ -13,7 +13,7 @@
                         <div class="card-body">
                             <h5 class="card-title">{{ building.name }}</h5>
                             <p class="card-text">{{ building.description|default:"No description." }}</p>
-                            <a href="{% url 'room_view' building_name=building.name room='all' %}" class="btn btn-primary btn-sm">View Rooms</a>
+                            <a href="{% url 'micboard:room_view' building_name=building.name room='all' %}" class="btn btn-primary btn-sm">View Rooms</a>
                         </div>
                     </div>
                 </div>

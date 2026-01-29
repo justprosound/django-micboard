@@ -39,7 +39,7 @@ from typing import Any, Dict
 
 # Setup Django
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "demo.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "example_project.settings")
 import django
 
 django.setup()

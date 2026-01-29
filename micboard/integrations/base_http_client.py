@@ -13,7 +13,6 @@ from abc import abstractmethod
 from typing import Any
 
 import requests
-from django.conf import settings
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -49,7 +48,9 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
             base_url: Override base URL from config
             verify_ssl: Override SSL verification from config
         """
-        config = getattr(settings, "MICBOARD_CONFIG", {})
+        from micboard.apps import MicboardConfig
+
+        config = MicboardConfig.get_config()
         prefix = self._get_config_prefix()
 
         # Core configuration

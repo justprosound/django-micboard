@@ -79,6 +79,7 @@ class Command(BaseCommand):
 
                 if use_async:
                     from micboard.utils.dependencies import HAS_DJANGO_Q
+
                     if HAS_DJANGO_Q:
                         try:
                             # PollingService handle async internally or via task wrapper

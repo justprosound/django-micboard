@@ -12,7 +12,7 @@
     <!-- Create Form -->
     <div class="collapse mb-4" id="createForm">
         <div class="card card-body">
-            <form action="{% url 'create_assignment' %}" method="post">
+            <form action="{% url 'micboard:create_assignment' %}" method="post">
                 {% csrf_token %}
                 <div class="row g-3">
                     <div class="col-md-4">
@@ -64,7 +64,7 @@
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody hx-get="{% url 'micboard:list_assignments' %}" hx-trigger="every 5s" hx-swap="innerHTML" hx-select="tbody > *">
                     {% for assignment in assignments %}
                         {% include "micboard/partials/assignment_row.html" %}
                     {% empty %}

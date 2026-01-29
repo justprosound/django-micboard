@@ -83,8 +83,7 @@ class BaseHardwareAdmin(MicboardModelAdmin):
         }
         color = colors.get(status, colors["unknown"])
         return format_html(
-            '<span style="background-color: {}; color: white; padding: 3px 10px; '
-            'border-radius: 3px;">{}</span>',
+            '<span style="color: {};">{}</span>',
             color,
             status.upper(),
         )
@@ -277,8 +276,7 @@ class AdminCustomColorMixin:
         color = self.STATUS_COLORS.get(status, self.STATUS_COLORS["unknown"])
 
         return format_html(
-            '<span style="background-color: {}; color: white; padding: 3px 10px; '
-            'border-radius: 3px; font-weight: bold;">{}</span>',
+            '<span style="color: {}; font-weight: bold;">{}</span>',
             color,
             status.upper(),
         )
