@@ -8,31 +8,31 @@
             <div class="card shadow-sm">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-4">
-                        <img src="{% static 'micboard/logo.png' %}" alt="Micboard Logo" style="height: 64px; margin-right: 1rem;">
+                        <img src="{% static 'micboard/logo.png' %}" alt="Micboard project logo" style="height: 64px; margin-right: 1rem;">
                         <div>
                             <h1 class="display-5 mb-0">Micboard</h1>
-                            <small class="text-muted">Real-time Wireless Microphone Monitoring</small>
+                            <p class="text-muted mb-0" id="project-desc">Real-time Wireless Microphone Monitoring</p>
                         </div>
                     </div>
                     <p class="lead">Monitor battery, audio, and RF levels for supported wireless microphones in real time. Integrates with Shure, Sennheiser, and more.</p>
-                    <hr>
+                    <hr aria-hidden="true">
                     <div class="row">
                         <div class="col-md-6">
-                            <h5>Quick Links</h5>
+                            <h2 class="h5">Quick Links</h2>
                             <ul class="list-unstyled">
-                                <li><a href="{% url 'micboard:alerts' %}">System Alerts</a></li>
-                                <li><a href="{% url 'micboard:about' %}">About</a></li>
-                                <li><a href="https://github.com/justprosound/django-micboard" target="_blank">GitHub Project</a></li>
+                                <li><a href="{% url 'micboard:alerts' %}">View system alerts</a></li>
+                                <li><a href="{% url 'micboard:about' %}">About this project</a></li>
+                                <li><a href="https://github.com/justprosound/django-micboard" target="_blank" rel="noopener">GitHub Project (opens in new tab)</a></li>
                             </ul>
                         </div>
                         <div class="col-md-6">
-                            <h5>Views</h5>
+                            <h2 class="h5">Views</h2>
                             <ul class="list-unstyled">
-                                <li><a href="{% url 'micboard:all_buildings_view' %}">By Building</a></li>
-                                <li><a href="{% url 'micboard:room_view' building='all' room='all' %}">By Room</a></li>
-                                <li><a href="{% url 'micboard:device_type_view' device_type='all' %}">By Device Type</a></li>
-                                <li><a href="{% url 'micboard:priority_view' priority='high' %}">By Priority</a></li>
-                                <li><a href="{% url 'micboard:charger_dashboard' %}">Charger Dashboard</a></li>
+                                <li><a href="{% url 'micboard:all_buildings_view' %}">Browse by building</a></li>
+                                <li><a href="{% url 'micboard:room_view' building='all' room='all' %}">Browse by room</a></li>
+                                <li><a href="{% url 'micboard:device_type_view' device_type='all' %}">Browse by device type</a></li>
+                                <li><a href="{% url 'micboard:priority_view' priority='high' %}">Browse by priority</a></li>
+                                <li><a href="{% url 'micboard:charger_dashboard' %}">Charger dashboard</a></li>
                             </ul>
                         </div>
                     </div>

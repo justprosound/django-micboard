@@ -11,9 +11,9 @@
                 <div class="col-md-4 mb-3">
                     <div class="card h-100">
                         <div class="card-body">
-                            <h5 class="card-title">{{ priority.name }}</h5>
+                            <h2 class="card-title h5">{{ priority.name }}</h2>
                             <p class="card-text">{{ priority.description|default:"No description." }}</p>
-                            <a href="{% url 'micboard:priority_view' priority=priority.code %}" class="btn btn-primary btn-sm">View Assignments</a>
+                            <a href="{% url 'micboard:priority_view' priority=priority.code %}" class="btn btn-primary btn-sm">View assignments for {{ priority.name }}</a>
                         </div>
                     </div>
                 </div>

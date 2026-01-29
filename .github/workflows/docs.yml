@@ -7,30 +7,45 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  checks: write  # For test reporting
+
 jobs:
   build-docs:
     if: "!startsWith(github.head_ref, 'renovate/') && !startsWith(github.ref, 'refs/heads/renovate/')"
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4.1.7
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+      with:
+        enable-cache: true
 
     - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-        cache: 'pip'
+      run: uv python install 3.11
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r docs/requirements.txt
+        uv venv
+        uv pip install -r docs/requirements.txt
 
     - name: Build documentation
-      run: mkdocs build
+      run: uv run mkdocs build
+
+    - name: Validate documentation structure
+      run: |
+        if [ ! -d "site" ] || [ ! -f "site/index.html" ]; then
+          echo "Error: Documentation build failed - site/index.html not found"
+          exit 1
+        fi
 
     - name: Upload documentation artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v4.3.1
       with:
         name: documentation
         path: site/
+        retention-days: 30
+        if-no-files-found: error  # Fail if no files found

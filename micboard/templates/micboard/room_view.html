@@ -11,9 +11,9 @@
                 <div class="col-md-4 mb-3">
                     <div class="card h-100">
                         <div class="card-body">
-                            <h5 class="card-title">{{ room.name }}</h5>
+                            <h2 class="card-title h5">{{ room.name }}</h2>
                             <p class="card-text">{{ room.description|default:"No description." }}</p>
-                            <a href="{% url 'micboard:room_view' room_name=room.name %}" class="btn btn-primary btn-sm">View Details</a>
+                            <a href="{% url 'micboard:room_view' room_name=room.name %}" class="btn btn-primary btn-sm">View details for {{ room.name }}</a>
                         </div>
                     </div>
                 </div>

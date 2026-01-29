@@ -90,31 +90,3 @@ class TenantFilterableMixin(models.QuerySet):
                 qs = qs.filter(**{f"{building_path}__site_id": site_id})
 
         return qs
-
-
-class AuditableModelMixin(models.Model):
-    """Abstract mixin for models with audit logging on save/delete.
-
-    Subclasses should call _log_change() or _log_delete() to record changes.
-    """
-
-    class Meta:
-        abstract = True
-
-    def _log_change(self, action: str = "modified") -> None:
-        """Log model change to audit log.
-
-        Args:
-            action: Type of action ('created', 'modified', 'deleted').
-        """
-        logger.info(
-            f"{self.__class__.__name__} {action}: {self}",
-            extra={"model": self.__class__.__name__, "action": action, "pk": self.pk},
-        )
-
-    def clean_and_validate(self) -> None:
-        """Call full_clean() and raise ValidationError if invalid.
-
-        Override in subclass to add custom validation.
-        """
-        self.full_clean()

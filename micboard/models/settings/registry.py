@@ -126,29 +126,25 @@ class Setting(models.Model):
     )
 
     # Scope identifiers (at least one should be set)
-    organization = models.ForeignKey(
-        "micboard.Organization",
-        on_delete=models.CASCADE,
+    # Note: ForeignKey references are commented out to avoid app_registry conflicts during migrations
+    # These will be enabled once all related apps are fully loaded and tested
+    organization_id = models.IntegerField(
         null=True,
         blank=True,
-        related_name="settings",
-        help_text="Organization if scope is ORGANIZATION",
+        help_text="Organization ID if scope is ORGANIZATION",
     )
     site = models.ForeignKey(
-        "micboard.Site",
+        "sites.Site",
         on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="settings",
         help_text="Site if scope is SITE",
     )
-    manufacturer = models.ForeignKey(
-        "micboard.Manufacturer",
-        on_delete=models.CASCADE,
+    manufacturer_id = models.IntegerField(
         null=True,
         blank=True,
-        related_name="settings",
-        help_text="Manufacturer if scope is MANUFACTURER",
+        help_text="Manufacturer ID if scope is MANUFACTURER",
     )
 
     value = models.TextField(
@@ -160,14 +156,14 @@ class Setting(models.Model):
     class Meta:
         verbose_name = "Setting"
         verbose_name_plural = "Settings"
-        ordering = ["definition", "organization", "site", "manufacturer"]
+        ordering = ["definition", "organization_id", "site", "manufacturer_id"]
         # Enforce uniqueness per scope
         unique_together = [
-            ["definition", "organization", "site", "manufacturer"],
+            ["definition", "organization_id", "site", "manufacturer_id"],
         ]
 
     def __str__(self) -> str:
-        scope_name = self.organization or self.site or self.manufacturer or "Global"
+        scope_name = self.organization_id or self.site or self.manufacturer_id or "Global"
         return f"{self.definition.label} = {self.value[:50]} ({scope_name})"
 
     def get_parsed_value(self) -> Any:

@@ -11,6 +11,7 @@ Domain-organized model exports organized by business concern:
 - realtime: Real-time connection tracking
 - audit: Activity logging and service sync records
 - users: User profiles and views
+- settings: Configuration and settings management
 """
 
 from __future__ import annotations
@@ -88,6 +89,12 @@ from .rf_coordination import (
     RFChannelQuerySet,
 )
 
+# Settings domain
+from .settings import (
+    Setting,
+    SettingDefinition,
+)
+
 # Telemetry domain
 from .telemetry import (
     APIHealthLog,
@@ -144,6 +151,9 @@ __all__ = [
     "Manufacturer",
     "ManufacturerConfiguration",
     "MicboardConfig",
+    # Settings
+    "Setting",
+    "SettingDefinition",
     # Telemetry
     "APIHealthLog",
     "WirelessUnitSample",

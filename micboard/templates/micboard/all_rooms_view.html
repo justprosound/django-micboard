@@ -4,7 +4,7 @@
     <h1>All Rooms</h1>
     <ul>
         {% for room in rooms %}
-            <li>{{ room.name }} ({{ room.building.name }})</li>
+            <li><a href="{% url 'micboard:room_view' room_name=room.name %}">{{ room.name }}</a> ({{ room.building.name }})</li>
         {% endfor %}
     </ul>
 {% endblock %}

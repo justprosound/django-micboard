@@ -202,6 +202,7 @@ python_files = ["test_*.py", "tests.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 testpaths = ["tests"]
+pythonpath = [".", "demo", "micboard"]
 
 markers = [
     "unit: Unit tests (fast, isolated)",
@@ -222,6 +223,8 @@ addopts = [
     "--strict-markers",
     "-ra",
     "--tb=short",
+    "--reuse-db",
+    "--nomigrations",
     "--disable-warnings",
 ]
 

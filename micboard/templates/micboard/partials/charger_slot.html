@@ -1,17 +1,17 @@
-<div class="charger-slot" id="slot-{{ slot.id }}">
-  <div class="slot-status {% if slot.occupied %}occupied{% else %}empty{% endif %}">
-    <div class="slot-number">{{ slot.slot_number }}</div>
+<div class="charger-slot" id="slot-{{ slot.id }}" role="group" aria-label="Charger slot {{ slot.slot_number }}{% if slot.occupied %} occupied{% else %} empty{% endif %}">
+  <div class="slot-status {% if slot.occupied %}occupied{% else %}empty{% endif %}" style="color:#111;">
+    <div class="slot-number" style="color:#111;">{{ slot.slot_number }}</div>
     {% if slot.occupied %}
       <div class="device-info">
-        <p><strong>{{ slot.device_model }}</strong></p>
-        <p>{{ slot.device_serial }}</p>
-        <div class="battery-indicator">
-          <div class="battery-bar" style="width: {{ slot.battery_percent }}%"></div>
-          <span>{{ slot.battery_percent }}%</span>
+        <p><strong style="color:#111;">{{ slot.device_model }}</strong></p>
+        <p style="color:#444;">{{ slot.device_serial }}</p>
+        <div class="battery-indicator" aria-label="Battery level">
+          <div class="battery-bar" style="width: {{ slot.battery_percent }}%;background-color:{% if slot.battery_percent < 20 %}#a60000{% elif slot.battery_percent < 50 %}#f7b500{% else %}#005a00{% endif %};color:#fff;" aria-label="Battery at {{ slot.battery_percent|default:'unknown' }} percent"></div>
+          <span style="color:#111;">{{ slot.battery_percent }}%</span>
         </div>
       </div>
     {% else %}
-      <p class="text-muted">Empty</p>
+      <p class="text-muted" style="color:#444;">Empty</p>
     {% endif %}
   </div>
 </div>

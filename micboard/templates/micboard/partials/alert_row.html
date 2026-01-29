@@ -1,6 +1,6 @@
-<tr id="alert-{{ alert.id }}" class="alert-row alert-{{ alert.severity }}">
+<tr id="alert-{{ alert.id }}" class="alert-row alert-{{ alert.severity }}" role="row" aria-label="Alert {{ alert.get_alert_type_display }} at {{ alert.created_at|date:'Y-m-d H:i' }}">
   <td>{{ alert.created_at|date:"Y-m-d H:i" }}</td>
-  <td><span class="badge bg-{{ alert.alert_type }}">{{ alert.get_alert_type_display }}</span></td>
+  <td><span class="badge" style="background-color:#005a8c;color:#fff;">{{ alert.get_alert_type_display }}</span></td>
   <td>{{ alert.message }}</td>
   <td>
     {% if alert.wireless_unit %}
@@ -10,14 +10,15 @@
     {% endif %}
   </td>
   <td>
-    <span class="badge bg-{{ alert.status }}">{{ alert.get_status_display }}</span>
+    <span class="badge" style="background-color:{% if alert.status == 'active' %}#005a00{% elif alert.status == 'inactive' %}#333{% elif alert.status == 'failed' %}#a60000{% elif alert.status == 'warning' %}#f7b500{% else %}#005a8c{% endif %};color:#fff;">{{ alert.get_status_display }}</span>
   </td>
   <td>
     {% if alert.status == 'active' %}
-      <button class="btn btn-sm btn-primary"
+      <button class="btn btn-sm btn-primary" style="background-color:#005fcc;color:#fff;border-color:#005fcc;"
               hx-post="{% url 'micboard:alert_acknowledge' alert.id %}"
               hx-target="#alert-{{ alert.id }}"
-              hx-swap="outerHTML">
+              hx-swap="outerHTML"
+              aria-label="Acknowledge alert {{ alert.get_alert_type_display }} at {{ alert.created_at|date:'Y-m-d H:i' }}">
         Acknowledge
       </button>
     {% endif %}

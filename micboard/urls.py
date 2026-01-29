@@ -59,6 +59,12 @@ urlpatterns = [
     path("assignments/<int:pk>/update/", update_assignment, name="update_assignment"),
     path("assignments/<int:pk>/delete/", delete_assignment, name="delete_assignment"),
     # Kiosk/Display Wall
+    # Admin: Settings diff (stub)
+    path(
+        "admin/settings-diff/",
+        "micboard.views.settings.settings_diff_view",
+        name="settings_diff_stub",
+    ),
     path("walls/", DisplayWallListView.as_view(), name="display_wall_list"),
     path("walls/<int:pk>/", DisplayWallDetailView.as_view(), name="display_wall_detail"),
     path("walls/<int:wall_id>/sections/", WallSectionListView.as_view(), name="wall_section_list"),

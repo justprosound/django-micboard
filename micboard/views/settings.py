@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpRequest, HttpResponse
@@ -13,7 +14,45 @@ from django.urls import reverse_lazy
 from django.views.generic import FormView
 
 from micboard.forms.settings import BulkSettingConfigForm, ManufacturerSettingsForm
-from micboard.models.settings import SettingDefinition
+from micboard.models.settings import Setting, SettingDefinition
+
+
+@staff_member_required
+def settings_diff_view(request: HttpRequest) -> HttpResponse:
+    """Stub: Show where tenant/site/manufacturer settings differ from global defaults.
+
+    TODO: Implement UI to display a diff of overridden settings by scope.
+    """
+    # Example: collect all settings with overrides
+    overrides = []
+    for definition in SettingDefinition.objects.all():
+        global_value = Setting.objects.filter(
+            definition=definition,
+            organization=None,
+            site=None,
+            manufacturer=None,
+        ).first()
+        org_overrides = Setting.objects.filter(definition=definition, organization__isnull=False)
+        site_overrides = Setting.objects.filter(definition=definition, site__isnull=False)
+        mfg_overrides = Setting.objects.filter(definition=definition, manufacturer__isnull=False)
+        if org_overrides.exists() or site_overrides.exists() or mfg_overrides.exists():
+            overrides.append(
+                {
+                    "key": definition.key,
+                    "label": definition.label,
+                    "global": global_value.get_parsed_value() if global_value else None,
+                    "org_overrides": list(org_overrides),
+                    "site_overrides": list(site_overrides),
+                    "mfg_overrides": list(mfg_overrides),
+                }
+            )
+
+    context = {
+        "title": "Settings Overrides Diff (Stub)",
+        "overrides": overrides,
+        # TODO: Render a table or diff UI here
+    }
+    return render(request, "admin/micboard/settings_diff_stub.html", context)
 
 
 class BulkSettingConfigView(LoginRequiredMixin, FormView):

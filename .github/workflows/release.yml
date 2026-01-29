@@ -12,6 +12,14 @@ on:
         required: false
         default: false
 
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false  # Prevent concurrent releases
+
 jobs:
   prepare-release:
     runs-on: ubuntu-latest
@@ -20,7 +28,7 @@ jobs:
       changelog: ${{ steps.changelog.outputs.content }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0
 
@@ -46,23 +54,28 @@ jobs:
   test-before-release:
     needs: prepare-release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
+        run: uv python install 3.11
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv venv
+          uv pip install -e ".[dev]"
 
       - name: Run full test suite
         run: |
-          pytest tests/ \
+          uv run pytest tests/ \
             --cov=micboard \
             --cov-report=term-missing \
             --cov-fail-under=85 \
@@ -70,34 +83,46 @@ jobs:
 
       - name: Check code quality
         run: |
-          black --check micboard
-          isort --check-only micboard
+          uv run black --check micboard
+          uv run isort --check-only micboard
 
   build-and-publish:
     needs: [prepare-release, test-before-release]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write  # Required for trusted publishing to PyPI
+    environment:
+      name: pypi-release
+      url: https://pypi.org/p/django-micboard/${{ needs.prepare-release.outputs.version }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.7
         with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
         with:
-          python-version: "3.11"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install build dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install build twine setuptools wheel
+          uv venv
+          uv pip install build twine setuptools wheel
 
       - name: Update version in pyproject.toml
         run: |
           VERSION="${{ needs.prepare-release.outputs.version }}"
-          sed -i "s/version = .*/version = \"$VERSION\"/" pyproject.toml
+          if ! sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml; then
+            echo "Error: Failed to update version in pyproject.toml"
+            exit 1
+          fi
           echo "Updated version to: $VERSION"
-          cat pyproject.toml | grep version
+          grep '^version' pyproject.toml
 
       - name: Update CHANGELOG
         run: |
@@ -113,50 +138,48 @@ jobs:
 
       - name: Build distribution
         run: |
-          python -m build
+          uv run python -m build
 
       - name: Check distribution
         run: |
-          twine check dist/*
+          uv run twine check dist/*
 
-      - name: Publish to PyPI (test)
+      - name: Publish to TestPyPI
         if: github.event.inputs.prerelease == 'true'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
-        run: |
-          twine upload dist/* --repository testpypi --skip-existing
+        uses: pypa/gh-action-pypi-publish@release/v1.8.12
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          print-hash: true
 
-      - name: Publish to PyPI (production)
+      - name: Publish to PyPI
         if: github.event.inputs.prerelease == 'false'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1.8.12
+        with:
+          print-hash: true
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1.0.4
         with:
           tag_name: v${{ needs.prepare-release.outputs.version }}
-          release_name: Release ${{ needs.prepare-release.outputs.version }}
+          name: Release ${{ needs.prepare-release.outputs.version }}
           body: ${{ needs.prepare-release.outputs.changelog }}
           draft: false
           prerelease: ${{ github.event.inputs.prerelease }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4.3.1
         with:
-          name: distribution
+          name: distribution-${{ needs.prepare-release.outputs.version }}
           path: dist/
+          retention-days: 30
 
       - name: Commit version update
-        if: github.event_name == 'workflow_dispatch'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add pyproject.toml CHANGELOG.md
+          git diff --cached
           git commit -m "chore: bump version to ${{ needs.prepare-release.outputs.version }}"
-          git push
+          git push origin main

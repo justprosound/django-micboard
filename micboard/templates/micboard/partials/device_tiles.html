@@ -1,47 +1,43 @@
-<div class="row g-3" id="device-tiles">
+<div class="row g-3" id="device-tiles" role="list" aria-label="Device tiles">
   {% for unit in units %}
-  <div class="col-md-4 col-lg-3">
-    <div class="card device-tile">
+  <div class="col-md-4 col-lg-3" role="listitem">
+    <div class="card device-tile" style="background:#fff;color:#111;border:1px solid #333;">
       <div class="card-body">
-        <h6 class="card-title">{{ unit.name }}</h6>
-        <p class="card-text text-muted small">{{ unit.chassis.name }}</p>
+        <h2 class="card-title h6" style="color:#111;">{{ unit.name }}</h2>
+        <p class="card-text small" style="color:#444;">{{ unit.chassis.name }}</p>
 
         {% if unit.battery_level %}
         <div class="mb-2">
-          <small>Battery</small>
-          <div class="progress" style="height: 8px;">
-            <div class="progress-bar bg-{% if unit.battery_level < 20 %}danger{% elif unit.battery_level < 50 %}warning{% else %}success{% endif %}"
-                 style="width: {{ unit.battery_level }}%">
-            </div>
+          <span style="font-size:0.95em;">Battery</span>
+          <div class="progress" style="height: 8px;background:#444;">
+            <div class="progress-bar" style="width: {{ unit.battery_level }}%;background-color:{% if unit.battery_level < 20 %}#a60000{% elif unit.battery_level < 50 %}#f7b500{% else %}#005a00{% endif %};color:#fff;" aria-label="Battery at {{ unit.battery_level }} percent"></div>
           </div>
-          <small class="text-muted">{{ unit.battery_level }}%</small>
+          <span class="small" style="color:#111;">{{ unit.battery_level }}%</span>
         </div>
         {% endif %}
 
         {% if unit.rf_level %}
         <div class="mb-2">
-          <small>RF Signal</small>
-          <div class="progress" style="height: 8px;">
-            <div class="progress-bar bg-{% if unit.rf_level < 30 %}danger{% elif unit.rf_level < 70 %}warning{% else %}success{% endif %}"
-                 style="width: {{ unit.rf_level }}%">
-            </div>
+          <span style="font-size:0.95em;">RF Signal</span>
+          <div class="progress" style="height: 8px;background:#444;">
+            <div class="progress-bar" style="width: {{ unit.rf_level }}%;background-color:{% if unit.rf_level < 30 %}#a60000{% elif unit.rf_level < 70 %}#f7b500{% else %}#005a00{% endif %};color:#fff;" aria-label="RF signal at {{ unit.rf_level }} percent"></div>
           </div>
-          <small class="text-muted">{{ unit.rf_level }}%</small>
+          <span class="small" style="color:#111;">{{ unit.rf_level }}%</span>
         </div>
         {% endif %}
 
         {% if unit.audio_level %}
         <div class="mb-2">
-          <small>Audio</small>
-          <div class="progress" style="height: 8px;">
-            <div class="progress-bar bg-info" style="width: {{ unit.audio_level }}%"></div>
+          <span style="font-size:0.95em;">Audio</span>
+          <div class="progress" style="height: 8px;background:#444;">
+            <div class="progress-bar" style="width: {{ unit.audio_level }}%;background-color:#005a8c;color:#fff;" aria-label="Audio at {{ unit.audio_level }} percent"></div>
           </div>
-          <small class="text-muted">{{ unit.audio_level }}%</small>
+          <span class="small" style="color:#111;">{{ unit.audio_level }}%</span>
         </div>
         {% endif %}
 
         <div class="mt-2">
-          <span class="badge bg-{% if unit.is_active %}success{% else %}secondary{% endif %}">
+          <span class="badge" style="background-color:{% if unit.is_active %}#005a00{% else %}#333{% endif %};color:#fff;">
             {% if unit.is_active %}Active{% else %}Inactive{% endif %}
           </span>
         </div>
@@ -50,7 +46,7 @@
   </div>
   {% empty %}
   <div class="col-12">
-    <p class="text-muted text-center">No devices found</p>
+    <p class="text-muted text-center" style="color:#444;">No devices found</p>
   </div>
   {% endfor %}
 </div>
