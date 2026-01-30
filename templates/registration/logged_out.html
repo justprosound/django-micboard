@@ -1,0 +1,15 @@
+{% extends "micboard/base.html" %}
+
+{% block title %}Logged Out - Micboard{% endblock %}
+
+{% block content %}
+<div class="container d-flex align-items-center justify-content-center" style="min-height: 60vh; margin-top: 2rem;">
+  <div class="card shadow-lg" style="width: 100%; max-width: 400px;">
+    <div class="card-body p-4 text-center">
+      <h1 class="card-title mb-3">Logged Out</h1>
+      <p class="card-text mb-4">You have been successfully logged out.</p>
+      <a href="{% url 'login' %}" class="btn btn-primary">Sign In Again</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import importlib.resources
 import logging
+from typing import Any
 
+# Ensure 'yaml' is typed as optional module to satisfy static type checkers
+yaml: Any = None
 try:
     import yaml
 
@@ -106,7 +109,13 @@ def get_channel_count(*, manufacturer: str | None, model: str | None) -> int:
     """
     spec = get_device_spec(manufacturer=manufacturer, model=model)
     if spec:
-        return spec.get("channels", 4)
+        channels = spec.get("channels")
+        if isinstance(channels, int):
+            return channels
+        try:
+            return int(channels)  # type: ignore[arg-type]
+        except Exception:
+            return 4
     return 4  # Conservative default
 
 
@@ -123,7 +132,10 @@ def get_device_role(*, manufacturer: str | None, model: str | None) -> str:
     """
     spec = get_device_spec(manufacturer=manufacturer, model=model)
     if spec:
-        return spec.get("role", "receiver")
+        role = spec.get("role")
+        if isinstance(role, str):
+            return role
+        return "receiver"
     return "receiver"  # Conservative default
 
 
@@ -139,7 +151,8 @@ def get_dante_support(*, manufacturer: str | None, model: str | None) -> bool:
     """
     spec = get_device_spec(manufacturer=manufacturer, model=model)
     if spec:
-        return spec.get("dante", False)
+        dante = spec.get("dante")
+        return bool(dante)
     return False
 
 

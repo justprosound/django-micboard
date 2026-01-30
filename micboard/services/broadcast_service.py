@@ -7,7 +7,11 @@ control and easier debugging.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    # For type checking only - Channels may not be installed in all environments
+    from channels.layers import BaseChannelLayer  # pragma: no cover
 
 from asgiref.sync import async_to_sync
 
@@ -15,7 +19,8 @@ try:
     from channels.layers import get_channel_layer
 except ImportError:
 
-    def get_channel_layer():
+    def get_channel_layer(alias: str = "") -> Optional["BaseChannelLayer"]:
+        """Fallback stub when Channels is not installed."""
         return None
 
 

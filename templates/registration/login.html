@@ -1,0 +1,77 @@
+{% extends "micboard/base.html" %}
+{% load static %}
+
+{% block title %}Login - Micboard{% endblock %}
+
+{% block content %}
+<div class="container d-flex align-items-center justify-content-center" style="min-height: 60vh; margin-top: 2rem;">
+  <div class="card shadow-lg" style="width: 100%; max-width: 400px;">
+    <div class="card-body p-4">
+      <h1 class="card-title text-center mb-4">Sign In</h1>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <strong>Login Error:</strong>
+          {% for error in form.non_field_errors %}
+            <div>{{ error }}</div>
+          {% endfor %}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endif %}
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label for="{{ form.username.id_for_label }}" class="form-label">Username</label>
+          {{ form.username }}
+          {% if form.username.errors %}
+            <div class="invalid-feedback d-block">
+              {% for error in form.username.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label for="{{ form.password.id_for_label }}" class="form-label">Password</label>
+          {{ form.password }}
+          {% if form.password.errors %}
+            <div class="invalid-feedback d-block">
+              {% for error in form.password.errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Sign In</button>
+      </form>
+
+      <hr class="my-4">
+
+      <div class="text-center">
+        <a href="{% url 'password_reset' %}" class="text-decoration-none">Forgot your password?</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .form-control {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    color: #111;
+  }
+  .form-control:focus {
+    background-color: #fff;
+    border-color: #005fcc;
+    color: #111;
+  }
+  .form-label {
+    font-weight: 600;
+    color: #111;
+  }
+  .invalid-feedback {
+    color: #a60000;
+    font-size: 0.875rem;
+  }
+</style>
+{% endblock %}

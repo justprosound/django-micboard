@@ -1,0 +1,20 @@
+{% extends 'micboard/base.html' %}
+
+{% block title %}Display Walls - Micboard{% endblock %}
+
+{% block content %}
+  <h1>Display Walls</h1>
+  {% if walls %}
+    <ul class="list-group">
+      {% for wall in walls %}
+        <li class="list-group-item">
+          <a href="{% url 'micboard:display_wall_detail' wall.pk %}">{{ wall.name|default:wall.pk }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="alert alert-info mt-4" role="status">
+      No display walls found.
+    </div>
+  {% endif %}
+{% endblock %}

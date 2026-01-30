@@ -1,0 +1,11 @@
+{% extends 'micboard/base.html' %}
+
+{% block title %}Display Wall Detail - Micboard{% endblock %}
+
+{% block content %}
+  <h1>{{ wall.name|default:wall.pk }}</h1>
+  <p>ID: {{ wall.pk }}</p>
+  <p>Description: {{ wall.description|default:"No description." }}</p>
+  <a href="{% url 'micboard:wall_section_list' wall_id=wall.pk %}" class="btn btn-primary">View Sections</a>
+  <a href="{% url 'micboard:display_wall_list' %}" class="btn btn-secondary">Back to List</a>
+{% endblock %}

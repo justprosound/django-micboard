@@ -80,6 +80,9 @@ Run migrations:
 python manage.py migrate
 ```
 
+Note: This release prep does not modify or generate migrations. Existing migrations remain
+unchanged; host projects continue to manage database schema changes as usual.
+
 ### For Development
 
 1. **Clone the repository**:
@@ -204,6 +207,23 @@ Run the test suite:
 pytest
 
 # Specific test file
+pytest tests/test_settings_diff_admin.py -v
+
+## Linting & Pre-commit
+
+Use ruff and pre-commit to keep code quality consistent:
+
+```bash
+ruff check .
+ruff format .
+pre-commit run --all-files
+```
+
+## Release Notes
+
+- Update CHANGELOG.md under [Unreleased] with notable changes.
+- Build the package and publish to PyPI or your internal index.
+- Tag releases with a calendar version (e.g., v26.01.29).
 pytest tests/test_conf.py -v
 
 # With coverage

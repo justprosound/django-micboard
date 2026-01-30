@@ -1,0 +1,22 @@
+{% extends 'micboard/base.html' %}
+
+{% block title %}Wall Sections - Micboard{% endblock %}
+
+{% block content %}
+  <h1>Sections for Wall: {{ wall.name|default:wall.pk }}</h1>
+  {% if sections %}
+    <ul class="list-group">
+      {% for section in sections %}
+        <li class="list-group-item">
+          <strong>{{ section.name|default:section.pk }}</strong>
+          <p>{{ section.description|default:"No description." }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="alert alert-info mt-4" role="status">
+      No sections found for this wall.
+    </div>
+  {% endif %}
+  <a href="{% url 'micboard:display_wall_detail' wall.pk %}" class="btn btn-secondary mt-3">Back to Wall</a>
+{% endblock %}

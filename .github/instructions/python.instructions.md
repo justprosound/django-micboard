@@ -27,7 +27,9 @@ applyTo: '**/*.py'
 
 - Follow the **PEP 8** style guide for Python.
 - Maintain proper indentation (use 4 spaces for each level of indentation).
-- Ensure lines do not exceed 79 characters.
+- Ensure lines do not exceed **100 characters** (project standard, use `ruff format` to auto-fix).
+  - Note: This project uses 100 chars vs PEP 8's standard 79 for better readability with modern displays.
+  - Configure your editor to show rulers at 100 characters.
 - Place function and class docstrings immediately after the `def` or `class` keyword.
 - Use blank lines to separate functions, classes, and code blocks where appropriate.
 

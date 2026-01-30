@@ -1,23 +1,61 @@
 {% extends "admin/base_site.html" %}
 {% block content %}
 <h1>{{ title }}</h1>
-<p>This is a stub for the settings overrides diff view. It will show where tenant/site/manufacturer settings differ from global defaults.</p>
-<ul>
-  {% for override in overrides %}
-    <li>
-      <strong>{{ override.label }} ({{ override.key }})</strong><br>
-      Global: <code>{{ override.global }}</code><br>
-      {% if override.org_overrides %}
-        Org overrides: <code>{{ override.org_overrides|length }}</code><br>
-      {% endif %}
-      {% if override.site_overrides %}
-        Site overrides: <code>{{ override.site_overrides|length }}</code><br>
-      {% endif %}
-      {% if override.mfg_overrides %}
-        Manufacturer overrides: <code>{{ override.mfg_overrides|length }}</code><br>
-      {% endif %}
-    </li>
-  {% endfor %}
-</ul>
-<p><strong>TODO:</strong> Implement a table or diff UI for overrides by scope.</p>
+
+{% if overrides %}
+  <table class="adminlist">
+    <thead>
+      <tr>
+        <th scope="col">Setting</th>
+        <th scope="col">Global</th>
+        <th scope="col">Organization overrides</th>
+        <th scope="col">Site overrides</th>
+        <th scope="col">Manufacturer overrides</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for override in overrides %}
+        <tr>
+          <th scope="row">{{ override.label }}<br><small>{{ override.key }}</small></th>
+          <td><code>{{ override.global }}</code></td>
+          <td>
+            {% if override.org_overrides %}
+              <ul>
+                {% for item in override.org_overrides %}
+                  <li>{{ item.label }}: <code>{{ item.value }}</code></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <span>—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if override.site_overrides %}
+              <ul>
+                {% for item in override.site_overrides %}
+                  <li>{{ item.label }}: <code>{{ item.value }}</code></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <span>—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if override.mfg_overrides %}
+              <ul>
+                {% for item in override.mfg_overrides %}
+                  <li>{{ item.label }}: <code>{{ item.value }}</code></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <span>—</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>No settings overrides found.</p>
+{% endif %}
 {% endblock %}
