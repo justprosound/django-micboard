@@ -10,6 +10,8 @@ proper configuration guidance.
 from __future__ import annotations
 
 import os
+import sys
+from importlib.util import find_spec
 from pathlib import Path
 
 # Base directory of the repository
@@ -22,11 +24,13 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() == "true"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
+# Helper to check if optional packages are installed
+def _is_package_installed(package_name: str) -> bool:
+    return find_spec(package_name.replace("-", "_")) is not None
+
+
 # Applications
 INSTALLED_APPS = [
-    "unfold",
-    "unfold.contrib.filters",
-    "unfold.contrib.import_export",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -34,14 +38,28 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sites",
     "django.contrib.staticfiles",
-    "import_export",
-    "adminsortable2",
-    "simple_history",
-    "rangefilter",
     # Core app
     "micboard",
     "micboard.chargers",
 ]
+
+# Optional admin enhancements (only if installed)
+if _is_package_installed("unfold"):
+    INSTALLED_APPS.insert(0, "unfold")
+    INSTALLED_APPS.insert(1, "unfold.contrib.filters")
+    INSTALLED_APPS.insert(2, "unfold.contrib.import_export")
+
+if _is_package_installed("import_export"):
+    INSTALLED_APPS.append("import_export")
+
+if _is_package_installed("adminsortable2"):
+    INSTALLED_APPS.append("adminsortable2")
+
+if _is_package_installed("simple_history"):
+    INSTALLED_APPS.append("simple_history")
+
+if _is_package_installed("rangefilter"):
+    INSTALLED_APPS.append("rangefilter")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -74,13 +92,33 @@ TEMPLATES = [
 WSGI_APPLICATION = "example_project.wsgi.application"
 ASGI_APPLICATION = "example_project.asgi.application"
 
-# Database (uses repo-level db.sqlite3)
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": str(BASE_DIR / "db.sqlite3"),
+# Database (uses repo-level db.sqlite3 unless DJANGO_DATABASE_URL is provided)
+DATABASE_URL = os.environ.get("DJANGO_DATABASE_URL")
+if DATABASE_URL:
+    try:
+        import dj_database_url
+
+        DATABASES = {
+            "default": dj_database_url.config(
+                default=DATABASE_URL,
+                conn_max_age=600,
+            )
+        }
+    except ImportError:
+        # TODO: Add dj-database-url for DB URL parsing in demo environments.
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": str(BASE_DIR / "db.sqlite3"),
+            }
+        }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": str(BASE_DIR / "db.sqlite3"),
+        }
     }
-}
 
 # Internationalization
 LANGUAGE_CODE = "en-us"
@@ -97,8 +135,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Sites framework
 SITE_ID = 1
 
+LOGIN_REDIRECT_URL = "/admin/"
 # Optional Micboard-specific config
-MICBOARD_CONFIG = {
+from typing import Any
+
+MICBOARD_CONFIG: dict[str, Any] = {
     # Single server configuration (backward compatible)
     "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"),
     "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),

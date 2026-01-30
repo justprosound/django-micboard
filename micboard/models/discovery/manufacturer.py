@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from typing import ClassVar
 
 from django.db import models
 
-from micboard.admin.mixins import AuditableModelMixin
+from micboard.models.audit import ActivityLog
+
+logger = logging.getLogger(__name__)
 
 
-class Manufacturer(AuditableModelMixin, models.Model):
+class Manufacturer(models.Model):
     """Represents a device manufacturer with audit logging."""
 
     name = models.CharField(
@@ -38,6 +41,23 @@ class Manufacturer(AuditableModelMixin, models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.code})"
+
+    def _log_change(self, action: str) -> None:
+        """Log change to ActivityLog."""
+        try:
+            ActivityLog.objects.create(
+                activity_type=ActivityLog.ACTIVITY_CRUD,
+                operation=action,
+                model_name=self.__class__.__name__,
+                object_id=str(self.pk) if self.pk else None,
+                details={
+                    "name": self.name,
+                    "code": self.code,
+                    "is_active": self.is_active,
+                },
+            )
+        except Exception as e:
+            logger.exception(f"Failed to log {action} activity: {e}")
 
     def save(self, *args, **kwargs):
         """Trigger discovery sync when a manufacturer is activated and log changes."""
@@ -74,17 +94,9 @@ class Manufacturer(AuditableModelMixin, models.Model):
                         False,  # scan_fqdns
                     )
                 except Exception:
-                    import logging
-
-                    logging.getLogger(__name__).exception(
-                        "Failed to trigger discovery on activation"
-                    )
+                    logger.exception("Failed to trigger discovery on activation")
             else:
-                import logging
-
-                logging.getLogger(__name__).debug(
-                    "Django-Q not installed; skipping discovery task trigger"
-                )
+                logger.debug("Django-Q not installed; skipping discovery task trigger")
 
     def delete(self, *args, **kwargs):
         """Log deletion and delete the manufacturer."""

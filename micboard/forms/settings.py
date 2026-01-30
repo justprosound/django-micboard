@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from django import forms
 from django.core.exceptions import ValidationError
@@ -44,7 +44,7 @@ class BulkSettingConfigForm(forms.Form):
         help_text="Only shown for site-scoped settings",
     )
 
-    manufacturer = forms.ModelChoiceField(
+    manufacturer: forms.ModelChoiceField = forms.ModelChoiceField(
         queryset=None,  # Set in __init__
         required=False,
         label="Manufacturer",
@@ -58,7 +58,9 @@ class BulkSettingConfigForm(forms.Form):
         # Populate manufacturer choices
         from micboard.models.discovery import Manufacturer
 
-        self.fields["manufacturer"].queryset = Manufacturer.objects.all()
+        # Cast the generic Field to a ModelChoiceField to appease type checkers
+        selector = cast(forms.ModelChoiceField, self.fields["manufacturer"])
+        selector.queryset = Manufacturer.objects.all()
 
         # Load setting definitions dynamically
         self._add_setting_fields()
@@ -84,7 +86,9 @@ class BulkSettingConfigForm(forms.Form):
                     help_text=help_text,
                 )
             elif defn.setting_type == SettingDefinition.TYPE_CHOICES:
-                choices = [(k, v) for k, v in defn.choices_json.items()]
+                # choices_json may be None; guard and coerce to dict for typing
+                choices_dict = defn.choices_json or {}
+                choices = [(k, v) for k, v in choices_dict.items()]
                 self.fields[field_name] = forms.ChoiceField(
                     choices=[("", "---")] + choices,
                     required=False,
@@ -100,7 +104,7 @@ class BulkSettingConfigForm(forms.Form):
                 )
 
     def clean(self) -> dict[str, Any]:
-        cleaned_data = super().clean()
+        cleaned_data: dict[str, Any] = super().clean() or {}
         scope = cleaned_data.get("scope")
 
         # Validate scope-specific fields
@@ -116,12 +120,12 @@ class BulkSettingConfigForm(forms.Form):
 
         return cleaned_data
 
-    def save_settings(self) -> dict[str, str]:
+    def save_settings(self) -> dict[str, Any]:
         """Save all configured settings and return results."""
         if not self.is_valid():
             raise ValidationError("Form is not valid")
 
-        results = {"saved": 0, "errors": []}
+        results: dict[str, Any] = {"saved": 0, "errors": []}
         scope = self.cleaned_data["scope"]
         organization = self.cleaned_data.get("organization")
         site = self.cleaned_data.get("site")
@@ -169,7 +173,7 @@ class BulkSettingConfigForm(forms.Form):
 class ManufacturerSettingsForm(forms.Form):
     """Quick-access form for configuring manufacturer-specific settings."""
 
-    manufacturer = forms.ModelChoiceField(
+    manufacturer: forms.ModelChoiceField = forms.ModelChoiceField(
         queryset=None,  # Set in __init__
         label="Manufacturer",
         help_text="Select which manufacturer to configure",
@@ -229,17 +233,22 @@ class ManufacturerSettingsForm(forms.Form):
     def __init__(self, *args, **kwargs):
         """Initialize the manufacturer settings form and load manufacturer queryset."""
         super().__init__(*args, **kwargs)
+        # Type checkers do not know the concrete Field instance returned by self.fields
+        # so cast it to ModelChoiceField to access .queryset safely.
+        from typing import cast
+
         from micboard.models.discovery import Manufacturer
 
-        self.fields["manufacturer"].queryset = Manufacturer.objects.all()
+        selector = cast(forms.ModelChoiceField, self.fields["manufacturer"])
+        selector.queryset = Manufacturer.objects.all()
 
-    def save_settings(self) -> dict[str, str]:
+    def save_settings(self) -> dict[str, Any]:
         """Save manufacturer configuration."""
         if not self.is_valid():
             raise ValidationError("Form is not valid")
 
         manufacturer = self.cleaned_data["manufacturer"]
-        results = {"saved": 0, "errors": []}
+        results: dict[str, Any] = {"saved": 0, "errors": []}
 
         # Map form fields to setting keys
         field_mapping = {

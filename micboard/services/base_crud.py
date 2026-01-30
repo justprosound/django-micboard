@@ -7,17 +7,17 @@ logging and audit support.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, Type, TypeVar, cast
 
-from django.db.models import QuerySet
+from django.db.models import Manager, Model, QuerySet
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
 
-logger = logging.getLogger(__name__)
+# Use a Model-bound TypeVar so django-stubs know the type supports model operations
+T = TypeVar("T", bound=Model)
 
-# Generic type for model instances
-T = TypeVar("T")
+logger = logging.getLogger(__name__)
 
 
 class GenericCRUDService(Generic[T]):
@@ -28,18 +28,25 @@ class GenericCRUDService(Generic[T]):
     - filterable_fields: Dict of query param names to model field names
     """
 
-    model_class: type[T] = None  # type: ignore
+    model_class: Type[T] | None = None
 
     @classmethod
-    def get_all(cls) -> QuerySet[T]:
+    def _manager(cls) -> Manager[T]:
+        """Return the model manager for the configured model_class.
+
+        Raises NotImplementedError when `model_class` is not configured on the subclass.
+        """
+        if cls.model_class is None:
+            raise NotImplementedError("Subclass must define model_class")
+        return cast(Manager[T], cls.model_class.objects)
+
+    def get_all(self) -> QuerySet[T]:
         """Get all objects of this type.
 
         Returns:
             QuerySet of all objects.
         """
-        if cls.model_class is None:
-            raise NotImplementedError("Subclass must define model_class")
-        return cls.model_class.objects.all()
+        return self._manager().all()
 
     @classmethod
     def get_active(cls, **filters) -> QuerySet[T]:
@@ -51,7 +58,7 @@ class GenericCRUDService(Generic[T]):
         Returns:
             QuerySet of active objects.
         """
-        qs = cls.model_class.objects.filter(is_active=True, **filters)
+        qs = cls._manager().filter(is_active=True, **filters)
 
         # Apply ordering if model has name field
         try:
@@ -73,7 +80,7 @@ class GenericCRUDService(Generic[T]):
         Returns:
             QuerySet sliced to page.
         """
-        qs = cls.model_class.objects.filter(**filters)
+        qs = cls._manager().filter(**filters)
         offset = (page - 1) * page_size
         return qs[offset : offset + page_size]
 
@@ -87,7 +94,7 @@ class GenericCRUDService(Generic[T]):
         Returns:
             Count of matching objects.
         """
-        return cls.model_class.objects.filter(**filters).count()
+        return cls._manager().filter(**filters).count()
 
     @classmethod
     def get_by_id(cls, obj_id: int) -> T | None:
@@ -99,10 +106,7 @@ class GenericCRUDService(Generic[T]):
         Returns:
             Model instance or None.
         """
-        try:
-            return cls.model_class.objects.get(id=obj_id)
-        except cls.model_class.DoesNotExist:
-            return None
+        return cls._manager().filter(id=obj_id).first()
 
     @classmethod
     def deactivate(cls, obj_id: int, user: object | None = None) -> bool:
@@ -115,22 +119,25 @@ class GenericCRUDService(Generic[T]):
         Returns:
             True if successful, False otherwise.
         """
-        try:
-            obj = cls.model_class.objects.get(id=obj_id)
+        obj = cls._manager().filter(id=obj_id).first()
+        model_name = cls._manager().model.__name__
+        if obj is None:
+            logger.warning(f"{model_name} {obj_id} not found")
+            return False
+
+        if hasattr(obj, "is_active"):
             obj.is_active = False
 
-            # Try to set updated_by if model has it
-            if hasattr(obj, "updated_by") and user:
-                obj.updated_by = user
+        # Try to set updated_by if model has it
+        if hasattr(obj, "updated_by") and user:
+            obj.updated_by = user
 
+        try:
             obj.save(update_fields=["is_active", "updated_at"])
-            logger.info(f"Deactivated {cls.model_class.__name__} {obj_id}")
+            logger.info(f"Deactivated {model_name} {obj_id}")
             return True
-        except cls.model_class.DoesNotExist:
-            logger.warning(f"{cls.model_class.__name__} {obj_id} not found")
-            return False
         except Exception as e:
-            logger.error(f"Failed to deactivate {cls.model_class.__name__} {obj_id}: {e}")
+            logger.error(f"Failed to deactivate {model_name} {obj_id}: {e}")
             return False
 
     @classmethod
@@ -143,14 +150,14 @@ class GenericCRUDService(Generic[T]):
         Returns:
             True if successful, False otherwise.
         """
-        try:
-            obj = cls.model_class.objects.get(id=obj_id)
-            obj.is_active = True
-            obj.save(update_fields=["is_active", "updated_at"])
-            logger.info(f"Activated {cls.model_class.__name__} {obj_id}")
-            return True
-        except cls.model_class.DoesNotExist:
+        obj = cls._manager().filter(id=obj_id).first()
+        if obj is None:
             return False
+        if hasattr(obj, "is_active"):
+            obj.is_active = True
+        obj.save(update_fields=["is_active", "updated_at"])
+        logger.info(f"Activated {cls._manager().model.__name__} {obj_id}")
+        return True
 
     @classmethod
     def delete_permanently(cls, obj_id: int) -> bool:
@@ -162,13 +169,12 @@ class GenericCRUDService(Generic[T]):
         Returns:
             True if successful, False otherwise.
         """
-        try:
-            obj = cls.model_class.objects.get(id=obj_id)
-            obj.delete()
-            logger.info(f"Permanently deleted {cls.model_class.__name__} {obj_id}")
-            return True
-        except cls.model_class.DoesNotExist:
+        obj = cls._manager().filter(id=obj_id).first()
+        if obj is None:
             return False
+        obj.delete()
+        logger.info(f"Permanently deleted {cls._manager().model.__name__} {obj_id}")
+        return True
 
     @classmethod
     def exists(cls, **filters) -> bool:
@@ -180,7 +186,7 @@ class GenericCRUDService(Generic[T]):
         Returns:
             True if exists, False otherwise.
         """
-        return cls.model_class.objects.filter(**filters).exists()
+        return cls._manager().filter(**filters).exists()
 
     @classmethod
     def search(cls, query: str, search_fields: list[str] | None = None) -> QuerySet[T]:
@@ -202,4 +208,4 @@ class GenericCRUDService(Generic[T]):
         for field in search_fields:
             q_objects |= Q(**{f"{field}__icontains": query})
 
-        return cls.model_class.objects.filter(q_objects)
+        return cls._manager().filter(q_objects)

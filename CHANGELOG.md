@@ -15,6 +15,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Comprehensive `.env.example`**: Template with all available Micboard configuration options and multi-tenancy settings
 - **Enhanced README**: Detailed reusable app integration guide with plugin architecture examples
 - **Comprehensive CONTRIBUTING.md**: Migration guidelines, code patterns, and development workflow documentation
+- **Tenant filtering helper**: Shared service-layer helper for consistent tenant scoping
+- **Settings overrides diff view**: Admin view and template for scope-level configuration diffs
 
 ### Changed
 
@@ -22,11 +24,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **MANIFEST.in**: Improved to include `.env.example` and exclude workspace-only files
 - **.gitignore**: Enhanced to prevent tracking of development artifacts and egg-info directories
 - **GitHub pre-commit hooks**: Added migration protection hook that prevents direct modification of migration files
+- **Settings diff route**: Wire settings diff URL to the real view implementation
 
 ### Fixed
 
 - Configuration import consistency across app modules
 - Whitespace issues in documentation and code examples
+- Admin settings diff tests updated to validate masking and access control
 
 ### Deprecated
 

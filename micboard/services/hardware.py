@@ -14,6 +14,7 @@ from django.db import models
 from django.db.models import QuerySet
 
 from micboard.models import WirelessChassis, WirelessUnit
+from micboard.services.tenant_filters import apply_tenant_filters
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
@@ -100,21 +101,14 @@ class HardwareService:
         campus_id: int | None = None,
     ) -> QuerySet[WirelessChassis]:
         """Fetch all active chassis."""
-        from django.conf import settings
-
         qs: QuerySet[WirelessChassis] = WirelessChassis.objects.active()
-
-        # Apply tenant filtering if enabled
-        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
-            if organization_id:
-                qs = qs.filter(location__building__organization_id=organization_id)
-            if campus_id:
-                qs = qs.filter(location__building__campus_id=campus_id)
-        elif getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
-            if site_id:
-                qs = qs.filter(location__building__site_id=site_id)
-
-        return qs
+        return apply_tenant_filters(
+            qs,
+            organization_id=organization_id,
+            campus_id=campus_id,
+            site_id=site_id,
+            building_path="location__building",
+        )
 
     @staticmethod
     def get_active_units(
@@ -124,21 +118,14 @@ class HardwareService:
         campus_id: int | None = None,
     ) -> QuerySet[WirelessUnit]:
         """Fetch all active field units."""
-        from django.conf import settings
-
         qs: QuerySet[WirelessUnit] = WirelessUnit.objects.active()
-
-        # Apply tenant filtering if enabled
-        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
-            if organization_id:
-                qs = qs.filter(base_chassis__location__building__organization_id=organization_id)
-            if campus_id:
-                qs = qs.filter(base_chassis__location__building__campus_id=campus_id)
-        elif getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
-            if site_id:
-                qs = qs.filter(base_chassis__location__building__site_id=site_id)
-
-        return qs
+        return apply_tenant_filters(
+            qs,
+            organization_id=organization_id,
+            campus_id=campus_id,
+            site_id=site_id,
+            building_path="base_chassis__location__building",
+        )
 
     @staticmethod
     def get_chassis_by_ip(*, ip: str) -> WirelessChassis | None:

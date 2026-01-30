@@ -11,6 +11,7 @@ from django.db import models
 from django.db.models import Count, QuerySet
 
 from micboard.models import Location, WirelessChassis
+from micboard.services.tenant_filters import apply_tenant_filters
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
@@ -100,21 +101,14 @@ class LocationService:
         Returns:
             QuerySet of Location objects ordered by name.
         """
-        from django.conf import settings
-
         qs: QuerySet[Location] = Location.objects.all()
-
-        # Apply tenant filtering if enabled
-        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
-            if organization_id:
-                qs = qs.filter(building__organization_id=organization_id)
-            if campus_id:
-                qs = qs.filter(building__campus_id=campus_id)
-        elif getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
-            if site_id:
-                qs = qs.filter(building__site_id=site_id)
-
-        return qs.order_by("name")
+        return apply_tenant_filters(
+            qs,
+            organization_id=organization_id,
+            campus_id=campus_id,
+            site_id=site_id,
+            building_path="building",
+        ).order_by("name")
 
     @staticmethod
     def get_location_device_counts() -> QuerySet[Location]:

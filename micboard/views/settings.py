@@ -17,40 +17,147 @@ from micboard.forms.settings import BulkSettingConfigForm, ManufacturerSettingsF
 from micboard.models.settings import Setting, SettingDefinition
 
 
+def _is_sensitive_key(key: str) -> bool:
+    """Return True when a setting key likely contains secrets."""
+    key_lower = key.lower()
+    sensitive_tokens = ("secret", "token", "password", "shared_key", "api_key", "key")
+    return any(token in key_lower for token in sensitive_tokens)
+
+
+def _format_value(value: Any, *, sensitive: bool) -> str:
+    """Format a value for display in the admin diff view."""
+    if value is None:
+        return "—"
+    if sensitive:
+        return "••••••"
+    return str(value)
+
+
+def _resolve_organization_names(org_ids: set[int]) -> dict[int, str]:
+    """Resolve organization IDs to names when available."""
+    try:
+        from micboard.multitenancy.models import Organization
+    except Exception:
+        return {}
+
+    return dict(Organization.objects.filter(id__in=org_ids).values_list("id", "name"))
+
+
+def _resolve_manufacturer_names(manufacturer_ids: set[int]) -> dict[int, str]:
+    """Resolve manufacturer IDs to names when available."""
+    try:
+        from micboard.models.discovery import Manufacturer
+    except Exception:
+        return {}
+
+    return dict(Manufacturer.objects.filter(id__in=manufacturer_ids).values_list("id", "name"))
+
+
 @staff_member_required
 def settings_diff_view(request: HttpRequest) -> HttpResponse:
-    """Stub: Show where tenant/site/manufacturer settings differ from global defaults.
+    """Show where tenant/site/manufacturer settings differ from global defaults."""
+    definitions = SettingDefinition.objects.filter(is_active=True).order_by(
+        "scope",
+        "key",
+    )
+    raw_overrides: list[dict[str, Any]] = []
 
-    TODO: Implement UI to display a diff of overridden settings by scope.
-    """
-    # Example: collect all settings with overrides
-    overrides = []
-    for definition in SettingDefinition.objects.all():
-        global_value = Setting.objects.filter(
+    org_ids: set[int] = set()
+    manufacturer_ids: set[int] = set()
+
+    for definition in definitions:
+        org_overrides = list(
+            Setting.objects.filter(definition=definition, organization_id__isnull=False)
+        )
+        site_overrides = list(
+            Setting.objects.filter(definition=definition, site__isnull=False).select_related("site")
+        )
+        mfg_overrides = list(
+            Setting.objects.filter(definition=definition, manufacturer_id__isnull=False)
+        )
+
+        if not (org_overrides or site_overrides or mfg_overrides):
+            continue
+
+        org_ids.update(
+            {override.organization_id for override in org_overrides if override.organization_id}
+        )
+        manufacturer_ids.update(
+            {override.manufacturer_id for override in mfg_overrides if override.manufacturer_id}
+        )
+
+        global_setting = Setting.objects.filter(
             definition=definition,
-            organization=None,
-            site=None,
-            manufacturer=None,
+            organization_id__isnull=True,
+            site__isnull=True,
+            manufacturer_id__isnull=True,
         ).first()
-        org_overrides = Setting.objects.filter(definition=definition, organization__isnull=False)
-        site_overrides = Setting.objects.filter(definition=definition, site__isnull=False)
-        mfg_overrides = Setting.objects.filter(definition=definition, manufacturer__isnull=False)
-        if org_overrides.exists() or site_overrides.exists() or mfg_overrides.exists():
-            overrides.append(
-                {
-                    "key": definition.key,
-                    "label": definition.label,
-                    "global": global_value.get_parsed_value() if global_value else None,
-                    "org_overrides": list(org_overrides),
-                    "site_overrides": list(site_overrides),
-                    "mfg_overrides": list(mfg_overrides),
-                }
-            )
+
+        sensitive = _is_sensitive_key(definition.key)
+        global_value = _format_value(
+            global_setting.get_parsed_value() if global_setting else None,
+            sensitive=sensitive,
+        )
+
+        raw_overrides.append(
+            {
+                "key": definition.key,
+                "label": definition.label,
+                "global": global_value,
+                "sensitive": sensitive,
+                "org_overrides": org_overrides,
+                "site_overrides": site_overrides,
+                "mfg_overrides": mfg_overrides,
+            }
+        )
+
+    org_names = _resolve_organization_names(org_ids)
+    mfg_names = _resolve_manufacturer_names(manufacturer_ids)
+
+    overrides: list[dict[str, Any]] = []
+    for override in raw_overrides:
+        sensitive = override["sensitive"]
+
+        org_items = [
+            {
+                "label": org_names.get(item.organization_id, f"Org {item.organization_id}"),
+                "value": _format_value(item.get_parsed_value(), sensitive=sensitive),
+            }
+            for item in override["org_overrides"]
+        ]
+
+        site_items = [
+            {
+                "label": item.site.name if item.site else f"Site {item.site_id}",
+                "value": _format_value(item.get_parsed_value(), sensitive=sensitive),
+            }
+            for item in override["site_overrides"]
+        ]
+
+        mfg_items = [
+            {
+                "label": mfg_names.get(
+                    item.manufacturer_id, f"Manufacturer {item.manufacturer_id}"
+                ),
+                "value": _format_value(item.get_parsed_value(), sensitive=sensitive),
+            }
+            for item in override["mfg_overrides"]
+        ]
+
+        overrides.append(
+            {
+                "key": override["key"],
+                "label": override["label"],
+                "global": override["global"],
+                "org_overrides": org_items,
+                "site_overrides": site_items,
+                "mfg_overrides": mfg_items,
+            }
+        )
 
     context = {
-        "title": "Settings Overrides Diff (Stub)",
+        "title": "Settings Overrides Diff",
         "overrides": overrides,
-        # TODO: Render a table or diff UI here
     }
     return render(request, "admin/micboard/settings_diff_stub.html", context)
 

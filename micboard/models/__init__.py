@@ -74,6 +74,12 @@ from .monitoring import (
     UserAlertPreference,
 )
 
+# Multi-tenancy domain
+from .multitenancy import (
+    Organization,
+    Site,
+)
+
 # Real-time domain
 from .realtime import (
     RealTimeConnection,
@@ -135,6 +141,9 @@ __all__ = [
     "Building",
     "Location",
     "Room",
+    # Multi-tenancy
+    "Organization",
+    "Site",
     # Monitoring
     "Alert",
     "UserAlertPreference",

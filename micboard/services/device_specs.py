@@ -82,7 +82,7 @@ class DeviceSpecService:
         """
         spec = DeviceSpecService.get_specs(
             getattr(chassis, "manufacturer", None),
-            getattr(chassis, "model", None),
+            getattr(chassis, "model", ""),
         )
 
         if spec:

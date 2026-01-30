@@ -179,6 +179,9 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
 - [ ] Performance impact considered (indexes, large data moves)
 - [ ] Tested on both small and large datasets
 
+**Release prep note:** This workflow does not edit or regenerate migrations. Any schema
+changes must follow the controlled migration process above.
+
 ## Pull Request Process
 
 1. **Create a feature branch**:

@@ -6,9 +6,12 @@ Tracks all CRUD operations, service syncs, and system events.
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar, Dict, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
 from django.contrib.auth.models import User
+
+if TYPE_CHECKING:
+    from django.http import HttpRequest  # pragma: no cover - typing only
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -373,14 +376,16 @@ class ActivityLog(models.Model):
         return log
 
     @staticmethod
-    def _get_client_ip(request) -> str:
-        """Extract client IP from request."""
+    def _get_client_ip(request: HttpRequest) -> str:
+        """Extract client IP from request.
+
+        Avoid importing HttpRequest at runtime to prevent circular imports; the
+        type is only imported for type checking under TYPE_CHECKING.
+        """
         x_forwarded_for = request.headers.get("x-forwarded-for")
         if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0]
-        else:
-            ip = request.META.get("REMOTE_ADDR")
-        return ip
+            return x_forwarded_for.split(",")[0].strip()
+        return str(request.META.get("REMOTE_ADDR", "Unknown"))
 
 
 class ServiceSyncLog(models.Model):

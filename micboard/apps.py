@@ -23,9 +23,9 @@ class MicboardConfig(AppConfig):
     # Store resolved configuration (merged defaults + user settings)
     _resolved_config: ClassVar[dict[str, Any] | None] = None
 
-    # Default configuration (moved to settings registry)
-    # TODO: Ensure all manufacturer-specific config (e.g., SHURE_API_*) is migrated to the SettingsRegistry.
-    #       Do not add vendor-specific keys here; use the registry for all manufacturer, site, or tenant config.
+    # Default configuration (generic app settings, not manufacturer-specific)
+    # NOTE: Manufacturer configuration (SHURE_API_*, etc.) is now managed via SettingsRegistry.
+    #       Do not add vendor-specific keys here.
     default_config: ClassVar[dict[str, str | int | float | bool | list[int] | None]] = {
         "POLL_INTERVAL": 5,
         "CACHE_TIMEOUT": 30,
@@ -75,12 +75,6 @@ class MicboardConfig(AppConfig):
             logger.debug("django-health-check not installed, skipping health check registration")
 
         # Advise about recommended middleware (do not modify settings)
-        #
-        # NOTE: All manufacturer/vendor-specific config should be accessed via SettingsRegistry.
-        #       Example:
-        #           from micboard.services.settings_registry import SettingsRegistry
-        #           api_url = SettingsRegistry.get('API_BASE_URL', manufacturer=manufacturer)
-        #       Remove any direct SHURE_API_* or similar usage from app config.
         self._register_security_middleware()
 
         logger.info("Micboard app initialized (configuration validated)")
@@ -120,18 +114,12 @@ class MicboardConfig(AppConfig):
         Raises:
             ImproperlyConfigured: If configuration is invalid.
         """
-        # Validate required URL
-        base_url = config.get("SHURE_API_BASE_URL")
-        if not base_url:
-            raise ImproperlyConfigured(
-                "MICBOARD_CONFIG['SHURE_API_BASE_URL'] is required. "
-                "Please set it in your settings.py"
-            )
-
-        # Validate numeric settings
+        # NOTE: Manufacturer-specific config (e.g., SHURE_API_*) is validated via
+        #       SettingsRegistry.get() with required=True. Do not hardcode manufacturer
+        #       requirements here—this applies only to generic app settings.
+        #
+        # Generic settings validation (manufacturer-agnostic)
         numeric_settings = [
-            "SHURE_API_TIMEOUT",
-            "SHURE_API_MAX_RETRIES",
             "POLL_INTERVAL",
             "CACHE_TIMEOUT",
             "TRANSMITTER_INACTIVITY_SECONDS",
@@ -147,4 +135,4 @@ class MicboardConfig(AppConfig):
                     f"MICBOARD_CONFIG['{key}'] must be positive, got {value}"
                 )
 
-        logger.debug("Micboard configuration validated successfully")
+        logger.debug("Micboard configuration validated successfully (manufacturer-agnostic rules)")

@@ -33,7 +33,10 @@ class WirelessChassisAdminForm(forms.ModelForm):
                 choices = [("", "--- Select band plan ---")] + [
                     (key, name) for key, name in band_plans
                 ]
-                self.fields["band_plan_selector"].choices = choices
+                from typing import cast
+
+                selector = cast(forms.ChoiceField, self.fields["band_plan_selector"])
+                selector.choices = choices
 
                 # Pre-select current band plan if it matches
                 if self.instance.band_plan_name:
@@ -41,11 +44,12 @@ class WirelessChassisAdminForm(forms.ModelForm):
                         self.instance.band_plan_name.lower().replace(" ", "_").replace("-", "_")
                     )
                     if any(key == band_key for key, _ in band_plans):
-                        self.fields["band_plan_selector"].initial = band_key
+                        selector.initial = band_key
         else:
             # No manufacturer yet - disable band plan selection
-            self.fields["band_plan_selector"].choices = [("", "--- Select manufacturer first ---")]
-            self.fields["band_plan_selector"].disabled = True
+            selector = cast(forms.ChoiceField, self.fields["band_plan_selector"])
+            selector.choices = [("", "--- Select manufacturer first ---")]
+            selector.disabled = True
 
         # Add help text to make workflow clear
         self.fields["band_plan_name"].help_text = (

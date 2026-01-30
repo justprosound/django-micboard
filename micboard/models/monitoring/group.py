@@ -28,7 +28,7 @@ class MonitoringGroup(models.Model):
         blank=True,
         help_text="Users who are part of this monitoring group",
     )
-    locations = models.ManyToManyField(
+    locations: models.ManyToManyField = models.ManyToManyField(
         "micboard.Location",
         through="MonitoringGroupLocation",
         related_name="monitoring_groups",

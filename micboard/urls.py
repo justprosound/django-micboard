@@ -35,6 +35,7 @@ from micboard.views.partials import (
     device_tiles_partial,
     wall_section_partial,
 )
+from micboard.views.settings import settings_diff_view
 
 app_name = "micboard"
 
@@ -59,12 +60,8 @@ urlpatterns = [
     path("assignments/<int:pk>/update/", update_assignment, name="update_assignment"),
     path("assignments/<int:pk>/delete/", delete_assignment, name="delete_assignment"),
     # Kiosk/Display Wall
-    # Admin: Settings diff (stub)
-    path(
-        "admin/settings-diff/",
-        "micboard.views.settings.settings_diff_view",
-        name="settings_diff_stub",
-    ),
+    # Admin: Settings diff
+    path("admin/settings-diff/", settings_diff_view, name="settings_diff"),
     path("walls/", DisplayWallListView.as_view(), name="display_wall_list"),
     path("walls/<int:pk>/", DisplayWallDetailView.as_view(), name="display_wall_detail"),
     path("walls/<int:wall_id>/sections/", WallSectionListView.as_view(), name="wall_section_list"),
