@@ -158,7 +158,7 @@ jobs:
           print-hash: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1.0.4
+        uses: softprops/action-gh-release@v2.5.0
         with:
           tag_name: v${{ needs.prepare-release.outputs.version }}
           name: Release ${{ needs.prepare-release.outputs.version }}
