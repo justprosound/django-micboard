@@ -21,7 +21,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v6.0.2
 
       - name: Install uv
         uses: astral-sh/setup-uv@v2
@@ -76,7 +76,7 @@ jobs:
             django-version: "4.2"
 
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v6.0.2
 
       - name: Install uv
         uses: astral-sh/setup-uv@v2
@@ -121,7 +121,7 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v6.0.2
 
       - name: Install uv
         uses: astral-sh/setup-uv@v2
@@ -152,7 +152,7 @@ jobs:
         language: ['python']
 
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v6.0.2
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2.22.8
@@ -184,7 +184,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v6.0.2
 
       - name: Dependency review
         uses: actions/dependency-review-action@v3.1.5
