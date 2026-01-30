@@ -184,7 +184,7 @@ msgpack==1.1.2
     # via cachecontrol
 natsort==8.4.0
     # via mkdocs-awesome-pages-plugin
-packaging==25.0
+packaging==26.0
     # via
     #   mkdocs
     #   mkdocs-macros-plugin
