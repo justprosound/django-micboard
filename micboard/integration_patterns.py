@@ -5,21 +5,24 @@ Provides ready-to-use patterns for common use cases.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, cast
 
 from micboard.services import (
-    AssignmentService,
     ConnectionHealthService,
-    DiscoveryService,
     HardwareService,
     LocationService,
     ManufacturerService,
+    PerformerAssignmentService,
 )
+
+# DiscoveryService lives in a dedicated module; import explicitly to satisfy mypy
+from micboard.services.discovery_service_new import DiscoveryService
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import User
+    from django.db.models import QuerySet
 
-    from micboard.models import WirelessChassis, WirelessUnit
+    from micboard.models import PerformerAssignment, WirelessChassis, WirelessUnit
 
 
 class BulkOperationPattern:
@@ -29,6 +32,7 @@ class BulkOperationPattern:
     def bulk_sync_device_status(
         *, devices: list[WirelessChassis | WirelessUnit], online: bool
     ) -> dict[str, int]:
+        # Prefer HardwareService.sync_hardware_status signature (obj, online)
         """Bulk sync device status.
 
         Args:
@@ -43,7 +47,8 @@ class BulkOperationPattern:
 
         for device in devices:
             try:
-                HardwareService.sync_device_status(device_obj=device, online=online)
+                # HardwareService.sync_hardware_status uses (obj, online)
+                HardwareService.sync_hardware_status(obj=device, online=online)
                 synced += 1
             except Exception:
                 failed += 1
@@ -59,16 +64,20 @@ class BulkOperationPattern:
         skipped = 0
 
         for receiver in receivers:
-            channel = receiver.rf_channels.first()
+            channel = cast(Any, receiver).rf_channels.first()
             if channel is None:
                 skipped += 1
                 continue
 
             try:
-                AssignmentService.create_assignment(
-                    user=user, channel=channel, alert_enabled=alert_enabled
+                # Bulk creation requires business-specific mapping from user -> performer
+                # This helper cannot create assignments without a performer reference; skip.
+                logger = __import__("logging").getLogger(__name__)
+                logger.warning(
+                    "Skipping bulk assignment for channel %s: no performer mapping available",
+                    channel.id,
                 )
-                created += 1
+                skipped += 1
             except Exception:
                 skipped += 1
 
@@ -87,18 +96,46 @@ class DashboardDataPattern:
         """
         return {
             "device_stats": {
-                "total_active": HardwareService.count_active_receivers(),
-                "online": HardwareService.count_online_receivers(),
-                "offline": HardwareService.count_offline_receivers(),
-                "low_battery": len(HardwareService.get_low_battery_receivers()),
+                # total_active: sum of chassis + field units
+                "total_active": (
+                    HardwareService.get_active_chassis().count()
+                    + HardwareService.get_active_units().count()
+                ),
+                "online": (
+                    HardwareService.count_online_hardware().get("chassis", 0)
+                    + HardwareService.count_online_hardware().get("units", 0)
+                ),
+                "offline": (
+                    (
+                        HardwareService.get_active_chassis().count()
+                        + HardwareService.get_active_units().count()
+                    )
+                    - (
+                        HardwareService.count_online_hardware().get("chassis", 0)
+                        + HardwareService.count_online_hardware().get("units", 0)
+                    )
+                ),
+                "low_battery": cast(
+                    int, cast(Any, WirelessUnit.objects).low_battery(threshold=20).count()
+                ),
             },
             "connection_health": {
                 "unhealthy_connections": len(ConnectionHealthService.get_unhealthy_connections()),
-                "total_errors": ConnectionHealthService.get_total_connection_errors(),
+                "total_errors": cast(
+                    Dict[str, Any], ConnectionHealthService.get_connection_stats()
+                ).get("error_connections", 0),
             },
             "assignments": {
-                "total": AssignmentService.count_total_assignments(),
-                "with_alerts": AssignmentService.count_assignments_with_alerts(),
+                "total": (
+                    __import__("micboard.models")
+                    .models.performer_assignment.PerformerAssignment.objects.active()
+                    .count()
+                ),
+                "with_alerts": (
+                    __import__("micboard.models")
+                    .models.performer_assignment.PerformerAssignment.objects.needing_alerts()
+                    .count()
+                ),
             },
             "locations": {
                 "total": LocationService.count_total_locations(),
@@ -116,20 +153,46 @@ class DashboardDataPattern:
         Returns:
             Dictionary with user's dashboard data.
         """
-        user_assignments = AssignmentService.get_assignments_for_user(user_id=user.id)
-        assigned_devices = [a.device for a in user_assignments]
+        # Interpreting "get_assignments_for_user" as assignments the user created (assigned_by)
+        user_assignments = (
+            PerformerAssignmentService.get_active_assignments()
+            .filter(assigned_by=user)
+            .select_related(
+                "performer",
+                "wireless_unit",
+                "wireless_unit__base_chassis",
+            )
+        )
+        assignments_list = cast(List["PerformerAssignment"], list(user_assignments))
+        assigned_devices: List["WirelessUnit"] = [
+            a.wireless_unit
+            for a in assignments_list
+            if getattr(a, "wireless_unit", None) is not None
+        ]
+
+        enabled_alerts = [
+            a
+            for a in assignments_list
+            if getattr(a, "alert_on_battery_low", False)
+            or getattr(a, "alert_on_signal_loss", False)
+            or getattr(a, "alert_on_hardware_offline", False)
+        ]
 
         return {
-            "assignments_count": user_assignments.count(),
+            "assignments_count": len(assignments_list),
             "devices": {
                 "total": len(assigned_devices),
-                "online": sum(1 for d in assigned_devices if getattr(d, "is_online", False)),
-                "offline": sum(1 for d in assigned_devices if not getattr(d, "is_online", False)),
+                "online": len(
+                    [d for d in assigned_devices if getattr(d, "status", "") == "online"]
+                ),
+                "offline": len(
+                    [d for d in assigned_devices if getattr(d, "status", "") != "online"]
+                ),
                 "low_battery": 0,  # Battery tracking moved to WirelessUnit
             },
             "alert_settings": {
-                "enabled": sum(1 for a in user_assignments if a.alert_enabled),
-                "disabled": sum(1 for a in user_assignments if not a.alert_enabled),
+                "enabled": len(enabled_alerts),
+                "disabled": max(0, len(assignments_list) - len(enabled_alerts)),
             },
         }
 
@@ -144,23 +207,29 @@ class AlertingPattern:
         Returns:
             Dictionary with alert types and affected devices.
         """
-        alerts = {
+        alerts: Dict[str, List[str]] = {
             "low_battery": [],
             "offline": [],
             "unhealthy_connection": [],
         }
 
         # Check low battery devices
-        low_battery = HardwareService.get_low_battery_receivers(threshold=20)
-        alerts["low_battery"] = [d.name for d in low_battery]
+        low_battery = cast(
+            "QuerySet[WirelessUnit]", cast(Any, WirelessUnit.objects).low_battery(threshold=20)
+        )
+        alerts["low_battery"] = [cast("WirelessUnit", d).name for d in low_battery]
 
         # Check offline devices
-        offline = HardwareService.get_offline_receivers()
+        offline = HardwareService.get_active_chassis().filter(is_online=False)
         alerts["offline"] = [d.name for d in offline]
 
         # Check unhealthy connections
-        unhealthy = ConnectionHealthService.get_unhealthy_connections()
-        alerts["unhealthy_connection"] = [c.get("manufacturer_code") for c in unhealthy]
+        unhealthy = cast(List[Dict[str, Any]], ConnectionHealthService.get_unhealthy_connections())
+        alerts["unhealthy_connection"] = [
+            str(c.get("manufacturer_code"))
+            for c in unhealthy
+            if c.get("manufacturer_code") is not None
+        ]
 
         return alerts
 
@@ -174,29 +243,44 @@ class AlertingPattern:
         Returns:
             Dictionary with alert types and affected devices.
         """
-        alerts = {
+        alerts: Dict[str, List[str]] = {
             "low_battery": [],
             "offline": [],
         }
 
-        user_assignments = AssignmentService.get_assignments_for_user(user_id=user.id)
+        # Use performer assignments created by this user as a heuristic
+        user_assignments = (
+            PerformerAssignmentService.get_active_assignments()
+            .filter(assigned_by=user)
+            .select_related(
+                "wireless_unit",
+                "wireless_unit__base_chassis",
+            )
+        )
 
-        for assignment in user_assignments:
-            if not assignment.alert_on_hardware_offline:
+        assignments_list = cast(List["PerformerAssignment"], list(user_assignments))
+        for assignment in assignments_list:
+            assignment = cast("PerformerAssignment", assignment)
+            if not getattr(assignment, "alert_on_hardware_offline", False):
                 continue
 
-            chassis = assignment.channel.chassis
+            chassis = getattr(assignment.wireless_unit, "base_chassis", None)
 
-            # Check low battery (active transmitter on the channel)
-            if assignment.channel.active_wireless_unit:
-                unit = assignment.channel.active_wireless_unit
-                tx_battery = unit.battery_percentage
-                if tx_battery and tx_battery < 20:
-                    alerts["low_battery"].append(unit.name or f"Transmitter {unit.id}")
+            # Check low battery (active transmitter on the unit)
+            unit = getattr(assignment, "wireless_unit", None)
+            if unit:
+                unit = cast("WirelessUnit", unit)
+                tx_battery = getattr(unit, "battery", None)
+                if tx_battery is not None and tx_battery < 20:
+                    alerts["low_battery"].append(
+                        unit.name or f"Transmitter {getattr(unit, 'id', 'unknown')}"
+                    )
 
             # Check offline
-            if not chassis.is_online:
-                alerts["offline"].append(chassis.name or f"Chassis {chassis.id}")
+            if chassis and not getattr(chassis, "is_online", False):
+                alerts["offline"].append(
+                    getattr(chassis, "name", f"Chassis {getattr(chassis, 'id', 'unknown')}")
+                )
 
         return alerts
 
@@ -219,11 +303,26 @@ class LocationManagementPattern:
 
         for device_name, location_id in location_mappings.items():
             try:
-                device = HardwareService.get_device_by_name(name=device_name)
+                # Prefer search_hardware which returns matching chassis/units; pick the first match
+                matches = HardwareService.search_hardware(query=device_name)
+                device = matches[0] if matches else None
                 location = LocationService.get_location_by_id(location_id=location_id)
 
-                LocationService.assign_device_to_location(device_obj=device, location_obj=location)
-                success += 1
+                if not location or not device:
+                    failed += 1
+                    continue
+
+                # device may be WirelessChassis or WirelessUnit; normalize to a chassis for assignment
+                device_to_assign = getattr(device, "base_chassis", device)
+                device_to_assign = cast("WirelessChassis", device_to_assign)
+
+                try:
+                    LocationService.assign_device_to_location(
+                        device=device_to_assign, location=location
+                    )
+                    success += 1
+                except Exception:
+                    failed += 1
             except Exception:
                 failed += 1
 
@@ -240,7 +339,17 @@ class LocationManagementPattern:
             Complete location information.
         """
         location = LocationService.get_location_by_id(location_id=location_id)
-        devices = HardwareService.get_receivers_by_location(location_id=location_id)
+        devices = HardwareService.get_active_chassis().filter(location_id=location_id)
+
+        if location is None:
+            return {
+                "name": "Unknown",
+                "description": "",
+                "device_count": 0,
+                "online_count": 0,
+                "offline_count": 0,
+                "low_battery_count": 0,
+            }
 
         return {
             "name": location.name,
@@ -262,11 +371,9 @@ class DiscoveryAndSyncPattern:
         Returns:
             Sync statistics.
         """
-        results = {
-            "manufacturers": [],
-            "total_synced": 0,
-            "total_failed": 0,
-        }
+        manufacturers_results: List[Dict[str, Any]] = []
+        total_synced = 0
+        total_failed = 0
 
         manufacturers = ["shure", "sennheiser"]  # Add others as needed
 
@@ -275,16 +382,18 @@ class DiscoveryAndSyncPattern:
                 result = ManufacturerService.sync_devices_for_manufacturer(manufacturer_code=code)
 
                 synced = result.get("devices_synced", 0)
-                results["manufacturers"].append(
-                    {"code": code, "synced": synced, "status": "success"}
-                )
-                results["total_synced"] += synced
+                manufacturers_results.append({"code": code, "synced": synced, "status": "success"})
+                total_synced += synced
 
             except Exception as e:
-                results["manufacturers"].append({"code": code, "error": str(e), "status": "failed"})
-                results["total_failed"] += 1
+                manufacturers_results.append({"code": code, "error": str(e), "status": "failed"})
+                total_failed += 1
 
-        return results
+        return {
+            "manufacturers": manufacturers_results,
+            "total_synced": total_synced,
+            "total_failed": total_failed,
+        }
 
     @staticmethod
     def discover_and_sync_new_devices(
@@ -299,10 +408,20 @@ class DiscoveryAndSyncPattern:
         Returns:
             Discovery and sync results.
         """
-        # Run discovery
-        discovery_result = DiscoveryService.run_discovery(
-            discovery_type=discovery_type, manufacturer_code=manufacturer_code
-        )
+        # Run discovery for the specific manufacturer
+        from micboard.models import Manufacturer
+
+        manufacturer = Manufacturer.objects.filter(code=manufacturer_code).first()
+        discovered = 0
+        if manufacturer:
+            DiscoveryService()._run_manufacturer_discovery(
+                manufacturer=manufacturer,
+                scan_cidrs=(discovery_type == "cidr"),
+                scan_fqdns=(discovery_type == "fqdn"),
+                max_hosts=1024,
+            )
+            # DiscoveryService currently does not return counts; set to 0 as placeholder.
+            discovered = 0
 
         # Sync discovered devices
         sync_result = ManufacturerService.sync_devices_for_manufacturer(
@@ -310,7 +429,7 @@ class DiscoveryAndSyncPattern:
         )
 
         return {
-            "discovered": discovery_result.get("devices_found", 0),
+            "discovered": discovered,
             "synced": sync_result.get("devices_synced", 0),
         }
 
@@ -327,7 +446,8 @@ class ReportingPattern:
         """
         report = "# Device Status Report\n\n"
 
-        active_receivers = HardwareService.get_active_receivers()
+        # Use active chassis as 'receivers' for report purposes
+        active_receivers = HardwareService.get_active_chassis()
 
         # Summary
         report += "## Summary\n"
@@ -339,10 +459,13 @@ class ReportingPattern:
         # WirelessChassis doesn't have battery_level anymore, it's on WirelessUnit
         from micboard.models import WirelessUnit
 
-        low_battery_units = WirelessUnit.objects.low_battery(threshold=20)
+        low_battery_units = cast(
+            "QuerySet[WirelessUnit]", cast(Any, WirelessUnit.objects).low_battery(threshold=20)
+        )
         if low_battery_units.count() > 0:
             report += "## Low Battery Devices\n"
             for unit in low_battery_units:
+                unit = cast("WirelessUnit", unit)
                 report += (
                     f"- {unit.name} (on {unit.base_chassis.name}): {unit.battery_percentage}%\n"
                 )
@@ -353,6 +476,7 @@ class ReportingPattern:
         if offline.count() > 0:
             report += "## Offline Devices\n"
             for device in offline:
+                device = cast("WirelessChassis", device)
                 last_seen = device.last_seen or "Never"
                 report += f"- {device.name} (Last seen: {last_seen})\n"
             report += "\n"
@@ -369,9 +493,8 @@ class ReportingPattern:
         report = "# System Health Report\n\n"
 
         # Connection Health
-        unhealthy = ConnectionHealthService.get_unhealthy_connections()
-
         report += "## Connection Health\n"
+        unhealthy = cast(List[Dict[str, Any]], ConnectionHealthService.get_unhealthy_connections())
         if not unhealthy:
             report += "✓ All manufacturer connections are healthy\n"
         else:
@@ -383,10 +506,13 @@ class ReportingPattern:
 
         # Assignment Coverage
         report += "## Assignment Coverage\n"
-        total_assignments = AssignmentService.count_total_assignments()
+        # Assignment statistics (use PerformerAssignment queries)
+        from micboard.models import PerformerAssignment
+
+        total_assignments = cast(int, cast(Any, PerformerAssignment.objects).active().count())
         report += f"Total Assignments: {total_assignments}\n"
 
-        alerts_enabled = AssignmentService.count_assignments_with_alerts()
+        alerts_enabled = cast(int, cast(Any, PerformerAssignment.objects).needing_alerts().count())
         report += f"Alerts Enabled: {alerts_enabled}\n\n"
 
         return report
