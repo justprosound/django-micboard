@@ -44,7 +44,7 @@ colorama==0.4.6
     #   mkdocs-material
 constantly==23.10.4
     # via twisted
-cryptography==46.0.3
+cryptography==46.0.5
     # via
     #   autobahn
     #   pyopenssl
