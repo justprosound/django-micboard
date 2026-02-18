@@ -70,8 +70,10 @@ if getattr(settings, "MICBOARD_MSP_ENABLED", False):
 
         @admin.display(description="Current Devices")
         def device_count(self, obj: Organization) -> int:
-            """Display current device count."""
-            return obj.get_device_count()
+            """Display current device count (delegates to service)."""
+            from micboard.services.multitenancy.organization_service import get_device_count
+
+            return get_device_count(obj)
 
     @admin.register(Campus)
     class CampusAdmin(admin.ModelAdmin):
@@ -174,7 +176,9 @@ if getattr(settings, "MICBOARD_MSP_ENABLED", False):
         ]
 
         def save_model(self, request, obj, form, change):
-            """Auto-set created_by on new memberships."""
+            """Auto-set created_by on new memberships (delegates to service)."""
             if not change:  # New object
-                obj.created_by = request.user
+                from micboard.services.multitenancy.organization_service import set_created_by
+
+                obj = set_created_by(obj, request.user)
             super().save_model(request, obj, form, change)

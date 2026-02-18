@@ -57,7 +57,7 @@ micboard/manufacturers/
 **Using the Plugin Registry:**
 
 ```python
-from micboard.services.plugin_registry import PluginRegistry
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
 # Get plugin class
 plugin_class = PluginRegistry.get_plugin_class('shure')
@@ -129,7 +129,7 @@ devices = WirelessUnit.objects.all()  # Auto-filtered by middleware
 Add custom app settings with scope-aware resolution:
 
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 # Get with scope hierarchy
 value = SettingsRegistry.get(

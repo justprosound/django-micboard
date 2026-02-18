@@ -42,7 +42,9 @@ class Organization(models.Model):
     site = models.ForeignKey(
         Site,
         on_delete=models.CASCADE,
-        help_text="Django site this organization belongs to",
+        null=True,
+        blank=True,
+        help_text="Django site this organization belongs to (optional)",
     )
 
     # Status and features

@@ -6,7 +6,7 @@ from django.contrib.sites.models import Site
 from django.test import TestCase, override_settings
 
 from micboard.models.locations.structure import Building, Location, Room
-from micboard.services.tenant_filters import apply_tenant_filters
+from micboard.services.shared.tenant_filters import apply_tenant_filters
 
 
 class TenantFilterHelperTests(TestCase):

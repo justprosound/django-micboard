@@ -13,8 +13,8 @@ from django.views import View
 from django.views.generic import DetailView, ListView
 
 from micboard.models import DisplayWall, WallSection
-from micboard.services.charger_assignment import ChargerAssignmentService
-from micboard.services.connection_validation import ConnectionValidationService
+from micboard.services.core.charger_assignment import ChargerAssignmentService
+from micboard.services.monitoring.connection_validation import ConnectionValidationService
 
 logger = logging.getLogger(__name__)
 

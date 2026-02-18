@@ -279,7 +279,7 @@ class DiscoveredDevice(models.Model):
 
         Returns appropriate DeviceMetadataAccessor for this device's manufacturer.
         """
-        from micboard.services.device_metadata import DeviceMetadataAccessor
+        from micboard.services.core.device_metadata import DeviceMetadataAccessor
 
         return DeviceMetadataAccessor.get_for(self.manufacturer, self.metadata)
 

@@ -9,7 +9,7 @@ import time
 
 from django.core.management.base import BaseCommand
 
-from micboard.services.efis_import import EFISImportService
+from micboard.services.maintenance.efis_import import EFISImportService
 
 logger = logging.getLogger(__name__)
 

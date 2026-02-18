@@ -6,6 +6,8 @@ This document provides comprehensive guidance for developing, testing, and relea
 
 ## Quick Start
 
+> **LEGACY/REFERENCE ONLY: The setup steps below use legacy `pip` and `venv`. These are not permitted in current workflows. Use `uv` for all new environments. Legacy steps remain here for historical/archive reasons.**
+
 ### Setup Development Environment
 
 ```bash

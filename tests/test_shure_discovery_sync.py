@@ -2,9 +2,10 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from micboard.models import DiscoveredDevice, Manufacturer
-from micboard.services.discovery_orchestration_service import DiscoveryOrchestrationService
-from micboard.tasks.discovery_tasks import _submit_missing_ips
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.discovery.registry import DiscoveredDevice
+from micboard.services.sync.discovery_orchestration_service import DiscoveryOrchestrationService
+from micboard.tasks.sync.discovery import _submit_missing_ips
 
 
 class FakeShureDiscoveryService:

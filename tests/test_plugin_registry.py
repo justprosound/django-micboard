@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from micboard.services.plugin_registry import PluginRegistry
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
 
 class FakeManufacturerPlugin:

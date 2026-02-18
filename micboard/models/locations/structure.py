@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from django.conf import settings
 from django.contrib.sites.models import Site
 from django.db import models
 
@@ -79,21 +78,6 @@ class Building(models.Model):
 
     def __str__(self) -> str:
         return str(self.name)
-
-    @property
-    def tenant_scope(self) -> str:
-        """Get human-readable tenant scope for this building."""
-        # if getattr(settings, "MICBOARD_MSP_ENABLED", False):
-        #     if hasattr(self, "organization"):
-        #         org_name = self.organization.name if self.organization else "No Org"
-        #         campus_name = (
-        #             f" - {self.campus.name}" if hasattr(self, "campus") and self.campus else ""
-        #         )
-        #         return f"{org_name}{campus_name}"
-        if getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
-            if hasattr(self, "site"):
-                return f"Site: {self.site.name if self.site else 'Default'}"
-        return "Single-Site"
 
     def save(self, *args, **kwargs) -> None:
         """Auto-assign regulatory domain based on country if not set."""

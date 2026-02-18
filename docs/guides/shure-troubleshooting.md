@@ -1,5 +1,7 @@
 # Troubleshooting
 
+> **CRITICAL POLICY:** All Python environment and dependency management for django-micboard—whether for developers or agents—MUST use [`uv`](https://github.com/astral-sh/uv) for all tasks. Use of pip, venv, poetry, or pipx is strictly forbidden in new setups. Escalate and remediate any legacy patterns. For doc/code research: use `context7` and `gh_grep`. See README for escalation details.
+
 Common issues and solutions for django-micboard with Shure wireless microphone systems.
 
 ## Connection Issues
@@ -488,7 +490,7 @@ When reporting issues, include:
 python -c "import django; print(f'Django: {django.VERSION}')"
 
 # Package versions
-pip list | grep -E "(django|channels|micboard)"
+uv pip list | grep -E "(django|channels|micboard)"
 
 # Configuration check
 python manage.py shell -c "

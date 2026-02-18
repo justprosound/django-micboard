@@ -11,6 +11,9 @@
 - freezegun (for time mocking)
 
 ### Installation
+
+> **LEGACY/REFERENCE ONLY:** The following install instructions use `pip` and are FOR HISTORICAL REFERENCE ONLY. All new development and testing environments **must** use [`uv`](https://github.com/astral-sh/uv) for all dependency and environment management. See the README and MODERN_TOOLING.md for up-to-date install steps.
+
 ```bash
 pip install -e ".[dev,test]"
 ```

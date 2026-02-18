@@ -3,7 +3,7 @@
 from django.core.management.base import BaseCommand
 
 from micboard.models.settings import SettingDefinition
-from micboard.services.manufacturer_config_registry import ManufacturerConfigRegistry
+from micboard.services.manufacturer.manufacturer_config_registry import ManufacturerConfigRegistry
 
 
 class Command(BaseCommand):

@@ -85,7 +85,7 @@ class Command(BaseCommand):
                             # PollingService handle async internally or via task wrapper
                             from django_q.tasks import async_task
 
-                            from micboard.tasks.polling_tasks import poll_manufacturer_devices
+                            from micboard.tasks.sync.polling import poll_manufacturer_devices
 
                             async_task(poll_manufacturer_devices, manufacturer.id)
                             self.stdout.write(

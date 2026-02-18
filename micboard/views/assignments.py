@@ -2,18 +2,16 @@
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView
 
-from micboard.models import (
-    MonitoringGroup,
-    Performer,
-    PerformerAssignment,
-    WirelessUnit,
-)
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.monitoring.group import MonitoringGroup
+from micboard.models.monitoring.performer import Performer
+from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.services import AccessControlService, PerformerAssignmentService
 
 
 class AssignmentListView(LoginRequiredMixin, ListView):
@@ -42,93 +40,79 @@ class AssignmentListView(LoginRequiredMixin, ListView):
 @require_http_methods(["GET", "POST"])
 @login_required
 def create_assignment(request: HttpRequest) -> HttpResponse:
-    """Create a new performer assignment."""
+    """Create a new performer assignment (delegates to PerformerAssignmentService)."""
     if request.method == "GET":
         # Load available performers, units, and groups for the form
         context = {
             "performers": Performer.objects.all(),
             "wireless_units": WirelessUnit.objects.all(),
-            "monitoring_groups": _get_user_monitoring_groups(request.user),
+            "monitoring_groups": AccessControlService.get_user_monitoring_groups(request.user),
         }
         return render(request, "micboard/assignments/form.html", context)
 
-    elif request.method == "POST":
-        try:
-            with transaction.atomic():
-                # Extract and validate form data
-                performer_id = request.POST.get("performer_id")
-                wireless_unit_id = request.POST.get("wireless_unit_id")
-                monitoring_group_id = request.POST.get("monitoring_group_id")
-                priority = request.POST.get("priority", "normal")
-                notes = request.POST.get("notes", "")
-                alert_battery_low = request.POST.get("alert_on_battery_low") == "on"
-                alert_signal_loss = request.POST.get("alert_on_signal_loss") == "on"
-                alert_audio_low = request.POST.get("alert_on_audio_low") == "on"
-                alert_hardware_offline = request.POST.get("alert_on_hardware_offline") == "on"
+    # POST: delegate business logic to the service layer
+    performer_id = request.POST.get("performer_id")
+    wireless_unit_id = request.POST.get("wireless_unit_id")
+    monitoring_group_id = request.POST.get("monitoring_group_id")
 
-                # Validate required fields
-                if not all([performer_id, wireless_unit_id, monitoring_group_id]):
-                    return render(
-                        request,
-                        "micboard/assignments/form.html",
-                        {
-                            "error": "Performer, Wireless Unit, and Monitoring Group are required",
-                            "performers": Performer.objects.all(),
-                            "wireless_units": WirelessUnit.objects.all(),
-                            "monitoring_groups": _get_user_monitoring_groups(request.user),
-                        },
-                    )
+    # Basic validation and authorization (controller-level)
+    if not all([performer_id, wireless_unit_id, monitoring_group_id]):
+        return render(
+            request,
+            "micboard/assignments/form.html",
+            {
+                "error": "Performer, Wireless Unit, and Monitoring Group are required",
+                "performers": Performer.objects.all(),
+                "wireless_units": WirelessUnit.objects.all(),
+                "monitoring_groups": AccessControlService.get_user_monitoring_groups(request.user),
+            },
+        )
 
-                # Get objects and validate user permissions
-                performer = get_object_or_404(Performer, pk=performer_id)
-                wireless_unit = get_object_or_404(WirelessUnit, pk=wireless_unit_id)
-                monitoring_group = get_object_or_404(MonitoringGroup, pk=monitoring_group_id)
+    monitoring_group = get_object_or_404(MonitoringGroup, pk=monitoring_group_id)
+    if (
+        not request.user.is_superuser
+        and monitoring_group not in AccessControlService.get_user_monitoring_groups(request.user)
+    ):
+        return HttpResponseForbidden("Unauthorized")
 
-                # Check that user has permission to assign to this group
-                if (
-                    not request.user.is_superuser
-                    and monitoring_group not in _get_user_monitoring_groups(request.user)
-                ):
-                    return HttpResponseForbidden("Unauthorized")
-
-                # Create assignment
-                PerformerAssignment.objects.create(
-                    performer=performer,
-                    wireless_unit=wireless_unit,
-                    monitoring_group=monitoring_group,
-                    priority=priority,
-                    notes=notes,
-                    alert_on_battery_low=alert_battery_low,
-                    alert_on_signal_loss=alert_signal_loss,
-                    alert_on_audio_low=alert_audio_low,
-                    alert_on_hardware_offline=alert_hardware_offline,
-                    assigned_by=request.user,
-                )
-
-                return redirect("assignments")
-        except Exception as e:
-            return render(
-                request,
-                "micboard/assignments/form.html",
-                {
-                    "error": f"Error creating assignment: {str(e)}",
-                    "performers": Performer.objects.all(),
-                    "wireless_units": WirelessUnit.objects.all(),
-                    "monitoring_groups": _get_user_monitoring_groups(request.user),
-                },
-            )
+    try:
+        PerformerAssignmentService.create_assignment(
+            performer_id=int(performer_id),
+            unit_id=int(wireless_unit_id),
+            group_id=int(monitoring_group_id),
+            priority=request.POST.get("priority", "normal"),
+            notes=request.POST.get("notes", ""),
+            alert_on_battery_low=request.POST.get("alert_on_battery_low") == "on",
+            alert_on_signal_loss=request.POST.get("alert_on_signal_loss") == "on",
+            alert_on_audio_low=request.POST.get("alert_on_audio_low") == "on",
+            alert_on_hardware_offline=request.POST.get("alert_on_hardware_offline") == "on",
+            user=request.user,
+        )
+        return redirect("assignments")
+    except Exception as exc:
+        return render(
+            request,
+            "micboard/assignments/form.html",
+            {
+                "error": f"Error creating assignment: {exc}",
+                "performers": Performer.objects.all(),
+                "wireless_units": WirelessUnit.objects.all(),
+                "monitoring_groups": AccessControlService.get_user_monitoring_groups(request.user),
+            },
+        )
 
 
 @require_http_methods(["GET", "POST"])
 @login_required
 def update_assignment(request: HttpRequest, pk: int) -> HttpResponse:
-    """Update an existing assignment."""
+    """Update an existing assignment (delegates to PerformerAssignmentService)."""
     assignment = get_object_or_404(PerformerAssignment, pk=pk)
 
     # Check user permissions
     if (
         not request.user.is_superuser
-        and assignment.monitoring_group not in _get_user_monitoring_groups(request.user)
+        and assignment.monitoring_group
+        not in AccessControlService.get_user_monitoring_groups(request.user)
     ):
         return HttpResponseForbidden("Unauthorized")
 
@@ -137,66 +121,60 @@ def update_assignment(request: HttpRequest, pk: int) -> HttpResponse:
             "assignment": assignment,
             "performers": Performer.objects.all(),
             "wireless_units": WirelessUnit.objects.all(),
-            "monitoring_groups": _get_user_monitoring_groups(request.user),
+            "monitoring_groups": AccessControlService.get_user_monitoring_groups(request.user),
         }
         return render(request, "micboard/assignments/form.html", context)
 
-    elif request.method == "POST":
-        try:
-            with transaction.atomic():
-                # Extract and validate form data
-                priority = request.POST.get("priority", assignment.priority)
-                notes = request.POST.get("notes", assignment.notes)
-                is_active = request.POST.get("is_active") == "on"
-                alert_battery_low = request.POST.get("alert_on_battery_low") == "on"
-                alert_signal_loss = request.POST.get("alert_on_signal_loss") == "on"
-                alert_audio_low = request.POST.get("alert_on_audio_low") == "on"
-                alert_hardware_offline = request.POST.get("alert_on_hardware_offline") == "on"
+    # POST: delegate update to service
+    priority = request.POST.get("priority", assignment.priority)
+    notes = request.POST.get("notes", assignment.notes)
+    is_active = request.POST.get("is_active") == "on"
+    alert_battery_low = request.POST.get("alert_on_battery_low") == "on"
+    alert_signal_loss = request.POST.get("alert_on_signal_loss") == "on"
+    alert_audio_low = request.POST.get("alert_on_audio_low") == "on"
+    alert_hardware_offline = request.POST.get("alert_on_hardware_offline") == "on"
 
-                # Update assignment
-                assignment.priority = priority
-                assignment.notes = notes
-                assignment.is_active = is_active
-                assignment.alert_on_battery_low = alert_battery_low
-                assignment.alert_on_signal_loss = alert_signal_loss
-                assignment.alert_on_audio_low = alert_audio_low
-                assignment.alert_on_hardware_offline = alert_hardware_offline
-                assignment.save()
-
-                return redirect("assignments")
-        except Exception as e:
-            return render(
-                request,
-                "micboard/assignments/form.html",
-                {
-                    "assignment": assignment,
-                    "error": f"Error updating assignment: {str(e)}",
-                    "performers": Performer.objects.all(),
-                    "wireless_units": WirelessUnit.objects.all(),
-                    "monitoring_groups": _get_user_monitoring_groups(request.user),
-                },
-            )
+    try:
+        PerformerAssignmentService.update_assignment(
+            assignment_id=assignment.id,
+            priority=priority,
+            notes=notes,
+            is_active=is_active,
+            alert_on_battery_low=alert_battery_low,
+            alert_on_signal_loss=alert_signal_loss,
+            alert_on_audio_low=alert_audio_low,
+            alert_on_hardware_offline=alert_hardware_offline,
+        )
+        return redirect("assignments")
+    except PerformerAssignment.DoesNotExist:
+        return HttpResponseForbidden("Assignment not found")
+    except Exception as exc:
+        return render(
+            request,
+            "micboard/assignments/form.html",
+            {
+                "assignment": assignment,
+                "error": f"Error updating assignment: {exc}",
+                "performers": Performer.objects.all(),
+                "wireless_units": WirelessUnit.objects.all(),
+                "monitoring_groups": AccessControlService.get_user_monitoring_groups(request.user),
+            },
+        )
 
 
 @require_http_methods(["POST"])
 @login_required
 def delete_assignment(request: HttpRequest, pk: int) -> HttpResponse:
-    """Delete an assignment."""
+    """Delete an assignment (delegates to PerformerAssignmentService)."""
     assignment = get_object_or_404(PerformerAssignment, pk=pk)
 
     # Check user permissions
     if (
         not request.user.is_superuser
-        and assignment.monitoring_group not in _get_user_monitoring_groups(request.user)
+        and assignment.monitoring_group
+        not in AccessControlService.get_user_monitoring_groups(request.user)
     ):
         return HttpResponseForbidden("Unauthorized")
 
-    assignment.delete()
+    PerformerAssignmentService.delete_assignment(assignment_id=pk)
     return redirect("assignments")
-
-
-def _get_user_monitoring_groups(user) -> list:
-    """Get monitoring groups the user has access to."""
-    if user.is_superuser:
-        return list(MonitoringGroup.objects.all())
-    return list(user.monitoring_groups.all())

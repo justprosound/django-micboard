@@ -51,7 +51,7 @@ def _load_device_specifications() -> dict[str, dict[str, dict]]:
             fixture_file = os.path.join(
                 os.path.dirname(__file__), "..", "fixtures", "device_specifications.yaml"
             )
-            with open(fixture_file, "r") as f:
+            with open(fixture_file) as f:
                 spec_yaml = f.read()
 
         return yaml.safe_load(spec_yaml) or {}
@@ -177,7 +177,7 @@ def _load_band_plans() -> dict[str, dict[str, dict]]:
             fixture_file = os.path.join(
                 os.path.dirname(__file__), "..", "fixtures", "band_plans.yaml"
             )
-            with open(fixture_file, "r") as f:
+            with open(fixture_file) as f:
                 spec_yaml = f.read()
 
         return yaml.safe_load(spec_yaml) or {}
@@ -261,23 +261,37 @@ def parse_band_plan_from_name(*, name: str) -> dict | None:
     return None
 
 
+def _normalize_band_key(val: str) -> str:
+    return val.lower().replace(" ", "_").replace("-", "_").replace("(", "").replace(")", "")
+
+
+def _extract_band_code(val: str) -> str | None:
+    import re
+
+    m = re.match(r"^([a-zA-Z0-9]+)", val)
+    return m.group(1).lower() if m else None
+
+
+def _extract_freq_range(val: str) -> tuple[float, float] | None:
+    import re
+
+    m = re.search(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)", val)
+    if not m:
+        return None
+    try:
+        return float(m.group(1)), float(m.group(2))
+    except (ValueError, TypeError):
+        return None
+
+
 def detect_band_plan_from_api_string(
     *, api_band_value: str | None, manufacturer: str | None = "shure"
 ) -> str | None:
-    """Detect and return band plan name from Shure/Sennheiser API frequencyBand string.
+    """Detect and return band plan name from API frequencyBand string.
 
-    The Shure System API returns frequencyBand in various formats:
-    - "G50" → "G50 (470-534 MHz)"
-    - "G50 (470-534)" → "G50 (470-534 MHz)"
-    - "470-534" → tries to match to a band plan, falls back to parsing
-    - "UHF Band IV" → matches to registry
-
-    Args:
-        api_band_value: Raw frequencyBand string from API (e.g., "G50", "G50 (470-534)")
-        manufacturer: Manufacturer code (default: "shure")
-
-    Returns:
-        Full band plan name string (e.g., "G50 (470-534 MHz)"), or None if no match
+    Uses module-level helpers to keep this function concise and easier to
+    maintain; strategies include exact key match, code-prefix match, exact
+    frequency-range match, and partial string match.
     """
     if not api_band_value:
         return None
@@ -286,55 +300,38 @@ def detect_band_plan_from_api_string(
     if not api_band_value:
         return None
 
-    if not manufacturer:
-        manufacturer = "shure"
+    mfg = (manufacturer or "shure").lower()
+    band_plans = BAND_PLAN_SPECIFICATIONS.get(mfg, {})
 
-    mfg_lower = manufacturer.lower()
-    band_plans = BAND_PLAN_SPECIFICATIONS.get(mfg_lower, {})
+    # Strategy 1: Exact registry key
+    key = _normalize_band_key(api_band_value)
+    plan = band_plans.get(key)
+    if plan:
+        return plan.get("name")
 
-    # Strategy 1: Try exact key match (case-insensitive)
-    # e.g., "g50" → "G50 (470-534 MHz)"
-    band_key = (
-        api_band_value.lower().replace(" ", "_").replace("-", "_").replace("(", "").replace(")", "")
-    )
-    for registry_key, plan_data in band_plans.items():
-        if registry_key == band_key:
-            return plan_data.get("name")
-
-    # Strategy 2: Try to match by extracting the code part
-    # e.g., "G50 (470-534)" → extract "G50" and match
-    import re
-
-    code_match = re.match(r"^([a-zA-Z0-9]+)", api_band_value)
-    if code_match:
-        code = code_match.group(1).lower()
+    # Strategy 2: Match by leading code (e.g., "G50")
+    code = _extract_band_code(api_band_value)
+    if code:
         for registry_key, plan_data in band_plans.items():
             if registry_key.startswith(code):
                 return plan_data.get("name")
 
-    # Strategy 3: Try to match by frequency range
-    # e.g., "470-534" → find band with matching range
-    freq_match = re.search(r"(\d+)-(\d+)", api_band_value)
-    if freq_match:
-        try:
-            api_min = float(freq_match.group(1))
-            api_max = float(freq_match.group(2))
-            for plan_data in band_plans.values():
-                plan_min = plan_data.get("min_mhz", 0)
-                plan_max = plan_data.get("max_mhz", 0)
-                if plan_min == api_min and plan_max == api_max:
-                    return plan_data.get("name")
-        except (ValueError, TypeError):
-            pass
+    # Strategy 3: Exact frequency range match
+    freq = _extract_freq_range(api_band_value)
+    if freq:
+        api_min, api_max = freq
+        for plan_data in band_plans.values():
+            plan_min = plan_data.get("min_mhz") or 0
+            plan_max = plan_data.get("max_mhz") or 0
+            if plan_min == api_min and plan_max == api_max:
+                return plan_data.get("name")
 
-    # Strategy 4: Try partial string match
-    # e.g., "Band IV" might match "band_iv"
+    # Strategy 4: Partial string matching as a fallback
     api_normalized = api_band_value.lower().replace(" ", "_").replace("-", "_")
     for registry_key, plan_data in band_plans.items():
         if api_normalized in registry_key or registry_key in api_normalized:
             return plan_data.get("name")
 
-    # No match found
     return None
 
 

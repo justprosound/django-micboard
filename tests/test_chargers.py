@@ -2,7 +2,8 @@ from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from micboard.chargers.views import charger_display
-from micboard.models import Building, Charger, ChargerSlot, Location
+from micboard.models.hardware.charger import Charger, ChargerSlot
+from micboard.models.locations import Building, Location
 
 
 class ChargerDisplayViewTest(TestCase):

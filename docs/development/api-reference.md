@@ -228,56 +228,55 @@ ws.onmessage = function(event) {
 
 ### Models
 
-#### Receiver
+#### WirelessChassis
 
 ```python
-from micboard.models import Receiver
+from micboard.models import WirelessChassis
 
-# Get all active receivers
-receivers = Receiver.objects.active()
+# Get all active chassis
+chassis = WirelessChassis.objects.filter(status='online')
 
-# Get receivers seen recently
-recent = Receiver.objects.online_recently(minutes=30)
+# Get chassis by manufacturer
+shure_chassis = WirelessChassis.objects.filter(manufacturer__code='shure')
 
-# Mark receiver online/offline
-receiver.mark_online()
-receiver.mark_offline()
+# Get with related units
+chassis = WirelessChassis.objects.prefetch_related('wireless_units').get(id=1)
 ```
 
-#### Channel
+#### WirelessUnit
 
 ```python
-from micboard.models import Channel
+from micboard.models import WirelessUnit
 
-# Get channel with transmitter data
-channel = Channel.objects.select_related('transmitter').get(id=1)
+# Get units with battery status
+units = WirelessUnit.objects.filter(battery_percentage__lt=20)
 
-# Check if channel has transmitter
-if hasattr(channel, 'transmitter'):
-    print(f"Battery: {channel.transmitter.battery_percentage}%")
+# Get units for a chassis
+units = WirelessUnit.objects.filter(base_chassis=chassis)
+
+# Get by device type
+transmitters = WirelessUnit.objects.filter(device_type='mic_transmitter')
 ```
 
-#### DeviceAssignment
+#### PerformerAssignment
 
 ```python
-from micboard.models import DeviceAssignment
+from micboard.models import PerformerAssignment
 
-# Get active assignments for user
-assignments = DeviceAssignment.objects.filter(
-    user=user,
-    is_active=True
-)
+# Get active assignments
+assignments = PerformerAssignment.objects.filter(is_active=True)
 
-# Get assignments by priority
-high_priority = DeviceAssignment.objects.filter(
-    priority='high'
-)
+# Get assignments by performer
+performer_assignments = PerformerAssignment.objects.filter(performer=performer)
+
+# Get assignments for a wireless unit
+unit_assignments = PerformerAssignment.objects.filter(wireless_unit=unit)
 ```
 
 ### Shure API Client
 
 ```python
-from micboard.shure import ShureSystemAPIClient
+from micboard.integrations.shure.client import ShureSystemAPIClient
 
 # Initialize client
 client = ShureSystemAPIClient()
@@ -295,23 +294,16 @@ data = client.poll_all_devices()
 health = client.check_health()
 ```
 
-### Serializers
+### Services
 
 ```python
-from micboard.serializers import (
-    serialize_receivers,
-    serialize_receiver_detail,
-    serialize_receiver_summary
-)
+from micboard.services.core.hardware import HardwareService
 
-# Serialize all receivers with computed properties
-data = serialize_receivers(include_extra=True)
+# Get normalized hardware data
+hardware = HardwareService.get_hardware_by_manufacturer(manufacturer_code='shure')
 
-# Serialize single receiver
-receiver_data = serialize_receiver_detail(receiver)
-
-# Lightweight serialization
-summary = serialize_receiver_summary(receiver)
+# Sync hardware from API
+result = HardwareService.sync_from_api(manufacturer=manufacturer)
 ```
 
 ### Decorators

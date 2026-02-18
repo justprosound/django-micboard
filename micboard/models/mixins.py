@@ -20,36 +20,11 @@ class DiscoveryTriggerMixin:
     manufacturer_id: int | None  # Should be implemented by subclass
 
     def _trigger_discovery(self, manufacturer_pk: int | None = None) -> None:
-        """Trigger async discovery scan for a manufacturer.
-
-        Args:
-            manufacturer_pk: Manufacturer PK to scan. If None, uses self.manufacturer_id.
-        """
-        from micboard.utils.dependencies import HAS_DJANGO_Q
-
-        if not HAS_DJANGO_Q:
-            logger.debug("django-q not available, skipping discovery trigger")
-            return
-
+        """Trigger async discovery scan for a manufacturer (delegates to service)."""
         pk = manufacturer_pk or self.manufacturer_id
-        if not pk:
-            logger.warning("No manufacturer_id available for discovery trigger")
-            return
+        from micboard.services.sync.discovery_trigger_service import trigger_discovery
 
-        try:
-            from django_q.tasks import async_task
-
-            from micboard.tasks.discovery_tasks import run_manufacturer_discovery_task
-
-            async_task(
-                run_manufacturer_discovery_task,
-                pk,
-                True,  # scan_cidrs
-                True,  # scan_fqdns
-            )
-            logger.info(f"Triggered discovery scan for manufacturer {pk}")
-        except Exception as e:
-            logger.warning(f"Failed to trigger discovery scan: {e}")
+        trigger_discovery(pk)
 
 
 class TenantFilterableMixin(models.QuerySet):

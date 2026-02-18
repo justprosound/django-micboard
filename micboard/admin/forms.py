@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from django import forms
 
-from micboard.models import WirelessChassis
 from micboard.models.device_specs import get_available_band_plans
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 
 class WirelessChassisAdminForm(forms.ModelForm):

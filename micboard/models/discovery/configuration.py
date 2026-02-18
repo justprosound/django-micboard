@@ -10,7 +10,7 @@ Allows admin to:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -92,7 +92,7 @@ class ManufacturerConfiguration(models.Model):
         status = "✓" if self.is_active else "✗"
         return f"{status} {self.name} ({self.code})"
 
-    def validate(self) -> Dict[str, Any]:
+    def validate(self) -> dict[str, Any]:
         """Validate the configuration.
 
         Returns:
@@ -104,22 +104,26 @@ class ManufacturerConfiguration(models.Model):
 
         # Delayed import to avoid circular dependency
         try:
-            from micboard.services.manufacturer_service import get_service
+            from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
-            service = get_service(self.code)
-            if not service:
-                errors.append(f"Service not found or not enabled: {self.code}")
+            plugin = PluginRegistry.get_plugin(self.code)
+            if not plugin:
+                errors.append(f"Plugin not found or not enabled: {self.code}")
             else:
-                # Attempt health check
-                health = service.check_health()
-                if health.get("status") == "unhealthy":
-                    errors.append(f"Service health check failed: {health.get('message')}")
+                # Attempt health check via plugin
+                try:
+                    # Check if plugin/client is accessible
+                    client = plugin.get_client()
+                    if not client:
+                        errors.append(f"Plugin client initialization failed for {self.code}")
+                except Exception as health_err:
+                    errors.append(f"Plugin health check failed: {health_err!s}")
 
         except ImportError:
             # If service layer not ready, skip deep validation
             pass
         except Exception as e:
-            errors.append(f"Service initialization failed: {e!s}")
+            errors.append(f"Plugin initialization failed: {e!s}")
 
         # Validate required config fields
         required_fields = self._get_required_fields()
@@ -150,7 +154,7 @@ class ManufacturerConfiguration(models.Model):
     def _get_required_fields(self) -> list[str]:
         """Get required configuration fields for this manufacturer."""
         # Map of manufacturer codes to required fields
-        required_fields_map: Dict[str, list[str]] = {
+        required_fields_map: dict[str, list[str]] = {
             "shure": ["SHURE_API_BASE_URL", "SHURE_API_SHARED_KEY"],
             "sennheiser": ["SENNHEISER_API_BASE_URL"],
         }
@@ -159,24 +163,31 @@ class ManufacturerConfiguration(models.Model):
     def apply_to_service(self) -> bool:
         """Apply this configuration to the running service.
 
+        Note: With plugin-based architecture, configuration is applied
+        dynamically when plugins are instantiated. This method logs
+        the intent but doesn't perform runtime reloading.
+
         Returns:
-            True if successfully applied, False otherwise
+            True if configuration is valid, False otherwise
         """
         try:
-            from micboard.services.manufacturer_service import get_service_registry
+            # Validate that the configuration is well-formed
+            if not self.is_valid:
+                logger.warning(
+                    f"Cannot apply invalid configuration for {self.code}",
+                    extra={"code": self.code},
+                )
+                return False
 
-            registry = get_service_registry()
-            registry.reload_config(self.code, self.config)
             logger.info(
-                f"Configuration applied to service: {self.code}",
+                f"Configuration validated for {self.code}. "
+                f"Will be applied on next plugin initialization.",
                 extra={"code": self.code},
             )
             return True
-        except ImportError:
-            return False
         except Exception as e:
             logger.error(
-                f"Failed to apply configuration to service {self.code}: {e}",
+                f"Failed to validate configuration for {self.code}: {e}",
                 exc_info=True,
                 extra={"code": self.code},
             )

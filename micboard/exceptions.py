@@ -6,7 +6,7 @@ for debugging and API responses.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class MicboardError(Exception):
@@ -20,7 +20,7 @@ class MicboardError(Exception):
         message: str,
         *,
         code: str = "UNKNOWN_ERROR",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         """Initialize exception.
 
@@ -58,7 +58,7 @@ class ManufacturerNotSupportedError(MicboardError):
 class HardwareNotFoundError(MicboardError):
     """Raised when hardware is not found."""
 
-    def __init__(self, device_id: str, manufacturer_code: Optional[str] = None):
+    def __init__(self, device_id: str, manufacturer_code: str | None = None):
         """Initialize exception.
 
         Args:
@@ -104,8 +104,8 @@ class APIError(MicboardError):
         self,
         message: str,
         *,
-        status_code: Optional[int] = None,
-        response_body: Optional[str] = None,
+        status_code: int | None = None,
+        response_body: str | None = None,
     ):
         """Initialize exception.
 

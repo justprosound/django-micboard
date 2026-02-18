@@ -1,5 +1,12 @@
 # Installation Guide
 
+> **CRITICAL INSTALLATION & RESEARCH POLICY**
+>
+> - All environments and dependencies must **only** be managed via [`uv`](https://github.com/astral-sh/uv). Any reference to `pip`, `venv`, `pipx`, or `poetry` in these docs is legacy, must be migrated, and is forbidden for all development, CI, and automation. If you encounter legacy/forbidden guidance, escalate to project maintainers and see README/CONTRIBUTING.md for escalation.
+> - **Agent/Developer Quick Reference:**
+>   - When searching docs, use `context7` tools.
+>   - If unsure how to use a library or API, use `gh_grep` for up-to-date GitHub code examples.
+
 Complete installation instructions for django-micboard.
 
 ## System Requirements
@@ -22,31 +29,45 @@ Complete installation instructions for django-micboard.
 
 ## Installation Methods
 
-### Method 1: pip Install (Recommended)
+### Method 1: UV Install (REQUIRED)
 
 ```bash
+# Create a new virtual environment with uv
+uv venv .venv
+source .venv/bin/activate
+
 # Install from PyPI
-pip install django-micboard
+uv pip install django-micboard
 
 # Or for latest development version
-pip install git+https://github.com/justprosound/django-micboard.git
+uv pip install git+https://github.com/justprosound/django-micboard.git
 ```
 
-### Method 2: From Source
+**Note:** You must use `uv` for all dependency installation. Direct usage of `pip`, `poetry`, or `venv` is strictly forbidden by project policy.
+
+
+### Method 2: From Source with UV (RECOMMENDED)
 
 ```bash
 # Clone repository
+uv venv .venv
+source .venv/bin/activate
+
 git clone https://github.com/justprosound/django-micboard.git
 cd django-micboard
 
 # Install in development mode
-pip install -e .
+uv pip install -e "[dev,all]"
 
-# Install optional dependencies
-pip install django-micboard[channels,tasks,observability]
+# To install optional extras only
+uv pip install -e ".[channels,tasks,observability]"
 ```
 
+**IMPORTANT:** Never use `pip install`, `poetry`, or standard `venv` for this step. Always use `uv pip install` and `uv venv`.
+
 ### Method 3: Docker Installation
+
+> **NOTE:** Any Dockerfile or base container for django-micboard MUST use `uv` for all installation steps. All sample Dockerfiles below demonstrate this policy.
 
 ```yaml
 # docker-compose.yml
@@ -313,10 +334,11 @@ print('API Health:', client.check_health())
 
 **Install dependencies:**
 ```bash
-pip install gunicorn
+uv pip install gunicorn
 sudo apt install nginx
 ```
 
+> **NOTE:** Only use `uv pip install` for Python dependencies on all platforms.
 **Gunicorn configuration:**
 ```bash
 # Create systemd service
@@ -332,14 +354,16 @@ After=network.target
 User=www-data
 Group=www-data
 WorkingDirectory=/var/www/micboard
-Environment="PATH=/var/www/micboard/venv/bin"
+Environment="PATH=/var/www/micboard/.venv/bin"
 Environment="DJANGO_SETTINGS_MODULE=myproject.settings"
-ExecStart=/var/www/micboard/venv/bin/gunicorn --workers 3 --bind unix:/var/www/micboard/micboard.sock myproject.asgi:application
+ExecStart=/var/www/micboard/.venv/bin/gunicorn --workers 3 --bind unix:/var/www/micboard/micboard.sock myproject.asgi:application
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+> **NOTE:** All virtual environments in this project must be created with `uv venv`. Ensure all systemd and PATH/environment references use `.venv` by default, rather than generic `venv` or ambiguous paths.
 
 **Nginx configuration:**
 ```nginx
@@ -395,7 +419,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install uv && uv pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
@@ -405,6 +429,8 @@ EXPOSE 8000
 
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "myproject.asgi:application"]
 ```
+
+> **NOTE:** We permanently require `uv` for installing all Python dependencies in Dockerfiles. Replace any occurrence of `pip install ...` with either `uv pip install ...` or add `pip install uv` first, then use `uv pip install ...`. If/when the official Python images offer uv as a base, switch to those.
 
 **Build and run:**
 ```bash
@@ -447,13 +473,14 @@ python manage.py poll_devices --manufacturer shure --continuous
 
 **Module not found:**
 ```bash
-# Ensure all dependencies are installed
-pip install -r requirements.txt
+# Ensure all dependencies are installed (using uv)
+uv pip install -r requirements.txt
 
 # Check Python path
 python -c "import micboard; print(micboard.__file__)"
 ```
 
+> **Never use `pip install -r requirements.txt`. Always use `uv pip install -r requirements.txt`. If you encounter docs or scripts recommending direct pip usage, escalate it for policy remediation.
 ### Database Errors
 
 **Migration failures:**

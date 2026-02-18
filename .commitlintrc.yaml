@@ -1,0 +1,68 @@
+---
+# Commitlint configuration for conventional commits
+# https://commitlint.js.org
+
+extends:
+  - "@commitlint/config-conventional"
+
+rules:
+  # Type enum: allowed commit types
+  type-enum:
+    - 2
+    - always
+    -
+      - feat      # New feature
+      - fix       # Bug fix
+      - docs      # Documentation changes
+      - style     # Code style changes (formatting, etc.)
+      - refactor  # Code refactoring
+      - perf      # Performance improvements
+      - test      # Adding or updating tests
+      - build     # Build system or external dependencies
+      - ci        # CI configuration changes
+      - chore     # Other changes (e.g., dependency updates)
+      - revert    # Revert previous commit
+
+  # Scope enum: optional scopes for this project
+  scope-enum:
+    - 2
+    - always
+    -
+      - services      # Service layer changes
+      - models        # Model changes
+      - views         # View changes
+      - admin         # Admin interface changes
+      - tasks         # Background task changes
+      - api           # API changes
+      - integrations  # Manufacturer integrations
+      - discovery     # Discovery system
+      - monitoring    # Monitoring features
+      - lifecycle     # Lifecycle management
+      - multitenancy  # Multi-tenant features
+      - websockets    # WebSocket functionality
+      - deps          # Dependency updates
+      - config        # Configuration changes
+
+  # Subject case: enforce lowercase
+  subject-case:
+    - 2
+    - always
+    - lower-case
+
+  # Subject max length
+  subject-max-length:
+    - 2
+    - always
+    - 72
+
+  # Body max line length
+  body-max-line-length:
+    - 2
+    - always
+    - 100
+
+  # Footer max line length
+  footer-max-line-length:
+    - 2
+    - always
+    - 100

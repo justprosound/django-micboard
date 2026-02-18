@@ -260,13 +260,11 @@ class SettingAdmin(MicboardModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-
         if change:
             messages.success(request, f"✅ Setting '{obj.definition.label}' updated")
         else:
             messages.success(request, f"✅ New setting '{obj.definition.label}' created")
-
-        # Invalidate cache
-        from micboard.services.settings_registry import SettingsRegistry
+        # Delegate cache invalidation to SettingsRegistry service
+        from micboard.services.shared.settings_registry import SettingsRegistry
 
         SettingsRegistry.invalidate_cache(obj.definition.key)

@@ -2,7 +2,7 @@
 
 from django.core.management.base import BaseCommand
 
-from micboard.services.logging_mode import LoggingModeService
+from micboard.services.maintenance.logging_mode import LoggingModeService
 
 
 class Command(BaseCommand):

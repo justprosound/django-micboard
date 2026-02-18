@@ -60,7 +60,7 @@ class Manufacturer(models.Model):
             logger.exception(f"Failed to log {action} activity: {e}")
 
     def save(self, *args, **kwargs):
-        """Trigger discovery sync when a manufacturer is activated and log changes."""
+        """Persist manufacturer data and delegate side-effects to service layer."""
         created = self.pk is None
         old_active = False
         if not created:
@@ -71,40 +71,22 @@ class Manufacturer(models.Model):
 
         super().save(*args, **kwargs)
 
-        # Audit log
-        if created:
-            self._log_change(action="created")
-        else:
-            self._log_change(action="modified")
+        # Delegate audit + discovery side-effects to ManufacturerService
+        from micboard.services.manufacturer.manufacturer import ManufacturerService
 
-        # Only trigger when not created and when is_active toggled True
-        if (not created) and self.is_active and not old_active:
-            from micboard.utils.dependencies import HAS_DJANGO_Q
-
-            if HAS_DJANGO_Q:
-                try:
-                    from django_q.tasks import async_task
-
-                    from micboard.tasks.discovery_tasks import run_manufacturer_discovery_task
-
-                    async_task(
-                        run_manufacturer_discovery_task,
-                        self.pk,
-                        False,  # scan_cidrs
-                        False,  # scan_fqdns
-                    )
-                except Exception:
-                    logger.exception("Failed to trigger discovery on activation")
-            else:
-                logger.debug("Django-Q not installed; skipping discovery task trigger")
+        ManufacturerService.handle_manufacturer_save(
+            manufacturer=self, created=created, old_active=old_active
+        )
 
     def delete(self, *args, **kwargs):
-        """Log deletion and delete the manufacturer."""
-        self._log_change(action="deleted")
+        """Persist deletion and delegate side-effects to service layer."""
         super().delete(*args, **kwargs)
+        from micboard.services.manufacturer.manufacturer import ManufacturerService
+
+        ManufacturerService.handle_manufacturer_delete(manufacturer=self)
 
     def get_plugin_class(self):
         """Get the plugin class for this manufacturer."""
-        from micboard.services.plugin_registry import PluginRegistry
+        from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
         return PluginRegistry.get_plugin_class(self.code)

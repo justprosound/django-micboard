@@ -1,21 +1,21 @@
 """Dashboard views for the micboard app."""
 
-from typing import Optional
-
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
 
 from micboard.filters import HAS_DJANGO_FILTERS, WirelessChassisFilter
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 # Updated imports
-from micboard.models import Building, MonitoringGroup, Room, WirelessChassis
+from micboard.models.locations.structure import Building, Room
+from micboard.models.monitoring.group import MonitoringGroup
 
 User = get_user_model()
 
 
-def get_filtered_receivers(request: HttpRequest, manufacturer_code: Optional[str], **filters):
+def get_filtered_receivers(request: HttpRequest, manufacturer_code: str | None, **filters):
     """Helper function to get filtered receivers for dashboard views."""
     qs = WirelessChassis.objects.for_user(user=request.user).filter(**filters)
 

@@ -2,6 +2,8 @@
 
 ## 🚀 Quick Commands
 
+> **LEGACY/REFERENCE ONLY: The following environment setup commands use `pip` and `venv`, now forbidden for all non-archival usage. For all onboarding or development, use `uv`. See README/POLICY.**
+
 ### Setup Environment
 ```bash
 git clone https://github.com/yourusername/django-micboard.git

@@ -6,7 +6,7 @@ Tracks all CRUD operations, service syncs, and system events.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.contrib.auth.models import User
 
@@ -203,9 +203,9 @@ class ActivityLog(models.Model):
         *,
         operation: str,
         obj: models.Model,
-        user: Optional[User] = None,
-        old_values: Optional[Dict[str, Any]] = None,
-        new_values: Optional[Dict[str, Any]] = None,
+        user: User | None = None,
+        old_values: dict[str, Any] | None = None,
+        new_values: dict[str, Any] | None = None,
         request=None,
     ) -> ActivityLog:
         """Log a CRUD operation.
@@ -254,7 +254,7 @@ class ActivityLog(models.Model):
         service_code: str,
         summary: str,
         status: str = "success",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
         error_message: str = "",
     ) -> ActivityLog:
         """Log a service-related activity.
@@ -297,7 +297,7 @@ class ActivityLog(models.Model):
         summary: str,
         device_count: int = 0,
         online_count: int = 0,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
         status: str = "success",
         error_message: str = "",
     ) -> ActivityLog:
@@ -344,7 +344,7 @@ class ActivityLog(models.Model):
         cls,
         *,
         summary: str,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
         status: str = "success",
         error_message: str = "",
     ) -> ActivityLog:

@@ -41,6 +41,8 @@ Open an issue with:
 git clone https://github.com/yourusername/django-micboard.git
 cd django-micboard
 
+> **LEGACY/REFERENCE ONLY: Environment setup and install instructions below use legacy `pip`/`venv`. These must NOT be used for new development/onboarding. Use `uv` only. These steps are preserved for historical reference.**
+
 # Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows

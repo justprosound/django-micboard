@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from micboard.models import RealTimeConnection
-from micboard.tasks.health_tasks import get_realtime_connection_status
+from micboard.tasks.monitoring.health import get_realtime_connection_status
 
 
 class Command(BaseCommand):

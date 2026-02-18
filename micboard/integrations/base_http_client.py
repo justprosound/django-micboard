@@ -18,7 +18,7 @@ from urllib3.util.retry import Retry
 
 from micboard.integrations.common.exceptions import APIError, APIRateLimitError
 from micboard.manufacturers.base import BaseAPIClient
-from micboard.services.base_health_mixin import HealthCheckMixin
+from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +88,13 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         )
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
+
+        # Circuit breaker configuration (per-client)
+        failure_threshold = config.get(f"{prefix}_CIRCUIT_FAILURE_THRESHOLD", 5)
+        recovery_timeout = config.get(f"{prefix}_CIRCUIT_RECOVERY_TIMEOUT", 60)
+        self._circuit = CircuitBreaker(
+            name=prefix, failure_threshold=failure_threshold, recovery_timeout=recovery_timeout
+        )
 
         # Subclass-specific authentication setup
         self._configure_authentication(config)
@@ -212,18 +219,53 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         kwargs.setdefault("timeout", self.timeout)
         kwargs.setdefault("verify", self.verify_ssl)
 
+        # Fast-fail if circuit breaker is open for this client
+        if getattr(self, "_circuit", None) and not self._circuit.allow_request():
+            logger.error(
+                "Circuit open for %s; failing fast for %s %s",
+                self._get_config_prefix(),
+                method,
+                url,
+            )
+            raise CircuitOpenError(f"Circuit open for {self._get_config_prefix()}")
+
         try:
             response = self.session.request(method, url, **kwargs)
             return self._handle_response(response, method, url)
         except requests.exceptions.HTTPError as e:
+            if getattr(self, "_circuit", None):
+                try:
+                    self._circuit.record_failure()
+                except Exception:
+                    logger.debug("Circuit record_failure failed", exc_info=True)
             self._handle_http_error(e, method, url)
         except requests.exceptions.ConnectionError as e:
+            if getattr(self, "_circuit", None):
+                try:
+                    self._circuit.record_failure()
+                except Exception:
+                    logger.debug("Circuit record_failure failed", exc_info=True)
             self._handle_connection_error(e, method, url)
         except requests.exceptions.Timeout as e:
+            if getattr(self, "_circuit", None):
+                try:
+                    self._circuit.record_failure()
+                except Exception:
+                    logger.debug("Circuit record_failure failed", exc_info=True)
             self._handle_timeout_error(e, method, url)
         except requests.RequestException as e:
+            if getattr(self, "_circuit", None):
+                try:
+                    self._circuit.record_failure()
+                except Exception:
+                    logger.debug("Circuit record_failure failed", exc_info=True)
             self._handle_request_error(e, method, url)
         except json.JSONDecodeError as e:
+            if getattr(self, "_circuit", None):
+                try:
+                    self._circuit.record_failure()
+                except Exception:
+                    logger.debug("Circuit record_failure failed", exc_info=True)
             self._handle_json_error(e, method, url)
         return None
 
@@ -232,6 +274,13 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         status = getattr(response, "status_code", None)
 
         if status is not None and status >= 400:
+            # Record failure on server errors and rate-limits to trip circuit if needed
+            if getattr(self, "_circuit", None) and (status >= 500 or status == 429):
+                try:
+                    self._circuit.record_failure()
+                except Exception:
+                    logger.debug("Circuit record_failure failed", exc_info=True)
+
             self._consecutive_failures += 1
             self._is_healthy = False if status >= 500 else self._is_healthy
 
@@ -264,6 +313,13 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         self._consecutive_failures = 0
         self._is_healthy = True
 
+        # Inform circuit breaker of success so it can close / reset
+        if getattr(self, "_circuit", None):
+            try:
+                self._circuit.record_success()
+            except Exception:
+                logger.debug("Circuit record_success failed", exc_info=True)
+
         result = response.json() if response.content else None
         logger.debug("Request successful: %s %s", method, url)
         return result
@@ -280,8 +336,20 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
 
     def _handle_http_error(self, e: requests.exceptions.HTTPError, method: str, url: str) -> None:
         """Handle HTTPError exceptions."""
+        status_code = getattr(e.response, "status_code", None)
+        # Record failure for server errors and rate-limits
+        if (
+            getattr(self, "_circuit", None)
+            and status_code is not None
+            and (status_code >= 500 or status_code == 429)
+        ):
+            try:
+                self._circuit.record_failure()
+            except Exception:
+                logger.debug("Circuit record_failure failed", exc_info=True)
+
         self._consecutive_failures += 1
-        if e.response.status_code == 429:
+        if status_code == 429:
             rate_limit_exc = self.get_rate_limit_exception_class()
             raise rate_limit_exc(
                 message=f"Rate limit exceeded for {method} {url}", response=e.response
@@ -290,13 +358,13 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
             "API HTTP error: %s %s - Status %d: %s",
             method,
             url,
-            e.response.status_code,
+            status_code,
             e.response.text[:200],  # Limit error text length
         )
         api_exc = self.get_exception_class()
         raise api_exc(
             message=f"HTTP error for {method} {url}",
-            status_code=e.response.status_code,
+            status_code=status_code,
             response=e.response,
         ) from e
 
@@ -304,6 +372,13 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         self, e: requests.exceptions.ConnectionError, method: str, url: str
     ) -> None:
         """Handle ConnectionError exceptions."""
+        # Record failure on connection errors
+        if getattr(self, "_circuit", None):
+            try:
+                self._circuit.record_failure()
+            except Exception:
+                logger.debug("Circuit record_failure failed", exc_info=True)
+
         self._consecutive_failures += 1
         self._is_healthy = False
         logger.error("API connection error: %s %s - %s", method, url, e)
@@ -312,6 +387,13 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
 
     def _handle_timeout_error(self, e: requests.exceptions.Timeout, method: str, url: str) -> None:
         """Handle Timeout exceptions."""
+        # Record failure on timeout
+        if getattr(self, "_circuit", None):
+            try:
+                self._circuit.record_failure()
+            except Exception:
+                logger.debug("Circuit record_failure failed", exc_info=True)
+
         self._consecutive_failures += 1
         logger.error("API timeout error: %s %s - %s", method, url, e)
         api_exc = self.get_exception_class()
@@ -319,6 +401,13 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
 
     def _handle_request_error(self, e: requests.RequestException, method: str, url: str) -> None:
         """Handle general RequestException."""
+        # Record failure for general request exceptions
+        if getattr(self, "_circuit", None):
+            try:
+                self._circuit.record_failure()
+            except Exception:
+                logger.debug("Circuit record_failure failed", exc_info=True)
+
         self._consecutive_failures += 1
         logger.error("API request failed: %s %s - %s", method, url, e)
         api_exc = self.get_exception_class()
@@ -326,6 +415,13 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
 
     def _handle_json_error(self, e: json.JSONDecodeError, method: str, url: str) -> None:
         """Handle JSONDecodeError."""
+        # Record failure for invalid JSON responses
+        if getattr(self, "_circuit", None):
+            try:
+                self._circuit.record_failure()
+            except Exception:
+                logger.debug("Circuit record_failure failed", exc_info=True)
+
         self._consecutive_failures += 1
         logger.error("Failed to parse JSON response from %s %s: %s", method, url, e)
         api_exc = self.get_exception_class()
@@ -350,6 +446,9 @@ class BasePollingMixin:
         try:
             devices = self.get_devices()  # type: ignore[attr-defined]
             logger.info("Polling %d devices from %s API", len(devices), self.__class__.__name__)
+        except CircuitOpenError:
+            logger.warning("Circuit open for %s; skipping device polling", self.__class__.__name__)
+            return {}
         except Exception:
             logger.exception("Failed to get device list")
             return {}
@@ -391,6 +490,13 @@ class BasePollingMixin:
             else:
                 logger.warning("Failed to transform data for device %s", device_id)
                 return None
+        except CircuitOpenError:
+            logger.warning(
+                "Circuit open for %s while polling device %s; skipping",
+                self.__class__.__name__,
+                device_id,
+            )
+            return None
         except Exception:
             logger.exception("Error polling device %s", device_id)
             return None
@@ -407,3 +513,123 @@ class BasePollingMixin:
     def _get_transformer(self) -> Any:
         """Return manufacturer-specific data transformer."""
         raise NotImplementedError()
+
+
+class CircuitOpenError(APIError):
+    """Raised when a circuit breaker is open for an endpoint."""
+
+
+class CircuitBreaker:
+    """Simple in-process circuit breaker.
+
+    Note: This is an in-memory, per-process circuit breaker intended to prevent
+    hammering of unhealthy external services. For multi-process deployments,
+    consider using a shared store (Redis) to coordinate state.
+    """
+
+    def __init__(
+        self, *, name: str | None = None, failure_threshold: int = 5, recovery_timeout: int = 60
+    ):
+        """Initialize circuit breaker settings."""
+        self.name = name
+        self.failure_threshold = int(failure_threshold)
+        self.recovery_timeout = int(recovery_timeout)
+        self._failures = 0
+        self._last_failure = 0.0
+        self._state = "closed"  # one of "closed", "open", "half-open"
+
+    def allow_request(self) -> bool:
+        """Return True if a request is allowed (circuit closed or half-open)."""
+        if self._state == "open":
+            if (time.time() - self._last_failure) > self.recovery_timeout:
+                self._state = "half-open"
+                logger.info("Circuit half-open for %s", self.name or "unknown")
+                return True
+            return False
+        return True
+
+    def record_success(self) -> None:
+        """Record a successful call and close the circuit."""
+        prev = self._state
+        self._failures = 0
+        self._state = "closed"
+        if prev in ("open", "half-open"):
+            logger.info("Circuit closed for %s", self.name or "unknown")
+            try:
+                from datetime import datetime
+
+                from micboard.metrics import MetricsCollector, ServiceMetric
+
+                MetricsCollector.record_metric(
+                    ServiceMetric(
+                        service_name=self.name or "external_api",
+                        method_name="circuit_closed",
+                        duration_ms=0.0,
+                        timestamp=datetime.now(),
+                        success=True,
+                    )
+                )
+            except Exception:
+                logger.debug("Metrics recording for circuit_closed failed", exc_info=True)
+
+    def record_failure(self) -> None:
+        """Record a failed call and open the circuit if threshold reached."""
+        prev = self._state
+        self._failures += 1
+        self._last_failure = time.time()
+        if self._failures >= self.failure_threshold:
+            self._state = "open"
+            if prev != "open":
+                logger.warning(
+                    "Circuit opened for %s after %d failures",
+                    self.name or "external_api",
+                    self._failures,
+                )
+                try:
+                    from datetime import datetime
+
+                    from micboard.metrics import MetricsCollector, ServiceMetric
+
+                    MetricsCollector.record_metric(
+                        ServiceMetric(
+                            service_name=self.name or "external_api",
+                            method_name="circuit_open",
+                            duration_ms=0.0,
+                            timestamp=datetime.now(),
+                            success=False,
+                            error_message="failure_threshold_exceeded",
+                            metadata={"failures": self._failures},
+                        )
+                    )
+                except Exception:
+                    logger.debug("Metrics recording for circuit_open failed", exc_info=True)
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+
+def create_resilient_session(
+    *,
+    max_retries: int = 3,
+    backoff_factor: float = 0.5,
+    status_forcelist: list[int] | None = None,
+    pool_connections: int = 10,
+    pool_maxsize: int = 20,
+) -> requests.Session:
+    """Create a requests.Session configured with urllib3 Retry and pooling."""
+    session = requests.Session()
+    status_forcelist = status_forcelist or [429, 500, 502, 503, 504]
+    retry = Retry(
+        total=max_retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+        allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(
+        max_retries=retry, pool_connections=pool_connections, pool_maxsize=pool_maxsize
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session

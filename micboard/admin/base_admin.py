@@ -317,6 +317,22 @@ class AdminAuditMixin:
 
 
 # Convenience function to create a configured admin class
+def _get_admin_mixins(
+    include_status: bool, include_bulk: bool, include_approval: bool
+) -> tuple[type, ...]:
+    """Get appropriate mixins based on configuration flags."""
+    mixins = [AdminCustomColorMixin, AdminAuditMixin]
+
+    if include_status:
+        mixins.append(AdminStatusActionsMixin)
+    if include_bulk:
+        mixins.append(AdminBulkActionsMixin)
+    if include_approval:
+        mixins.append(AdminApprovalActionsMixin)
+
+    return tuple(mixins)
+
+
 def create_hardware_admin(
     *,
     actions: list[str] | None = None,
@@ -339,75 +355,22 @@ def create_hardware_admin(
     Returns:
         Configured admin class
     """
+    # Get mixin tuple based on configuration
+    mixins = _get_admin_mixins(
+        include_status_actions, include_bulk_actions, include_approval_actions
+    )
 
-    class ConfiguredHardwareAdmin(
-        BaseHardwareAdmin,
-        AdminCustomColorMixin,
-        AdminAuditMixin,
-    ):
+    # Create the admin class with all appropriate mixins
+    class ConfiguredHardwareAdmin(BaseHardwareAdmin, *mixins):
         """Dynamically configured device admin."""
 
-    if include_status_actions:
-        if include_bulk_actions:
-            if include_approval_actions:
-
-                class DynamicAdminStatusBulkApproval(
-                    AdminStatusActionsMixin,
-                    AdminBulkActionsMixin,
-                    AdminApprovalActionsMixin,
-                ):
-                    pass
-
-                dynamic_admin = DynamicAdminStatusBulkApproval
-
-            else:
-
-                class DynamicAdminStatusBulk(
-                    AdminStatusActionsMixin,
-                    AdminBulkActionsMixin,
-                ):
-                    pass
-
-                dynamic_admin = DynamicAdminStatusBulk
-
-        elif include_approval_actions:
-
-            class DynamicAdminStatusApproval(
-                AdminStatusActionsMixin,
-                AdminApprovalActionsMixin,
-            ):
-                pass
-
-            dynamic_admin = DynamicAdminStatusApproval
-
-        else:
-
-            class DynamicAdminStatus(AdminStatusActionsMixin):
-                pass
-
-            dynamic_admin = DynamicAdminStatus
-
-    else:
-
-        class DynamicAdminEmpty:
-            pass
-
-        dynamic_admin = DynamicAdminEmpty
-
-    # Apply mixins
-    for base in dynamic_admin.__bases__:
-        for attr_name in dir(base):
-            if not attr_name.startswith("_"):
-                attr = getattr(base, attr_name)
-                if callable(attr) and hasattr(attr, "short_description"):
-                    setattr(ConfiguredHardwareAdmin, attr_name, attr)
-
-    # Set list display, filters, and actions
+    # Set list display and filters if provided
     if list_display:
         ConfiguredHardwareAdmin.list_display_fields = list_display
     if list_filters:
         ConfiguredHardwareAdmin.common_list_filters = list_filters
 
+    # Build actions list
     actions_list = actions or []
     if include_status_actions:
         actions_list.extend(["mark_online", "mark_offline"])
