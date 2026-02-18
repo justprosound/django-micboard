@@ -16,9 +16,9 @@ from django.utils.html import format_html
 
 from micboard.admin.forms import WirelessChassisAdminForm
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models.hardware.accessory import Accessory
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.integrations import Accessory
 from micboard.models.rf_coordination.rf_channel import RFChannel
 
 logger = logging.getLogger(__name__)
