@@ -30,7 +30,13 @@ from .discovery.manufacturer import Manufacturer
 
 # Telemetry
 from .discovery.queue import DeviceMovementLog, DiscoveryQueue
-from .discovery.registry import DiscoveredDevice, DiscoveryCIDR, DiscoveryFQDN
+from .discovery.registry import (
+    DiscoveredDevice,
+    DiscoveryCIDR,
+    DiscoveryFQDN,
+    DiscoveryJob,
+    MicboardConfig,
+)
 
 # Hardware models
 from .hardware.charger import Charger, ChargerSlot
@@ -73,9 +79,11 @@ __all__ = [
     "DiscoveredDevice",
     "DiscoveryCIDR",
     "DiscoveryFQDN",
+    "DiscoveryJob",
     "DiscoveryQueue",
     "Manufacturer",
     "ManufacturerConfiguration",
+    "MicboardConfig",
     # Hardware
     "Charger",
     "ChargerSlot",

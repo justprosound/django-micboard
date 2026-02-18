@@ -136,7 +136,7 @@ class SettingValueForm(ModelForm):
 
     class Meta:
         model = Setting
-        fields = ["definition", "organization", "site", "manufacturer", "value"]
+        fields = ["definition", "organization_id", "site", "manufacturer_id", "value"]
 
     def __init__(self, *args, **kwargs):
         """Initialize value form and adjust help text based on definition type."""
@@ -182,9 +182,7 @@ class SettingAdmin(MicboardModelAdmin):
     list_filter = (
         "definition__scope",
         "definition__setting_type",
-        "organization",
         "site",
-        "manufacturer",
     )
     search_fields = ("definition__key", "definition__label", "value")
     readonly_fields = ("created_at", "updated_at", "parsed_value_display")
@@ -200,7 +198,7 @@ class SettingAdmin(MicboardModelAdmin):
         (
             "Scope",
             {
-                "fields": ("organization", "site", "manufacturer"),
+                "fields": ("organization_id", "site", "manufacturer_id"),
                 "description": (
                     "Select the scope where this setting applies. "
                     "Leave all empty for global. "
@@ -237,12 +235,12 @@ class SettingAdmin(MicboardModelAdmin):
 
     @admin.display(description="Scope")
     def scope_display(self, obj: Setting) -> str:
-        if obj.organization:
-            return f"Org: {obj.organization.name}"
+        if obj.organization_id:
+            return f"Org ID: {obj.organization_id}"
         elif obj.site:
             return f"Site: {obj.site.name}"
-        elif obj.manufacturer:
-            return f"Mfg: {obj.manufacturer.name}"
+        elif obj.manufacturer_id:
+            return f"Mfg ID: {obj.manufacturer_id}"
         return "Global"
 
     @admin.display(description="Type")

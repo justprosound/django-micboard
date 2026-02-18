@@ -14,7 +14,7 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
     """Admin interface for RealTimeConnection model."""
 
     list_display: ClassVar[list[str]] = [
-        "receiver",
+        "chassis",
         "connection_type",
         "status_colored",
         "connected_at",
@@ -32,9 +32,9 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
     ]
 
     search_fields: ClassVar[list[str]] = [
-        "receiver__name",
-        "receiver__ip",
-        "receiver__manufacturer__name",
+        "chassis__name",
+        "chassis__ip",
+        "chassis__manufacturer__name",
         "error_message",
     ]
 
