@@ -186,19 +186,6 @@ class Alert(models.Model):
     def __str__(self) -> str:
         return f"{self.alert_type} - {self.channel} ({self.status})"
 
-    def acknowledge(self, user) -> None:
-        """Mark alert as acknowledged."""
-        # User arg currently unused but kept for API compatibility/future audit
-        self.status = "acknowledged"
-        self.acknowledged_at = timezone.now()
-        self.save()
-
-    def resolve(self) -> None:
-        """Mark alert as resolved."""
-        self.status = "resolved"
-        self.resolved_at = timezone.now()
-        self.save()
-
     @property
     def is_overdue(self) -> bool:
         """Check if alert is overdue for response."""

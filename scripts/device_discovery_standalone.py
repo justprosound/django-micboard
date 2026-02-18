@@ -40,17 +40,29 @@ class DeviceDiscovery:
         self.session = self._create_session()
 
     def _create_session(self) -> requests.Session:
-        """Create requests session with retries."""
-        session = requests.Session()
-        retry_strategy = Retry(
-            total=2,
-            backoff_factor=0.3,
-            status_forcelist=[429, 500, 502, 503, 504],
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        return session
+        """Create requests session with retries.
+
+        Prefer using the repository-wide helper when available; fall back to a
+        local retry configuration so this script remains runnable without Django
+        initialisation.
+        """
+        try:
+            # Use shared resilient session when running inside the project
+            from micboard.integrations.base_http_client import create_resilient_session
+
+            return create_resilient_session(max_retries=2, backoff_factor=0.3)
+        except Exception:
+            # Fall back to local retry strategy (keeps script standalone)
+            session = requests.Session()
+            retry_strategy = Retry(
+                total=2,
+                backoff_factor=0.3,
+                status_forcelist=[429, 500, 502, 503, 504],
+            )
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
+            return session
 
     def probe_device(self, ip: str) -> Optional[Dict[str, Any]]:
         """Probe a single device at the given IP address.

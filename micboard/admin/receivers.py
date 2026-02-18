@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar
 
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.db.models import Count, Q
 from django.shortcuts import render
 from django.urls import path
@@ -16,12 +16,10 @@ from django.utils.html import format_html
 
 from micboard.admin.forms import WirelessChassisAdminForm
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models import (
-    Accessory,
-    RFChannel,
-    WirelessChassis,
-    WirelessUnit,
-)
+from micboard.models.hardware.accessory import Accessory
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.rf_coordination.rf_channel import RFChannel
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +30,13 @@ class WirelessUnitInline(admin.StackedInline):
     model = WirelessUnit
     fk_name = "base_chassis"
     extra = 0
-    readonly_fields = ("battery_percentage", "updated_at", "device_type", "name", "status")
+    readonly_fields = (
+        "battery_percentage",
+        "updated_at",
+        "device_type",
+        "name",
+        "status",
+    )
     fields = (
         "device_type",
         "name",
@@ -57,7 +61,14 @@ class AccessoryInline(admin.TabularInline):
 
     model = Accessory
     extra = 1
-    fields = ("category", "name", "assigned_to", "condition", "is_available", "checked_out_date")
+    fields = (
+        "category",
+        "name",
+        "assigned_to",
+        "condition",
+        "is_available",
+        "checked_out_date",
+    )
     readonly_fields = ("created_at",)
 
 
@@ -88,92 +99,17 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     actions: ClassVar[list[str]] = ["mark_online", "mark_offline", "sync_from_api"]
 
     def save_model(self, request, obj, form, change):
-        """Save model with deduplication checks and bi-directional sync."""
-        from micboard.manufacturers import get_manufacturer_plugin
-        from micboard.services.hardware_deduplication_service import (
-            get_hardware_deduplication_service,
-        )
+        """Delegate all business logic to HardwareService."""
+        from micboard.services.core.hardware import HardwareService
 
-        # Only check deduplication on new objects
-        if not change and obj.manufacturer:
-            dedup_service = get_hardware_deduplication_service(obj.manufacturer)
-            result = dedup_service.check_device(
-                serial_number=obj.serial_number or None,
-                mac_address=obj.mac_address or None,
-                ip=obj.ip,
-                api_device_id=obj.api_device_id,
-                manufacturer=obj.manufacturer,
-            )
-
-            if result.is_conflict:
-                messages.error(
-                    request,
-                    f"⚠️ Device conflict detected: {result.conflict_reason}. "
-                    "This device may already exist with different identifiers.",
-                )
-                # Still allow save but warn admin
-            elif result.is_duplicate:
-                messages.warning(
-                    request,
-                    f"ℹ️ Possible duplicate detected. Existing device: {result.existing_device}. "
-                    "Proceeding with save.",
-                )
-
-        # Save the object
         super().save_model(request, obj, form, change)
-
-        # Bi-directional sync: Add IP to manufacturer's discovery list
-        if obj.ip and obj.manufacturer:
-            try:
-                plugin_class = get_manufacturer_plugin(obj.manufacturer.code)
-                plugin = plugin_class(obj.manufacturer)
-
-                # Check if plugin supports discovery IP management
-                if hasattr(plugin, "add_discovery_ips"):
-                    success = plugin.add_discovery_ips([obj.ip])
-                    if success:
-                        messages.success(
-                            request,
-                            f"✅ Added {obj.ip} to {obj.manufacturer.name} discovery list for automatic monitoring.",
-                        )
-                    else:
-                        messages.warning(
-                            request,
-                            f"⚠️ Could not add {obj.ip} to {obj.manufacturer.name} discovery list. "
-                            "Device may not be automatically monitored.",
-                        )
-            except Exception as e:
-                logger.warning(
-                    "Failed to add IP %s to discovery list for %s: %s",
-                    obj.ip,
-                    obj.manufacturer.code,
-                    e,
-                )
-                messages.warning(
-                    request,
-                    f"⚠️ Could not sync with {obj.manufacturer.name} API: {e}",
-                )
+        HardwareService.handle_chassis_save(chassis=obj, created=not change)
 
     def delete_model(self, request, obj):
-        """Delete model and remove from manufacturer's discovery list."""
-        from micboard.manufacturers import get_manufacturer_plugin
+        """Delegate all business logic to HardwareService."""
+        from micboard.services.core.hardware import HardwareService
 
-        # Bi-directional sync: Remove IP from discovery list
-        if obj.ip and obj.manufacturer:
-            try:
-                plugin_class = get_manufacturer_plugin(obj.manufacturer.code)
-                plugin = plugin_class(obj.manufacturer)
-
-                if hasattr(plugin, "remove_discovery_ips"):
-                    success = plugin.remove_discovery_ips([obj.ip])
-                    if success:
-                        messages.success(
-                            request,
-                            f"✅ Removed {obj.ip} from {obj.manufacturer.name} discovery list.",
-                        )
-            except Exception as e:
-                logger.warning("Failed to remove IP %s from discovery list: %s", obj.ip, e)
-
+        HardwareService.handle_chassis_delete(chassis=obj)
         super().delete_model(request, obj)
 
     def get_queryset(self, request):
@@ -307,7 +243,8 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             .annotate(
                 channel_count=Count("rf_channels"),
                 unit_count=Count(
-                    "rf_channels", filter=Q(rf_channels__active_wireless_unit__isnull=False)
+                    "rf_channels",
+                    filter=Q(rf_channels__active_wireless_unit__isnull=False),
                 ),
             )
             .order_by("manufacturer__name", "ip")
@@ -408,7 +345,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.action(description="Sync selected chassis from API")
     def sync_from_api(self, request, queryset):
         """Sync selected chassis from manufacturer API."""
-        from micboard.tasks.polling_tasks import poll_manufacturer_devices
+        from micboard.tasks.sync.polling import poll_manufacturer_devices
         from micboard.utils.dependencies import HAS_DJANGO_Q
 
         # If all selected chassis belong to the same manufacturer, run

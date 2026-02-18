@@ -24,8 +24,8 @@ from micboard.models import (
     WirelessChassis,
     WirelessUnit,
 )
-from micboard.services.efis_import import EFISImportService
-from micboard.services.manufacturer_service import get_all_services
+from micboard.services.maintenance.efis_import import EFISImportService
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -99,25 +99,31 @@ def admin_dashboard(request) -> render:
             "total_online": mfg.online_receivers + mfg.online_transmitters,
         }
 
-        # Get service health
-        service = None
+        # Get plugin health (if available)
+        plugin = None
         try:
-            for svc in get_all_services():
-                if svc.code == mfg.code:
-                    service = svc
-                    break
+            plugin = PluginRegistry.get_plugin(mfg.code, mfg)
         except Exception as e:
-            logger.warning(f"Error getting service health for {mfg.code}: {e}")
+            logger.warning(f"Error getting plugin for {mfg.code}: {e}")
 
-        if service:
-            health = service.check_health()
-            stats["service_status"] = health.get("status", "unknown")
-            stats["service_message"] = health.get("message", "")
-            stats["last_poll"] = service.last_poll.isoformat() if service.last_poll else None
-            stats["error_count"] = service.error_count
+        if plugin:
+            try:
+                # Try to get client as a health check
+                client = plugin.get_client()
+                if client:
+                    stats["service_status"] = "healthy"
+                    stats["service_message"] = "Plugin loaded successfully"
+                else:
+                    stats["service_status"] = "degraded"
+                    stats["service_message"] = "Plugin loaded but client unavailable"
+            except Exception as e:
+                stats["service_status"] = "unhealthy"
+                stats["service_message"] = str(e)
+            stats["last_poll"] = None  # Plugins don't track last_poll internally
+            stats["error_count"] = 0
         else:
             stats["service_status"] = "unavailable"
-            stats["service_message"] = "Service not loaded"
+            stats["service_message"] = "Plugin not loaded"
             stats["last_poll"] = None
             stats["error_count"] = 0
 
@@ -267,13 +273,35 @@ def api_dashboard_data(request) -> JsonResponse:
     # Service health
     service_health = {}
     try:
-        for service in get_all_services():
-            health = service.check_health()
-            service_health[service.code] = {
-                "status": health.get("status"),
-                "message": health.get("message"),
-                "last_poll": service.last_poll.isoformat() if service.last_poll else None,
-            }
+        # Get all active plugins for health summary
+        plugins = PluginRegistry.get_all_active_plugins()
+
+        for plugin in plugins:
+            try:
+                # Check if client is available
+                client = plugin.get_client()
+                manufacturer_code = plugin.manufacturer.code if plugin.manufacturer else "unknown"
+
+                if client:
+                    service_health[manufacturer_code] = {
+                        "status": "healthy",
+                        "message": "Plugin operational",
+                        "last_poll": None,
+                    }
+                else:
+                    service_health[manufacturer_code] = {
+                        "status": "unhealthy",
+                        "message": "Client unavailable",
+                        "last_poll": None,
+                    }
+            except Exception as plugin_err:
+                logger.warning(f"Error checking plugin health: {plugin_err}")
+                if plugin.manufacturer:
+                    service_health[plugin.manufacturer.code] = {
+                        "status": "error",
+                        "message": str(plugin_err),
+                        "last_poll": None,
+                    }
     except Exception as e:
         logger.warning(f"Error getting service health: {e}")
 

@@ -4,7 +4,9 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
-from micboard.models import Alert, PerformerAssignment, WirelessChassis
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.monitoring.alert import Alert
+from micboard.models.monitoring.performer_assignment import PerformerAssignment
 
 
 @login_required
@@ -34,7 +36,9 @@ def wall_section_partial(request: HttpRequest, section_id: int) -> HttpResponse:
     section = get_object_or_404(WallSection, id=section_id)
     data = KioskService.get_section_data(section.id)
     return render(
-        request, "micboard/partials/wall_section.html", {"section": section, "data": data}
+        request,
+        "micboard/partials/wall_section.html",
+        {"section": section, "data": data},
     )
 
 

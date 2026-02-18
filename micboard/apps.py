@@ -74,10 +74,47 @@ class MicboardConfig(AppConfig):
         except ImportError:
             logger.debug("django-health-check not installed, skipping health check registration")
 
-        # Advise about recommended middleware (do not modify settings)
+        # Advise about recommended middleware and context processors (do not modify settings)
         self._register_security_middleware()
+        self._register_context_processors()
 
         logger.info("Micboard app initialized (configuration validated)")
+
+    def _register_context_processors(self):
+        """Register context processors if not already present."""
+        from django.conf import settings
+
+        context_processors = [
+            "micboard.context_processors.api_health",
+        ]
+
+        # Check if TEMPLATES is configured
+        if not hasattr(settings, "TEMPLATES") or not settings.TEMPLATES:
+            logger.warning(
+                "Project settings has no TEMPLATES configured; Micboard recommends the "
+                "following context processors but will not modify your settings automatically."
+            )
+            return
+
+        # Check each template backend for context processors
+        missing_processors = []
+        for template_config in settings.TEMPLATES:
+            if template_config.get("BACKEND") == "django.template.backends.django.DjangoTemplates":
+                current_processors = template_config.get("OPTIONS", {}).get(
+                    "context_processors", []
+                )
+                for processor in context_processors:
+                    if processor not in current_processors:
+                        missing_processors.append(processor)
+
+        if missing_processors:
+            # Remove duplicates
+            missing_processors = list(dict.fromkeys(missing_processors))
+            logger.info(
+                "Micboard recommends adding the following context processors to your "
+                "TEMPLATES[0]['OPTIONS']['context_processors']:\n"
+                + "\n".join(f"    '{p}'," for p in missing_processors)
+            )
 
     def _register_security_middleware(self):
         """Register security middleware if not already present."""

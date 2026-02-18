@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import logging
 
+from micboard.integrations.common.utils import validate_ipv4_list
 from micboard.manufacturers.base import BaseAPIClient
 
 from .exceptions import ShureAPIError
 from .rate_limiter import rate_limit
-from .utils import validate_ipv4_list
 
 logger = logging.getLogger(__name__)
 

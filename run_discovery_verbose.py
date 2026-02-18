@@ -1,59 +1,65 @@
 #!/usr/bin/env python
 """Run discovery and show results."""
 
+import logging
 import os
 import sys
 
 import django
 
-# Get Shure shared key from Windows
-if os.path.exists("/mnt/c/ProgramData/Shure/SystemAPI/Standalone/Security/sharedkey.txt"):
-    with open("/mnt/c/ProgramData/Shure/SystemAPI/Standalone/Security/sharedkey.txt", "r") as f:
-        shared_key = f.read().strip()
-        os.environ["MICBOARD_SHURE_API_SHARED_KEY"] = shared_key
-
-# Setup Django
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "example_project.settings")
-django.setup()
-
-import logging
-
 from micboard.models import DiscoveryQueue, Manufacturer, WirelessChassis
-from micboard.tasks.discovery_tasks import run_discovery_sync_task
-
-# Reduce logging noise
-logging.getLogger("urllib3").setLevel(logging.ERROR)
-logging.getLogger("micboard").setLevel(logging.INFO)
-
-# Get Shure manufacturer
-manufacturer = Manufacturer.objects.get(code="shure")
+from micboard.tasks.sync.discovery import run_discovery_sync_task
 
 
-# Run discovery sync
-result = run_discovery_sync_task(
-    manufacturer_id=manufacturer.id, scan_cidrs=True, scan_fqdns=True, max_hosts=1024
-)
+def main():
+    # Get Shure shared key from Windows
+    if os.path.exists("/mnt/c/ProgramData/Shure/SystemAPI/Standalone/Security/sharedkey.txt"):
+        with open("/mnt/c/ProgramData/Shure/SystemAPI/Standalone/Security/sharedkey.txt", "r") as f:
+            shared_key = f.read().strip()
+            os.environ["MICBOARD_SHURE_API_SHARED_KEY"] = shared_key
 
+    # Setup Django
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "example_project.settings")
+    django.setup()
 
-if result.get("errors"):
-    for _error in result.get("errors", []):
+    # Reduce logging noise
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
+    logging.getLogger("micboard").setLevel(logging.INFO)
+
+    # Get Shure manufacturer
+    manufacturer = Manufacturer.objects.get(code="shure")
+
+    # Run discovery sync
+    result = run_discovery_sync_task(
+        manufacturer_id=manufacturer.id,
+        scan_cidrs=True,
+        scan_fqdns=True,
+        max_hosts=1024,
+    )
+
+    if result.get("errors"):
+        for _error in result.get("errors", []):
+            pass
+
+    # Check what was discovered
+    queue_items = DiscoveryQueue.objects.filter(manufacturer=manufacturer)
+
+    # Group by device type
+    for device_type in ["charger", "receiver", "transmitter", "transceiver"]:
+        count = queue_items.filter(device_type=device_type).count()
+        if count > 0:
+            pass
+
+    # Show some examples
+    for _i, _item in enumerate(queue_items[:5], 1):
         pass
 
-# Check what was discovered
-queue_items = DiscoveryQueue.objects.filter(manufacturer=manufacturer)
-
-# Group by device type
-for device_type in ["charger", "receiver", "transmitter", "transceiver"]:
-    count = queue_items.filter(device_type=device_type).count()
-    if count > 0:
+    # Check WirelessChassis
+    chassis_list = WirelessChassis.objects.filter(manufacturer=manufacturer)
+    for _chassis in chassis_list[:5]:
         pass
 
-# Show some examples
-for _i, _item in enumerate(queue_items[:5], 1):
-    pass
 
-# Check WirelessChassis
-chassis_list = WirelessChassis.objects.filter(manufacturer=manufacturer)
-for _chassis in chassis_list[:5]:
-    pass
+if __name__ == "__main__":
+    main()

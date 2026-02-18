@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 from django.core.cache import cache
 
@@ -28,7 +29,7 @@ class ServiceMetric:
     timestamp: datetime
     success: bool
     error_message: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class MetricsCollector:
@@ -69,7 +70,7 @@ class MetricsCollector:
             logger.error(f"Error recording metric: {e}")
 
     @classmethod
-    def get_metrics(cls, *, service_name: str, method_name: str) -> List[Dict[str, Any]]:
+    def get_metrics(cls, *, service_name: str, method_name: str) -> list[dict[str, Any]]:
         """Get metrics for specific service method.
 
         Args:
@@ -83,7 +84,7 @@ class MetricsCollector:
         return cache.get(key, [])
 
     @classmethod
-    def get_service_metrics(cls, *, service_name: str) -> Dict[str, List[Dict[str, Any]]]:
+    def get_service_metrics(cls, *, service_name: str) -> dict[str, list[dict[str, Any]]]:
         """Get all metrics for a service.
 
         Args:
@@ -97,7 +98,7 @@ class MetricsCollector:
         return {}
 
     @classmethod
-    def calculate_stats(cls, *, service_name: str, method_name: str) -> Dict[str, Any]:
+    def calculate_stats(cls, *, service_name: str, method_name: str) -> dict[str, Any]:
         """Calculate statistics for service method.
 
         Args:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from micboard.manufacturers.base import BaseAPIClient
 
@@ -40,7 +40,7 @@ class SennheiserDeviceClient:
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get detailed data for a specific device."""
         return cast(
-            Optional[dict[str, Any]],
+            dict[str, Any] | None,
             self.api_client._make_request("GET", f"/api/devices/{device_id}"),
         )
 
@@ -53,7 +53,7 @@ class SennheiserDeviceClient:
     def get_transmitter_data(self, device_id: str, channel: int) -> dict[str, Any] | None:
         """Get transmitter data for a specific channel."""
         return cast(
-            Optional[dict[str, Any]],
+            dict[str, Any] | None,
             self.api_client._make_request("GET", f"/api/devices/{device_id}/channels/{channel}/tx"),
         )
 
@@ -61,7 +61,7 @@ class SennheiserDeviceClient:
         """Fetch device identity info from Sennheiser API."""
         try:
             return cast(
-                Optional[dict[str, Any]],
+                dict[str, Any] | None,
                 self.api_client._make_request("GET", f"/api/devices/{device_id}/identify"),
             )
         except SennheiserAPIError:
@@ -72,7 +72,7 @@ class SennheiserDeviceClient:
         """Fetch device network info (hostname, MAC) if available."""
         try:
             return cast(
-                Optional[dict[str, Any]],
+                dict[str, Any] | None,
                 self.api_client._make_request("GET", f"/api/devices/{device_id}/network"),
             )
         except SennheiserAPIError:
@@ -83,7 +83,7 @@ class SennheiserDeviceClient:
         """Fetch general device status details if available."""
         try:
             return cast(
-                Optional[dict[str, Any]],
+                dict[str, Any] | None,
                 self.api_client._make_request("GET", f"/api/devices/{device_id}/status"),
             )
         except SennheiserAPIError:

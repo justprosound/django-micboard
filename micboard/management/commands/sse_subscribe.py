@@ -12,7 +12,7 @@ from django.core.management.base import BaseCommand
 
 from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import Manufacturer, WirelessChassis
-from micboard.tasks.polling_tasks import _update_models_from_api_data
+from micboard.tasks.sync.polling import _update_models_from_api_data
 
 logger = logging.getLogger(__name__)
 

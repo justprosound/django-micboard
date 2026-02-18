@@ -20,6 +20,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- **Removed all legacy/shim/backward-compatible task aliases**: All task modules must now be imported directly from their explicit domain module (e.g. `from micboard.tasks.sync.polling import poll_manufacturer_devices`). Shim/compatibility re-exports were deleted from `micboard.tasks` in full compliance with `.github/copilot-instructions.md` section 6.1. All usage of old import paths must be migrated immediately.
+
 - **pyproject.toml**: Fixed package data inclusion for fixtures and migrations
 - **MANIFEST.in**: Improved to include `.env.example` and exclude workspace-only files
 - **.gitignore**: Enhanced to prevent tracking of development artifacts and egg-info directories

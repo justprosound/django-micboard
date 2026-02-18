@@ -44,11 +44,10 @@ Architecture & Future-Proofing Notes:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import ClassVar
 
 from django.db import models
-from django.utils import timezone
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
 from micboard.models.device_specs import (
@@ -56,9 +55,6 @@ from micboard.models.device_specs import (
     get_available_band_plans,
     get_band_plan,
     get_band_plan_from_model_code,
-    get_channel_count,
-    get_dante_support,
-    get_device_role,
     parse_band_plan_from_name,
 )
 
@@ -380,14 +376,9 @@ class WirelessChassis(models.Model):
             f"{self.name} ({self.ip})"
         )
 
-    @property
-    def is_out_of_service(self) -> bool:
-        """Indicates the chassis is intentionally unavailable for RF service."""
-        return self.status in {"maintenance", "retired"}
-
     def save(self, *args, **kwargs) -> None:
         """Sync specs from device_specifications registry on save."""
-        from micboard.services.device_specs import DeviceSpecService
+        from micboard.services.core.device_specs import DeviceSpecService
 
         created = self.pk is None
         band_plan = None
@@ -439,143 +430,25 @@ class WirelessChassis(models.Model):
         super().save(*args, **kwargs)
 
         # Handle post-save side effects via service (replacing signals)
-        from micboard.services.hardware import HardwareService
+        from micboard.services.core.hardware import HardwareService
 
         HardwareService.handle_chassis_save(chassis=self, created=created)
 
     def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
         """Handle side effects before deletion."""
-        from micboard.services.hardware import HardwareService
+        from micboard.services.core.hardware import HardwareService
 
         HardwareService.handle_chassis_delete(chassis=self)
         return super().delete(*args, **kwargs)
-
-    @property
-    def hardware_identity(self) -> dict[str, str]:
-        """Get hardware identity for deduplication."""
-        return {
-            "serial_number": self.serial_number or "",
-            "mac_address": self.mac_address or "",
-            "api_device_id": self.api_device_id,
-        }
-
-    @property
-    def network_config(self) -> dict[str, str | None]:
-        """Get complete network configuration."""
-        return {
-            "ip": self.ip,
-            "subnet_mask": self.subnet_mask,
-            "gateway": self.gateway,
-            "mode": self.network_mode,
-            "interface_id": self.interface_id,
-        }
-
-    @property
-    def firmware_info(self) -> dict[str, str]:
-        """Get firmware version information."""
-        return {
-            "device_firmware": self.firmware_version or "Unknown",
-            "hosted_firmware": self.hosted_firmware_version or "N/A",
-        }
 
     def is_active_at_time(self, at_time: datetime | None = None) -> bool:
         """Check if device is active at given time (or now)."""
         active_states = {"online", "degraded", "provisioning"}
         return self.status in active_states
 
-    def get_health_status(self) -> str:
-        """Compute health status based on status field and last_seen."""
-        if self.status == "offline":
-            return "offline"
-        if self.status in ("maintenance", "retired"):
-            return self.status
-        if not self.last_seen:
-            return "unknown"
-
-        time_since = timezone.now() - self.last_seen
-        if time_since < timedelta(minutes=5):
-            return "healthy"
-        if time_since < timedelta(minutes=30):
-            return "warning"
-        return "stale"
-
     def get_expected_channel_count(self) -> int:
         """Get expected number of channels based on device model."""
         return self.max_channels
-
-    def ensure_channel_count(self) -> tuple[int, int]:
-        """Create/delete RF channels to match model capacity.
-
-        Returns:
-            Tuple of (created_count, deleted_count)
-        """
-        from micboard.models.rf_coordination import RFChannel
-
-        expected = self.get_expected_channel_count()
-        current_channels = set(self.rf_channels.values_list("channel_number", flat=True))
-        expected_channels = set(range(1, expected + 1))
-
-        created_count = 0
-        deleted_count = 0
-
-        for ch_num in sorted(expected_channels - current_channels):
-            if self.role == "receiver":
-                link_direction = "receive"
-            elif self.role == "transmitter":
-                link_direction = "send"
-            else:
-                link_direction = "bidirectional"
-
-            RFChannel.objects.create(
-                chassis=self,
-                channel_number=ch_num,
-                link_direction=link_direction,
-            )
-            created_count += 1
-
-        for ch_num in sorted(current_channels - expected_channels):
-            self.rf_channels.filter(channel_number=ch_num).delete()
-            deleted_count += 1
-
-        return (created_count, deleted_count)
-
-    def get_channels_over_capacity(self):
-        """Get RF channels that exceed model capacity."""
-        expected = self.get_expected_channel_count()
-        return list(self.rf_channels.filter(channel_number__gt=expected))
-
-    def update_device_capabilities(self) -> None:
-        """Update capabilities from device specification registry."""
-        if not self.manufacturer or not self.model:
-            return
-
-        if hasattr(self.manufacturer, "code"):
-            mfg_code = self.manufacturer.code.lower()
-        else:
-            mfg_code = "unknown"
-        old_channels = self.max_channels
-        old_dante = self.dante_capable
-        old_role = self.role
-
-        self.max_channels = get_channel_count(
-            manufacturer=mfg_code,
-            model=self.model,
-        )
-        self.dante_capable = get_dante_support(
-            manufacturer=mfg_code,
-            model=self.model,
-        )
-        self.role = get_device_role(
-            manufacturer=mfg_code,
-            model=self.model,
-        )
-
-        if (
-            old_channels != self.max_channels
-            or old_dante != self.dante_capable
-            or old_role != self.role
-        ):
-            self.save(update_fields=["max_channels", "dante_capable", "role"])
 
     def get_regulatory_domain(self):
         """Get the applicable regulatory domain for this chassis.

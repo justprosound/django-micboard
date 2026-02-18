@@ -85,21 +85,27 @@ unchanged; host projects continue to manage database schema changes as usual.
 
 ### For Development
 
+> **CRITICAL: Environment & Dependency Management Policy**
+>
+> This project **strictly forbids** the use of `pip`, `pipx`, `poetry`, or Python's built-in `venv` for all environment and package management. **ALL** environments and dependencies must be set up and managed using [`uv`](https://github.com/astral-sh/uv) exclusively. Any documentation, code, or CI which references or suggests non-`uv` patterns must be updated or escalated to project maintainers for correction. See [CONTRIBUTING.md](CONTRIBUTING.md) for full enforcement and escalation procedure.
+>
+> Agents and automation are expected to enforce this pattern in all workflows.
+
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/justprosound/django-micboard.git
    cd django-micboard
    ```
 
-2. **Create a virtual environment**:
+2. **Create and activate a uv-managed virtual environment**:
    ```bash
-   python -m venv .venv
+   uv venv .venv
    source .venv/bin/activate  # or .venv\Scripts\activate on Windows
    ```
 
-3. **Install with dev dependencies**:
+3. **Install in editable/development mode with all dev dependencies**:
    ```bash
-   pip install -e ".[dev,all]"
+   uv pip install -e ".[dev,all]"
    ```
 
 4. **Configure environment**:
@@ -154,7 +160,7 @@ if config.msp_enabled:
 timeout = config.get('SHURE_API_TIMEOUT', default=10)
 
 # Settings registry with scope resolution
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 value = SettingsRegistry.get(
     'CUSTOM_KEY',
@@ -236,6 +242,11 @@ pytest -m django_db  # Tests requiring database
 ```
 
 ## Development Workflow
+
+> **Agent & Research Workflow Policy**
+>
+> - When you need to search programming documentation, always use the `context7` tools (see AGENTS.md Quick Reference).
+> - If you are unsure how to implement or use a library, use `gh_grep` to search for up-to-date code examples from GitHub.
 
 1. **Install pre-commit hooks**:
    ```bash

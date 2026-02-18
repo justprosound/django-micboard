@@ -13,35 +13,26 @@ import sys
 
 import django
 
-# Setup Django
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "example_project.settings")
-sys.path.insert(0, os.path.dirname(__file__))
-django.setup()
-
 from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import DiscoveredDevice, Manufacturer, WirelessChassis
-from micboard.services.hardware_deduplication_service import get_hardware_deduplication_service
-from micboard.services.manufacturer import ManufacturerService
+from micboard.services.manufacturer.manufacturer import ManufacturerService
+from micboard.services.sync.hardware_deduplication_service import (
+    get_hardware_deduplication_service,
+)
 
 
 def print_section(title):
     """Print a section header."""
 
 
+# ... other demo functions stay mostly the same ...
 def demo_plugin_system():
-    """Demonstrate the plugin system."""
     print_section("1. PLUGIN SYSTEM - Manufacturer Agnostic")
-
-    # Get all active manufacturers
     manufacturers = Manufacturer.objects.filter(is_active=True)
-
     for mfg in manufacturers:
         try:
-            # Get plugin for this manufacturer
             plugin_class = get_manufacturer_plugin(mfg.code)
             plugin = plugin_class(mfg)
-
-            # Check capabilities
             capabilities = []
             if hasattr(plugin, "get_devices"):
                 capabilities.append("✓ get_devices()")
@@ -51,65 +42,42 @@ def demo_plugin_system():
                 capabilities.append("✓ transform_device_data()")
             if hasattr(plugin, "is_healthy"):
                 capabilities.append("✓ is_healthy()")
-
-            # Check health
             try:
                 plugin.is_healthy()
             except Exception:
                 pass
-
         except Exception:
             pass
 
 
 def demo_device_sync():
-    """Demonstrate device synchronization."""
     print_section("2. DEVICE SYNC - Same Code for All Manufacturers")
-
-    manufacturers = Manufacturer.objects.filter(is_active=True)[:2]  # Test first 2
-
+    manufacturers = Manufacturer.objects.filter(is_active=True)[:2]
     for mfg in manufacturers:
         try:
-            # This SAME code works for ANY manufacturer!
             result = ManufacturerService.sync_devices_for_manufacturer(manufacturer_code=mfg.code)
-
             if result["success"]:
                 pass
             else:
                 pass
-
         except Exception:
             pass
 
 
 def demo_discovered_devices():
-    """Show discovered devices with manufacturer-specific metadata."""
     print_section("3. DISCOVERED DEVICES - Generic + Metadata")
-
     discovered = DiscoveredDevice.objects.all()[:5]
-
     for device in discovered:
-        # Show manufacturer-specific metadata
-        if device.metadata:
-            # Shure-specific
-            if "compatibility" in device.metadata:
-                pass
+        if device.metadata and "compatibility" in device.metadata:
+            pass
 
 
 def demo_deduplication():
-    """Demonstrate deduplication system."""
     print_section("4. DEDUPLICATION - Prevent Duplicates")
-
-    # Get a manufacturer
     mfg = Manufacturer.objects.filter(is_active=True).first()
     if not mfg:
         return
-
-    # Get deduplication service
     dedup_service = get_hardware_deduplication_service(mfg)
-
-    # Simulate checking a device
-
     result = dedup_service.check_device(
         serial_number="TEST-SERIAL-12345",
         mac_address="00:11:22:33:44:55",
@@ -117,32 +85,28 @@ def demo_deduplication():
         api_device_id="test-device-001",
         manufacturer=mfg,
     )
-
-    if result.existing_device:
+    if getattr(result, "existing_device", None):
         pass
-    if hasattr(result, "conflict_reason") and result.conflict_reason:
+    if hasattr(result, "conflict_reason") and getattr(result, "conflict_reason", None):
         pass
 
 
 def demo_wireless_chassis():
-    """Show wireless chassis devices."""
     print_section("5. WIRELESS CHASSIS - Manufacturer Agnostic Models")
-
     chassis = WirelessChassis.objects.select_related("manufacturer")[:5]
-
     for device in chassis:
-        # These fields work for ANY manufacturer!
         if hasattr(device, "battery_health"):
             pass
 
 
 def demo_bi_directional_sync():
-    """Explain bi-directional sync."""
     print_section("6. BI-DIRECTIONAL SYNC - Admin ↔ API")
 
 
 def main():
-    """Run all demonstrations."""
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "example_project.settings")
+    sys.path.insert(0, os.path.dirname(__file__))
+    django.setup()
     try:
         demo_plugin_system()
         demo_device_sync()
@@ -150,9 +114,7 @@ def main():
         demo_deduplication()
         demo_wireless_chassis()
         demo_bi_directional_sync()
-
         print_section("SUMMARY")
-
     except KeyboardInterrupt:
         pass
     except Exception:

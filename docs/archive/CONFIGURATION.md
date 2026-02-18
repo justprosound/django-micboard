@@ -66,6 +66,8 @@ For connecting to live Shure devices on your VPN:
 # Navigate to project root
 cd /path/to/django-micboard
 
+> **LEGACY/REFERENCE ONLY: The following installation and environment setup steps use `pip` and `venv`, which are now forbidden for all active development or onboarding. They are provided solely for historical context. New environments MUST use `uv` per the project policy & README.**
+
 # Create and activate virtual environment
 python -m venv .venv
 source .venv/bin/activate

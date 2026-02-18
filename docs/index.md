@@ -21,9 +21,16 @@ Django Micboard is a Django application for real-time monitoring and management 
 
 ## Quick Start
 
+> **CRITICAL POLICY:** All installation and environment management must use [`uv`](https://github.com/astral-sh/uv). Direct use of pip, venv, or poetry is strictly forbidden. If you encounter legacy instructions, escalate to maintainers.
+> - Agents/developers: Use `context7` for docs and `gh_grep` for code search. See README for escalation.
+
 ```bash
-# Install
-pip install django-micboard
+# Create and activate a uv virtual environment
+uv venv .venv
+source .venv/bin/activate
+
+# Install django-micboard from PyPI
+uv pip install django-micboard
 
 # Add to Django settings
 INSTALLED_APPS = [
@@ -45,6 +52,7 @@ python manage.py migrate
 # Start monitoring
 python manage.py poll_devices
 ```
+
 
 ## Supported Systems
 

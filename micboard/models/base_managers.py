@@ -183,8 +183,5 @@ class TenantOptimizedManager(models.Manager[_ModelT]):
     def with_location(self) -> TenantOptimizedQuerySet[_ModelT]:
         return self.get_queryset().with_location()
 
-    def with_receiver(self) -> TenantOptimizedQuerySet[_ModelT]:
-        return self.get_queryset().with_receiver()
-
     def recently_seen(self, *, minutes: int = 30) -> TenantOptimizedQuerySet[_ModelT]:
         return self.get_queryset().recently_seen(minutes=minutes)

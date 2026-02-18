@@ -4,22 +4,35 @@ Decouples business logic from views, signals, and management commands.
 Provides a unified interface for device management, polling, discovery,
 location, and connection health monitoring.
 
-Service Organization:
-  - monitoring_access.py: User/group access control and location filtering
-  - monitoring_service.py: Device health metrics, battery levels, signal strength
-  - polling_api.py: Direct API server polling and device status updates
-  - polling_service.py: High-level polling orchestration and broadcasting
-  - manufacturer.py: Plugin-based device sync and deduplication
-  - manufacturer_service.py: Abstract base for manufacturer service architecture
+Service Organization (Functional Subfolders):
+  - core/: Hardware, Location, Performer, Device specs
+  - sync/: Discovery, Polling, Deduplication
+  - monitoring/: Connection health, Alerts, Uptime
+  - maintenance/: Audit, Logging, EFIS import
+  - manufacturer/: Plugin registry, Manufacturer config
+  - notification/: Broadcasting, Email, Signal emitter
+  - shared/: Utilities, Exceptions, Tenant filters
 """
 
 from __future__ import annotations
 
-# Implementation services
-from .connection import ConnectionHealthService
+# Core services
+from .core.hardware import HardwareService, NormalizedHardware
+from .core.hardware_lifecycle import HardwareLifecycleManager, get_lifecycle_manager
+from .core.location import LocationService
+from .core.performer import PerformerService
+from .core.performer_assignment import PerformerAssignmentService
 
-# Core exceptions
-from .exceptions import (
+# Manufacturer services
+from .manufacturer.manufacturer import ManufacturerService
+
+# Monitoring services
+from .monitoring.connection import ConnectionHealthService
+from .monitoring.monitoring_access import MonitoringService as AccessControlService
+from .monitoring.monitoring_service import MonitoringService
+
+# Shared utilities and exceptions
+from .shared.exceptions import (
     ConnectionError,
     DiscoveryError,
     HardwareNotFoundError,
@@ -28,27 +41,30 @@ from .exceptions import (
     ManufacturerPluginError,
     MicboardServiceError,
 )
-from .hardware import HardwareService, NormalizedHardware
-from .hardware_deduplication_service import (
+from .shared.pagination import PaginatedResult, filter_by_search, paginate_queryset
+from .shared.sync_utils import SyncResult
+
+# Sync services
+from .sync.device_probe_service import (
+    DeviceAPIHealthChecker,
+    DeviceProbeService,
+    probe_device_ip,
+)
+from .sync.hardware_deduplication_service import (
     HardwareDeduplicationService,
     get_hardware_deduplication_service,
 )
-from .hardware_lifecycle import HardwareLifecycleManager, get_lifecycle_manager
-from .hardware_sync_service import HardwareSyncService
-from .location import LocationService
-from .manufacturer import ManufacturerService
-from .monitoring_access import MonitoringService as AccessControlService
-from .monitoring_service import MonitoringService
-from .performer import PerformerService
-from .performer_assignment import PerformerAssignmentService
-from .polling_api import PollingService as PollingAPIService
-from .polling_service import PollingService, get_polling_service
-from .utils import PaginatedResult, SyncResult, filter_by_search, paginate_queryset
+from .sync.hardware_sync_service import HardwareSyncService
+from .sync.polling_api import APIServerPollingService
+from .sync.polling_service import PollingService, get_polling_service
 
 __all__ = [
     # Core Services
     "AccessControlService",
+    "APIServerPollingService",
     "ConnectionHealthService",
+    "DeviceAPIHealthChecker",
+    "DeviceProbeService",
     "HardwareDeduplicationService",
     "HardwareService",
     "HardwareSyncService",
@@ -59,12 +75,12 @@ __all__ = [
     "LocationService",
     "PerformerService",
     "PerformerAssignmentService",
-    "PollingAPIService",
     "PollingService",
     # Service Accessors
     "get_polling_service",
     "get_lifecycle_manager",
     "get_hardware_deduplication_service",
+    "probe_device_ip",
     # Utilities
     "SyncResult",
     "PaginatedResult",

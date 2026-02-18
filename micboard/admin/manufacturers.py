@@ -13,8 +13,8 @@ import micboard.integrations
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.forms.settings import ManufacturerSettingsForm
 from micboard.manufacturers import get_manufacturer_plugin
-from micboard.models import Manufacturer
-from micboard.services.discovery_service_new import DiscoveryService
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.services.sync.discovery_service import DiscoveryService
 
 logger = logging.getLogger(__name__)
 
@@ -129,18 +129,25 @@ class ManufacturerAdmin(MicboardModelAdmin):
     search_fields = ("name", "code")
 
     def save_model(self, request, obj, form, change):
-        """Log creation or modification in both audit and admin logs."""
+        """Delegate all business logic to ManufacturerService."""
+        from micboard.services.manufacturer.manufacturer import ManufacturerService
+
         super().save_model(request, obj, form, change)
+        # Delegate audit and side-effects to service
+        ManufacturerService.handle_manufacturer_save(
+            manufacturer=obj, created=not change, old_active=None
+        )
+        # Log admin action
         if change:
-            obj._log_change(action="modified")
             self.log_change(request, obj, "Manufacturer modified via admin.")
         else:
-            obj._log_change(action="created")
             self.log_addition(request, obj, "Manufacturer created via admin.")
 
     def delete_model(self, request, obj):
-        """Log deletion in both audit and admin logs."""
-        obj._log_change(action="deleted")
+        """Delegate all business logic to ManufacturerService."""
+        from micboard.services.manufacturer.manufacturer import ManufacturerService
+
+        ManufacturerService.handle_manufacturer_delete(manufacturer=obj)
         self.log_deletion(request, obj, "Manufacturer deleted via admin.")
         super().delete_model(request, obj)
 
@@ -186,13 +193,17 @@ class ManufacturerAdmin(MicboardModelAdmin):
 
                 if success_count > 0:
                     self.message_user(
-                        request, f"Removed {success_count} IP(s)", level=messages.SUCCESS
+                        request,
+                        f"Removed {success_count} IP(s)",
+                        level=messages.SUCCESS,
                     )
                 else:
                     self.message_user(request, "Failed to remove IP(s)", level=messages.ERROR)
             else:
                 self.message_user(
-                    request, "No IPs specified or client unavailable", level=messages.WARNING
+                    request,
+                    "No IPs specified or client unavailable",
+                    level=messages.WARNING,
                 )
 
             return redirect(

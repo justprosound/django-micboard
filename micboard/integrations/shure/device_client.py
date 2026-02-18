@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from micboard.manufacturers.base import BaseAPIClient
 
@@ -89,7 +89,7 @@ class ShureDeviceClient:
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get detailed data for a specific device."""
         return cast(
-            Optional[dict[str, Any]],
+            dict[str, Any] | None,
             self.api_client._make_request("GET", f"/api/v1/devices/{device_id}"),
         )
 
@@ -103,7 +103,7 @@ class ShureDeviceClient:
     def get_transmitter_data(self, device_id: str, channel: int) -> dict[str, Any] | None:
         """Get transmitter data for a specific channel."""
         return cast(
-            Optional[dict[str, Any]],
+            dict[str, Any] | None,
             self.api_client._make_request(
                 "GET", f"/api/v1/devices/{device_id}/channels/{channel}/tx"
             ),
@@ -113,7 +113,7 @@ class ShureDeviceClient:
         """Fetch device identity info from Shure API."""
         try:
             return cast(
-                Optional[dict[str, Any]],
+                dict[str, Any] | None,
                 self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/identify"),
             )
         except ShureAPIError:
@@ -124,7 +124,7 @@ class ShureDeviceClient:
         """Fetch device network info (hostname, MAC) if available."""
         try:
             return cast(
-                Optional[dict[str, Any]],
+                dict[str, Any] | None,
                 self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/network"),
             )
         except ShureAPIError:
@@ -135,7 +135,7 @@ class ShureDeviceClient:
         """Fetch general device status details if available."""
         try:
             return cast(
-                Optional[dict[str, Any]],
+                dict[str, Any] | None,
                 self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/status"),
             )
         except ShureAPIError:

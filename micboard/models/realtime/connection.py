@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import ClassVar
 
 from django.db import models
-from django.utils import timezone
 
 
 class RealTimeConnection(models.Model):
@@ -87,80 +85,70 @@ class RealTimeConnection(models.Model):
         return f"{self.connection_type} - {self.chassis} ({self.status})"
 
     def mark_connected(self) -> None:
-        """Mark connection as successfully established."""
-        self.status = "connected"
-        self.connected_at = timezone.now()
-        self.last_message_at = timezone.now()
-        self.disconnected_at = None
-        self.error_count = 0
-        self.error_message = ""
-        self.reconnect_attempts = 0
-        self.save()
+        """Mark connection as successfully established (delegates to service)."""
+        from micboard.services.realtime.connection_service import mark_connected
+
+        mark_connected(self)
 
     def mark_disconnected(self, error_message: str = "") -> None:
-        """Mark connection as disconnected."""
-        self.status = "disconnected"
-        self.disconnected_at = timezone.now()
-        if error_message:
-            self.error_message = error_message
-            self.error_count += 1
-            self.last_error_at = timezone.now()
-        self.save()
+        """Mark connection as disconnected (delegates to service)."""
+        from micboard.services.realtime.connection_service import mark_disconnected
+
+        mark_disconnected(self, error_message)
 
     def mark_error(self, error_message: str) -> None:
-        """Mark connection as having an error."""
-        self.status = "error"
-        self.error_message = error_message
-        self.error_count += 1
-        self.last_error_at = timezone.now()
-        self.save()
+        """Mark connection as having an error (delegates to service)."""
+        from micboard.services.realtime.connection_service import mark_error
+
+        mark_error(self, error_message)
 
     def mark_connecting(self) -> None:
-        """Mark connection as attempting to connect."""
-        self.status = "connecting"
-        self.save()
+        """Mark connection as attempting to connect (delegates to service)."""
+        from micboard.services.realtime.connection_service import mark_connecting
+
+        mark_connecting(self)
 
     def mark_stopped(self) -> None:
-        """Mark connection as intentionally stopped."""
-        self.status = "stopped"
-        self.disconnected_at = timezone.now()
-        self.save()
+        """Mark connection as intentionally stopped (delegates to service)."""
+        from micboard.services.realtime.connection_service import mark_stopped
+
+        mark_stopped(self)
 
     def received_message(self) -> None:
-        """Update timestamp when a message is received."""
-        self.last_message_at = timezone.now()
-        if self.status != "connected":
-            self.mark_connected()
-        else:
-            self.save(update_fields=["last_message_at"])
+        """Update timestamp when a message is received (delegates to service)."""
+        from micboard.services.realtime.connection_service import received_message
+
+        received_message(self)
 
     def should_reconnect(self) -> bool:
-        """Check if we should attempt to reconnect."""
-        return (
-            self.status in ["disconnected", "error"]
-            and self.reconnect_attempts < self.max_reconnect_attempts
-        )
+        """Check if we should attempt to reconnect (delegates to service)."""
+        from micboard.services.realtime.connection_service import should_reconnect
+
+        return should_reconnect(self)
 
     def increment_reconnect_attempt(self) -> None:
-        """Increment the reconnection attempt counter."""
-        self.reconnect_attempts += 1
-        self.save(update_fields=["reconnect_attempts"])
+        """Increment the reconnection attempt counter (delegates to service)."""
+        from micboard.services.realtime.connection_service import increment_reconnect_attempt
+
+        increment_reconnect_attempt(self)
 
     @property
     def is_active(self) -> bool:
-        """Check if the connection is currently active."""
-        return self.status == "connected"
+        """Check if the connection is currently active (delegates to service)."""
+        from micboard.services.realtime.connection_service import is_active
+
+        return is_active(self)
 
     @property
-    def time_since_last_message(self) -> timedelta | None:
-        """Get time since last message (or None if never received)."""
-        if not self.last_message_at:
-            return None
-        return timezone.now() - self.last_message_at
+    def time_since_last_message(self):
+        """Get time since last message (delegates to service)."""
+        from micboard.services.realtime.connection_service import time_since_last_message
+
+        return time_since_last_message(self)
 
     @property
-    def connection_duration(self) -> timedelta | None:
-        """Get how long the current connection has been active."""
-        if not self.connected_at or self.status != "connected":
-            return None
-        return timezone.now() - self.connected_at
+    def connection_duration(self):
+        """Get how long the current connection has been active (delegates to service)."""
+        from micboard.services.realtime.connection_service import connection_duration
+
+        return connection_duration(self)

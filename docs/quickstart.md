@@ -13,16 +13,26 @@ Get django-micboard up and running with your Shure wireless microphone system in
 
 ### 1. Install Package
 
+> **CRITICAL POLICY:** All installation and environment management must use [`uv`](https://github.com/astral-sh/uv). Do NOT use pip, venv, or poetry. If you find legacy instructions, escalate immediately. Use `context7` for docs and `gh_grep` for code examples.
+
 ```bash
-pip install django-micboard
+# Create and activate uv virtual environment
+uv venv .venv
+source .venv/bin/activate
+
+# Install from PyPI
+uv pip install django-micboard
 ```
 
 Or for development:
 
 ```bash
+uv venv .venv
+source .venv/bin/activate
+
 git clone https://github.com/justprosound/django-micboard.git
 cd django-micboard
-pip install -e .
+uv pip install -e ".[dev,all]"
 ```
 
 ### 2. Configure Django Settings

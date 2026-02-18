@@ -38,17 +38,9 @@ class WirelessUnitQuerySet(TenantOptimizedQuerySet):
         """Filter by wireless unit device type."""
         return self.filter(device_type=device_type)
 
-    def by_base_device(self, *, device_id: int) -> WirelessUnitQuerySet:
-        """Filter wireless units by base chassis ID."""
-        return self.filter(base_chassis_id=device_id)
-
     def low_battery(self, *, threshold: int = 25) -> WirelessUnitQuerySet:
         """Filter wireless units with battery level below threshold."""
         return self.filter(battery__lt=threshold).exclude(battery=255)
-
-    def with_base_device(self) -> WirelessUnitQuerySet:
-        """Optimize: select related base device."""
-        return self.select_related("base_chassis", "base_chassis__location")
 
 
 class WirelessUnitManager(TenantOptimizedManager):
@@ -69,17 +61,9 @@ class WirelessUnitManager(TenantOptimizedManager):
         """Filter by device type."""
         return self.get_queryset().by_type(device_type=device_type)
 
-    def by_base_device(self, *, device_id: int) -> WirelessUnitQuerySet:
-        """Filter by base chassis."""
-        return self.get_queryset().by_base_device(device_id=device_id)
-
     def low_battery(self, *, threshold: int = 25) -> WirelessUnitQuerySet:
         """Filter by low battery."""
         return self.get_queryset().low_battery(threshold=threshold)
-
-    def with_base_device(self) -> WirelessUnitQuerySet:
-        """Optimize with base device."""
-        return self.get_queryset().with_base_device()
 
 
 class WirelessUnit(models.Model):
@@ -386,13 +370,6 @@ class WirelessUnit(models.Model):
         if self.quality > 100:
             return "fair"
         return "poor"
-
-    @property
-    def is_idle(self) -> bool:
-        """Indicates the portable is unused/not engaged on any RF resource."""
-        return self.status == "idle" or (
-            self.assigned_resource is None and self.status in {"offline", "degraded"}
-        )
 
     def is_transmitter(self) -> bool:
         """Check if this unit transmits microphone audio."""

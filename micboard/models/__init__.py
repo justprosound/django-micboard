@@ -1,184 +1,111 @@
-# file: micboard/models/__init__.py
-"""Django Micboard Models - Unified domain model layer.
+"""Django Micboard Models package.
 
-Domain-organized model exports organized by business concern:
-- hardware: Wireless base stations, field devices, chargers
-- rf_coordination: RF channels and communication paths
-- locations: Physical locations, buildings, rooms
-- monitoring: Monitoring groups, assignments, alerts
-- discovery: Device discovery, manufacturers, configuration
-- telemetry: Metrics, samples, API health
-- realtime: Real-time connection tracking
-- audit: Activity logging and service sync records
-- users: User profiles and views
-- settings: Configuration and settings management
+This module re-exports commonly used models for convenience.
+Models are organized by domain in submodules.
 """
 
-from __future__ import annotations
-
-# Audit domain
-from .audit import (
-    ActivityLog,
-    ConfigurationAuditLog,
-    ServiceSyncLog,
+# Import submodules for Django app registry
+from . import (
+    audit,  # noqa: F401
+    discovery,  # noqa: F401
+    hardware,  # noqa: F401
+    integrations,  # noqa: F401
+    locations,  # noqa: F401
+    monitoring,  # noqa: F401
+    multitenancy,  # noqa: F401
+    realtime,  # noqa: F401
+    rf_coordination,  # noqa: F401
+    settings,  # noqa: F401
+    telemetry,  # noqa: F401
+    users,  # noqa: F401
 )
 
-# Discovery domain
-from .discovery import (
-    DeviceMovementLog,
-    DiscoveredDevice,
-    DiscoveryCIDR,
-    DiscoveryFQDN,
-    DiscoveryJob,
-    DiscoveryQueue,
-    Manufacturer,
-    ManufacturerConfiguration,
-    MicboardConfig,
-)
+# Re-export commonly used models for backward compatibility
+# Audit models
+from .audit import ActivityLog, ConfigurationAuditLog, ServiceSyncLog
 
-# Hardware domain
-from .hardware import (
-    Charger,
-    ChargerManager,
-    ChargerQuerySet,
-    ChargerSlot,
-    DisplayWall,
-    WallSection,
-    WirelessChassis,
-    WirelessChassisManager,
-    WirelessChassisQuerySet,
-    WirelessUnit,
-    WirelessUnitManager,
-    WirelessUnitQuerySet,
-)
+# Discovery models
+from .discovery.configuration import ManufacturerConfiguration
+from .discovery.manufacturer import Manufacturer
 
-# Integration domain
-from .integrations import (
-    Accessory,
-    ManufacturerAPIServer,
-)
+# Telemetry
+from .discovery.queue import DeviceMovementLog, DiscoveryQueue
+from .discovery.registry import DiscoveredDevice, DiscoveryCIDR, DiscoveryFQDN
 
-# Locations domain
-from .locations import (
-    Building,
-    Location,
-    Room,
-)
+# Hardware models
+from .hardware.charger import Charger, ChargerSlot
+from .hardware.display_wall import DisplayWall, WallSection
+from .hardware.wireless_chassis import WirelessChassis
+from .hardware.wireless_unit import WirelessUnit
 
-# Monitoring domain
-from .monitoring import (
-    Alert,
-    MonitoringGroup,
-    Performer,
-    PerformerAssignment,
-    UserAlertPreference,
-)
+# Integrations
+from .integrations import ManufacturerAPIServer
 
-# Multi-tenancy domain
-from .multitenancy import (
-    Organization,
-    Site,
-)
+# Location models
+from .locations import Building, Location, Room
 
-# Real-time domain
-from .realtime import (
-    RealTimeConnection,
-)
+# Monitoring models
+from .monitoring.alert import Alert, UserAlertPreference
+from .monitoring.group import MonitoringGroup
+from .monitoring.performer import Performer
+from .monitoring.performer_assignment import PerformerAssignment
 
-# RF Coordination domain
-from .rf_coordination import (
-    ExclusionZone,
-    FrequencyBand,
-    RegulatoryDomain,
-    RFChannel,
-    RFChannelManager,
-    RFChannelQuerySet,
-)
+# Realtime models
+from .realtime.connection import RealTimeConnection
 
-# Settings domain
-from .settings import (
-    Setting,
-    SettingDefinition,
-)
+# RF Coordination models
+from .rf_coordination.compliance import ExclusionZone, FrequencyBand, RegulatoryDomain
+from .rf_coordination.rf_channel import RFChannel
 
-# Telemetry domain
-from .telemetry import (
-    APIHealthLog,
-    TransmitterSample,
-    TransmitterSession,
-    WirelessUnitSample,
-    WirelessUnitSession,
-)
+# Settings models
+from .settings import Setting, SettingDefinition
 
-# Users domain
-from .users import (
-    UserProfile,
-    UserView,
-)
+# User models
+from .users.user_profile import UserProfile
+from .users.user_views import UserView
 
 __all__ = [
-    # Hardware
-    "Charger",
-    "ChargerManager",
-    "ChargerQuerySet",
-    "ChargerSlot",
-    "DisplayWall",
-    "WallSection",
-    "WirelessChassis",
-    "WirelessChassisManager",
-    "WirelessChassisQuerySet",
-    "WirelessUnit",
-    "WirelessUnitManager",
-    "WirelessUnitQuerySet",
-    # RF Coordination
-    "RFChannel",
-    "RFChannelManager",
-    "RFChannelQuerySet",
-    "RegulatoryDomain",
-    "FrequencyBand",
-    "ExclusionZone",
-    # Locations
-    "Building",
-    "Location",
-    "Room",
-    # Multi-tenancy
-    "Organization",
-    "Site",
-    # Monitoring
-    "Alert",
-    "UserAlertPreference",
-    "MonitoringGroup",
-    "Performer",
-    "PerformerAssignment",
-    # Discovery
-    "DeviceMovementLog",
-    "DiscoveredDevice",
-    "DiscoveryCIDR",
-    "DiscoveryFQDN",
-    "DiscoveryJob",
-    "DiscoveryQueue",
-    "Manufacturer",
-    "ManufacturerConfiguration",
-    "MicboardConfig",
-    # Settings
-    "Setting",
-    "SettingDefinition",
-    # Telemetry
-    "APIHealthLog",
-    "WirelessUnitSample",
-    "WirelessUnitSession",
-    "TransmitterSample",
-    "TransmitterSession",
-    # Real-time
-    "RealTimeConnection",
     # Audit
     "ActivityLog",
     "ConfigurationAuditLog",
     "ServiceSyncLog",
+    # Discovery
+    "DiscoveredDevice",
+    "DiscoveryCIDR",
+    "DiscoveryFQDN",
+    "DiscoveryQueue",
+    "Manufacturer",
+    "ManufacturerConfiguration",
+    # Hardware
+    "Charger",
+    "ChargerSlot",
+    "DisplayWall",
+    "WallSection",
+    "WirelessChassis",
+    "WirelessUnit",
+    # Location
+    "Building",
+    "Location",
+    "Room",
+    # Monitoring
+    "Alert",
+    "MonitoringGroup",
+    "Performer",
+    "PerformerAssignment",
+    "UserAlertPreference",
+    # Realtime
+    "RealTimeConnection",
+    # RF Coordination
+    "ExclusionZone",
+    "FrequencyBand",
+    "RegulatoryDomain",
+    "RFChannel",
+    # Settings
+    "Setting",
+    "SettingDefinition",
     # Users
     "UserProfile",
     "UserView",
-    # Integrations
-    "ManufacturerAPIServer",
-    "Accessory",
+    # Telemetry
+    "DeviceMovementLog",
 ]

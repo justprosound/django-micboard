@@ -90,7 +90,8 @@ class RFChannelAdmin(MicboardModelAdmin):
 
         if needs_update:
             return format_html(
-                '<span style="color: var(--error-fg, red); font-weight: bold;">⚠️ Missing coverage</span>'
+                '<span style="color: var(--error-fg, red); '
+                'font-weight: bold;">⚠️ Missing coverage</span>'
             )
 
         if has_coverage:
@@ -160,7 +161,9 @@ class WirelessUnitAdmin(MicboardModelAdmin):
                     "battery_temperature_c",
                     "battery_health_detail_display",
                 ),
-                "description": "Battery level, health, and diagnostic information from manufacturer API.",
+                "description": (
+                    "Battery level, health, and diagnostic information from manufacturer API."
+                ),
             },
         ),
         (

@@ -23,37 +23,4 @@ __license__ = "AGPL-3.0-or-later"
 
 # Modern Django automatically discovers AppConfig classes; no default_app_config needed
 
-# Public API - convenience imports for common use cases
-from micboard.apps import MicboardConfig
-from micboard.conf import config as settings
-
-
-def __getattr__(name: str):
-    """Lazy imports for public API to avoid circular dependencies."""
-    if name == "models":
-        from micboard import models
-
-        return models
-    elif name == "services":
-        from micboard import services
-
-        return services
-    elif name == "conf":
-        from micboard import conf
-
-        return conf
-    elif name == "get_config":
-        return MicboardConfig.get_config
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-__all__ = [
-    "__version__",
-    "__license__",
-    "MicboardConfig",
-    "get_config",
-    "settings",
-    "conf",
-    "models",
-    "services",
-]
+# No lazy imports or re-exports are supported in this package. Only version/license/docstring remain.

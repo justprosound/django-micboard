@@ -229,68 +229,20 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.action(description="Refresh device data from manufacturer API")
     def refresh_from_api(self, request, queryset):
         """Refresh discovered device data from manufacturer API."""
-        from micboard.services.plugin_registry import PluginRegistry
+        from micboard.services.sync.discovery_service import DiscoveryService
 
-        updated_count = 0
-        failed_count = 0
+        service = DiscoveryService()
+        updated, failed = service.refresh_discovered_devices_from_api(queryset)
 
-        for discovered in queryset:
-            if not discovered.manufacturer:
-                failed_count += 1
-                continue
-
-            try:
-                plugin = PluginRegistry.get_plugin(
-                    discovered.manufacturer.code, discovered.manufacturer
-                )
-                if not plugin:
-                    failed_count += 1
-                    continue
-
-                # Fetch fresh device list
-                api_devices = plugin.get_devices() or []
-
-                # Find matching device by IP or device ID
-                device_data = None
-                for dev in api_devices:
-                    if dev.get("ip") == discovered.ip or dev.get("ipAddress") == discovered.ip:
-                        device_data = dev
-                        break
-                    if discovered.api_device_id and dev.get("id") == discovered.api_device_id:
-                        device_data = dev
-                        break
-
-                if device_data:
-                    # Update discovered device with fresh data
-                    discovered.device_state = device_data.get("state", "UNKNOWN")
-                    discovered.compatibility = device_data.get("compatibility", "UNKNOWN")
-                    discovered.model = device_data.get("model", discovered.model)
-                    discovered.api_device_id = device_data.get("id", discovered.api_device_id)
-
-                    # Extract communication protocol
-                    comm_protocol = device_data.get("communicationProtocol", {})
-                    if isinstance(comm_protocol, dict):
-                        discovered.communication_protocol = comm_protocol.get("name", "")
-
-                    discovered.save()
-                    updated_count += 1
-                else:
-                    failed_count += 1
-                    logger.warning("Could not find device %s in API response", discovered.ip)
-
-            except Exception as e:
-                failed_count += 1
-                logger.exception("Failed to refresh discovered device %s: %s", discovered.ip, e)
-
-        if updated_count > 0:
+        if updated > 0:
             messages.success(
                 request,
-                f"✅ Refreshed {updated_count} device(s) from manufacturer API.",
+                f"✅ Refreshed {updated} device(s) from manufacturer API.",
             )
-        if failed_count > 0:
+        if failed > 0:
             messages.warning(
                 request,
-                f"⚠️ {failed_count} device(s) could not be refreshed. Check logs for details.",
+                f"⚠️ {failed} device(s) could not be refreshed. Check logs for details.",
             )
 
     @admin.action(description="Promote selected devices to managed chassis")
@@ -326,7 +278,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.action(description="Delete and remove from manufacturer API discovery list")
     def delete_and_remove_from_api(self, request, queryset):
         """Delete discovered devices and remove from remote API discovery lists."""
-        from micboard.services.plugin_registry import PluginRegistry
+        from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
         removed_count = 0
         failed_count = 0
@@ -364,115 +316,11 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
             )
 
     def _promote_to_chassis(self, discovered: DiscoveredDevice) -> tuple[bool, str, object]:
-        """Promote a discovered device to a managed WirelessChassis.
+        """Delegate promotion to DiscoveryService to keep admin thin and testable."""
+        from micboard.services.sync.discovery_service import DiscoveryService
 
-        Returns:
-            Tuple of (success: bool, message: str, chassis: WirelessChassis | None)
-        """
-        from micboard.models import WirelessChassis
-        from micboard.services.hardware_deduplication_service import (
-            get_hardware_deduplication_service,
-        )
-
-        if not discovered.manufacturer:
-            return (False, "No manufacturer specified for discovered device", None)
-
-        # Check if already managed
-        existing = WirelessChassis.objects.filter(
-            ip=discovered.ip,
-            manufacturer=discovered.manufacturer,
-        ).first()
-
-        if existing:
-            return (False, f"Device already managed as chassis: {existing}", existing)
-
-        # Fetch fresh data from API to ensure we have complete device info
-        try:
-            from micboard.services.plugin_registry import PluginRegistry
-
-            plugin = PluginRegistry.get_plugin(
-                discovered.manufacturer.code, discovered.manufacturer
-            )
-            if not plugin:
-                return (False, "Plugin not available for manufacturer", None)
-
-            # Try to get detailed device data from API using the IP
-            api_devices = plugin.get_devices() or []
-            device_data = None
-
-            for dev in api_devices:
-                if dev.get("ip") == discovered.ip or dev.get("ipAddress") == discovered.ip:
-                    device_data = dev
-                    break
-
-            if not device_data:
-                # Fallback: create basic chassis from discovered data
-                logger.warning(
-                    "Could not fetch detailed data for %s from API, creating basic chassis",
-                    discovered.ip,
-                )
-                chassis = WirelessChassis.objects.create(
-                    manufacturer=discovered.manufacturer,
-                    api_device_id=discovered.ip,  # Use IP as fallback ID
-                    ip=discovered.ip,
-                    name=f"{discovered.device_type} at {discovered.ip}",
-                    model=discovered.device_type,
-                    role="receiver",  # Default role
-                    max_channels=discovered.channels or 4,
-                    status="discovered",
-                )
-                return (True, "Created basic chassis (limited API data)", chassis)
-
-            # Use full sync path with deduplication
-            from micboard.services.manufacturer import ManufacturerService
-
-            # Transform device data
-            transformed = plugin.transform_device_data(device_data)
-            if not transformed:
-                return (False, "Failed to transform device data", None)
-
-            # Get deduplication service
-            dedup_service = get_hardware_deduplication_service(discovered.manufacturer)
-
-            # Check for conflicts
-            dedup_result = dedup_service.check_device(
-                serial_number=transformed.get("serial_number"),
-                mac_address=transformed.get("mac_address"),
-                ip=transformed.get("ip"),
-                api_device_id=transformed.get("api_device_id"),
-                manufacturer=discovered.manufacturer,
-            )
-
-            if dedup_result.is_conflict:
-                return (
-                    False,
-                    f"Device conflict: {dedup_result.conflict_reason}",
-                    None,
-                )
-
-            if dedup_result.is_duplicate and dedup_result.existing_device:
-                # Update existing device
-                chassis = dedup_result.existing_device
-                ManufacturerService._update_existing_chassis(
-                    chassis,
-                    ManufacturerService._normalize_devices([device_data], plugin)[0],
-                )
-                return (True, "Updated existing chassis", chassis)
-
-            # Create new chassis
-            normalized = ManufacturerService._normalize_devices([device_data], plugin)
-            if normalized:
-                chassis = ManufacturerService._create_chassis(
-                    normalized[0],
-                    discovered.manufacturer,
-                )
-                return (True, "Created new managed chassis", chassis)
-
-            return (False, "Failed to normalize device data", None)
-
-        except Exception as e:
-            logger.exception("Error promoting discovered device %s", discovered.ip)
-            return (False, f"Exception during promotion: {e}", None)
+        service = DiscoveryService()
+        return service.promote_discovered_device(discovered)
 
 
 @admin.register(Location)

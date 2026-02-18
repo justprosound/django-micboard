@@ -2,7 +2,7 @@
 
 from django.core.management.base import BaseCommand
 
-from micboard.services.audit import AuditService
+from micboard.services.maintenance.audit import AuditService
 
 
 class Command(BaseCommand):

@@ -9,7 +9,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from micboard.models import Manufacturer
-from micboard.tasks.discovery_tasks import run_discovery_sync_task
+from micboard.tasks.sync.discovery import run_discovery_sync_task
 
 
 class Command(BaseCommand):

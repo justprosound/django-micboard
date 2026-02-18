@@ -28,7 +28,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 try:
     import websockets
@@ -59,6 +60,51 @@ class ShureWebSocketError(Exception):
     """Exception for WebSocket-related errors."""
 
     pass
+
+
+def _parse_transport_id_from_message(message: str) -> str | None:
+    try:
+        payload = json.loads(message)
+        return payload.get("transportId")
+    except json.JSONDecodeError:
+        logger.exception("Failed to parse WebSocket transport ID message")
+        return None
+
+
+def _subscribe_client_to_transport(client, device_id: str, transport_id: str) -> None:
+    from .client import ShureAPIError
+
+    subscribe_endpoint = f"/api/v1/devices/{device_id}/identify/subscription/{transport_id}"
+    try:
+        subscribe_response = client._make_request("POST", subscribe_endpoint)
+        if subscribe_response and subscribe_response.get("status") == "success":
+            logger.info("Successfully subscribed to device %s updates", device_id)
+        else:
+            logger.error(
+                "Failed to subscribe to device %s: %s",
+                device_id,
+                subscribe_response,
+            )
+            raise ShureWebSocketError(f"Failed to subscribe to device {device_id} updates")
+    except ShureAPIError:
+        logger.exception("Error during REST subscription for device %s", device_id)
+        raise
+
+
+async def _read_and_dispatch_messages(
+    websocket, device_id: str, callback: Callable[[dict], None]
+) -> None:
+    async for message in websocket:
+        try:
+            data = json.loads(message)
+            logger.debug("Received WebSocket message for device %s", device_id)
+            callback(data)
+        except json.JSONDecodeError:
+            logger.exception("Failed to parse WebSocket message: %s", message[:200])
+            continue
+        except Exception:
+            logger.exception("Error processing WebSocket message")
+            continue
 
 
 async def connect_and_subscribe(
@@ -94,53 +140,22 @@ async def connect_and_subscribe(
         async with websockets.connect(client.websocket_url, ssl=client.verify_ssl) as websocket:
             logger.info("Connected to Shure API WebSocket: %s", client.websocket_url)
 
-            # First message from WebSocket is usually the transportId
+            # Read initial message and extract transportId
             message = await websocket.recv()
             logger.debug("Received initial WebSocket message: %s", message[:200])
 
-            try:
-                transport_id_data = json.loads(message)
-                transport_id = transport_id_data.get("transportId")
-            except json.JSONDecodeError:
-                logger.exception("Failed to parse WebSocket transport ID message")
-                raise ShureWebSocketError("Invalid WebSocket transport ID message") from None
-
+            transport_id = _parse_transport_id_from_message(message)
             if not transport_id:
                 logger.error("Missing transportId in WebSocket message: %s", message[:200])
                 raise ShureWebSocketError("Failed to get transportId from WebSocket")
 
             logger.info("Received transportId: %s", transport_id)
 
-            # Subscribe to device updates using the REST API with the transportId
-            subscribe_endpoint = f"/api/v1/devices/{device_id}/identify/subscription/{transport_id}"
-            try:
-                # This is a POST request to the REST API, not over the WebSocket
-                subscribe_response = client._make_request("POST", subscribe_endpoint)
-                if subscribe_response and subscribe_response.get("status") == "success":
-                    logger.info("Successfully subscribed to device %s updates", device_id)
-                else:
-                    logger.error(
-                        "Failed to subscribe to device %s: %s",
-                        device_id,
-                        subscribe_response,
-                    )
-                    raise ShureWebSocketError(f"Failed to subscribe to device {device_id} updates")
-            except ShureAPIError:
-                logger.exception("Error during REST subscription for device %s", device_id)
-                raise
+            # Subscribe via REST
+            _subscribe_client_to_transport(client, device_id, transport_id)
 
-            # Continuously receive messages from the WebSocket
-            async for message in websocket:
-                try:
-                    data = json.loads(message)
-                    logger.debug("Received WebSocket message for device %s", device_id)
-                    callback(data)  # Pass the received data to the callback
-                except json.JSONDecodeError:
-                    logger.exception("Failed to parse WebSocket message: %s", message[:200])
-                    continue  # Skip invalid messages but keep connection alive
-                except Exception:
-                    logger.exception("Error processing WebSocket message")
-                    continue  # Don't let callback errors kill the connection
+            # Continuously receive messages and dispatch to callback
+            await _read_and_dispatch_messages(websocket, device_id, callback)
 
     except WebsocketClosedOKError:
         logger.info("Shure API WebSocket connection closed gracefully for device %s", device_id)
@@ -150,10 +165,8 @@ async def connect_and_subscribe(
         )
         raise ShureWebSocketError(f"WebSocket connection error for device {device_id}") from None
     except ShureWebSocketError:
-        # Re-raise ShureWebSocketError exceptions (they're already properly formatted)
         raise
     except ShureAPIError:
-        # Re-raise ShureAPIError exceptions (they should propagate up)
         raise
     except Exception:
         logger.exception(

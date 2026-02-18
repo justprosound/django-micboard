@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 from micboard.manufacturers import ManufacturerPlugin
 
@@ -37,7 +38,7 @@ class SennheiserPlugin(ManufacturerPlugin):
 
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get detailed data for a specific device."""
-        return cast(Optional[dict[str, Any]], self.client.devices.get_device(device_id))
+        return cast(dict[str, Any] | None, self.client.devices.get_device(device_id))
 
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Get channel data for a device."""

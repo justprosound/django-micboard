@@ -112,6 +112,8 @@ class SettingDefinition(models.Model):
         """Serialize value to string for storage."""
         if self.setting_type == self.TYPE_JSON:
             return json.dumps(value)
+        elif self.setting_type == self.TYPE_BOOLEAN:
+            return "true" if value else "false"
         return str(value)
 
 

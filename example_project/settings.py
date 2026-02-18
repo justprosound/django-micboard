@@ -1,4 +1,5 @@
 """Django settings for example_project.
+# ruff: noqa: E402  # See Django bootstrap note below.
 
 ⚠️ **DEVELOPMENT/DEMO ONLY** ⚠️
 
@@ -10,7 +11,6 @@ proper configuration guidance.
 from __future__ import annotations
 
 import os
-import sys
 from importlib.util import find_spec
 from pathlib import Path
 
@@ -23,6 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() == "true"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+
 
 # Helper to check if optional packages are installed
 def _is_package_installed(package_name: str) -> bool:
@@ -137,13 +138,17 @@ SITE_ID = 1
 
 LOGIN_REDIRECT_URL = "/admin/"
 # Optional Micboard-specific config
-from typing import Any
+import typing as t  # noqa: E402 -- needed after Django bootstrap
 
-MICBOARD_CONFIG: dict[str, Any] = {
+MICBOARD_CONFIG: dict[str, t.Any] = {
     # Single server configuration (backward compatible)
-    "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"),
+    "SHURE_API_BASE_URL": os.environ.get(
+        "MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"
+    ),
     "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
-    "SHURE_API_VERIFY_SSL": os.environ.get("MICBOARD_SHURE_API_VERIFY_SSL", "false").lower()
+    "SHURE_API_VERIFY_SSL": os.environ.get(
+        "MICBOARD_SHURE_API_VERIFY_SSL", "false"
+    ).lower()
     in ("true", "1", "yes"),
     # Multi-location API servers configuration
     # Each server can be associated with a specific location

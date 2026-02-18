@@ -187,12 +187,3 @@ class Accessory(models.Model):
         status = "✓" if self.is_available else "✗"
         assigned = f" → {self.assigned_to}" if self.assigned_to else ""
         return f"{status} {self.get_category_display()}: {self.name}{assigned}"
-
-    @property
-    def status_display(self) -> str:
-        """Human-readable status."""
-        if not self.is_available:
-            return "🚫 Unavailable"
-        if self.condition == "needs_repair":
-            return "⚠️ Needs Repair"
-        return "✓ Available"

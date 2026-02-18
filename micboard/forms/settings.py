@@ -5,11 +5,12 @@ from __future__ import annotations
 from typing import Any, cast
 
 from django import forms
+from django.contrib.sites.models import Site
 from django.core.exceptions import ValidationError
 
-from micboard.models.multitenancy import Organization, Site
 from micboard.models.settings import Setting, SettingDefinition
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.multitenancy.models import Organization
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 
 class BulkSettingConfigForm(forms.Form):

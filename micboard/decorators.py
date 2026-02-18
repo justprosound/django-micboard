@@ -1,66 +1,26 @@
-"""Rate limiting decorators for micboard views."""
-
-import logging
-import time
 from functools import wraps
 
-from django.core.cache import cache
 from django.http import JsonResponse
 
-logger = logging.getLogger(__name__)
+from micboard.services.shared import rate_limiting
 
 
 def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=None):
-    """Rate limit decorator for Django views using sliding window algorithm.
-
-    Args:
-        max_requests: Maximum number of requests allowed in the time window
-        window_seconds: Time window in seconds
-        key_func: Optional function to generate cache key from request (default: uses IP)
-
-    Example:
-        @rate_limit_view(max_requests=10, window_seconds=60)
-        def my_view(request):
-            return JsonResponse({'data': 'value'})
-    """
+    """Rate limit decorator for Django views using sliding window algorithm (delegates to service)."""
 
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
-            # Generate cache key
             if key_func:
                 cache_key = key_func(request)
             else:
-                # Default: use IP address
-                ip = get_client_ip(request)
+                ip = rate_limiting.get_client_ip(request)
                 cache_key = f"rate_limit_{view_func.__name__}_{ip}"
 
-            # Get current request timestamps
-            now = time.time()
-            window_key = f"{cache_key}_window"
-            try:
-                request_times = cache.get(window_key, [])
-            except Exception:
-                # If cache fails, allow the request (fail open)
-                logger.debug("Cache read failed, allowing request: %s", cache_key)
-                request_times = []
-
-            # Remove timestamps outside the current window
-            request_times = [t for t in request_times if now - t < window_seconds]
-
-            # Check if rate limit exceeded
-            if len(request_times) >= max_requests:
-                oldest_request = min(request_times)
-                retry_after = int(window_seconds - (now - oldest_request)) + 1
-
-                logger.warning(
-                    "Rate limit exceeded for %s: %d/%d requests in %ds window",
-                    cache_key,
-                    len(request_times),
-                    max_requests,
-                    window_seconds,
-                )
-
+            allowed, retry_after, _ = rate_limiting.check_rate_limit(
+                cache_key, max_requests, window_seconds
+            )
+            if not allowed:
                 return JsonResponse(
                     {
                         "error": "Rate limit exceeded",
@@ -70,16 +30,6 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
                     status=429,
                     headers={"Retry-After": str(retry_after)},
                 )
-
-            # Add current request timestamp
-            request_times.append(now)
-            try:
-                cache.set(window_key, request_times, timeout=window_seconds + 1)
-            except Exception:
-                # If cache write fails, log but allow the request
-                logger.debug("Cache write failed, but allowing request: %s", cache_key)
-
-            # Call the view
             return view_func(request, *args, **kwargs)
 
         return wrapper
@@ -87,33 +37,14 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
     return decorator
 
 
-def get_client_ip(request):
-    """Extract client IP address from request, considering proxies."""
-    x_forwarded_for = request.headers.get("x-forwarded-for")
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(",")[0].strip()
-    else:
-        ip = request.META.get("REMOTE_ADDR", "unknown")
-    return ip
+# Alias for external usage (no local body required)
+get_client_ip = rate_limiting.get_client_ip
 
 
 def rate_limit_user(max_requests: int = 100, window_seconds: int = 60):
-    """Rate limit decorator for authenticated users.
-
-    Uses user ID instead of IP address for the cache key.
-
-    Example:
-        @login_required
-        @rate_limit_user(max_requests=30, window_seconds=60)
-        def my_view(request):
-            return JsonResponse({'data': 'value'})
-    """
+    """Rate limit decorator for authenticated users (delegates to service for cache key)."""
 
     def key_func(request):
-        if request.user.is_authenticated:
-            return f"rate_limit_user_{request.user.id}"
-        else:
-            ip = get_client_ip(request)
-            return f"rate_limit_anon_{ip}"
+        return rate_limiting.get_user_cache_key(request, view_func_name="user_view")
 
     return rate_limit_view(max_requests, window_seconds, key_func)

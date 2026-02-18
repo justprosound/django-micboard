@@ -10,21 +10,26 @@ This project adheres to the [Django Community Code of Conduct](https://www.djang
 
 ### Development Environment Setup
 
+> ⚠️ **MANDATORY: Use `uv` for all environment and dependency management**
+>
+> - You must use `uv` exclusively. `pip`, `venv`, `pipx`, and `poetry` are forbidden for all installs, environment setup, or troubleshooting in this project. If you encounter any documentation, code, or advice referencing these, IMMEDIATELY halt and update it to use `uv` instead.
+> - If unsure, see AGENTS.md for policy/resilience steps and report the issue to maintainers.
+
 1. **Fork and clone the repository**:
    ```bash
    git clone https://github.com/your-username/django-micboard.git
    cd django-micboard
    ```
 
-2. **Create a virtual environment**:
+2. **Create a virtual environment with `uv`**:
    ```bash
-   python -m venv .venv
+   uv venv .venv
    source .venv/bin/activate
    ```
 
-3. **Install development dependencies**:
+3. **Install development dependencies (with `uv`)**:
    ```bash
-   pip install -e ".[dev,all]"
+   uv pip install -e ".[dev,all]"
    ```
 
 4. **Install pre-commit hooks** (strongly recommended):
@@ -104,7 +109,7 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
 
 2. **Extend base classes** rather than duplicating code:
    ```python
-   from micboard.services.base_crud import BaseCRUDService
+   from micboard.services.shared.base_crud import BaseCRUDService
    class MyService(BaseCRUDService):
        ...
    ```
@@ -128,7 +133,7 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
 
 5. **Use plugin registry** for manufacturer-agnostic behavior:
    ```python
-   from micboard.services.plugin_registry import PluginRegistry
+   from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
    plugin = PluginRegistry.get_plugin('shure', manufacturer=mfg)
    devices = plugin.get_devices()

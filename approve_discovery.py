@@ -5,16 +5,19 @@ import os
 import sys
 
 import django
+from django.contrib.auth.models import User
 from django.utils import timezone
+
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.discovery.queue import DiscoveryQueue
+from micboard.models.hardware.charger import Charger
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.locations.structure import Building, Location
 
 # Setup Django
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "example_project.settings")
 django.setup()
-
-from django.contrib.auth.models import User
-
-from micboard.models import Charger, DiscoveryQueue, Location, Manufacturer, WirelessChassis
 
 # Get Shure manufacturer
 manufacturer = Manufacturer.objects.get(code="shure")
@@ -39,7 +42,7 @@ except (Location.DoesNotExist, AttributeError):
     location = Location.objects.first()
     if not location:
         # Just try to use first building
-        from micboard.models import Building
+        from micboard.models.locations.structure import Building
 
         building = Building.objects.first()
         if building:
