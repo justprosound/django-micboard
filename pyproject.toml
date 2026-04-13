@@ -94,7 +94,7 @@ audit = [
 # Redis-based caching for improved performance
 performance = [
     "django-redis>=5.4.0",
-    "hiredis>=3.0.0",
+    "hiredis>=3.3.1",
 ]
 # Health check endpoints
 health-check = [
@@ -147,7 +147,7 @@ all = [
     "django-unfold>=0.30.0",  # admin-theme
     "django-simple-history>=3.5.0",  # audit
     "django-redis>=5.4.0",  # performance
-    "hiredis>=3.0.0",  # performance
+    "hiredis>=3.3.1",  # performance
     "django-health-check>=3.18.0",  # health-check
     "django-cryptography>=1.1",  # security
     "PyYAML>=6.0.0",  # fixtures
