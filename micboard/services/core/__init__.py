@@ -10,23 +10,30 @@ This package contains services for managing core domain entities:
 from __future__ import annotations
 
 from .charger_assignment import ChargerAssignmentService
+from .device_api_sync_service import DeviceAPISyncService
+from .device_health_service import DeviceHealthService
 from .device_metadata import DeviceMetadataAccessor, GenericMetadataAccessor, ShureMetadataAccessor
 from .device_specs import DeviceSpec, DeviceSpecService
 from .hardware import HardwareService, NormalizedHardware
+from .hardware_lifecycle import HardwareLifecycleManager, get_lifecycle_manager
 from .location import LocationService
 from .performer import PerformerService
 from .performer_assignment import PerformerAssignmentService
 
 __all__ = [
     "ChargerAssignmentService",
+    "DeviceAPISyncService",
+    "DeviceHealthService",
     "DeviceMetadataAccessor",
     "DeviceSpec",
     "DeviceSpecService",
     "GenericMetadataAccessor",
+    "HardwareLifecycleManager",
     "HardwareService",
     "LocationService",
     "NormalizedHardware",
     "PerformerAssignmentService",
     "PerformerService",
     "ShureMetadataAccessor",
+    "get_lifecycle_manager",
 ]
