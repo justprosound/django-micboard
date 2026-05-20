@@ -14,6 +14,7 @@ from micboard.admin.mixins import MicboardModelAdmin
 from micboard.forms.settings import ManufacturerSettingsForm
 from micboard.integrations.common import get_manufacturer_plugin
 from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.services.sync.discovery_candidates_service import DiscoveryCandidateService
 from micboard.services.sync.discovery_service import DiscoveryService
 
 logger = logging.getLogger(__name__)
@@ -178,9 +179,10 @@ class ManufacturerAdmin(MicboardModelAdmin):
             )
             return redirect("admin:micboard_manufacturer_changelist")
 
-        discovery_service = DiscoveryService()  # Instantiate DiscoveryService
+        discovery_service = DiscoveryService()
+        candidate_service = DiscoveryCandidateService()
 
-        ips: list[str] = []  # Initialize ips once
+        ips: list[str] = []
 
         if request.method == "POST":
             ips_to_remove = request.POST.getlist("remove_ip") or request.POST.getlist("remove_ips")
@@ -212,7 +214,7 @@ class ManufacturerAdmin(MicboardModelAdmin):
 
         # For GET requests, or after POST if not redirected
         try:
-            ips = discovery_service.get_discovery_candidates(manufacturer.code)
+            ips = candidate_service.get_discovery_candidates(manufacturer.code)
         except Exception as e:
             logger.exception("Failed to fetch discovery IPs for %s: %s", manufacturer.code, e)
             self.message_user(request, f"Failed to fetch discovery IPs: {e}", level=messages.ERROR)
