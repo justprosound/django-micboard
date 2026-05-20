@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from django.core.cache import cache
 
-from micboard.manufacturers import get_manufacturer_plugin
+from micboard.integrations.common import get_manufacturer_plugin
 from micboard.models import Manufacturer, WirelessChassis
 
 

@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
-from micboard.manufacturers import get_manufacturer_plugin
+from micboard.integrations.common import get_manufacturer_plugin
 from micboard.models.discovery import Manufacturer
 from micboard.models.hardware import WirelessChassis
 from micboard.tasks.sync.polling import _update_models_from_api_data

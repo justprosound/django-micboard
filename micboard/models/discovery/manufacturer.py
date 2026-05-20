@@ -57,7 +57,7 @@ class Manufacturer(models.Model):
                 },
             )
         except Exception as e:
-            logger.exception(f"Failed to log {action} activity: {e}")
+            logger.exception("Failed to log %s activity: %s", action, e)
 
     def save(self, *args, **kwargs):
         """Persist manufacturer data and delegate side-effects to service layer."""

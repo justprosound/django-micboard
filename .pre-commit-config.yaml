@@ -28,6 +28,7 @@ repos:
           - django-stubs
           - djangorestframework-stubs
           - types-requests
+          - requests
           - types-python-dateutil
           - PyYAML
           - djangorestframework

@@ -27,7 +27,7 @@ class IPConfigManager:
                 "environment variable or update MICBOARD_CONFIG in Django settings."
             )
         self.client = ShureSystemAPIClient(base_url=base_url, verify_ssl=verify_ssl)
-        logger.info(f"Connected to Shure System API: {base_url}")
+        logger.info("Connected to Shure System API: %s", base_url)
 
     def validate_ip(self, ip: str) -> bool:
         try:
@@ -46,15 +46,15 @@ class IPConfigManager:
         return valid_ips
 
     def load_ips_from_file(self, filepath: str):
-        logger.info(f"Reading IPs from: {filepath}")
+        logger.info("Reading IPs from: %s", filepath)
         try:
             with open(filepath) as f:
                 text = f.read()
             ips = self.parse_ips_from_text(text)
-            logger.info(f"✓ Loaded {len(ips)} unique IPs from file")
+            logger.info("✓ Loaded %s unique IPs from file", len(ips))
             return ips
         except FileNotFoundError:
-            logger.error(f"✗ File not found: {filepath}")
+            logger.error("✗ File not found: %s", filepath)
             return set()
 
     def get_current_ips(self):
@@ -62,7 +62,7 @@ class IPConfigManager:
             ips = self.client.discovery.get_discovery_ips()
             return ips or []
         except Exception as e:
-            logger.error(f"✗ Failed to get current IPs: {e}")
+            logger.error("✗ Failed to get current IPs: %s", e)
             return []
 
     def add_ips(self, ips, batch_size=100):
@@ -70,16 +70,16 @@ class IPConfigManager:
             logger.warning("No IPs to add")
             return True
         ips_list = list(set(ips))
-        logger.info(f"Adding {len(ips_list)} IPs in batches of {batch_size}...")
+        logger.info("Adding %s IPs in batches of %s...", len(ips_list), batch_size)
         all_success = True
         for i in range(0, len(ips_list), batch_size):
             batch = ips_list[i : i + batch_size]
             try:
                 result = self.client.discovery.add_discovery_ips(batch)
                 status = "✓" if result else "⚠"
-                logger.info(f"{status} Batch {i // batch_size + 1}: Added {len(batch)} IPs")
+                logger.info("%s Batch %s: Added %s IPs", status, i // batch_size + 1, len(batch))
             except Exception as e:
-                logger.error(f"✗ Batch {i // batch_size + 1} failed: {e}")
+                logger.error("✗ Batch %s failed: %s", i // batch_size + 1, e)
                 all_success = False
         return all_success
 
@@ -89,12 +89,12 @@ class IPConfigManager:
             if not current:
                 logger.info("No IPs to clear")
                 return True
-            logger.info(f"Clearing {len(current)} configured IPs...")
+            logger.info("Clearing %s configured IPs...", len(current))
             result = self.client.discovery.remove_discovery_ips(current)
             logger.info("✓ Cleared all IPs")
             return result
         except Exception as e:
-            logger.error(f"✗ Failed to clear IPs: {e}")
+            logger.error("✗ Failed to clear IPs: %s", e)
             return False
 
     def list_ips(self):
@@ -102,9 +102,9 @@ class IPConfigManager:
         if not current:
             logger.info("No discovery IPs currently configured")
             return
-        logger.info(f"Currently configured discovery IPs ({len(current)} total):")
+        logger.info("Currently configured discovery IPs (%s total):", len(current))
         for ip in sorted(current):
-            logger.info(f"  {ip}")
+            logger.info("  %s", ip)
 
     def print_summary(self):
         current = self.get_current_ips()
@@ -112,7 +112,7 @@ class IPConfigManager:
         logger.info("=" * 70)
         logger.info("Discovery Configuration Summary")
         logger.info("=" * 70)
-        logger.info(f"Total discovery IPs: {len(current)}")
+        logger.info("Total discovery IPs: %s", len(current))
         if current:
             subnets = {}
             for ip in current:
@@ -120,7 +120,7 @@ class IPConfigManager:
                 subnets[subnet] = subnets.get(subnet, 0) + 1
             logger.info("Distribution by subnet:")
             for subnet in sorted(subnets.keys()):
-                logger.info(f"  {subnet}.0/24: {subnets[subnet]} IPs")
+                logger.info("  %s.0/24: %s IPs", subnet, subnets[subnet])
 
     def _perform_list(self) -> tuple[bool, str]:
         self.list_ips()
@@ -152,7 +152,7 @@ class IPConfigManager:
             valid_ips = [ip for ip in ips_to_add if self.validate_ip(ip)]
             invalid_count = len(ips_to_add) - len(valid_ips)
             if invalid_count > 0:
-                logger.warning(f"Skipping {invalid_count} invalid IPs")
+                logger.warning("Skipping %s invalid IPs", invalid_count)
             ips_to_add = valid_ips
         if ips_to_add:
             success = self.add_ips(ips_to_add, batch_size=options.get("batch_size", 100))
@@ -227,6 +227,6 @@ class Command(BaseCommand):
                     self.stderr.write(self.style.ERROR(message))
                 return
         except Exception as e:
-            logger.error(f"Fatal error: {e}")
+            logger.error("Fatal error: %s", e)
             self.stderr.write(self.style.ERROR(f"Fatal error: {e}"))
             return

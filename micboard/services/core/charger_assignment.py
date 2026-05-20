@@ -89,10 +89,10 @@ class ChargerAssignmentService:
             }
 
         except WirelessUnit.DoesNotExist:
-            logger.warning(f"WirelessUnit not found for serial {slot.device_serial}")
+            logger.warning("WirelessUnit not found for serial %s", slot.device_serial)
             return None
         except Exception as e:
-            logger.exception(f"Error getting performer for slot {slot.id}: {e}")
+            logger.exception("Error getting performer for slot %s: %s", slot.id, e)
             return None
 
     @staticmethod
@@ -233,10 +233,10 @@ class ChargerAssignmentService:
             charger = Charger.objects.get(id=charger_id)
             section = WallSection.objects.get(id=section_id)
             section.chargers.add(charger)
-            logger.info(f"Assigned charger {charger_id} to section {section_id}")
+            logger.info("Assigned charger %s to section %s", charger_id, section_id)
             return True
         except (Charger.DoesNotExist, WallSection.DoesNotExist) as e:
-            logger.warning(f"Error assigning charger to section: {e}")
+            logger.warning("Error assigning charger to section: %s", e)
             return False
 
     @staticmethod
@@ -255,8 +255,8 @@ class ChargerAssignmentService:
         try:
             section = WallSection.objects.get(id=section_id)
             section.chargers.remove(charger_id)
-            logger.info(f"Removed charger {charger_id} from section {section_id}")
+            logger.info("Removed charger %s from section %s", charger_id, section_id)
             return True
         except WallSection.DoesNotExist:
-            logger.warning(f"Section {section_id} not found")
+            logger.warning("Section %s not found", section_id)
             return False

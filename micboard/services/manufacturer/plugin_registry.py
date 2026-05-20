@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.manufacturers.base import ManufacturerPlugin
+    from micboard.integrations.common.base import ManufacturerPlugin
 
 logger = logging.getLogger(__name__)
 _plugin_cache: dict[str, type[ManufacturerPlugin]] = {}
@@ -39,14 +39,14 @@ class PluginRegistry:
 
         # Load plugin
         try:
-            from micboard.manufacturers import get_manufacturer_plugin
+            from micboard.integrations.common import get_manufacturer_plugin
 
             plugin_class = get_manufacturer_plugin(manufacturer_code)
             _plugin_cache[manufacturer_code] = plugin_class
-            logger.debug(f"Loaded plugin for {manufacturer_code}")
+            logger.debug("Loaded plugin for %s", manufacturer_code)
             return plugin_class
         except (ModuleNotFoundError, ImportError) as e:
-            logger.error(f"Failed to load plugin for {manufacturer_code}: {e}")
+            logger.error("Failed to load plugin for %s: %s", manufacturer_code, e)
             raise
 
     @staticmethod
@@ -76,7 +76,7 @@ class PluginRegistry:
 
             return plugin_class(manufacturer)
         except (ValueError, ModuleNotFoundError, ImportError) as e:
-            logger.warning(f"Could not instantiate plugin for {manufacturer_code}: {e}")
+            logger.warning("Could not instantiate plugin for %s: %s", manufacturer_code, e)
             return None
 
     @staticmethod

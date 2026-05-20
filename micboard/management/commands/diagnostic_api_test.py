@@ -24,7 +24,7 @@ class ShureAPITester:
     def initialize_client(self):
         logger.info("Initializing Shure System API Client...")
         logger.info("  Base URL: https://localhost:10000")
-        logger.info(f"  SSL Verification: {self.verify_ssl}")
+        logger.info("  SSL Verification: %s", self.verify_ssl)
         logger.info(
             f"  Shared Key: {'*' * (len(self.shared_key) - 4) if self.shared_key else 'NOT SET'}{self.shared_key[-4:] if self.shared_key else ''}"
         )
@@ -44,7 +44,7 @@ class ShureAPITester:
             logger.info("✓ Client initialized successfully")
             return True
         except Exception as e:
-            logger.error(f"✗ Failed to initialize client: {e}")
+            logger.error("✗ Failed to initialize client: %s", e)
             return False
 
     def test_health_check(self):
@@ -55,11 +55,11 @@ class ShureAPITester:
         logger.info("=" * 70)
         try:
             health = self.client.check_health()
-            logger.info(f"✓ Health check successful: {json.dumps(health, indent=2)}")
+            logger.info("✓ Health check successful: %s", json.dumps(health, indent=2))
             self.test_results.append(("Health Check", True, health))
             return health.get("status") == "healthy"
         except Exception as e:
-            logger.error(f"✗ Health check failed: {e}")
+            logger.error("✗ Health check failed: %s", e)
             self.test_results.append(("Health Check", False, str(e)))
             return False
 
@@ -71,17 +71,17 @@ class ShureAPITester:
         logger.info("=" * 70)
         try:
             devices = self.client.devices.get_devices()
-            logger.info(f"✓ Retrieved {len(devices)} device(s)")
+            logger.info("✓ Retrieved %s device(s)", len(devices))
             for idx, device in enumerate(devices[:3], 1):
                 logger.info(
                     f"  WirelessChassis {idx}: {device.get('deviceId', 'N/A')} - {device.get('deviceType', 'N/A')}"
                 )
             if len(devices) > 3:
-                logger.info(f"  ... and {len(devices) - 3} more")
+                logger.info("  ... and %s more", len(devices) - 3)
             self.test_results.append(("Get Devices", True, {"count": len(devices)}))
             return len(devices) > 0
         except Exception as e:
-            logger.error(f"✗ Get devices failed: {e}")
+            logger.error("✗ Get devices failed: %s", e)
             self.test_results.append(("Get Devices", False, str(e)))
             return False
 
@@ -98,17 +98,17 @@ class ShureAPITester:
                 self.test_results.append(("WirelessChassis Details", False, "No devices available"))
                 return False
             device_id = devices[0].get("deviceId")
-            logger.info(f"Testing with device ID: {device_id}")
+            logger.info("Testing with device ID: %s", device_id)
             identity = self.client.devices.get_device_identity(device_id)
-            logger.info(f"✓ WirelessChassis Identity: {identity.get('serialNumber', 'N/A')}")
+            logger.info("✓ WirelessChassis Identity: %s", identity.get("serialNumber", "N/A"))
             status = self.client.devices.get_device_status(device_id)
-            logger.info(f"✓ WirelessChassis Status: {status.get('systemTime', 'N/A')}")
+            logger.info("✓ WirelessChassis Status: %s", status.get("systemTime", "N/A"))
             network = self.client.devices.get_device_network(device_id)
-            logger.info(f"✓ WirelessChassis Network: {network.get('ipAddress', 'N/A')}")
+            logger.info("✓ WirelessChassis Network: %s", network.get("ipAddress", "N/A"))
             self.test_results.append(("WirelessChassis Details", True, {"device_id": device_id}))
             return True
         except Exception as e:
-            logger.error(f"✗ WirelessChassis details failed: {e}")
+            logger.error("✗ WirelessChassis details failed: %s", e)
             self.test_results.append(("WirelessChassis Details", False, str(e)))
             return False
 
@@ -120,18 +120,18 @@ class ShureAPITester:
         logger.info("=" * 70)
         try:
             discovery_ips = self.client.discovery.get_discovery_ips()
-            logger.info(f"✓ Current discovery IPs: {discovery_ips}")
+            logger.info("✓ Current discovery IPs: %s", discovery_ips)
             test_ip = "192.168.1.100"
             result = self.client.discovery.add_discovery_ips([test_ip])
-            logger.info(f"✓ Added discovery IP {test_ip}: {result}")
+            logger.info("✓ Added discovery IP %s: %s", test_ip, result)
             updated_ips = self.client.discovery.get_discovery_ips()
-            logger.info(f"✓ Updated discovery IPs: {updated_ips}")
+            logger.info("✓ Updated discovery IPs: %s", updated_ips)
             result = self.client.discovery.remove_discovery_ips([test_ip])
-            logger.info(f"✓ Removed discovery IP {test_ip}: {result}")
+            logger.info("✓ Removed discovery IP %s: %s", test_ip, result)
             self.test_results.append(("Discovery Endpoints", True, {"ips_count": len(updated_ips)}))
             return True
         except Exception as e:
-            logger.error(f"✗ Discovery endpoints failed: {e}")
+            logger.error("✗ Discovery endpoints failed: %s", e)
             self.test_results.append(("Discovery Endpoints", False, str(e)))
             return False
 
@@ -142,17 +142,17 @@ class ShureAPITester:
         logger.info("TEST 5: Connection Pooling & Retry Logic")
         logger.info("=" * 70)
         try:
-            logger.info(f"Session max_retries: {self.client.max_retries}")
-            logger.info(f"Session retry_backoff: {self.client.retry_backoff}s")
-            logger.info(f"Session timeout: {self.client.timeout}s")
+            logger.info("Session max_retries: %s", self.client.max_retries)
+            logger.info("Session retry_backoff: %ss", self.client.retry_backoff)
+            logger.info("Session timeout: %ss", self.client.timeout)
             for i in range(3):
                 devices = self.client.devices.get_devices()
-                logger.info(f"✓ Request {i + 1}: Retrieved {len(devices)} devices")
+                logger.info("✓ Request %s: Retrieved %s devices", i + 1, len(devices))
             logger.info("✓ Connection pooling working correctly")
             self.test_results.append(("Connection Pooling", True, {}))
             return True
         except Exception as e:
-            logger.error(f"✗ Connection pooling test failed: {e}")
+            logger.error("✗ Connection pooling test failed: %s", e)
             self.test_results.append(("Connection Pooling", False, str(e)))
             return False
 
@@ -164,14 +164,14 @@ class ShureAPITester:
         logger.info("=" * 70)
         try:
             rate_limiter = self.client.rate_limiter
-            logger.info(f"Rate limiter configured: {rate_limiter is not None}")
-            logger.info(f"Rate limiter type: {type(rate_limiter).__name__}")
+            logger.info("Rate limiter configured: %s", rate_limiter is not None)
+            logger.info("Rate limiter type: %s", type(rate_limiter).__name__)
             self.test_results.append(
                 ("Rate Limiter", True, {"has_limiter": rate_limiter is not None})
             )
             return True
         except Exception as e:
-            logger.error(f"✗ Rate limiter test failed: {e}")
+            logger.error("✗ Rate limiter test failed: %s", e)
             self.test_results.append(("Rate Limiter", False, str(e)))
             return False
 
@@ -183,9 +183,9 @@ class ShureAPITester:
         total = len(self.test_results)
         for test_name, success, _details in self.test_results:
             status = "✓ PASS" if success else "✗ FAIL"
-            logger.info(f"{status}: {test_name}")
+            logger.info("%s: %s", status, test_name)
         logger.info("-" * 70)
-        logger.info(f"TOTAL: {passed}/{total} tests passed")
+        logger.info("TOTAL: %s/%s tests passed", passed, total)
         logger.info("=" * 70)
         return passed == total
 
@@ -204,7 +204,7 @@ class ShureAPITester:
             try:
                 test()
             except Exception as e:
-                logger.error(f"Unexpected error in {test.__name__}: {e}")
+                logger.error("Unexpected error in %s: %s", test.__name__, e)
         success = self.print_summary()
         return success
 

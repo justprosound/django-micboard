@@ -100,7 +100,7 @@ class AuditService:
         deleted, _ = APIHealthLog.objects.filter(timestamp__lt=health_cutoff).delete()
         results["health_logs"] = deleted
 
-        logger.info(f"Pruned stale logs: {results}")
+        logger.info("Pruned stale logs: %s", results)
         return results
 
     @staticmethod

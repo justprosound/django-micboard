@@ -10,8 +10,8 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
+from micboard.integrations.common import get_manufacturer_plugin
 from micboard.integrations.shure.websocket import connect_and_subscribe
-from micboard.manufacturers import get_manufacturer_plugin
 from micboard.models import Manufacturer, WirelessChassis
 from micboard.tasks.sync.polling import _update_models_from_api_data
 
@@ -130,7 +130,7 @@ class Command(BaseCommand):
         except WirelessChassis.DoesNotExist:
             self.stderr.write(self.style.ERROR(f"Receiver not found for device {device_id}"))
         except Exception as e:
-            logger.exception(f"Error subscribing to device {device_id}: {e}")
+            logger.exception("Error subscribing to device %s: %s", device_id, e)
             self.stderr.write(self.style.ERROR(f"Failed to subscribe to {device_id}: {e}"))
 
     async def _process_websocket_update(self, plugin, device_id: str, data: dict[str, Any]):
@@ -159,7 +159,7 @@ class Command(BaseCommand):
                 logger.debug("Could not transform WebSocket data for %s", device_id)
 
         except Exception as e:
-            logger.exception(f"Error processing WebSocket update for {device_id}: {e}")
+            logger.exception("Error processing WebSocket update for %s: %s", device_id, e)
             self.stderr.write(
                 self.style.ERROR(f"Error processing WebSocket update for {device_id}: {e}")
             )

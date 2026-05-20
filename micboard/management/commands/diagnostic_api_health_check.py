@@ -35,20 +35,20 @@ class HealthChecker:
     def check_connectivity(self):
         logger.info("1. Connectivity Check\n" + "-" * 70)
         if not self.client:
-            logger.error(f"✗ Failed to initialize client: {self.error}")
+            logger.error("✗ Failed to initialize client: %s", self.error)
             return {"status": "failed", "error": self.error}
         try:
             health = self.client.check_health()
             is_healthy = health.get("status") == "healthy"
             status_icon = "✓" if is_healthy else "⚠"
-            logger.info(f"{status_icon} Base URL: {self.base_url}")
-            logger.info(f"{status_icon} Status: {health.get('status')}")
-            logger.info(f"{status_icon} Response Code: {health.get('status_code')}")
+            logger.info("%s Base URL: %s", status_icon, self.base_url)
+            logger.info("%s Status: %s", status_icon, health.get("status"))
+            logger.info("%s Response Code: %s", status_icon, health.get("status_code"))
             if health.get("error"):
-                logger.error(f"  Error: {health['error']}")
+                logger.error("  Error: %s", health["error"])
             return health
         except Exception as e:
-            logger.error(f"✗ Connectivity check failed: {e}")
+            logger.error("✗ Connectivity check failed: %s", e)
             return {"status": "failed", "error": str(e)}
 
     def check_devices(self):
@@ -64,16 +64,16 @@ class HealthChecker:
                 logger.info("  This is usually caused by incorrect NetworkInterfaceId GUID")
                 logger.info("  See: docs/SHURE_NETWORK_GUID_TROUBLESHOOTING.md")
             else:
-                logger.info(f"✓ Found {count} device(s)")
+                logger.info("✓ Found %s device(s)", count)
                 states = {}
                 for device in devices:
                     state = device.get("state", "UNKNOWN")
                     states[state] = states.get(state, 0) + 1
                 for state, count in sorted(states.items()):
-                    logger.info(f"  {state}: {count}")
+                    logger.info("  %s: %s", state, count)
             return {"device_count": len(devices), "devices": devices}
         except Exception as e:
-            logger.error(f"✗ WirelessChassis check failed: {e}")
+            logger.error("✗ WirelessChassis check failed: %s", e)
             return {}
 
     def check_discovery_ips(self):
@@ -86,17 +86,17 @@ class HealthChecker:
             if not ips:
                 logger.warning("⚠ No discovery IPs configured")
             else:
-                logger.info(f"✓ Configured IPs: {len(ips)}")
+                logger.info("✓ Configured IPs: %s", len(ips))
                 subnets = {}
                 for ip in ips:
                     subnet = ".".join(ip.split(".")[:3])
                     subnets[subnet] = subnets.get(subnet, 0) + 1
                 logger.info("  Distribution by subnet:")
                 for subnet in sorted(subnets.keys()):
-                    logger.info(f"    {subnet}.0/24: {subnets[subnet]} IPs")
+                    logger.info("    %s.0/24: %s IPs", subnet, subnets[subnet])
             return {"ip_count": len(ips), "ips": ips}
         except Exception as e:
-            logger.error(f"✗ Discovery IP check failed: {e}")
+            logger.error("✗ Discovery IP check failed: %s", e)
             return {}
 
     def check_api_endpoints(self):
@@ -115,11 +115,11 @@ class HealthChecker:
                     f"{self.base_url}{endpoint}", timeout=5, verify=self.verify_ssl
                 )
                 status = "✓" if response.status_code == 200 else "⚠"
-                logger.info(f"{status} {endpoint:<40} {response.status_code} - {description}")
+                logger.info("%s %-40s %s - %s", status, endpoint, response.status_code, description)
                 results[endpoint] = response.status_code
             except Exception as e:
-                logger.error(f"✗ {endpoint:<40} ERROR - {description}")
-                logger.error(f"  {e}")
+                logger.error("✗ %-40s ERROR - %s", endpoint, description)
+                logger.error("  %s", e)
                 results[endpoint] = f"ERROR: {e}"
         return results
 
@@ -128,12 +128,12 @@ class HealthChecker:
         if not self.client:
             logger.error("✗ Client not initialized")
             return {}
-        logger.info(f"✓ Base URL: {self.client.base_url}")
-        logger.info(f"✓ Timeout: {self.client.timeout}s")
-        logger.info(f"✓ Max Retries: {self.client.max_retries}")
-        logger.info(f"✓ Retry Backoff: {self.client.retry_backoff}s")
-        logger.info(f"✓ SSL Verification: {self.client.verify_ssl}")
-        logger.info(f"✓ Health Status: {'Healthy' if self.client.is_healthy() else 'Degraded'}")
+        logger.info("✓ Base URL: %s", self.client.base_url)
+        logger.info("✓ Timeout: %ss", self.client.timeout)
+        logger.info("✓ Max Retries: %s", self.client.max_retries)
+        logger.info("✓ Retry Backoff: %ss", self.client.retry_backoff)
+        logger.info("✓ SSL Verification: %s", self.client.verify_ssl)
+        logger.info("✓ Health Status: %s", "Healthy" if self.client.is_healthy() else "Degraded")
         return {
             "base_url": self.client.base_url,
             "timeout": self.client.timeout,
@@ -193,6 +193,6 @@ class Command(BaseCommand):
             checker = HealthChecker()
             checker.run(full=options["full"])
         except Exception as e:
-            logger.error(f"Fatal error: {e}")
+            logger.error("Fatal error: %s", e)
             self.stderr.write(self.style.ERROR(f"Fatal error: {e}"))
             return

@@ -44,7 +44,7 @@ class APIServerPollingService:
                 APIServerPollingService.poll_server_devices(server)
                 results["success"] += 1
             except Exception as e:
-                logger.error(f"Failed to poll API server {server.name}: {e}")
+                logger.error("Failed to poll API server %s: %s", server.name, e)
                 results["failed"] += 1
 
         return results
@@ -65,11 +65,11 @@ class APIServerPollingService:
         try:
             plugin = PluginRegistry.get_plugin(server.manufacturer)
         except Exception as e:
-            logger.debug(f"Plugin not found for {server.manufacturer}: {e}")
+            logger.debug("Plugin not found for %s: %s", server.manufacturer, e)
             return
 
         if not plugin:
-            logger.error(f"Plugin not available for {server.manufacturer}")
+            logger.error("Plugin not available for %s", server.manufacturer)
             return
 
         # Get current state from API

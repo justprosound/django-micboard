@@ -239,7 +239,7 @@ def _initialize_plugin_client(
 ) -> tuple[Any, Any] | tuple[None, None]:
     """Initialize plugin and client, return (plugin, client) or (None, None) on failure."""
     try:
-        from micboard.manufacturers import get_manufacturer_plugin
+        from micboard.integrations.common import get_manufacturer_plugin
 
         plugin_class = get_manufacturer_plugin(manufacturer.code)
         plugin = plugin_class(manufacturer)

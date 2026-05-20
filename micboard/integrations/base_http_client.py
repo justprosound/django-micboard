@@ -16,8 +16,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from micboard.integrations.common.base import BaseAPIClient
 from micboard.integrations.common.exceptions import APIError, APIRateLimitError
-from micboard.manufacturers.base import BaseAPIClient
 from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
 
 logger = logging.getLogger(__name__)

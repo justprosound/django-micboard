@@ -37,14 +37,14 @@ class DiscoveryMonitor:
         logger.info("=" * 80)
         logger.info("Shure System API - WirelessChassis Discovery Monitor")
         logger.info("=" * 80)
-        logger.info(f"API: {base_url}")
-        logger.info(f"Started: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("API: %s", base_url)
+        logger.info("Started: %s", self.start_time.strftime("%Y-%m-%d %H:%M:%S"))
         logger.info("")
         try:
             self.client = ShureSystemAPIClient(base_url=base_url, verify_ssl=verify_ssl)
             logger.info("✓ Connected to Shure System API")
         except Exception as e:
-            logger.error(f"✗ Failed to initialize API client: {e}")
+            logger.error("✗ Failed to initialize API client: %s", e)
             raise
 
     def get_devices(self) -> dict[str, dict[str, Any]]:
@@ -52,7 +52,7 @@ class DiscoveryMonitor:
             devices = self.client.devices.get_devices()
             return {d.get("id", f"unknown-{i}"): d for i, d in enumerate(devices)}
         except Exception as e:
-            logger.error(f"Error getting devices: {e}")
+            logger.error("Error getting devices: %s", e)
             return {}
 
     def get_discovery_ips_count(self) -> int:
@@ -60,7 +60,7 @@ class DiscoveryMonitor:
             ips = self.client.discovery.get_discovery_ips()
             return len(ips) if ips else 0
         except Exception as e:
-            logger.error(f"Error getting discovery IPs: {e}")
+            logger.error("Error getting discovery IPs: %s", e)
             return 0
 
     def format_device_info(self, device: dict[str, Any]) -> str:
@@ -106,10 +106,10 @@ class DiscoveryMonitor:
         if not state_str:
             state_str = "NONE"
         discovery_ips = self.get_discovery_ips_count()
-        logger.info(f"[{self._timestamp()}] 📊 SUMMARY (after {elapsed_str}):")
-        logger.info(f"  Total devices: {len(current_devices)} ({state_str})")
-        logger.info(f"  Discovery IPs: {discovery_ips} configured")
-        logger.info(f"  Checks: {self.check_count}")
+        logger.info("[%s] 📊 SUMMARY (after %s):", self._timestamp(), elapsed_str)
+        logger.info("  Total devices: %s (%s)", len(current_devices), state_str)
+        logger.info("  Discovery IPs: %s configured", discovery_ips)
+        logger.info("  Checks: %s", self.check_count)
 
     def _format_elapsed(self, seconds: float) -> str:
         if seconds < 60:
@@ -138,7 +138,7 @@ class DiscoveryMonitor:
                         f"[{self._timestamp()}] 🆕 {len(new_devices)} NEW DEVICE(S) DISCOVERED:"
                     )
                     for device in new_devices:
-                        logger.info(f"  ├─ {self.format_device_info(device)}")
+                        logger.info("  ├─ %s", self.format_device_info(device))
                     logger.info("")
                 if state_changes:
                     for device, _old_state, _new_state in state_changes:
@@ -195,6 +195,6 @@ class Command(BaseCommand):
             )
             monitor.run(duration=options.get("duration"))
         except Exception as e:
-            logger.error(f"Fatal error: {e}")
+            logger.error("Fatal error: %s", e)
             self.stderr.write(self.style.ERROR(f"Fatal error: {e}"))
             return
