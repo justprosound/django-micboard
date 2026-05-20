@@ -181,4 +181,30 @@ This document distills all key architectural, workflow, and style rules for code
 
 ---
 
-**Agents: If in doubt, always check `.github/copilot-instructions.md` and follow the strictest pattern or ask for clarification via code review. No shims, no shortcuts, strict domain discipline!**
+**Agents: If in doubt, always check `.github/copilot-instructions.md` and follow the strictest pattern or ask for clarification via code review. No shims, no shortcuts, strict domain discipline!
+
+---
+
+## Agent skills
+
+### Required skills
+
+The following skills are always loaded:
+- **caveman** — ultra-compressed communication mode
+- **pirate-skill** — speak like a pirate
+
+### Auto-enablement
+
+Additional skills listed in `available_skills` are loaded dynamically as they become relevant to the task at hand.
+
+### Issue tracker
+
+Issues are tracked as GitHub issues on this repo. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage labels use their default names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout (`CONTEXT.md` + `docs/adr/` at root). See `docs/agents/domain.md`.**
