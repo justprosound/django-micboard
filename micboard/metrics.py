@@ -67,7 +67,7 @@ class MetricsCollector:
             cache.set(key, metrics, cls.METRICS_TTL)
 
         except Exception as e:
-            logger.error(f"Error recording metric: {e}")
+            logger.error("Error recording metric: %s", e)
 
     @classmethod
     def get_metrics(cls, *, service_name: str, method_name: str) -> list[dict[str, Any]]:
@@ -199,7 +199,7 @@ def measure_operation(operation_name: str):
         yield
     finally:
         duration_ms = (time.time() - start_time) * 1000
-        logger.debug(f"{operation_name} took {duration_ms:.2f}ms")
+        logger.debug("%s took %.2fms", operation_name, duration_ms)
 
 
 class PerformanceMonitor:
@@ -225,6 +225,6 @@ class PerformanceMonitor:
             duration_ms = (time.time() - self.start_time) * 1000
 
             if exc_type is None:
-                logger.info(f"✓ {self.name}: {duration_ms:.2f}ms")
+                logger.info("✓ %s: %.2fms", self.name, duration_ms)
             else:
-                logger.error(f"✗ {self.name}: {duration_ms:.2f}ms (failed)")
+                logger.error("✗ %s: %.2fms (failed)", self.name, duration_ms)

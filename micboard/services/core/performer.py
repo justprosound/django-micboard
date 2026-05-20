@@ -78,7 +78,7 @@ class PerformerService:
             notes=notes,
             is_active=True,
         )
-        logger.info(f"Created performer: {performer.name}")
+        logger.info("Created performer: %s", performer.name)
         return performer
 
     @staticmethod
@@ -124,7 +124,7 @@ class PerformerService:
             performer.is_active = is_active
 
         performer.save()
-        logger.info(f"Updated performer: {performer.name}")
+        logger.info("Updated performer: %s", performer.name)
         return performer
 
     @staticmethod
@@ -136,7 +136,7 @@ class PerformerService:
         """
         performer.is_active = False
         performer.save(update_fields=["is_active"])
-        logger.info(f"Deactivated performer: {performer.name}")
+        logger.info("Deactivated performer: %s", performer.name)
 
     @staticmethod
     def get_performer_assignments(performer: Performer) -> QuerySet:

@@ -19,7 +19,7 @@ from micboard.services.manufacturer.plugin_registry import PluginRegistry
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.manufacturers.base import ManufacturerPlugin
+    from micboard.integrations.common.base import ManufacturerPlugin
 
 
 class ManufacturerService:

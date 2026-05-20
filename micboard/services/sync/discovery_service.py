@@ -18,8 +18,8 @@ except ImportError:
 
 
 from micboard.discovery.network_utils import expand_cidrs, resolve_fqdns
-from micboard.manufacturers import get_manufacturer_plugin
-from micboard.manufacturers.base import BaseAPIClient
+from micboard.integrations.common import get_manufacturer_plugin
+from micboard.integrations.common.base import BaseAPIClient
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis

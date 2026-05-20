@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, cast
 
-from micboard.manufacturers.base import BasePlugin
+from micboard.integrations.common.base import BasePlugin
 
 from .client import ShureSystemAPIClient
 from .transformers import ShureDataTransformer

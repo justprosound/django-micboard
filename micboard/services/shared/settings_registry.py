@@ -145,7 +145,7 @@ class SettingsRegistry:
         # Clear cache
         cache_key = SettingsRegistry._build_cache_key(key, organization, site, manufacturer)
         cache.delete(cache_key)
-        logger.info(f"Set setting {key} = {value}")
+        logger.info("Set setting %s = %s", key, value)
 
     @staticmethod
     def get_all_for_scope(

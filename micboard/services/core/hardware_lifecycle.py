@@ -368,7 +368,7 @@ class HardwareLifecycleManager:
         try:
             client = service.get_client()
             if not client:
-                logger.error(f"No client available for {service.code}")
+                logger.error("No client available for %s", service.code)
                 return False
 
             # Build payload from device

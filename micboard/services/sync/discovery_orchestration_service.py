@@ -45,7 +45,7 @@ class DiscoveryOrchestrationService:
         Returns:
             Mapping: {manufacturer_code: {status, count, devices/error}}
         """
-        from micboard.manufacturers import get_manufacturer_plugin
+        from micboard.integrations.common import get_manufacturer_plugin
         from micboard.models.discovery import Manufacturer
         from micboard.services.sync.hardware_sync_service import HardwareSyncService
 
@@ -110,7 +110,7 @@ class DiscoveryOrchestrationService:
         Returns:
             {manufacturer_code: {status, device}} or {error: msg}
         """
-        from micboard.manufacturers import get_manufacturer_plugin
+        from micboard.integrations.common import get_manufacturer_plugin
         from micboard.models.discovery import Manufacturer
 
         if not device_id:

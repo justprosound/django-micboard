@@ -104,7 +104,7 @@ def admin_dashboard(request) -> render:
         try:
             plugin = PluginRegistry.get_plugin(mfg.code, mfg)
         except Exception as e:
-            logger.warning(f"Error getting plugin for {mfg.code}: {e}")
+            logger.warning("Error getting plugin for %s: %s", mfg.code, e)
 
         if plugin:
             try:
@@ -295,7 +295,7 @@ def api_dashboard_data(request) -> JsonResponse:
                         "last_poll": None,
                     }
             except Exception as plugin_err:
-                logger.warning(f"Error checking plugin health: {plugin_err}")
+                logger.warning("Error checking plugin health: %s", plugin_err)
                 if plugin.manufacturer:
                     service_health[plugin.manufacturer.code] = {
                         "status": "error",
@@ -303,7 +303,7 @@ def api_dashboard_data(request) -> JsonResponse:
                         "last_poll": None,
                     }
     except Exception as e:
-        logger.warning(f"Error getting service health: {e}")
+        logger.warning("Error getting service health: %s", e)
 
     # Recent activities
     recent_activities = (

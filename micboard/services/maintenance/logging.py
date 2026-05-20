@@ -233,7 +233,7 @@ class StructuredLogger:
 
         manufacturer = Manufacturer.objects.filter(code=service_code).first()
         if not manufacturer:
-            logger.warning(f"Manufacturer not found for {service_code}")
+            logger.warning("Manufacturer not found for %s", service_code)
             return None
 
         log = ServiceSyncLog.objects.create(

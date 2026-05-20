@@ -9,7 +9,7 @@ from datetime import timedelta
 from django.core.cache import cache
 from django.utils import timezone
 
-from micboard.manufacturers import get_manufacturer_plugin
+from micboard.integrations.common import get_manufacturer_plugin
 from micboard.models.discovery import Manufacturer
 from micboard.models.realtime import RealTimeConnection
 from micboard.models.telemetry import APIHealthLog

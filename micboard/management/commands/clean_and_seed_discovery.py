@@ -36,14 +36,14 @@ class Command(BaseCommand):
             ipaddress.ip_network(cidr, strict=False)
             return True
         except ValueError as e:
-            logger.error(f"Invalid CIDR {cidr}: {e}")
+            logger.error("Invalid CIDR %s: %s", cidr, e)
             return False
 
     def validate_fqdn(self, fqdn):
         pattern = r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$"
         if re.match(pattern, fqdn, re.IGNORECASE):
             return True
-        logger.error(f"Invalid FQDN {fqdn}")
+        logger.error("Invalid FQDN %s", fqdn)
         return False
 
     def clean_db(self):
@@ -61,7 +61,7 @@ class Command(BaseCommand):
         ]
         for model in models_to_clear:
             count = model.objects.all().delete()[0]
-            logger.info(f"  Deleted {count} records from {model._meta.verbose_name}")
+            logger.info("  Deleted %s records from %s", count, model._meta.verbose_name)
 
     def seed_data(self):
         logger.info("Seeding clean discovery data...")
@@ -75,12 +75,12 @@ class Command(BaseCommand):
             for cidr in cidrs:
                 if self.validate_cidr(cidr):
                     DiscoveryCIDR.objects.create(manufacturer=shure, cidr=cidr)
-                    logger.info(f"  Added Discovery CIDR: {cidr}")
+                    logger.info("  Added Discovery CIDR: %s", cidr)
             fqdns = ["shure-receiver-01.local", "shure-mgmt.internal.net"]
             for fqdn in fqdns:
                 if self.validate_fqdn(fqdn):
                     DiscoveryFQDN.objects.create(manufacturer=shure, fqdn=fqdn)
-                    logger.info(f"  Added Discovery FQDN: {fqdn}")
+                    logger.info("  Added Discovery FQDN: %s", fqdn)
             manual_devices = [
                 {
                     "name": "Manual AD4Q",
@@ -120,4 +120,4 @@ class Command(BaseCommand):
                         api_device_id=f"API-{dev['serial']}",
                         status="online",
                     )
-                logger.info(f"  Created manual {dev['role']}: {dev['name']} at {dev['ip']}")
+                logger.info("  Created manual %s: %s at %s", dev["role"], dev["name"], dev["ip"])

@@ -30,13 +30,13 @@ class Command(BaseCommand):
         try:
             logger.info("\n1. Fetching devices...")
             devices = client.devices.get_devices()
-            logger.info(f"✓ Got {len(devices)} devices")
+            logger.info("✓ Got %s devices", len(devices))
             if not devices:
                 logger.warning("No devices available")
                 self.stderr.write(self.style.WARNING("No devices available"))
                 return
             device_id = devices[0].get("id")
-            logger.info(f"\n2. Inspecting first device: {device_id}")
+            logger.info("\n2. Inspecting first device: %s", device_id)
             logger.info("\n3. Fetching device status (should contain frequencyBand)...")
             status = client.devices.get_device_status(device_id)
             if status:
@@ -52,10 +52,10 @@ class Command(BaseCommand):
                         value_str = (
                             json.dumps(value) if not isinstance(value, str) else f'"{value}"'
                         )
-                    logger.info(f"      • {key}: {value_str}")
+                    logger.info("      • %s: %s", key, value_str)
                 frequency_band = status.get("frequencyBand")
                 if frequency_band is not None:
-                    logger.info(f"\n   ✓ frequencyBand found: {frequency_band}")
+                    logger.info("\n   ✓ frequencyBand found: %s", frequency_band)
                 else:
                     logger.info("\n   ⚠ frequencyBand NOT found in status")
                     logger.info("     (May be available in other endpoints)")
@@ -65,26 +65,26 @@ class Command(BaseCommand):
             enriched = client.devices._enrich_device_data(device_id, devices[0].copy())
             logger.info("   After enrichment:")
             if "frequency_band" in enriched:
-                logger.info(f"      ✓ frequency_band: {enriched['frequency_band']}")
+                logger.info("      ✓ frequency_band: %s", enriched["frequency_band"])
             else:
                 logger.info("      ⚠ frequency_band: not populated")
             logger.info("\n5. WirelessChassis model information:")
-            logger.info(f"      • model: {enriched.get('model', 'N/A')}")
-            logger.info(f"      • model_variant: {enriched.get('model_variant', 'N/A')}")
-            logger.info(f"      • serial_number: {enriched.get('serial_number', 'N/A')}")
-            logger.info(f"      • firmware_version: {enriched.get('firmware_version', 'N/A')}")
+            logger.info("      • model: %s", enriched.get("model", "N/A"))
+            logger.info("      • model_variant: %s", enriched.get("model_variant", "N/A"))
+            logger.info("      • serial_number: %s", enriched.get("serial_number", "N/A"))
+            logger.info("      • firmware_version: %s", enriched.get("firmware_version", "N/A"))
             logger.info("\n" + "=" * 80)
             logger.info("SUMMARY")
             logger.info("=" * 80)
             if status and status.get("frequencyBand"):
-                logger.info(f"✓ API provides frequencyBand = '{status['frequencyBand']}'")
+                logger.info("✓ API provides frequencyBand = '%s'", status["frequencyBand"])
                 logger.info("✓ Ready for band plan auto-detection")
             else:
                 logger.info("ℹ  API doesn't provide frequencyBand in status")
                 logger.info("ℹ  Fallback to model code detection available")
             logger.info("=" * 80)
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error("Error: %s", e)
             import traceback
 
             traceback.print_exc()

@@ -47,10 +47,10 @@ class LoggingModeService:
         if ttl_seconds:
             expiry = time.time() + ttl_seconds
             cache.set(CACHE_EXPIRY_KEY, expiry, timeout=None)
-            logger.info(f"Logging mode set to '{mode}' for {ttl_seconds}s")
+            logger.info("Logging mode set to '%s' for %ss", mode, ttl_seconds)
         else:
             cache.delete(CACHE_EXPIRY_KEY)
-            logger.info(f"Logging mode set to '{mode}' (no expiry)")
+            logger.info("Logging mode set to '%s' (no expiry)", mode)
 
     @staticmethod
     def should_log(level: LogMode) -> bool:

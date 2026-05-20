@@ -76,7 +76,7 @@ class ManufacturerConfigRegistry:
         # Start with defaults or registry
         config = cls._registry.get(manufacturer_code)
         if not config:
-            logger.warning(f"No configuration found for manufacturer {manufacturer_code}")
+            logger.warning("No configuration found for manufacturer %s", manufacturer_code)
             return ManufacturerConfig(manufacturer_code=manufacturer_code)
 
         # If no manufacturer instance, return registry version
@@ -114,7 +114,7 @@ class ManufacturerConfigRegistry:
             value,
             manufacturer=manufacturer,
         )
-        logger.info(f"Set {manufacturer_code}.{key} = {value}")
+        logger.info("Set %s.%s = %s", manufacturer_code, key, value)
 
     @classmethod
     def _apply_overrides(

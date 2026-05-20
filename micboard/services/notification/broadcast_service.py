@@ -99,7 +99,7 @@ class BroadcastService:
                     "is_active": is_active,
                 },
             )
-            logger.debug(f"Broadcasted status change: {device_type} {device_id} -> {status}")
+            logger.debug("Broadcasted status change: %s %s -> %s", device_type, device_id, status)
         except Exception:
             logger.exception("Failed to broadcast device status update")
 
@@ -125,7 +125,7 @@ class BroadcastService:
                     "status": sync_result.get("status", "success"),
                 },
             )
-            logger.debug(f"Broadcasted sync completion: {service_code}")
+            logger.debug("Broadcasted sync completion: %s", service_code)
         except Exception:
             logger.exception("Failed to broadcast sync completion update")
 
@@ -151,7 +151,7 @@ class BroadcastService:
                     "device_count": device_count,
                 },
             )
-            logger.debug(f"Broadcasted discovery approval for {manufacturer_code}")
+            logger.debug("Broadcasted discovery approval for %s", manufacturer_code)
         except Exception:
             logger.exception("Failed to broadcast discovery approval")
 
@@ -182,6 +182,6 @@ class BroadcastService:
                     "timestamp": timezone.now().isoformat(),
                 },
             )
-            logger.debug(f"Broadcasted error: {error_type}")
+            logger.debug("Broadcasted error: %s", error_type)
         except Exception:
             logger.exception("Failed to broadcast error notification")

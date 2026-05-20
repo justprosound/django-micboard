@@ -78,11 +78,11 @@ class EmailService:
                 )
                 return True
             else:
-                logger.error(f"Failed to send alert notification for alert {alert.id}")
+                logger.error("Failed to send alert notification for alert %s", alert.id)
                 return False
 
         except Exception as e:
-            logger.exception(f"Error sending alert notification for alert {alert.id}: {e}")
+            logger.exception("Error sending alert notification for alert %s: %s", alert.id, e)
             return False
 
     def send_system_notification(
@@ -116,14 +116,14 @@ class EmailService:
 
             sent = email.send()
             if sent:
-                logger.info(f"System notification sent to {len(recipients)} recipients")
+                logger.info("System notification sent to %s recipients", len(recipients))
                 return True
             else:
                 logger.error("Failed to send system notification")
                 return False
 
         except Exception as e:
-            logger.exception(f"Error sending system notification: {e}")
+            logger.exception("Error sending system notification: %s", e)
             return False
 
     def _get_default_recipients(self) -> list[str]:

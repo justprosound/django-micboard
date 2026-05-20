@@ -11,7 +11,6 @@ This package contains:
 
 from __future__ import annotations
 
-from .base_crud import GenericCRUDService
 from .compliance import ComplianceResult, ComplianceService
 from .exceptions import (
     ConnectionError,
@@ -32,7 +31,6 @@ __all__ = [
     "ComplianceService",
     "ConnectionError",
     "DiscoveryError",
-    "GenericCRUDService",
     "HardwareNotFoundError",
     "LocationAlreadyExistsError",
     "LocationNotFoundError",

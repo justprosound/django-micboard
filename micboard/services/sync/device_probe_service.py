@@ -121,9 +121,9 @@ class DeviceProbeService:
             device_info = self.probe_device(ip.strip())
             if device_info:
                 self.discovered_devices.append(device_info)
-                logger.info(f"Discovered device at {ip}")
+                logger.info("Discovered device at %s", ip)
             else:
-                logger.debug(f"No device found at {ip}")
+                logger.debug("No device found at %s", ip)
 
         return self.discovered_devices
 
@@ -137,7 +137,7 @@ class DeviceProbeService:
             List of discovered device info dicts
         """
         if not os.path.exists(filename):
-            logger.warning(f"IP list file not found: {filename}")
+            logger.warning("IP list file not found: %s", filename)
             return []
 
         ips = []
@@ -147,7 +147,7 @@ class DeviceProbeService:
                 if line and not line.startswith("#"):
                     ips.append(line)
 
-        logger.info(f"Loaded {len(ips)} IP addresses from {filename}")
+        logger.info("Loaded %s IP addresses from %s", len(ips), filename)
         return self.probe_ips(ips)
 
     def probe_from_env(self, *, env_var: str = "DEVICE_IPS") -> list[dict[str, Any]]:
@@ -161,11 +161,11 @@ class DeviceProbeService:
         """
         ips_str = os.environ.get(env_var, "")
         if not ips_str:
-            logger.warning(f"Environment variable {env_var} not set or empty")
+            logger.warning("Environment variable %s not set or empty", env_var)
             return []
 
         ips = [ip.strip() for ip in ips_str.split(",") if ip.strip()]
-        logger.info(f"Loaded {len(ips)} IP addresses from ${env_var}")
+        logger.info("Loaded %s IP addresses from $%s", len(ips), env_var)
         return self.probe_ips(ips)
 
     def save_discovery_manifest(
@@ -192,7 +192,7 @@ class DeviceProbeService:
         with open(filename, "w") as f:
             json.dump(manifest, f, indent=2)
 
-        logger.info(f"Saved {len(self.discovered_devices)} discovered devices to {filename}")
+        logger.info("Saved %s discovered devices to %s", len(self.discovered_devices), filename)
 
     def get_discovered_devices(self) -> list[dict[str, Any]]:
         """Get list of all discovered devices from last probe.
@@ -239,12 +239,12 @@ class DeviceAPIHealthChecker:
             )
             is_healthy = response.status_code == 200
             if is_healthy:
-                logger.info(f"API at {self.api_base_url} is healthy")
+                logger.info("API at %s is healthy", self.api_base_url)
             else:
-                logger.warning(f"API at {self.api_base_url} returned {response.status_code}")
+                logger.warning("API at %s returned %s", self.api_base_url, response.status_code)
             return is_healthy
         except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to check API health at {self.api_base_url}: {e}")
+            logger.error("Failed to check API health at %s: %s", self.api_base_url, e)
             return False
 
     def get_api_status(self, *, timeout: int = 5) -> dict[str, Any]:

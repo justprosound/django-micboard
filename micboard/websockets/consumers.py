@@ -33,13 +33,13 @@ class MicboardConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
 
         await self.accept()
-        logger.info(f"WebSocket connected: {self.channel_name}")
+        logger.info("WebSocket connected: %s", self.channel_name)
 
     async def disconnect(self, code: int):
         """Handle WebSocket disconnection."""
         # Leave room group
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
-        logger.info(f"WebSocket disconnected: {self.channel_name}")
+        logger.info("WebSocket disconnected: %s", self.channel_name)
 
     async def receive(self, text_data: str | None = None, bytes_data: bytes | None = None):
         """Handle incoming messages from client."""

@@ -1,9 +1,6 @@
-"""Base classes and abstract plugin API for backwards compatibility.
+"""Base classes and abstract plugin API for manufacturer integrations.
 
-This module provides minimal abstract base classes expected by code that
-previously imported `micboard.manufacturers.base`. New integrations should live
-under `micboard.integrations` and implement their own concrete plugin and
-client classes.
+Provides minimal abstract base classes expected by integration implementations.
 """
 
 from __future__ import annotations
@@ -13,7 +10,7 @@ from typing import Any
 
 
 class BaseAPIClient(ABC):
-    """Minimal API client base used by integration clients (compat shim)."""
+    """Minimal API client base used by integration clients."""
 
     @abstractmethod
     def is_healthy(self) -> bool:
@@ -66,7 +63,7 @@ class BasePlugin(ABC):
 
 
 class ManufacturerPlugin(BasePlugin):
-    """Alias kept for older code that imports `ManufacturerPlugin`.
+    """Plugin base class for manufacturer integrations.
 
     Integrations may subclass this to satisfy tests and runtime imports.
     """
@@ -94,5 +91,3 @@ class ManufacturerPlugin(BasePlugin):
     @abstractmethod
     def check_health(self) -> dict[str, Any]:
         raise NotImplementedError()
-
-    pass

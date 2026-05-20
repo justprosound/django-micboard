@@ -70,7 +70,7 @@ class DeviceSpecService:
                 manufacturer=mfg_code,
             )
         except Exception as e:
-            logger.warning(f"Failed to get specs for {manufacturer.code}/{model}: {e}")
+            logger.warning("Failed to get specs for %s/%s: %s", manufacturer.code, model, e)
             return None
 
     @staticmethod
@@ -88,4 +88,4 @@ class DeviceSpecService:
         if spec:
             chassis.max_channels = spec.max_channels  # type: ignore
             chassis.dante_capable = spec.dante_capable  # type: ignore
-            logger.debug(f"Applied specs to {chassis}: {spec}")
+            logger.debug("Applied specs to %s: %s", chassis, spec)
