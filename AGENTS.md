@@ -207,4 +207,4 @@ The five canonical triage labels use their default names. See `docs/agents/triag
 
 ### Domain docs
 
-Single-context layout (`CONTEXT.md` + `docs/adr/` at root). See `docs/agents/domain.md`.**
+Single-context layout (`CONTEXT.md` + `docs/adr/` at root). See `docs/agents/domain.md`.
