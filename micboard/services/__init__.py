@@ -17,6 +17,8 @@ Service Organization (Functional Subfolders):
 from __future__ import annotations
 
 # Core services
+from .core.device_api_sync_service import DeviceAPISyncService
+from .core.device_health_service import DeviceHealthService
 from .core.hardware import HardwareService, NormalizedHardware
 from .core.hardware_lifecycle import HardwareLifecycleManager, get_lifecycle_manager
 from .core.location import LocationService
@@ -64,6 +66,8 @@ __all__ = [
     "APIServerPollingService",
     "ConnectionHealthService",
     "DeviceAPIHealthChecker",
+    "DeviceAPISyncService",
+    "DeviceHealthService",
     "DeviceProbeService",
     "HardwareDeduplicationService",
     "HardwareService",

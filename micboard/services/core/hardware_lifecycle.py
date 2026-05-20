@@ -217,9 +217,10 @@ class HardwareLifecycleManager:
             },
         )
 
-        # Optionally sync to manufacturer API
         if sync_to_api and self.service_code:
-            self._sync_status_to_api(device, to_status, metadata)
+            from .device_api_sync_service import _sync_status_to_api as _do_api_sync
+
+            _do_api_sync(self.service_code, device, to_status, metadata)
 
         return True
 
@@ -285,194 +286,6 @@ class HardwareLifecycleManager:
         """Mark device as retired (terminal state)."""
         return self.transition_device(device, HardwareStatus.RETIRED.value, reason=reason)
 
-    @transaction.atomic
-    def update_device_from_api(
-        self,
-        device: WirelessChassis | WirelessUnit,
-        api_data: dict[str, Any],
-        *,
-        service_code: str,
-    ) -> bool:
-        """Update device from manufacturer API data (pull sync).
-
-        Args:
-            device: Device to update
-            api_data: Raw data from manufacturer API
-            service_code: Manufacturer service code
-
-        Returns:
-            True if update succeeded
-        """
-        device = device.__class__.objects.select_for_update().get(pk=device.pk)
-
-        old_values = {
-            "name": device.name,
-            "firmware_version": device.firmware_version,
-            "status": device.status,
-        }
-
-        # Update fields from API
-        device.name = api_data.get("name", device.name)
-        device.firmware_version = api_data.get("firmware_version", device.firmware_version)
-        device.last_seen = timezone.now()
-
-        # Determine status from API state
-        api_state = api_data.get("state", "").upper()
-        new_status = self._map_api_state_to_status(api_state, device.status)
-
-        if new_status != device.status:
-            device.status = new_status
-
-        device.save(update_fields=["name", "firmware_version", "status", "last_seen", "updated_at"])
-
-        # Log update
-        if self._logger:
-            self._logger.log_crud_update(
-                device,
-                old_values=old_values,
-                new_values={
-                    "name": device.name,
-                    "firmware_version": device.firmware_version,
-                    "status": device.status,
-                },
-            )
-
-        logger.debug(
-            f"Updated device from API: {device.__class__.__name__} {device.pk}",
-            extra={
-                "device_id": device.pk,
-                "service_code": service_code,
-                "api_data_keys": list(api_data.keys()),
-            },
-        )
-
-        return True
-
-    def sync_device_to_api(
-        self,
-        device: WirelessChassis | WirelessUnit,
-        service,
-        *,
-        fields: list[str] | None = None,
-    ) -> bool:
-        """Push device changes to manufacturer API (push sync).
-
-        Args:
-            device: Device to sync
-            service: ManufacturerService instance
-            fields: Optional list of fields to sync (None = all)
-
-        Returns:
-            True if sync succeeded
-        """
-        try:
-            client = service.get_client()
-            if not client:
-                logger.error("No client available for %s", service.code)
-                return False
-
-            # Build payload from device
-            payload = self._build_api_payload(device, fields)
-
-            # Push to API
-            success = client.update_device(device.api_device_id, payload)
-
-            if success:
-                logger.info(
-                    f"Synced device to API: {device.__class__.__name__} {device.pk}",
-                    extra={
-                        "device_id": device.pk,
-                        "service_code": service.code,
-                        "fields": fields or "all",
-                    },
-                )
-            else:
-                logger.warning(
-                    f"Failed to sync device to API: {device.__class__.__name__} {device.pk}",
-                    extra={"device_id": device.pk, "service_code": service.code},
-                )
-
-            return success
-
-        except Exception as e:
-            logger.error(
-                f"Error syncing device to API: {e}",
-                exc_info=True,
-                extra={"device_id": device.pk},
-            )
-            return False
-
-    def check_device_health(
-        self, device: WirelessChassis | WirelessUnit, *, threshold_minutes: int = 5
-    ) -> str:
-        """Check device health and auto-transition if needed.
-
-        Args:
-            device: Device to check
-            threshold_minutes: Minutes without response before marking offline
-
-        Returns:
-            Current health status
-        """
-        if device.status == HardwareStatus.MAINTENANCE.value:
-            return "maintenance"
-
-        if device.status == HardwareStatus.RETIRED.value:
-            return "retired"
-
-        if not device.last_seen:
-            # Never seen, leave in current state
-            return "unknown"
-
-        time_since = timezone.now() - device.last_seen
-        threshold = timedelta(minutes=threshold_minutes)
-
-        if time_since > threshold:
-            # Auto-transition to offline
-            if device.status != HardwareStatus.OFFLINE.value:
-                self.mark_offline(
-                    device, reason=f"No response for {time_since.total_seconds():.0f}s"
-                )
-            return "offline"
-
-        # Device is responsive
-        if device.status == HardwareStatus.OFFLINE.value:
-            # Auto-recover to online
-            self.mark_online(device)
-
-        return device.status
-
-    def bulk_health_check(
-        self,
-        devices: list[WirelessChassis | WirelessUnit],
-        *,
-        threshold_minutes: int = 5,
-    ) -> dict[str, int]:
-        """Check health of multiple devices efficiently.
-
-        Args:
-            devices: List of devices to check
-            threshold_minutes: Offline threshold
-
-        Returns:
-            Dict with status counts
-        """
-        results = {"online": 0, "offline": 0, "degraded": 0, "maintenance": 0, "other": 0}
-
-        for device in devices:
-            status = self.check_device_health(device, threshold_minutes=threshold_minutes)
-            if status in results:
-                results[status] += 1
-            else:
-                results["other"] += 1
-
-        logger.info(
-            f"Bulk health check: {len(devices)} devices",
-            extra={"device_count": len(devices), "results": results},
-        )
-
-        return results
-
     def update_stale_devices(self, *, timeout_minutes: int = 5) -> int:
         """Mark devices offline when last_seen is older than threshold."""
         from micboard.models import WirelessChassis
@@ -512,40 +325,6 @@ class HardwareLifecycleManager:
 
         return chassis
 
-    def sync_state_from_api(
-        self, device: WirelessChassis | WirelessUnit, api_data: dict[str, Any]
-    ) -> bool:
-        """Update a device's status field based on API payload."""
-        state = api_data.get("deviceState") or api_data.get("state")
-        if not state:
-            return False
-        target_status = self._map_api_state_to_status(str(state).upper(), device.status)
-        return self.transition_device(device, target_status, metadata={"source": "api"})
-
-    def bulk_mark_offline(self, *, chassis_ids: list[int]) -> int:
-        """Mark multiple chassis offline."""
-        from micboard.models import WirelessChassis
-
-        updated = 0
-        for chassis in WirelessChassis.objects.filter(pk__in=chassis_ids):
-            if self.mark_offline(chassis, reason="Bulk offline operation"):
-                updated += 1
-        return updated
-
-    def bulk_sync_states(self, api_states: dict[str, dict[str, Any]]) -> int:
-        """Sync state for chassis keyed by serial_number."""
-        from micboard.models import WirelessChassis
-
-        serials = list(api_states.keys())
-        updated = 0
-
-        for chassis in WirelessChassis.objects.filter(serial_number__in=serials):
-            payload = api_states.get(chassis.serial_number, {})
-            if self.sync_state_from_api(chassis, payload):
-                updated += 1
-
-        return updated
-
     def handle_poll_result(
         self, device: WirelessChassis | WirelessUnit, poll_data: dict[str, Any]
     ) -> bool:
@@ -576,56 +355,18 @@ class HardwareLifecycleManager:
 
     def _map_api_state_to_status(self, api_state: str, current_status: str) -> str:
         """Map manufacturer API state to HardwareStatus."""
-        state_mapping = {
-            "ONLINE": HardwareStatus.ONLINE.value,
-            "DISCOVERING": HardwareStatus.PROVISIONING.value,
-            "OFFLINE": HardwareStatus.OFFLINE.value,
-            "UNKNOWN": HardwareStatus.DISCOVERED.value,
-        }
-        return state_mapping.get(api_state, current_status)
+        return map_api_state_to_status(api_state, current_status)
 
-    def _build_api_payload(
-        self, device: WirelessChassis | WirelessUnit, fields: list[str] | None = None
-    ) -> dict[str, Any]:
-        """Build API payload from device model."""
-        payload = {
-            "name": device.name,
-            "status": device.status,
-        }
 
-        if fields:
-            payload = {k: v for k, v in payload.items() if k in fields}
-
-        return payload
-
-    def _sync_status_to_api(
-        self,
-        device: WirelessChassis | WirelessUnit,
-        status: str,
-        metadata: dict[str, Any] | None,
-    ) -> None:
-        """Push status change to manufacturer API."""
-        if not self.service_code:
-            return
-
-        try:
-            from micboard.services.manufacturer.plugin_registry import PluginRegistry
-
-            plugin = PluginRegistry.get_plugin(self.service_code)
-            if plugin:
-                # Plugin found - log intent to sync
-                # Note: Actual sync implementation is manufacturer-specific
-                logger.info(
-                    f"Plugin available for {self.service_code}, "
-                    f"status sync may require manufacturer-specific implementation",
-                    extra={"device_id": device.pk, "status": status},
-                )
-        except Exception as e:
-            logger.warning(
-                f"Failed to sync status to API: {e}",
-                exc_info=True,
-                extra={"device_id": device.pk, "status": status},
-            )
+def map_api_state_to_status(api_state: str, current_status: str) -> str:
+    """Map manufacturer API state to HardwareStatus."""
+    state_mapping = {
+        "ONLINE": HardwareStatus.ONLINE.value,
+        "DISCOVERING": HardwareStatus.PROVISIONING.value,
+        "OFFLINE": HardwareStatus.OFFLINE.value,
+        "UNKNOWN": HardwareStatus.DISCOVERED.value,
+    }
+    return state_mapping.get(api_state, current_status)
 
 
 def get_structured_logger() -> Any:
