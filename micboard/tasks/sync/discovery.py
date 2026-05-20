@@ -21,7 +21,7 @@ from micboard.models.discovery.registry import (
     MicboardConfig,
 )
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.sync.discovery_service import DiscoveryService
+from micboard.services.sync.discovery_service import DiscoveryService, get_manufacturer_client
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ def run_manufacturer_discovery_task(manufacturer_id: int, scan_cidrs: bool, scan
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
         discovery_service = DiscoveryService()
-        discovery_service._run_manufacturer_discovery(
+        discovery_service.run_manufacturer_discovery(
             manufacturer, scan_cidrs=scan_cidrs, scan_fqdns=scan_fqdns, max_hosts=1024
         )
         logger.info(
@@ -111,8 +111,7 @@ def cache_all_discovery_candidates(scan_cidrs: bool = False, scan_fqdns: bool = 
         try:
             run_manufacturer_discovery_task(m.pk, scan_cidrs, scan_fqdns)
             # After running discovery, retrieve the updated candidates from the client
-            discovery_service = DiscoveryService()
-            client = discovery_service._get_manufacturer_client(m)
+            client = get_manufacturer_client(m)
             ips = client.get_discovery_ips()
             cache_key = f"discovery_candidates_{m.code}_{int(scan_cidrs)}_{int(scan_fqdns)}"
             cache.set(cache_key, {m.code: {"ips": ips}}, timeout=300)

@@ -229,9 +229,9 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.action(description="Refresh device data from manufacturer API")
     def refresh_from_api(self, request, queryset):
         """Refresh discovered device data from manufacturer API."""
-        from micboard.services.sync.discovery_service import DiscoveryService
+        from micboard.services.sync.device_refresh_service import DeviceRefreshService
 
-        service = DiscoveryService()
+        service = DeviceRefreshService()
         updated, failed = service.refresh_discovered_devices_from_api(queryset)
 
         if updated > 0:
@@ -316,10 +316,10 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
             )
 
     def _promote_to_chassis(self, discovered: DiscoveredDevice) -> tuple[bool, str, object]:
-        """Delegate promotion to DiscoveryService to keep admin thin and testable."""
-        from micboard.services.sync.discovery_service import DiscoveryService
+        """Delegate promotion to DevicePromotionService to keep admin thin and testable."""
+        from micboard.services.sync.device_promotion_service import DevicePromotionService
 
-        service = DiscoveryService()
+        service = DevicePromotionService()
         return service.promote_discovered_device(discovered)
 
 

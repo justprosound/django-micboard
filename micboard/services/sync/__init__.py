@@ -11,11 +11,15 @@ This package contains services for:
 from __future__ import annotations
 
 from .base_polling_mixin import PollingMixin
+from .device_detail_service import DeviceDetailService
 from .device_probe_service import (
     DeviceAPIHealthChecker,
     DeviceProbeService,
     probe_device_ip,
 )
+from .device_promotion_service import DevicePromotionService
+from .device_refresh_service import DeviceRefreshService
+from .discovery_candidates_service import DiscoveryCandidateService
 from .discovery_orchestration_service import DiscoveryOrchestrationService
 from .discovery_service import DiscoveryService
 from .hardware_deduplication_service import (
@@ -31,7 +35,11 @@ __all__ = [
     "APIServerPollingService",
     "DeduplicationResult",
     "DeviceAPIHealthChecker",
+    "DeviceDetailService",
     "DeviceProbeService",
+    "DevicePromotionService",
+    "DeviceRefreshService",
+    "DiscoveryCandidateService",
     "DiscoveryOrchestrationService",
     "DiscoveryService",
     "HardwareDeduplicationService",
