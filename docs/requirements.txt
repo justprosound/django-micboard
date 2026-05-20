@@ -24,7 +24,7 @@ beautifulsoup4==4.14.2
     # via mkdocs-meta-descriptions-plugin
 bracex==2.6
     # via wcmatch
-cachecontrol==0.14.3
+cachecontrol==0.14.4
     # via mkdocs-rss-plugin
 certifi==2025.10.5
     # via
