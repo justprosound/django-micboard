@@ -101,9 +101,9 @@ Copilot must follow these naming conventions:
 ### 3.3 Logging
 
 *   Use `logging.exception` for error logging in exception handlers.
-*   Avoid f‑strings in log messages. Prefer:
+*   F-strings are preferred for readability in log messages:
     ```python
-    logger.info("Processing item %s", item_id)
+    logger.info(f"Processing item {item_id}")
     ```
 
 ### 3.4 Caching
