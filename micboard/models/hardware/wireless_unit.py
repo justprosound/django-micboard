@@ -12,6 +12,7 @@ Links to WirelessChassis base unit and RFChannel for RF path tracking.
 
 from __future__ import annotations
 
+import warnings
 from datetime import datetime, timedelta
 from typing import ClassVar
 
@@ -305,145 +306,166 @@ class WirelessUnit(models.Model):
 
     @property
     def battery_percentage(self) -> int | None:
-        """Get battery level as percentage."""
-        if self.battery == self.UNKNOWN_BYTE_VALUE:
-            return None
-        return min(100, max(0, self.battery * 100 // self.UNKNOWN_BYTE_VALUE))
+        """Get battery level as percentage.
+
+        Deprecated: use wireless_unit_service.get_battery_percentage() instead.
+        """
+        warnings.warn(
+            "WirelessUnit.battery_percentage is deprecated, "
+            "use wireless_unit_service.get_battery_percentage(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import get_battery_percentage
+
+        return get_battery_percentage(self)
 
     def get_battery_health(self) -> str:
         """Get battery health status.
 
-        Returns manufacturer API battery_health if available,
-        otherwise computes from battery_percentage.
+        Deprecated: use wireless_unit_service.get_battery_health() instead.
         """
-        # Prefer API-provided battery health
-        if self.battery_health and self.battery_health != "unknown":
-            return self.battery_health
+        warnings.warn(
+            "WirelessUnit.get_battery_health() is deprecated, "
+            "use wireless_unit_service.get_battery_health(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import get_battery_health
 
-        # Fallback: compute from percentage
-        pct = self.battery_percentage
-        if pct is None:
-            return "unknown"
-        if pct > 50:
-            return "good"
-        if pct > 25:
-            return "fair"
-        if pct > 10:
-            return "poor"
-        return "critical"
+        return get_battery_health(self)
 
     def get_battery_health_display_icon(self) -> str:
-        """Get visual icon for battery health."""
-        health = self.get_battery_health()
-        icons = {
-            "excellent": "🔋✨",
-            "good": "🔋",
-            "fair": "🔋⚠️",
-            "poor": "🪫",
-            "critical": "🪫❗",
-            "unknown": "❓",
-        }
-        return icons.get(health, "❓")
+        """Get visual icon for battery health.
+
+        Deprecated: use wireless_unit_service.get_battery_health_display_icon() instead.
+        """
+        warnings.warn(
+            "WirelessUnit.get_battery_health_display_icon() is deprecated, "
+            "use wireless_unit_service.get_battery_health_display_icon(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import get_battery_health_display_icon
+
+        return get_battery_health_display_icon(self)
 
     def is_active_at_time(self, at_time: datetime | None = None) -> bool:
-        """Check if unit is active at given time (or now)."""
-        check_time = at_time or timezone.now()
-        active_states = ["online", "degraded", "provisioning"]
-        if self.status not in active_states:
-            return False
+        """Check if unit is active at given time (or now).
 
-        ref_time = self.last_seen or self.updated_at
-        if not ref_time:
-            return False
+        Deprecated: use wireless_unit_service.is_active_at_time() instead.
+        """
+        warnings.warn(
+            "WirelessUnit.is_active_at_time() is deprecated, "
+            "use wireless_unit_service.is_active_at_time(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import is_active_at_time
 
-        time_since = check_time - ref_time
-        return time_since < timedelta(minutes=5)
+        return is_active_at_time(self, at_time)
 
     def get_signal_quality(self) -> str:
-        """Get signal quality as text."""
-        if self.quality == self.UNKNOWN_BYTE_VALUE:
-            return "unknown"
-        if self.quality > 200:
-            return "excellent"
-        if self.quality > 150:
-            return "good"
-        if self.quality > 100:
-            return "fair"
-        return "poor"
+        """Get signal quality as text.
+
+        Deprecated: use wireless_unit_service.get_signal_quality() instead.
+        """
+        warnings.warn(
+            "WirelessUnit.get_signal_quality() is deprecated, "
+            "use wireless_unit_service.get_signal_quality(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import get_signal_quality
+
+        return get_signal_quality(self)
 
     def is_transmitter(self) -> bool:
-        """Check if this unit transmits microphone audio."""
-        return self.device_type in ("mic_transmitter", "transceiver")
+        """Check if this unit transmits microphone audio.
+
+        Deprecated: use wireless_unit_service.is_transmitter() instead.
+        """
+        warnings.warn(
+            "WirelessUnit.is_transmitter() is deprecated, "
+            "use wireless_unit_service.is_transmitter(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import is_transmitter
+
+        return is_transmitter(self)
 
     def get_transmitter_metrics(self) -> dict[str, int | str]:
-        """Get transmitter-specific metrics (mic audio, RF level)."""
-        if not self.is_transmitter():
-            return {}
-        return {
-            "audio_level": self.audio_level,
-            "rf_level": self.rf_level,
-            "quality": self.get_signal_quality(),
-            "frequency": self.frequency,
-        }
+        """Get transmitter-specific metrics (mic audio, RF level).
+
+        Deprecated: use wireless_unit_service.get_transmitter_metrics() instead.
+        """
+        warnings.warn(
+            "WirelessUnit.get_transmitter_metrics() is deprecated, "
+            "use wireless_unit_service.get_transmitter_metrics(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import get_transmitter_metrics
+
+        return get_transmitter_metrics(self)
 
     def is_iem_receiver(self) -> bool:
-        """Check if this unit receives IEM mix."""
-        return self.device_type in ("iem_receiver", "transceiver")
+        """Check if this unit receives IEM mix.
+
+        Deprecated: use wireless_unit_service.is_iem_receiver() instead.
+        """
+        warnings.warn(
+            "WirelessUnit.is_iem_receiver() is deprecated, "
+            "use wireless_unit_service.is_iem_receiver(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import is_iem_receiver
+
+        return is_iem_receiver(self)
 
     def get_iem_metrics(self) -> dict[str, int | None]:
-        """Get IEM receiver-specific metrics (link quality, mix level)."""
-        if not self.is_iem_receiver():
-            return {}
-        return {
-            "iem_link_quality": self.iem_link_quality,
-            "iem_audio_level": self.iem_audio_level,
-        }
+        """Get IEM receiver-specific metrics (link quality, mix level).
+
+        Deprecated: use wireless_unit_service.get_iem_metrics() instead.
+        """
+        warnings.warn(
+            "WirelessUnit.get_iem_metrics() is deprecated, "
+            "use wireless_unit_service.get_iem_metrics(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import get_iem_metrics
+
+        return get_iem_metrics(self)
 
     def get_assigned_rf_channel(self):
         """Get the RFChannel this unit is assigned to, if any.
 
-        Note: RF coordination happens at the RFChannel level, not WirelessUnit level.
-        This unit's frequency field is just a reported value from the device.
-        For regulatory checks, use RFChannel.get_regulatory_status() instead.
+        Deprecated: use wireless_unit_service.get_assigned_rf_channel() instead.
         """
-        # Check if this unit is active on any receive channel
-        if hasattr(self, "active_on_receive_channels"):
-            return self.active_on_receive_channels.first()
+        warnings.warn(
+            "WirelessUnit.get_assigned_rf_channel() is deprecated, "
+            "use wireless_unit_service.get_assigned_rf_channel(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import get_assigned_rf_channel
 
-        # Check if linked via assigned_resource (if that field exists)
-        if hasattr(self, "assigned_resource") and self.assigned_resource:
-            return self.assigned_resource
-
-        return None
+        return get_assigned_rf_channel(self)
 
     def get_regulatory_status(self) -> dict[str, str | bool | None]:
         """Get regulatory status by delegating to the assigned RFChannel.
 
-        Note: Actual RF coordination and regulatory compliance happens at RFChannel level.
-        This method is a convenience wrapper that delegates to the assigned channel.
-
-        Returns dict with:
-        - has_coverage: bool
-        - regulatory_domain: str | None
-        - operating_frequency_mhz: float | None
-        - needs_update: bool
-        - message: str
-        - source: str - Indicates this came from RFChannel delegation
+        Deprecated: use wireless_unit_service.get_regulatory_status() instead.
         """
-        rf_channel = self.get_assigned_rf_channel()
+        warnings.warn(
+            "WirelessUnit.get_regulatory_status() is deprecated, "
+            "use wireless_unit_service.get_regulatory_status(unit) instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_unit_service import get_regulatory_status
 
-        if rf_channel:
-            status = rf_channel.get_regulatory_status()
-            status["source"] = "rf_channel"
-            status["message"] = f"Via RFChannel {rf_channel.channel_number}: {status['message']}"
-            return status
-
-        # No RF channel assigned - return basic status
-        return {
-            "has_coverage": False,
-            "regulatory_domain": None,
-            "operating_frequency_mhz": None,
-            "needs_update": False,
-            "source": "no_channel",
-            "message": "ℹ️ No RF channel assigned - regulatory check not applicable",
-        }
+        return get_regulatory_status(self)

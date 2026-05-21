@@ -177,7 +177,7 @@ See [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for detailed architectu
 Extend Micboard with manufacturer-specific plugins:
 
 ```python
-from micboard.manufacturers.base import ManufacturerPlugin
+from micboard.integrations.common.base import ManufacturerPlugin
 
 class MyManufacturerPlugin(ManufacturerPlugin):
     manufacturer_code = 'mymanufacturer'
@@ -195,7 +195,7 @@ class MyManufacturerPlugin(ManufacturerPlugin):
         pass
 ```
 
-Register in `micboard/manufacturers/__init__.py`:
+Register in `micboard/integrations/common/__init__.py`:
 
 ```python
 def get_manufacturer_plugin(code: str):

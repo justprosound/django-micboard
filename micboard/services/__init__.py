@@ -16,6 +16,23 @@ Service Organization (Functional Subfolders):
 
 from __future__ import annotations
 
+# Shared utilities and exceptions
+from micboard.exceptions import (
+    APIError as ConnectionError,
+)
+from micboard.exceptions import (
+    DiscoveryError,
+    HardwareNotFoundError,
+    LocationAlreadyExistsError,
+    LocationNotFoundError,
+)
+from micboard.exceptions import (
+    ManufacturerNotSupportedError as ManufacturerPluginError,
+)
+from micboard.exceptions import (
+    MicboardError as MicboardServiceError,
+)
+
 # Core services
 from .core.device_api_sync_service import DeviceAPISyncService
 from .core.device_health_service import DeviceHealthService
@@ -32,17 +49,6 @@ from .manufacturer.manufacturer import ManufacturerService
 from .monitoring.connection import ConnectionHealthService
 from .monitoring.monitoring_access import MonitoringService as AccessControlService
 from .monitoring.monitoring_service import MonitoringService
-
-# Shared utilities and exceptions
-from .shared.exceptions import (
-    ConnectionError,
-    DiscoveryError,
-    HardwareNotFoundError,
-    LocationAlreadyExistsError,
-    LocationNotFoundError,
-    ManufacturerPluginError,
-    MicboardServiceError,
-)
 from .shared.pagination import PaginatedResult, filter_by_search, paginate_queryset
 from .shared.sync_utils import SyncResult
 

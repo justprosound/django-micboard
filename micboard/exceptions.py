@@ -159,3 +159,15 @@ class ServiceError(MicboardError):
                 "operation": operation,
             },
         )
+
+
+class DiscoveryError(MicboardError):
+    """Raised when device discovery fails."""
+
+    pass
+
+
+class LocationAlreadyExistsError(MicboardError):
+    """Raised when a location with the given name already exists."""
+
+    pass

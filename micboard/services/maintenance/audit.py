@@ -73,14 +73,12 @@ class AuditService:
     @staticmethod
     def prune_stale_logs() -> dict[str, int]:
         """Prune stale logs based on retention settings in MICBOARD_CONFIG."""
-        from micboard.apps import MicboardConfig
-
-        config = MicboardConfig.get_config()
+        from micboard.services.settings import settings
 
         # Retention periods (days)
-        activity_days = config.get("ACTIVITY_LOG_RETENTION_DAYS", 90)
-        sync_days = config.get("SERVICE_SYNC_LOG_RETENTION_DAYS", 30)
-        health_days = config.get("API_HEALTH_LOG_RETENTION_DAYS", 7)
+        activity_days = settings.activity_log_retention_days
+        sync_days = settings.service_sync_log_retention_days
+        health_days = settings.api_health_log_retention_days
 
         now = timezone.now()
         results = {}

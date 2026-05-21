@@ -8,6 +8,7 @@ Each RF channel represents an RF communication path with direction awareness:
 
 from __future__ import annotations
 
+import warnings
 from typing import ClassVar
 
 from django.contrib.auth.models import User
@@ -237,111 +238,117 @@ class RFChannel(models.Model):
         return f"{self.chassis.name} - RF Ch {self.channel_number} ({direction_label})"
 
     def save(self, *args, **kwargs) -> None:
-        """Validate channel numbering, allowing WMAS chassis to exceed static counts."""
-        from django.core.exceptions import ValidationError
+        """Validate channel numbering, allowing WMAS chassis to exceed static counts.
 
-        expected_count = self.chassis.get_expected_channel_count()
-        if not self.chassis.wmas_capable and self.channel_number > expected_count:
-            raise ValidationError(
-                f"Channel {self.channel_number} exceeds {self.chassis.model} capacity "
-                f"({expected_count} channels max)"
-            )
-        if self.channel_number < 1:
-            raise ValidationError("Channel number must be at least 1")
+        Deprecated: Use rf_channel_service.validate_and_save_channel() instead.
+        """
+        warnings.warn(
+            "RFChannel.save() is deprecated, "
+            "use rf_channel_service.validate_and_save_channel() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.rf_channel_service import (
+            validate_and_save_channel as _save,
+        )
 
-        super().save(*args, **kwargs)
+        _save(self, *args, **kwargs)
 
     def is_receive_channel(self) -> bool:
-        """Check if this is a receive-direction channel."""
-        return self.link_direction in ("receive", "bidirectional")
+        """Check if this is a receive-direction channel.
+
+        Deprecated: Use rf_channel_service.is_receive_channel() instead.
+        """
+        warnings.warn(
+            "RFChannel.is_receive_channel() is deprecated, "
+            "use rf_channel_service.is_receive_channel() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.rf_channel_service import (
+            is_receive_channel as _is_rx,
+        )
+
+        return _is_rx(self)
 
     def is_send_channel(self) -> bool:
-        """Check if this is a send-direction channel."""
-        return self.link_direction in ("send", "bidirectional")
+        """Check if this is a send-direction channel.
+
+        Deprecated: Use rf_channel_service.is_send_channel() instead.
+        """
+        warnings.warn(
+            "RFChannel.is_send_channel() is deprecated, "
+            "use rf_channel_service.is_send_channel() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.rf_channel_service import (
+            is_send_channel as _is_tx,
+        )
+
+        return _is_tx(self)
 
     def get_regulatory_domain(self):
         """Get the applicable regulatory domain for this RF channel.
 
-        Returns the regulatory domain from chassis location or None.
+        Deprecated: Use micboard.services.hardware.rf_channel_service.get_regulatory_domain instead.
         """
-        if not self.chassis or not self.chassis.location:
-            return None
+        warnings.warn(
+            "RFChannel.get_regulatory_domain() is deprecated, "
+            "use rf_channel_service.get_regulatory_domain() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.rf_channel_service import get_regulatory_domain as _service
 
-        location = self.chassis.location
-        if hasattr(location, "regulatory_domain") and location.regulatory_domain:
-            return location.regulatory_domain
-
-        # Try to lookup by country code
-        if hasattr(location, "country") and location.country:
-            from micboard.models.rf_coordination import RegulatoryDomain
-
-            return RegulatoryDomain.objects.filter(country_code=location.country.upper()).first()
-
-        return None
+        return _service(self)
 
     def has_regulatory_coverage(self) -> bool:
         """Check if this channel's frequency has regulatory data coverage.
 
-        Returns True if frequency is within regulatory domain's allowed bands.
-        Returns False if no coverage exists.
+        Deprecated: Use micboard.services.hardware.rf_channel_service.has_regulatory_coverage instead.
         """
-        domain = self.get_regulatory_domain()
-        if not domain or not self.frequency:
-            return False
+        warnings.warn(
+            "RFChannel.has_regulatory_coverage() is deprecated, "
+            "use rf_channel_service.has_regulatory_coverage() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.rf_channel_service import (
+            has_regulatory_coverage as _service,
+        )
 
-        # Check if covered by general domain frequency range
-        if domain.min_frequency_mhz <= self.frequency <= domain.max_frequency_mhz:
-            return True
-
-        # Check if covered by any specific frequency band
-        from micboard.models.rf_coordination import FrequencyBand
-
-        return FrequencyBand.objects.filter(
-            regulatory_domain=domain,
-            start_frequency_mhz__lte=self.frequency,
-            end_frequency_mhz__gte=self.frequency,
-        ).exists()
+        return _service(self)
 
     @property
     def needs_regulatory_update(self) -> bool:
         """Flag indicating admin needs to update regulatory information.
 
-        Returns True if channel is active with frequency but no regulatory coverage.
+        Deprecated: Use micboard.services.hardware.rf_channel_service.get_needs_regulatory_update instead.
         """
-        if self.resource_state not in ("active", "reserved"):
-            return False
+        warnings.warn(
+            "RFChannel.needs_regulatory_update is deprecated, "
+            "use rf_channel_service.get_needs_regulatory_update() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.rf_channel_service import (
+            get_needs_regulatory_update as _service,
+        )
 
-        if not self.frequency:
-            return False
+        return _service(self)
 
-        return not self.has_regulatory_coverage()
-
-    def get_regulatory_status(self) -> dict[str, str | bool | None]:
+    def get_regulatory_status(self) -> dict[str, str | bool | float | None]:
         """Get comprehensive regulatory status information for admin UI.
 
-        Returns dict with regulatory coverage status and admin action flags.
+        Deprecated: Use micboard.services.hardware.rf_channel_service.get_regulatory_status instead.
         """
-        domain = self.get_regulatory_domain()
-        has_coverage = self.has_regulatory_coverage()
+        warnings.warn(
+            "RFChannel.get_regulatory_status() is deprecated, "
+            "use rf_channel_service.get_regulatory_status() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.rf_channel_service import get_regulatory_status as _service
 
-        status = {
-            "has_coverage": has_coverage,
-            "regulatory_domain": domain.code if domain else None,
-            "operating_frequency_mhz": self.frequency,
-            "needs_update": self.needs_regulatory_update,
-        }
-
-        # Generate human-readable message
-        if not domain:
-            status["message"] = "⚠️ No regulatory domain set for chassis location"
-        elif not self.frequency:
-            status["message"] = "ℹ️ No operating frequency configured"
-        elif not has_coverage:
-            status["message"] = (
-                f"⚠️ Frequency {self.frequency} MHz not covered by {domain.code} "
-                "regulatory data - admin needs to update"
-            )
-        else:
-            status["message"] = f"✅ Regulatory coverage OK ({domain.code})"
-
-        return status
+        return _service(self)

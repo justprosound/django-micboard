@@ -10,6 +10,7 @@ from django.db.models import Prefetch
 from micboard.models.hardware.charger import ChargerSlot
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.services.hardware.wireless_unit_service import get_battery_percentage
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class ChargerAssignmentService:
                 "unit_id": unit.id,
                 "unit_type": unit.unit_type,
                 "unit_battery": unit.battery,
-                "unit_battery_percent": unit.battery_percentage,
+                "unit_battery_percent": get_battery_percentage(unit),
                 "unit_status": unit.status,
                 "unit_rf_level": unit.rf_level,
                 "unit_audio_level": unit.audio_level,

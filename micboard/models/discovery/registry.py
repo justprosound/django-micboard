@@ -239,7 +239,10 @@ class DiscoveredDevice(models.Model):
         return f"{self.device_type} at {self.ip} [{status}]"
 
     def get_status_display_with_icon(self) -> str:
-        """Get human-readable status with visual icon."""
+        """Get human-readable status with visual icon.
+
+        Deprecated: move to template layer or admin display methods.
+        """
         status_icons = {
             self.STATUS_READY: "✅",
             self.STATUS_PENDING: "🔍",
@@ -250,104 +253,3 @@ class DiscoveredDevice(models.Model):
         }
         icon = status_icons.get(self.status, "")
         return f"{icon} {self.get_status_display()}"
-
-    # Manufacturer-specific helper methods (delegated to DeviceMetadataAccessor)
-
-    def get_shure_compatibility(self) -> str | None:
-        """Get Shure-specific compatibility status from metadata (deprecated).
-
-        Use get_metadata_accessor().get_compatibility_status() instead.
-        """
-        return self.get_metadata_accessor().get_compatibility_status()
-
-    def get_shure_device_state(self) -> str | None:
-        """Get Shure-specific device state from metadata (deprecated).
-
-        Use get_metadata_accessor().get_device_state() instead.
-        """
-        return self.get_metadata_accessor().get_device_state()
-
-    def get_communication_protocol(self) -> str | None:
-        """Get communication protocol name from metadata (works for Shure)."""
-        accessor = self.get_metadata_accessor()
-        if hasattr(accessor, "get_communication_protocol"):
-            return accessor.get_communication_protocol()  # type: ignore
-        return None
-
-    def get_metadata_accessor(self):
-        """Get manufacturer-specific metadata accessor.
-
-        Returns appropriate DeviceMetadataAccessor for this device's manufacturer.
-        """
-        from micboard.services.core.device_metadata import DeviceMetadataAccessor
-
-        return DeviceMetadataAccessor.get_for(self.manufacturer, self.metadata)
-
-    def is_manageable(self) -> bool:
-        """Check if device is ready to be managed via API.
-
-        A device is manageable if:
-        - Status is 'ready'
-        - It has a valid API device ID
-        """
-        if self.status != self.STATUS_READY:
-            return False
-        if not self.api_device_id:
-            return False
-        return True
-
-    def get_incompatibility_reason(self) -> str | None:
-        """Get human-readable reason why device cannot be managed.
-
-        Returns None if device is manageable.
-        """
-        if self.status == self.STATUS_INCOMPATIBLE:
-            # Use manufacturer-agnostic metadata accessor
-            reason = self.get_metadata_accessor().get_incompatibility_reason()
-            if reason:
-                return reason
-            return "Device is incompatible with current API version."
-
-        elif self.status == self.STATUS_PENDING:
-            device_state = self.get_shure_device_state()
-            if device_state == "DISCOVERED":
-                return (
-                    "Device is in DISCOVERED state - not yet ready for API interaction. "
-                    "Wait for device to come ONLINE or check network connectivity."
-                )
-            return "Device discovered but not yet ready for management."
-
-        elif self.status == self.STATUS_ERROR:
-            return "Device is in ERROR state. Check device logs and network connectivity."
-
-        elif self.status == self.STATUS_OFFLINE:
-            return "Device is offline. Check power and network connectivity."
-
-        elif not self.api_device_id:
-            return "Device ID not available from API. Cannot establish communication."
-
-        return None
-
-    def can_promote_to_chassis(self) -> tuple[bool, str]:
-        """Check if device can be promoted to WirelessChassis.
-
-        Returns:
-            Tuple of (can_promote: bool, reason: str)
-        """
-        # Check if already managed
-        from micboard.models import WirelessChassis
-
-        if WirelessChassis.objects.filter(ip=self.ip, manufacturer=self.manufacturer).exists():
-            return (False, "Device is already managed as WirelessChassis")
-
-        # Check incompatibility
-        incompatibility_reason = self.get_incompatibility_reason()
-        if incompatibility_reason:
-            return (False, incompatibility_reason)
-
-        # Check for minimum required data
-        if not self.manufacturer:
-            return (False, "No manufacturer specified")
-
-        # Device is ready for promotion
-        return (True, "Device is ready to be promoted to managed chassis")

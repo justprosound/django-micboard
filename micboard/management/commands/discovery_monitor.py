@@ -4,10 +4,10 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from micboard.integrations.shure.client import ShureSystemAPIClient
+from micboard.services.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,9 @@ class DiscoveryMonitor:
         self.previous_devices: dict[str, dict[str, Any]] = {}
         self.check_count = 0
         self.start_time = datetime.now()
-        config = getattr(settings, "MICBOARD_CONFIG", {})
-        base_url = config.get("SHURE_API_BASE_URL", "https://localhost:10000")
-        shared_key = config.get("SHURE_API_SHARED_KEY")
-        verify_ssl = config.get("SHURE_API_VERIFY_SSL", False)
+        base_url = settings.get("SHURE_API_BASE_URL", "https://localhost:10000")
+        shared_key = settings.get("SHURE_API_SHARED_KEY")
+        verify_ssl = settings.get("SHURE_API_VERIFY_SSL", False)
         if isinstance(verify_ssl, str):
             verify_ssl = verify_ssl.lower() in ("true", "1", "yes")
         if not shared_key:

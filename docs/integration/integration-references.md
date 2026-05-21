@@ -141,10 +141,10 @@ Abstract base class for HTTP-based API clients.
 
 ### Plugin Registration
 
-**File:** `micboard/manufacturers/__init__.py`
+**File:** `micboard/integrations/common/__init__.py`
 
 ```python
-from micboard.manufacturers import get_manufacturer_plugin
+from micboard.integrations.common import get_manufacturer_plugin
 
 # Dynamically load manufacturer plugin
 plugin = get_manufacturer_plugin("shure")
@@ -402,7 +402,7 @@ from micboard.integrations.sennheiser.client import SennheiserAPIClient
 from micboard.integrations.sennheiser.exceptions import SennheiserAPIError, SennheiserAPIRateLimitError
 
 # Manufacturer plugin
-from micboard.manufacturers import get_manufacturer_plugin
+from micboard.integrations.common import get_manufacturer_plugin
 ```
 
 ---

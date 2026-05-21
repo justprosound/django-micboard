@@ -1,10 +1,11 @@
 import json
 import logging
 
-from django.conf import settings
+from django.conf import settings as django_settings
 from django.core.management.base import BaseCommand
 
 from micboard.integrations.shure.client import ShureSystemAPIClient
+from micboard.services.settings import settings as app_settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +15,7 @@ class ShureAPITester:
 
     def __init__(self, shared_key=None, verify_ssl=True):
         """Initialize Shure API tester with shared key and SSL verification flag."""
-        self.shared_key = shared_key or getattr(settings, "MICBOARD_CONFIG", {}).get(
-            "SHURE_API_SHARED_KEY"
-        )
+        self.shared_key = shared_key or app_settings.get("SHURE_API_SHARED_KEY")
         self.verify_ssl = verify_ssl
         self.client = None
         self.test_results = []
@@ -32,7 +31,7 @@ class ShureAPITester:
             logger.error("ERROR: SHURE_API_SHARED_KEY not set!")
             return False
         try:
-            settings.MICBOARD_CONFIG = {
+            django_settings.MICBOARD_CONFIG = {
                 "SHURE_API_BASE_URL": "https://localhost:10000",
                 "SHURE_API_SHARED_KEY": self.shared_key,
                 "SHURE_API_VERIFY_SSL": self.verify_ssl,

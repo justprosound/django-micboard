@@ -142,7 +142,7 @@ class HardwareService:
     @staticmethod
     def get_chassis_by_id(*, chassis_id: int) -> WirelessChassis:
         """Get a chassis by its ID."""
-        from micboard.services.shared.exceptions import HardwareNotFoundError
+        from micboard.exceptions import HardwareNotFoundError
 
         try:
             return WirelessChassis.objects.get(id=chassis_id)
@@ -152,7 +152,7 @@ class HardwareService:
     @staticmethod
     def get_unit_by_id(*, unit_id: int) -> WirelessUnit:
         """Get a wireless unit by its ID."""
-        from micboard.services.shared.exceptions import HardwareNotFoundError
+        from micboard.exceptions import HardwareNotFoundError
 
         try:
             return WirelessUnit.objects.get(id=unit_id)
@@ -261,7 +261,7 @@ class HardwareService:
     @staticmethod
     def search_hardware(*, query: str) -> list[WirelessChassis | WirelessUnit]:
         """Search hardware by name, IP, or serial number."""
-        results = []
+        results: list[WirelessChassis | WirelessUnit] = []
 
         # Search chassis
         chassis = WirelessChassis.objects.filter(

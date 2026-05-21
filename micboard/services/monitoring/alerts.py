@@ -15,6 +15,7 @@ from django.utils import timezone
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.services.hardware.wireless_unit_service import get_battery_percentage
 from micboard.services.notification.email import send_alert_email
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -128,7 +129,7 @@ class AlertManager:
             unit: WirelessUnit to check
             assignments: QuerySet of PerformerAssignments
         """
-        battery_pct = unit.battery_percentage
+        battery_pct = get_battery_percentage(unit)
         if battery_pct is None:
             return
 
@@ -282,7 +283,7 @@ class AlertManager:
         snapshot = {
             "unit_name": unit.name,
             "unit_slot": unit.slot,
-            "battery_percentage": unit.battery_percentage,
+            "battery_percentage": get_battery_percentage(unit),
             "audio_level": unit.audio_level,
             "rf_level": unit.rf_level,
             "status": unit.status,

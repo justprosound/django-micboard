@@ -1,147 +1,140 @@
 """Centralized configuration access for django-micboard.
 
-Provides unified interface for accessing Micboard settings, feature flags,
-and other configuration values with consistent fallback logic.
+.. deprecated::
+    This module is a compatibility shim. New code should import ``settings``
+    from ``micboard.services.settings`` instead.
 
-Usage:
-    from micboard.conf import config
+    Migration::
 
-    # Feature flags
-    if config.msp_enabled:
-        ...
+        # Old
+        from micboard.conf import config
 
-    # Settings registry access
-    value = config.get('CUSTOM_KEY', default='...')
+        if config.msp_enabled:
+            ...
 
-    # Or direct access with defaults
-    timeout = config.get('SHURE_API_TIMEOUT) or 10
+        # New
+        from micboard.services.settings import settings
+
+        if settings.msp_enabled:
+            ...
 """
 
 from __future__ import annotations
 
-from django.conf import settings as django_settings
+import warnings
+from typing import Any
+
+from micboard.services.settings.settings_service import SettingsService
 
 
 class MicboardSettingsProxy:
-    """Centralized access to Micboard configuration."""
+    """Thin compatibility wrapper around :class:`SettingsService`.
 
-    # ========================================================================
-    # FEATURE FLAGS (from django.conf.settings)
-    # ========================================================================
+    .. deprecated::
+        Will be removed after one release cycle. Use
+        ``micboard.services.settings.settings`` directly.
+    """
+
+    def __init__(self) -> None:
+        self._service = SettingsService()
+
+    # ------------------------------------------------------------------
+    # Feature flags
+    # ------------------------------------------------------------------
 
     @property
     def msp_enabled(self) -> bool:
-        """Whether full MSP (Managed Service Provider) mode is enabled."""
-        return getattr(django_settings, "MICBOARD_MSP_ENABLED", False)
+        return self._service.msp_enabled
 
     @property
     def multi_site_mode(self) -> bool:
-        """Whether multi-site mode is enabled (requires django.contrib.sites)."""
-        return getattr(django_settings, "MICBOARD_MULTI_SITE_MODE", False)
+        return self._service.multi_site_mode
 
     @property
     def site_isolation(self) -> str:
-        """Site isolation strategy: 'none', 'site', 'organization', or 'campus'."""
-        return getattr(django_settings, "MICBOARD_SITE_ISOLATION", "none")
+        return self._service.site_isolation
 
     @property
     def allow_cross_org_view(self) -> bool:
-        """Whether superusers can view all organizations in MSP mode."""
-        return getattr(django_settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True)
+        return self._service.allow_cross_org_view
 
     @property
     def allow_org_switching(self) -> bool:
-        """Whether users can switch between organizations."""
-        return getattr(django_settings, "MICBOARD_ALLOW_ORG_SWITCHING", True)
+        return self._service.allow_org_switching
 
     @property
     def subdomain_routing(self) -> bool:
-        """Whether subdomain-based organization routing is enabled."""
-        return getattr(django_settings, "MICBOARD_SUBDOMAIN_ROUTING", False)
+        return self._service.subdomain_routing
 
     @property
     def root_domain(self) -> str:
-        """Root domain for subdomain routing."""
-        return getattr(django_settings, "MICBOARD_ROOT_DOMAIN", "")
+        return self._service.root_domain
 
     @property
     def admin_org_selector(self) -> bool:
-        """Whether to show organization selector in admin navbar."""
-        return getattr(django_settings, "MICBOARD_ADMIN_ORG_SELECTOR", True)
+        return self._service.admin_org_selector
 
-    # ========================================================================
-    # LIMITS & THRESHOLDS
-    # ========================================================================
+    # ------------------------------------------------------------------
+    # Limits and thresholds
+    # ------------------------------------------------------------------
 
     @property
     def global_device_limit(self) -> int | None:
-        """Global device limit across all organizations."""
-        return getattr(django_settings, "MICBOARD_GLOBAL_DEVICE_LIMIT", None)
+        return self._service.global_device_limit
 
     @property
     def device_limit_warning_threshold(self) -> float:
-        """Device limit warning threshold (0.0-1.0)."""
-        return getattr(django_settings, "MICBOARD_DEVICE_LIMIT_WARNING_THRESHOLD", 0.9)
+        return self._service.device_limit_warning_threshold
 
-    # ========================================================================
-    # AUDIT & RETENTION
-    # ========================================================================
+    # ------------------------------------------------------------------
+    # Audit and retention
+    # ------------------------------------------------------------------
 
     @property
     def activity_log_retention_days(self) -> int:
-        """Days to retain activity logs."""
-        return getattr(django_settings, "MICBOARD_ACTIVITY_LOG_RETENTION_DAYS", 90)
+        return self._service.activity_log_retention_days
 
     @property
     def service_sync_log_retention_days(self) -> int:
-        """Days to retain service sync logs."""
-        return getattr(django_settings, "MICBOARD_SERVICE_SYNC_LOG_RETENTION_DAYS", 30)
+        return self._service.service_sync_log_retention_days
 
     @property
     def api_health_log_retention_days(self) -> int:
-        """Days to retain API health logs."""
-        return getattr(django_settings, "MICBOARD_API_HEALTH_LOG_RETENTION_DAYS", 7)
+        return self._service.api_health_log_retention_days
 
     @property
     def audit_archive_path(self) -> str:
-        """Path for audit archive storage."""
-        return getattr(django_settings, "MICBOARD_AUDIT_ARCHIVE_PATH", "audit_archives")
+        return self._service.audit_archive_path
 
-    # ========================================================================
-    # MICBOARD_CONFIG DICT ACCESS
-    # ========================================================================
+    # ------------------------------------------------------------------
+    # Generic key access
+    # ------------------------------------------------------------------
 
-    @staticmethod
-    def get(key: str, default=None):
-        """Get a value from MICBOARD_CONFIG dict.
+    def get(self, key: str, default: Any = None) -> Any:
+        warnings.warn(
+            "micboard.conf.config.get() is deprecated, use "
+            "micboard.services.settings.settings.get() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._service.get(key, default)
 
-        Args:
-            key: Configuration key
-            default: Default value if not found
+    def get_config_dict(self) -> dict[str, Any]:
+        warnings.warn(
+            "micboard.conf.config.get_config_dict() is deprecated, use "
+            "micboard.services.settings.settings.get_config_dict() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._service.get_config_dict()
 
-        Returns:
-            Value from MICBOARD_CONFIG or default
-        """
-        config = getattr(django_settings, "MICBOARD_CONFIG", {})
-        return config.get(key, default)
-
-    @staticmethod
-    def get_config_dict() -> dict:
-        """Get entire MICBOARD_CONFIG dictionary.
-
-        Returns:
-            MICBOARD_CONFIG dict or empty dict if not configured
-        """
-        return getattr(django_settings, "MICBOARD_CONFIG", {})
-
-    # ========================================================================
-    # TESTING FLAG
-    # ========================================================================
+    # ------------------------------------------------------------------
+    # Testing flag
+    # ------------------------------------------------------------------
 
     @property
     def testing(self) -> bool:
-        """Whether Django is running tests."""
-        return getattr(django_settings, "TESTING", False)
+        return self._service.testing
 
 
 config = MicboardSettingsProxy()

@@ -44,19 +44,13 @@ Architecture & Future-Proofing Notes:
 
 from __future__ import annotations
 
+import warnings
 from datetime import datetime
 from typing import ClassVar
 
 from django.db import models
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
-from micboard.models.device_specs import (
-    detect_band_plan_from_api_string,
-    get_available_band_plans,
-    get_band_plan,
-    get_band_plan_from_model_code,
-    parse_band_plan_from_name,
-)
 
 
 class WirelessChassisQuerySet(TenantOptimizedQuerySet):
@@ -377,62 +371,27 @@ class WirelessChassis(models.Model):
         )
 
     def save(self, *args, **kwargs) -> None:
-        """Sync specs from device_specifications registry on save."""
-        from micboard.services.core.device_specs import DeviceSpecService
+        """Sync specs from device_specifications registry on save.
 
-        created = self.pk is None
-        band_plan = None
+        Deprecated: Use wireless_chassis_service.prepare_chassis_for_save() instead.
+        """
+        warnings.warn(
+            "WirelessChassis.save() is deprecated, "
+            "use wireless_chassis_service.prepare_chassis_for_save() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_chassis_service import (
+            prepare_chassis_for_save as _prep,
+        )
 
-        # Apply device specifications from registry
-        if self.manufacturer and self.model:
-            DeviceSpecService.apply_specs_to_chassis(self)
-
-            # Also set device role if not already set
-            if not self.role:
-                from micboard.utils.device_registry import get_device_role
-
-                if hasattr(self.manufacturer, "code"):
-                    mfg_code = self.manufacturer.code.lower()
-                else:
-                    mfg_code = "unknown"
-
-                self.role = get_device_role(
-                    manufacturer=mfg_code,
-                    model=self.model,
-                )
-
-            if band_plan:
-                # Use registry data
-                self.band_plan_min_mhz = band_plan["min_mhz"]
-                self.band_plan_max_mhz = band_plan["max_mhz"]
-            elif not self.band_plan_min_mhz or not self.band_plan_max_mhz:
-                # Try to parse from name string (e.g., "G50 (470-534 MHz)")
-                parsed = parse_band_plan_from_name(name=self.band_plan_name)
-                if parsed:
-                    self.band_plan_min_mhz = parsed["min_mhz"]
-                    self.band_plan_max_mhz = parsed["max_mhz"]
-        elif not self.band_plan_name and self.manufacturer and self.model:
-            # No band plan set - try to detect from model code
-            # This captures cases where Shure API doesn't provide frequencyBand
-            if hasattr(self.manufacturer, "code"):
-                mfg_code = self.manufacturer.code.lower()
-                detected = get_band_plan_from_model_code(manufacturer=mfg_code, model=self.model)
-                if detected:
-                    self.band_plan_name = detected
-                    band_plan = get_band_plan(
-                        manufacturer=mfg_code,
-                        band_plan_key=detected.lower().replace(" ", "_").replace("-", "_"),
-                    )
-                    if band_plan:
-                        self.band_plan_min_mhz = band_plan["min_mhz"]
-                        self.band_plan_max_mhz = band_plan["max_mhz"]
+        prep_result = _prep(chassis=self)
 
         super().save(*args, **kwargs)
 
-        # Handle post-save side effects via service (replacing signals)
         from micboard.services.core.hardware import HardwareService
 
-        HardwareService.handle_chassis_save(chassis=self, created=created)
+        HardwareService.handle_chassis_save(chassis=self, created=prep_result["created"])
 
     def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
         """Handle side effects before deletion."""
@@ -442,9 +401,21 @@ class WirelessChassis(models.Model):
         return super().delete(*args, **kwargs)
 
     def is_active_at_time(self, at_time: datetime | None = None) -> bool:
-        """Check if device is active at given time (or now)."""
-        active_states = {"online", "degraded", "provisioning"}
-        return self.status in active_states
+        """Check if device is active at given time (or now).
+
+        Deprecated: Use wireless_chassis_service.is_active_at_time() instead.
+        """
+        warnings.warn(
+            "WirelessChassis.is_active_at_time() is deprecated, "
+            "use wireless_chassis_service.is_active_at_time() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_chassis_service import (
+            is_active_at_time as _is_active,
+        )
+
+        return _is_active(chassis=self, at_time=at_time)
 
     def get_expected_channel_count(self) -> int:
         """Get expected number of channels based on device model."""
@@ -453,257 +424,114 @@ class WirelessChassis(models.Model):
     def get_regulatory_domain(self):
         """Get the applicable regulatory domain for this chassis.
 
-        Returns the regulatory domain from:
-        1. location.regulatory_domain (if set)
-        2. location.country lookup
-        3. None if no regulatory info available
+        Deprecated: Use chassis_regulatory_service.get_regulatory_domain() instead.
         """
-        if not self.location:
-            return None
+        from micboard.services.hardware.chassis_regulatory_service import (
+            get_regulatory_domain as _get_regulatory_domain,
+        )
 
-        if hasattr(self.location, "regulatory_domain") and self.location.regulatory_domain:
-            return self.location.regulatory_domain
-
-        # Try to lookup by country code
-        if hasattr(self.location, "country") and self.location.country:
-            from micboard.models.rf_coordination import RegulatoryDomain
-
-            return RegulatoryDomain.objects.filter(
-                country_code=self.location.country.upper()
-            ).first()
-
-        return None
+        return _get_regulatory_domain(chassis=self)
 
     def has_band_plan(self) -> bool:
-        """Check if this chassis has band plan information configured."""
-        return (
-            self.band_plan_min_mhz is not None
-            and self.band_plan_max_mhz is not None
-            and self.band_plan_max_mhz > self.band_plan_min_mhz
+        """Check if this chassis has band plan information configured.
+
+        Deprecated: Use wireless_chassis_service.get_band_plan_status() instead.
+        """
+        warnings.warn(
+            "WirelessChassis.has_band_plan() is deprecated, "
+            "use wireless_chassis_service.get_band_plan_status() instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        from micboard.services.hardware.wireless_chassis_service import (
+            get_band_plan_status as _has_bp,
+        )
+
+        return _has_bp(chassis=self)
 
     def get_available_band_plans(self) -> list[tuple[str, str]]:
         """Get list of available band plans for this chassis's manufacturer.
 
-        Returns:
-            List of (key, name) tuples for standard band plans
-            Empty list if manufacturer not set or no plans available
+        Deprecated: Use wireless_chassis_service.get_available_band_plans() instead.
         """
-        if not self.manufacturer:
-            return []
+        warnings.warn(
+            "WirelessChassis.get_available_band_plans() is deprecated, "
+            "use wireless_chassis_service.get_available_band_plans() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_chassis_service import (
+            get_available_band_plans as _get_plans,
+        )
 
-        if hasattr(self.manufacturer, "code"):
-            mfg_code = self.manufacturer.code.lower()
-        else:
-            return []
-
-        return get_available_band_plans(manufacturer=mfg_code)
+        return _get_plans(chassis=self)
 
     def detect_band_plan_from_api_data(
         self, *, api_band_value: str | None
     ) -> dict[str, str | float | None]:
         """Detect band plan from Shure/Sennheiser API frequencyBand value.
 
-        This method is useful when syncing devices from manufacturer APIs that provide
-        frequencyBand information. It automatically sets band_plan_name and resolves
-        min/max frequencies.
-
-        Example:
-            chassis = WirelessChassis(manufacturer=shure_mfg, model="ULXD4Q")
-            result = chassis.detect_band_plan_from_api_data(api_band_value="G50")
-            # Returns: {
-            #   "band_plan_name": "G50 (470-534 MHz)",
-            #   "band_plan_min_mhz": 470.0,
-            #   "band_plan_max_mhz": 534.0,
-            #   "source": "api"
-            # }
-
-        Args:
-            api_band_value: frequencyBand string from API (e.g., "G50", "G50 (470-534)")
-
-        Returns:
-            Dict with detected values and metadata:
-            - band_plan_name: Resolved band plan name
-            - band_plan_min_mhz: Minimum frequency
-            - band_plan_max_mhz: Maximum frequency
-            - source: "api" if from API, "model" if inferred from model code
-            - message: Human-readable explanation
+        Deprecated: Use wireless_chassis_service.detect_band_plan_from_api_data() instead.
         """
-        if not self.manufacturer:
-            return {
-                "band_plan_name": None,
-                "band_plan_min_mhz": None,
-                "band_plan_max_mhz": None,
-                "source": None,
-                "message": "Manufacturer not set",
-            }
-
-        mfg_code = (
-            self.manufacturer.code.lower() if hasattr(self.manufacturer, "code") else "unknown"
+        warnings.warn(
+            "WirelessChassis.detect_band_plan_from_api_data() is deprecated, "
+            "use wireless_chassis_service.detect_band_plan_from_api_data() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_chassis_service import (
+            detect_band_plan_from_api_data as _detect,
         )
 
-        # Try API detection first
-        if api_band_value:
-            detected_name = detect_band_plan_from_api_string(
-                api_band_value=api_band_value, manufacturer=mfg_code
-            )
-            if detected_name:
-                band_plan = get_band_plan(
-                    manufacturer=mfg_code,
-                    band_plan_key=detected_name.lower().replace(" ", "_").replace("-", "_"),
-                )
-                if band_plan:
-                    return {
-                        "band_plan_name": detected_name,
-                        "band_plan_min_mhz": band_plan["min_mhz"],
-                        "band_plan_max_mhz": band_plan["max_mhz"],
-                        "source": "api",
-                        "message": f"Detected from API frequencyBand '{api_band_value}'",
-                    }
-
-        # Fall back to model code detection
-        if self.model:
-            detected_name = get_band_plan_from_model_code(manufacturer=mfg_code, model=self.model)
-            if detected_name:
-                band_plan = get_band_plan(
-                    manufacturer=mfg_code,
-                    band_plan_key=detected_name.lower().replace(" ", "_").replace("-", "_"),
-                )
-                if band_plan:
-                    return {
-                        "band_plan_name": detected_name,
-                        "band_plan_min_mhz": band_plan["min_mhz"],
-                        "band_plan_max_mhz": band_plan["max_mhz"],
-                        "source": "model",
-                        "message": f"Inferred from model code '{self.model}'",
-                    }
-
-        return {
-            "band_plan_name": None,
-            "band_plan_min_mhz": None,
-            "band_plan_max_mhz": None,
-            "source": None,
-            "message": "No band plan detected from API or model",
-        }
+        return _detect(chassis=self, api_band_value=api_band_value)
 
     def apply_detected_band_plan(self, *, api_band_value: str | None = None) -> bool:
         """Auto-detect and apply band plan information to this chassis.
 
-        This is a convenience method for device sync workflows that takes the output
-        of detect_band_plan_from_api_data() and applies it to the chassis fields.
-
-        Args:
-            api_band_value: API frequencyBand value (optional - uses model
-                           detection if not provided)
-
-        Returns:
-            True if band plan was detected and applied, False otherwise
+        Deprecated: Use wireless_chassis_service.apply_detected_band_plan() instead.
         """
-        detected = self.detect_band_plan_from_api_data(api_band_value=api_band_value)
-        if detected.get("band_plan_name"):
-            self.band_plan_name = detected["band_plan_name"]
-            self.band_plan_min_mhz = detected["band_plan_min_mhz"]
-            self.band_plan_max_mhz = detected["band_plan_max_mhz"]
-            return True
-        return False
+        warnings.warn(
+            "WirelessChassis.apply_detected_band_plan() is deprecated, "
+            "use wireless_chassis_service.apply_detected_band_plan() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.hardware.wireless_chassis_service import (
+            apply_detected_band_plan as _apply,
+        )
+
+        return _apply(chassis=self, api_band_value=api_band_value)
 
     def has_band_plan_regulatory_coverage(self) -> bool:
         """Check if this chassis's band plan has regulatory coverage.
 
-        Returns True if the entire band plan range is covered by regulatory data.
-        Returns False if no band plan, no regulatory domain, or insufficient coverage.
+        Deprecated: Use chassis_regulatory_service.has_band_plan_regulatory_coverage() instead.
         """
-        if not self.has_band_plan():
-            return False
+        from micboard.services.hardware.chassis_regulatory_service import (
+            has_band_plan_regulatory_coverage as _has_coverage,
+        )
 
-        domain = self.get_regulatory_domain()
-        if not domain:
-            return False
-
-        # Check if band plan is within general domain frequency range
-        if (
-            domain.min_frequency_mhz <= self.band_plan_min_mhz
-            and domain.max_frequency_mhz >= self.band_plan_max_mhz
-        ):
-            return True
-
-        # Check if band plan range overlaps with any allowed/restricted frequency bands
-        from micboard.models.rf_coordination import FrequencyBand
-
-        # Find all bands that overlap with this chassis's band plan
-        overlapping_bands = FrequencyBand.objects.filter(
-            regulatory_domain=domain,
-            start_frequency_mhz__lt=self.band_plan_max_mhz,
-            end_frequency_mhz__gt=self.band_plan_min_mhz,
-        ).exclude(band_type="forbidden")
-
-        if not overlapping_bands.exists():
-            return False
-
-        # Check if overlapping bands fully cover the band plan range
-        # This is a simplified check - assumes bands are contiguous
-        covered_min = min(band.start_frequency_mhz for band in overlapping_bands)
-        covered_max = max(band.end_frequency_mhz for band in overlapping_bands)
-
-        return covered_min <= self.band_plan_min_mhz and covered_max >= self.band_plan_max_mhz
+        return _has_coverage(chassis=self)
 
     @property
     def needs_band_plan_regulatory_update(self) -> bool:
         """Flag indicating admin needs to update regulatory information for band plan.
 
-        Returns True if:
-        - Chassis is online
-        - Has a band plan configured
-        - But no regulatory coverage exists for that band plan
+        Deprecated: Use chassis_regulatory_service.get_needs_band_plan_regulatory_update() instead.
         """
-        if self.status not in ("online", "degraded", "provisioning"):
-            return False
+        from micboard.services.hardware.chassis_regulatory_service import (
+            get_needs_band_plan_regulatory_update as _needs_update,
+        )
 
-        if not self.has_band_plan():
-            return False
-
-        return not self.has_band_plan_regulatory_coverage()
+        return _needs_update(chassis=self)
 
     def get_band_plan_regulatory_status(self) -> dict[str, str | bool | None]:
         """Get comprehensive regulatory status for this chassis's band plan.
 
-        Returns dict with:
-        - has_band_plan: bool - Whether band plan is configured
-        - has_coverage: bool - Whether regulatory data exists for band plan
-        - regulatory_domain: str | None - Domain code (e.g., 'FCC', 'ETSI')
-        - band_plan_range: str | None - Human-readable band plan range
-        - needs_update: bool - Flag for admin attention
-        - message: str - Human-readable status message
+        Deprecated: Use chassis_regulatory_service.get_band_plan_regulatory_status() instead.
         """
-        domain = self.get_regulatory_domain()
-        has_plan = self.has_band_plan()
-        has_coverage = self.has_band_plan_regulatory_coverage()
+        from micboard.services.hardware.chassis_regulatory_service import (
+            get_band_plan_regulatory_status as _get_status,
+        )
 
-        band_plan_range = None
-        if has_plan:
-            band_plan_range = f"{self.band_plan_min_mhz}-{self.band_plan_max_mhz} MHz"
-            if self.band_plan_name:
-                band_plan_range = f"{self.band_plan_name} ({band_plan_range})"
-
-        status = {
-            "has_band_plan": has_plan,
-            "has_coverage": has_coverage,
-            "regulatory_domain": domain.code if domain else None,
-            "band_plan_range": band_plan_range,
-            "needs_update": self.needs_band_plan_regulatory_update,
-        }
-
-        # Generate human-readable message
-        if not domain:
-            status["message"] = "⚠️ No regulatory domain set for chassis location"
-        elif not has_plan:
-            status["message"] = "ℹ️ No band plan configured"
-        elif not has_coverage:
-            status["message"] = (
-                f"⚠️ Band plan {band_plan_range} not covered by {domain.code} "
-                "regulatory data - admin needs to update"
-            )
-        else:
-            status["message"] = f"✅ Band plan regulatory coverage OK ({domain.code})"
-
-        return status
+        return _get_status(chassis=self)
