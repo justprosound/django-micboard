@@ -48,12 +48,13 @@ class Manufacturer(models.Model):
             ActivityLog.objects.create(
                 activity_type=ActivityLog.ACTIVITY_CRUD,
                 operation=action,
-                model_name=self.__class__.__name__,
+                summary=f"{action} {self.__class__.__name__}: {self.name}",
                 object_id=str(self.pk) if self.pk else None,
                 details={
                     "name": self.name,
                     "code": self.code,
                     "is_active": self.is_active,
+                    "model_name": self.__class__.__name__,
                 },
             )
         except Exception as e:

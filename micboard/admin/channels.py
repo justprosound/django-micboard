@@ -12,6 +12,12 @@ from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import RFChannel, WirelessUnit
+from micboard.services.hardware.wireless_unit_service import (
+    get_battery_health,
+    get_battery_health_display_icon,
+    get_battery_percentage,
+    get_regulatory_status,
+)
 
 
 @admin.register(RFChannel)
@@ -204,7 +210,7 @@ class WirelessUnitAdmin(MicboardModelAdmin):
     )
     def battery_indicator(self, obj):
         """Display colored battery indicator."""
-        pct = obj.battery_percentage
+        pct = get_battery_percentage(obj)
         if pct is None:
             return "Unknown"
 
@@ -232,8 +238,8 @@ class WirelessUnitAdmin(MicboardModelAdmin):
     @admin.display(description="Health")
     def battery_health_display(self, obj):
         """Display battery health status with icon."""
-        health = obj.get_battery_health()
-        icon = obj.get_battery_health_display_icon()
+        health = get_battery_health(obj)
+        icon = get_battery_health_display_icon(obj)
 
         # Simple color mapping
         color_map = {
@@ -260,7 +266,7 @@ class WirelessUnitAdmin(MicboardModelAdmin):
         if obj.battery_health:
             parts.append(f"Health: {obj.battery_health}")
 
-        pct = obj.battery_percentage
+        pct = get_battery_percentage(obj)
         if pct is not None:
             parts.append(f"{pct}%")
 
@@ -278,7 +284,7 @@ class WirelessUnitAdmin(MicboardModelAdmin):
     @admin.display(description="Regulatory Status")
     def regulatory_status_display(self, obj):
         """Display regulatory coverage status."""
-        status = obj.get_regulatory_status()
+        status = get_regulatory_status(obj)
 
         if status.get("source") == "no_channel":
             return "ℹ️ No RF channel"

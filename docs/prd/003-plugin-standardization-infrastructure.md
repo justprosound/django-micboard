@@ -1,11 +1,11 @@
 # PRD-003: Plugin Standardization & Infrastructure Unification
 
-**Status:** Proposed
+**Status:** In Progress
 **Date:** 2026-05-20
 
 ## Problem Statement
 
-Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-90% structurally identical, with copy-pasted patterns for HTTP clients, rate limiting, retry logic, and data transformation. Two parallel settings resolution mechanisms (`conf.py` and `SettingsRegistryService`) create inconsistent access patterns. A legacy compat shim (`micboard/manufacturers/`) uses fragile `sys.modules` patching.
+Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-90% structurally identical, with copy-pasted patterns for HTTP clients, rate limiting, retry logic, and data transformation. Two parallel settings resolution mechanisms (`conf.py` and `SettingsRegistryService`) create inconsistent access patterns. A legacy compat shim (`micboard/manufacturers/`) used fragile `sys.modules` patching (removed in ADR-008).
 
 ## Goals
 

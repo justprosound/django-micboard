@@ -614,7 +614,7 @@ If serial missing, check manufacturer API configuration.
 
 **Solution**: Ensure manufacturer plugin extracts identity fields:
 ```python
-# micboard/manufacturers/shure/shure_plugin.py
+# micboard/integrations/shure/plugin.py
 def get_devices(self):
     return [
         {

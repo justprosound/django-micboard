@@ -1,6 +1,6 @@
 # ADR-008: Remove Compat Shim Layer
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-05-20
 **Deciders:** (to be assigned)
 

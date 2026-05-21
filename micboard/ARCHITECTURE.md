@@ -39,19 +39,24 @@ allowed = config.allow_cross_org_view
 
 ### 2. Plugin Architecture (Manufacturer-Agnostic)
 
-Manufacturer-specific logic is implemented as plugins in `micboard/manufacturers/`:
+Manufacturer-specific logic lives in `micboard/integrations/<manufacturer>/`, inheriting from shared base classes in `micboard/integrations/common/`:
 
 ```
-micboard/manufacturers/
-  __init__.py           # Plugin loader
-  base.py               # ManufacturerPlugin abstract class
+micboard/integrations/
+  common/
+    __init__.py           # Plugin loader, shared exports
+    base.py               # ManufacturerPlugin, BasePlugin, BaseAPIClient
+    exceptions.py         # Shared exception taxonomy
+    rate_limiter.py       # Shared rate-limiting logic
   shure/
     __init__.py
-    plugin.py           # ShurePlugin implementation
-    websocket.py        # Real-time telemetry
+    plugin.py             # ShurePlugin implementation
+    client.py             # Shure HTTP client
+    websocket.py          # Real-time telemetry
   sennheiser/
     __init__.py
-    plugin.py           # SennheiserPlugin implementation
+    plugin.py             # SennheiserPlugin implementation
+    client.py             # Sennheiser HTTP client
 ```
 
 **Using the Plugin Registry:**
@@ -72,7 +77,7 @@ plugins = PluginRegistry.get_all_active_plugins()
 **Implementing a New Plugin:**
 
 ```python
-from micboard.manufacturers.base import ManufacturerPlugin
+from micboard.integrations.common.base import ManufacturerPlugin
 
 class MyPlugin(ManufacturerPlugin):
     manufacturer_code = 'mymanufacturer'
@@ -85,7 +90,7 @@ class MyPlugin(ManufacturerPlugin):
         # Poll telemetry for a device
         pass
 
-# Register in micboard/manufacturers/__init__.py
+# Register in micboard/integrations/common/__init__.py
 def get_manufacturer_plugin(code: str):
     if code == 'mymanufacturer':
         return MyPlugin
@@ -222,7 +227,7 @@ pytest --cov=micboard  # With coverage
 ## Further Reading
 
 - [Settings System](micboard/settings/multitenancy.py)
-- [Plugin System](micboard/manufacturers/base.py)
+- [Plugin System](micboard/integrations/common/base.py)
 - [Models](micboard/models/)
 - [Contributing](CONTRIBUTING.md)
 - [Tests](tests/)

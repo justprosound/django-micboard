@@ -18,6 +18,12 @@ from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import DiscoveredDevice, Location, MicboardConfig, MonitoringGroup
+from micboard.services.sync.discovered_device_service import (
+    can_promote_device_to_chassis,
+    get_device_communication_protocol,
+    get_device_incompatibility_reason,
+    is_device_manageable,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +134,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.display(description="Protocol")
     def protocol_display(self, obj):
         """Display communication protocol from metadata."""
-        protocol = obj.get_communication_protocol()
+        protocol = get_device_communication_protocol(obj)
         if protocol:
             return protocol
         return "—"
@@ -146,19 +152,19 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.display(description="Manageable", boolean=True)
     def is_manageable_display(self, obj):
         """Check if device can be managed via API."""
-        return obj.is_manageable()
+        return is_device_manageable(obj)
 
     @admin.display(description="Manageability Status")
     def manageable_status_detail(self, obj):
         """Display detailed status about whether device can be managed."""
-        if obj.is_manageable():
+        if is_device_manageable(obj):
             return "✅ Device is ready to be managed and can be promoted to WirelessChassis"
 
-        reason = obj.get_incompatibility_reason()
+        reason = get_device_incompatibility_reason(obj)
         if reason:
             return f"⚠️ Device cannot be managed: {reason}"
 
-        can_promote, promotion_reason = obj.can_promote_to_chassis()
+        can_promote, promotion_reason = can_promote_device_to_chassis(obj)
         if not can_promote:
             return f"ℹ️ Cannot promote: {promotion_reason}"
 
@@ -178,12 +184,12 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
             return "✓ Already Managed"
 
         # Check if device can be promoted
-        can_promote, reason = obj.can_promote_to_chassis()
+        can_promote, reason = can_promote_device_to_chassis(obj)
 
         if not can_promote:
             return f"⛔ Cannot Promote ({reason})"
 
-        if not obj.is_manageable():
+        if not is_device_manageable(obj):
             return "⚠️ Not Ready (device not ready for management)"
 
         return format_html(

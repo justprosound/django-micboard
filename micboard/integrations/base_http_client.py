@@ -48,26 +48,26 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
             base_url: Override base URL from config
             verify_ssl: Override SSL verification from config
         """
-        from micboard.apps import MicboardConfig
+        from micboard.services.settings import settings
 
-        config = MicboardConfig.get_config()
+        config_dict = settings.get_config_dict()
         prefix = self._get_config_prefix()
 
         # Core configuration
         self.base_url = (
             base_url
             if base_url is not None
-            else config.get(f"{prefix}_BASE_URL", self._get_default_base_url()).rstrip("/")
+            else config_dict.get(f"{prefix}_BASE_URL", self._get_default_base_url()).rstrip("/")
         )
-        self.timeout = config.get(f"{prefix}_TIMEOUT", 10)
+        self.timeout = config_dict.get(f"{prefix}_TIMEOUT", 10)
         self.verify_ssl = (
-            verify_ssl if verify_ssl is not None else config.get(f"{prefix}_VERIFY_SSL", True)
+            verify_ssl if verify_ssl is not None else config_dict.get(f"{prefix}_VERIFY_SSL", True)
         )
 
         # Retry configuration
-        self.max_retries = config.get(f"{prefix}_MAX_RETRIES", 3)
-        self.retry_backoff = config.get(f"{prefix}_RETRY_BACKOFF", 0.5)  # seconds
-        self.retry_status_codes = config.get(
+        self.max_retries = config_dict.get(f"{prefix}_MAX_RETRIES", 3)
+        self.retry_backoff = config_dict.get(f"{prefix}_RETRY_BACKOFF", 0.5)  # seconds
+        self.retry_status_codes = config_dict.get(
             f"{prefix}_RETRY_STATUS_CODES", [429, 500, 502, 503, 504]
         )
 
@@ -90,14 +90,14 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         self.session.mount("https://", adapter)
 
         # Circuit breaker configuration (per-client)
-        failure_threshold = config.get(f"{prefix}_CIRCUIT_FAILURE_THRESHOLD", 5)
-        recovery_timeout = config.get(f"{prefix}_CIRCUIT_RECOVERY_TIMEOUT", 60)
+        failure_threshold = config_dict.get(f"{prefix}_CIRCUIT_FAILURE_THRESHOLD", 5)
+        recovery_timeout = config_dict.get(f"{prefix}_CIRCUIT_RECOVERY_TIMEOUT", 60)
         self._circuit = CircuitBreaker(
             name=prefix, failure_threshold=failure_threshold, recovery_timeout=recovery_timeout
         )
 
         # Subclass-specific authentication setup
-        self._configure_authentication(config)
+        self._configure_authentication(config_dict)
 
     @abstractmethod
     def _get_config_prefix(self) -> str:

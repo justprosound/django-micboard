@@ -11,16 +11,23 @@ This package contains:
 
 from __future__ import annotations
 
-from .compliance import ComplianceResult, ComplianceService
-from .exceptions import (
-    ConnectionError,
+from micboard.exceptions import (
+    APIError as ConnectionError,
+)
+from micboard.exceptions import (
     DiscoveryError,
     HardwareNotFoundError,
     LocationAlreadyExistsError,
     LocationNotFoundError,
-    ManufacturerPluginError,
-    MicboardServiceError,
 )
+from micboard.exceptions import (
+    ManufacturerNotSupportedError as ManufacturerPluginError,
+)
+from micboard.exceptions import (
+    MicboardError as MicboardServiceError,
+)
+
+from .compliance import ComplianceResult, ComplianceService
 from .pagination import PaginatedResult, filter_by_search, paginate_queryset
 from .settings_registry import SettingNotFoundError, SettingsRegistry
 from .sync_utils import SyncResult

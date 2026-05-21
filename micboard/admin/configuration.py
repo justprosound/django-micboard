@@ -8,6 +8,10 @@ from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import ConfigurationAuditLog, ManufacturerConfiguration
+from micboard.services.manufacturer.manufacturer import (
+    apply_manufacturer_config,
+    validate_manufacturer_config,
+)
 
 
 @admin.register(ManufacturerConfiguration)
@@ -117,10 +121,15 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
     @admin.action(description="Validate selected configurations")
     def validate_config(self, request, queryset) -> None:
         """Action to validate configuration."""
+        from django.utils import timezone
+
         count = 0
         for config in queryset:
-            _ = config.validate()
-            config.save()
+            result = validate_manufacturer_config(config=config)
+            config.is_valid = result["is_valid"]
+            config.validation_errors = {"errors": result["errors"]} if result["errors"] else {}
+            config.last_validated = timezone.now()
+            config.save(update_fields=["is_valid", "validation_errors", "last_validated"])
             count += 1
 
         self.message_user(
@@ -136,7 +145,7 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
         failed = 0
 
         for config in queryset:
-            if config.apply_to_service():
+            if apply_manufacturer_config(config=config):
                 applied += 1
             else:
                 failed += 1

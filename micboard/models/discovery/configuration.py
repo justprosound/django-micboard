@@ -9,15 +9,9 @@ Allows admin to:
 
 from __future__ import annotations
 
-import logging
-from typing import Any
-
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils import timezone
-
-logger = logging.getLogger(__name__)
 
 
 class ManufacturerConfiguration(models.Model):
@@ -92,122 +86,7 @@ class ManufacturerConfiguration(models.Model):
         status = "✓" if self.is_active else "✗"
         return f"{status} {self.name} ({self.code})"
 
-    def validate(self) -> dict[str, Any]:
-        """Validate the configuration.
-
-        Returns:
-            Dict with keys:
-            - is_valid: boolean
-            - errors: list of error messages
-        """
-        errors = []
-
-        # Delayed import to avoid circular dependency
-        try:
-            from micboard.services.manufacturer.plugin_registry import PluginRegistry
-
-            plugin = PluginRegistry.get_plugin(self.code)
-            if not plugin:
-                errors.append(f"Plugin not found or not enabled: {self.code}")
-            else:
-                # Attempt health check via plugin
-                try:
-                    # Check if plugin/client is accessible
-                    client = plugin.get_client()
-                    if not client:
-                        errors.append(f"Plugin client initialization failed for {self.code}")
-                except Exception as health_err:
-                    errors.append(f"Plugin health check failed: {health_err!s}")
-
-        except ImportError:
-            # If service layer not ready, skip deep validation
-            pass
-        except Exception as e:
-            errors.append(f"Plugin initialization failed: {e!s}")
-
-        # Validate required config fields
-        required_fields = self._get_required_fields()
-        for field in required_fields:
-            if field not in self.config:
-                errors.append(f"Missing required configuration: {field}")
-
-        self.validation_errors = {"errors": errors} if errors else {}
-        self.is_valid = len(errors) == 0
-        self.last_validated = timezone.now()
-
-        if errors:
-            logger.warning(
-                f"Configuration validation failed for {self.code}",
-                extra={"code": self.code, "errors": errors},
-            )
-        else:
-            logger.info(
-                f"Configuration validated successfully for {self.code}",
-                extra={"code": self.code},
-            )
-
-        return {
-            "is_valid": self.is_valid,
-            "errors": errors,
-        }
-
-    def _get_required_fields(self) -> list[str]:
-        """Get required configuration fields for this manufacturer."""
-        # Map of manufacturer codes to required fields
-        required_fields_map: dict[str, list[str]] = {
-            "shure": ["SHURE_API_BASE_URL", "SHURE_API_SHARED_KEY"],
-            "sennheiser": ["SENNHEISER_API_BASE_URL"],
-        }
-        return required_fields_map.get(self.code, [])
-
-    def apply_to_service(self) -> bool:
-        """Apply this configuration to the running service.
-
-        Note: With plugin-based architecture, configuration is applied
-        dynamically when plugins are instantiated. This method logs
-        the intent but doesn't perform runtime reloading.
-
-        Returns:
-            True if configuration is valid, False otherwise
-        """
-        try:
-            # Validate that the configuration is well-formed
-            if not self.is_valid:
-                logger.warning(
-                    f"Cannot apply invalid configuration for {self.code}",
-                    extra={"code": self.code},
-                )
-                return False
-
-            logger.info(
-                f"Configuration validated for {self.code}. "
-                f"Will be applied on next plugin initialization.",
-                extra={"code": self.code},
-            )
-            return True
-        except Exception as e:
-            logger.error(
-                f"Failed to validate configuration for {self.code}: {e}",
-                exc_info=True,
-                extra={"code": self.code},
-            )
-            return False
-
     def clean(self) -> None:
         """Validate before saving."""
         if not self.code or not self.name:
             raise ValidationError("Code and name are required")
-
-    def save(self, *args: Any, **kwargs: Any) -> None:
-        """Save and log configuration change."""
-        self.full_clean()
-        super().save(*args, **kwargs)
-
-        logger.info(
-            f"Manufacturer configuration saved: {self.code}",
-            extra={
-                "code": self.code,
-                "is_active": self.is_active,
-                "config_keys": list(self.config.keys()),
-            },
-        )

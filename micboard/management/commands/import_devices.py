@@ -31,18 +31,16 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        from micboard.apps import MicboardConfig
-
-        config = MicboardConfig.get_config()
+        from micboard.services.settings import settings
 
         # Get API servers configuration
-        api_servers = config.get("MANUFACTURER_API_SERVERS", {})
+        api_servers = settings.get("MANUFACTURER_API_SERVERS", {})
 
         # Fallback to single server config
         if not api_servers:
-            base_url = config.get("SHURE_API_BASE_URL", "https://localhost:10000")
-            shared_key = config.get("SHURE_API_SHARED_KEY")
-            verify_ssl = config.get("SHURE_API_VERIFY_SSL", False)
+            base_url = settings.get("SHURE_API_BASE_URL", "https://localhost:10000")
+            shared_key = settings.get("SHURE_API_SHARED_KEY")
+            verify_ssl = settings.get("SHURE_API_VERIFY_SSL", False)
 
             if not shared_key:
                 self.stdout.write(

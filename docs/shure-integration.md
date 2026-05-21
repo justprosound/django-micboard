@@ -212,7 +212,7 @@ client.remove_discovery_ips(['192.168.1.100'])
 Support additional Shure device types by extending the plugin:
 
 ```python
-from micboard.manufacturers.base import BaseManufacturerPlugin
+from micboard.integrations.common.base import ManufacturerPlugin
 
 class CustomShurePlugin(BaseManufacturerPlugin):
     def get_devices(self):

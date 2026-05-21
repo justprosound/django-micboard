@@ -123,7 +123,11 @@ class Command(BaseCommand):
         self.stdout.write(f"\n--- Auditing {total} Active RF Channels ---")
 
         for channel in channels_qs:
-            status = channel.get_regulatory_status()
+            from micboard.services.hardware.rf_channel_service import (
+                get_regulatory_status as _get_status,
+            )
+
+            status = _get_status(channel)
 
             if not status["has_coverage"]:
                 # If chassis has no domain, we already flagged it, but channel level confirms impact
