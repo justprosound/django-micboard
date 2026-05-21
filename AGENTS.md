@@ -121,12 +121,12 @@ This document distills all key architectural, workflow, and style rules for code
 
 ## 4. Logging, Error Handling, and Anti-Patterns
 
-- Always use `logging.exception` in `except` blocks (never f-strings in logs). Example:
+- Always use `logging.exception` in `except` blocks. F-strings are preferred for readability. Example:
     ```python
     try:
         ...
     except Exception as exc:
-        logger.exception("Operation failed for item %s", item_id)
+        logger.exception(f"Operation failed for item {item_id}")
     ```
 - Never use bare `except:` blocks; always specify exceptions or catch `Exception`.
 - Do not embed business logic into admin, tasks, or serializers—use services.
