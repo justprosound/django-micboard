@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
-from micboard.integrations.common.base import BaseAPIClient
+from micboard.services.common.base import BaseAPIClient
 
 from .exceptions import SennheiserAPIError
 from .rate_limiter import rate_limit

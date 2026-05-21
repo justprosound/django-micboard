@@ -16,12 +16,12 @@ from django.utils import timezone
 import requests
 from requests import RequestException
 
-from micboard.integrations.base_http_client import create_resilient_session
 from micboard.models import (
     ActivityLog,
     FrequencyBand,
     RegulatoryDomain,
 )
+from micboard.services.common.base import create_resilient_session
 
 logger = logging.getLogger(__name__)
 

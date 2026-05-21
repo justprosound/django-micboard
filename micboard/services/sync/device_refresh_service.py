@@ -2,7 +2,7 @@
 
 import logging
 
-from micboard.integrations.common import get_manufacturer_plugin
+from micboard.services.common.base import get_manufacturer_plugin
 
 logger = logging.getLogger(__name__)
 

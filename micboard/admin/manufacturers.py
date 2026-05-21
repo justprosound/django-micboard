@@ -12,8 +12,8 @@ from django.urls import path, reverse
 import micboard.integrations
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.forms.settings import ManufacturerSettingsForm
-from micboard.integrations.common import get_manufacturer_plugin
 from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.services.common.base import get_manufacturer_plugin
 from micboard.services.sync.discovery_candidates_service import DiscoveryCandidateService
 from micboard.services.sync.discovery_service import DiscoveryService
 

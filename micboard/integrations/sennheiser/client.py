@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
-from micboard.integrations.base_http_client import BaseHTTPClient, BasePollingMixin
+from micboard.services.common.base import BaseHTTPClient, BasePollingMixin
 
 from .device_client import SennheiserDeviceClient
 from .discovery_client import SennheiserDiscoveryClient

@@ -6,9 +6,9 @@ import asyncio
 import logging
 from typing import Any
 
-from micboard.integrations.common import get_manufacturer_plugin
 from micboard.models.discovery import Manufacturer
 from micboard.models.hardware import WirelessChassis
+from micboard.services.common.base import get_manufacturer_plugin
 from micboard.tasks.sync.polling import _update_models_from_api_data
 
 logger = logging.getLogger(__name__)

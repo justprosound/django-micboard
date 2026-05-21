@@ -1,12 +1,12 @@
 """Rate limiting for Sennheiser API client.
 
 This module re-exports the common rate limiter for backward compatibility.
-For new code, import directly from micboard.integrations.common.
+For new code, import directly from micboard.services.common.base.
 """
 
 from __future__ import annotations
 
 # Re-export from common for backward compatibility
-from micboard.integrations.common.rate_limiter import rate_limit
+from micboard.services.common.base.rate_limiter import rate_limit
 
 __all__ = ["rate_limit"]

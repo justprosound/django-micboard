@@ -1,9 +1,3 @@
-"""Rate limiting utilities for manufacturer API clients.
-
-Provides decorators and context managers for rate limiting API calls
-across different manufacturer integrations using a token bucket algorithm.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -16,25 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 def rate_limit(*, calls_per_second: float = 10.0):
-    """Decorator to rate limit method calls.
-
-    Uses token bucket algorithm with Django cache.
-
-    Args:
-        calls_per_second: Maximum number of calls per second (keyword-only)
-
-    Example:
-        >>> class APIClient:
-        ...     @rate_limit(calls_per_second=5.0)
-        ...     def get_devices(self):
-        ...         return self._api_request("/devices")
-
-    Note:
-        - Applies globally across all instances via cache
-        - Thread-safe using Django cache atomic operations
-        - Logs rate limit events at DEBUG level
-    """
-
     def decorator(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):

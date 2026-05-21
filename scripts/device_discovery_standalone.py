@@ -48,7 +48,7 @@ class DeviceDiscovery:
         """
         try:
             # Use shared resilient session when running inside the project
-            from micboard.integrations.base_http_client import create_resilient_session
+            from micboard.services.common.base import create_resilient_session
 
             return create_resilient_session(max_retries=2, backoff_factor=0.3)
         except Exception:

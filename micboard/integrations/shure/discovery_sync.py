@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from django.core.cache import cache
 
-from micboard.integrations.common import get_manufacturer_plugin
 from micboard.models import Manufacturer, WirelessChassis
+from micboard.services.common.base import get_manufacturer_plugin
 
 
 def get_discovery_candidates(

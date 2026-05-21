@@ -38,7 +38,7 @@ class PluginRegistryTests(TestCase):
         """Clean up after tests."""
         PluginRegistry.clear_cache()
 
-    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.get_manufacturer_plugin")
     def test_get_plugin_class_caches_result(self, mock_get_plugin):
         """Test that plugin class is cached after first load."""
         mock_get_plugin.return_value = FakeManufacturerPlugin
@@ -54,7 +54,7 @@ class PluginRegistryTests(TestCase):
         # Mock should only be called once
         self.assertEqual(mock_get_plugin.call_count, 1)
 
-    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.get_manufacturer_plugin")
     def test_get_plugin_not_found_returns_none(self, mock_get_plugin):
         """Test that missing plugin returns None."""
         mock_get_plugin.side_effect = ModuleNotFoundError("No plugin")
@@ -65,7 +65,7 @@ class PluginRegistryTests(TestCase):
 
     def test_clear_cache(self):
         """Test cache clearing."""
-        with patch("micboard.manufacturers.get_manufacturer_plugin") as mock_get:
+        with patch("micboard.services.common.base.get_manufacturer_plugin") as mock_get:
             mock_get.return_value = FakeManufacturerPlugin
 
             # Fill cache
@@ -81,7 +81,7 @@ class PluginRegistryTests(TestCase):
             PluginRegistry.get_plugin_class("fake")
             self.assertEqual(mock_get.call_count, 1)
 
-    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.get_manufacturer_plugin")
     def test_plugin_loading_error_handling(self, mock_get_plugin):
         """Test error handling when plugin loading fails."""
         mock_get_plugin.side_effect = ImportError("Import failed")
@@ -89,7 +89,7 @@ class PluginRegistryTests(TestCase):
         with self.assertRaises(ImportError):
             PluginRegistry.get_plugin_class("fake")
 
-    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.get_manufacturer_plugin")
     def test_get_all_active_plugins(self, mock_get_plugin):
         """Test getting all active plugins from database."""
         mock_get_plugin.return_value = FakeManufacturerPlugin
@@ -108,7 +108,7 @@ class PluginRegistryTests(TestCase):
             self.assertIsInstance(plugins, list)
             self.assertTrue(len(plugins) >= 0)
 
-    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.get_manufacturer_plugin")
     def test_get_plugin_with_manufacturer_not_found(self, mock_get_plugin):
         """Test get_plugin when manufacturer is not found in database."""
         mock_get_plugin.return_value = FakeManufacturerPlugin
@@ -130,7 +130,7 @@ class PluginRegistryTests(TestCase):
             # Plugin should be created with manufacturer=None
             self.assertIsInstance(plugin, FakeManufacturerPlugin)
 
-    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.get_manufacturer_plugin")
     def test_get_all_active_plugins_with_failed_plugin(self, mock_get_plugin):
         """Test get_all_active_plugins handles plugins that fail to load."""
         # First plugin succeeds, second fails
@@ -157,7 +157,7 @@ class PluginRegistryTests(TestCase):
             # Should have fewer plugins than manufacturers (one failed)
             self.assertTrue(len(plugins) <= len(mock_manufacturers))
 
-    @patch("micboard.manufacturers.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.get_manufacturer_plugin")
     def test_get_plugin_with_manufacturer_lookup_success(self, mock_get_plugin):
         """Test get_plugin successfully looks up manufacturer from database."""
         mock_get_plugin.return_value = FakeManufacturerPlugin
