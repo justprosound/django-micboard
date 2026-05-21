@@ -16,10 +16,11 @@ from __future__ import annotations
 
 # Import all admin modules to trigger registration
 from micboard.admin import (
+    activity_logs,
     assignments,
     channels,
     chargers,
-    configuration_and_logging,
+    configuration,
     discovery,
     discovery_admin,
     display_wall,
