@@ -2,8 +2,8 @@ import logging
 
 from django.core.cache import cache
 
-from micboard.integrations.common import get_manufacturer_plugin
 from micboard.models.discovery import Manufacturer
+from micboard.services.common.base import get_manufacturer_plugin
 
 logger = logging.getLogger(__name__)
 

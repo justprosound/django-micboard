@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.integrations.common.base import ManufacturerPlugin
+    from micboard.services.common.base import ManufacturerPlugin
 
 logger = logging.getLogger(__name__)
 _plugin_cache: dict[str, type[ManufacturerPlugin]] = {}
@@ -39,7 +39,7 @@ class PluginRegistry:
 
         # Load plugin
         try:
-            from micboard.integrations.common import get_manufacturer_plugin
+            from micboard.services.common.base import get_manufacturer_plugin
 
             plugin_class = get_manufacturer_plugin(manufacturer_code)
             _plugin_cache[manufacturer_code] = plugin_class

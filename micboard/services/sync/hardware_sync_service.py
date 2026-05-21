@@ -6,6 +6,7 @@ and offline device detection.
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,8 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from micboard.services.manufacturer.manufacturer import ManufacturerService
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
     from micboard.models import Location
@@ -124,15 +127,41 @@ class HardwareSyncService:
                 'errors': int
             }
         """
-        # Delegate to ManufacturerService which has the full sync logic
-        result = ManufacturerService.sync_devices_for_manufacturer(
-            manufacturer_code=manufacturer.code
-        )
+        from micboard.models.discovery import DiscoveredDevice
 
-        # Convert to expected format
+        added = 0
+        updated = 0
+        errors = 0
+
+        for device_data in devices_data:
+            try:
+                ip = device_data.get("ip") or device_data.get("ipAddress") or ""
+                if not ip:
+                    errors += 1
+                    continue
+
+                device_type = device_data.get("type", "unknown")
+                channels = len(device_data.get("channels", []))
+
+                _, created = DiscoveredDevice.objects.update_or_create(
+                    ip=ip,
+                    manufacturer=manufacturer,
+                    defaults={
+                        "device_type": device_type,
+                        "channels": channels,
+                    },
+                )
+                if created:
+                    added += 1
+                else:
+                    updated += 1
+            except Exception:
+                logger.exception("Error syncing device %s", device_data.get("ip"))
+                errors += 1
+
         return {
-            "total": result["devices_added"] + result["devices_updated"],
-            "added": result["devices_added"],
-            "updated": result["devices_updated"],
-            "errors": len(result["errors"]),
+            "total": added + updated,
+            "added": added,
+            "updated": updated,
+            "errors": errors,
         }

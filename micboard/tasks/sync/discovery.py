@@ -12,7 +12,6 @@ from typing import Any
 from django.core.cache import cache
 from django.utils import timezone
 
-from micboard.integrations.common.utils import validate_hostname
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import (
     DiscoveryCIDR,
@@ -21,6 +20,7 @@ from micboard.models.discovery.registry import (
     MicboardConfig,
 )
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base.utils import validate_hostname
 from micboard.services.sync.discovery_service import DiscoveryService, get_manufacturer_client
 
 logger = logging.getLogger(__name__)
@@ -238,7 +238,7 @@ def _initialize_plugin_client(
 ) -> tuple[Any, Any] | tuple[None, None]:
     """Initialize plugin and client, return (plugin, client) or (None, None) on failure."""
     try:
-        from micboard.integrations.common import get_manufacturer_plugin
+        from micboard.services.common.base import get_manufacturer_plugin
 
         plugin_class = get_manufacturer_plugin(manufacturer.code)
         plugin = plugin_class(manufacturer)

@@ -46,7 +46,7 @@ class ShureDiscoverySyncTest(TestCase):
                 return devices_from_api
 
         with patch(
-            "micboard.manufacturers.get_manufacturer_plugin",
+            "micboard.services.common.base.get_manufacturer_plugin",
             return_value=FakePlugin,
         ):
             result = DiscoveryOrchestrationService.handle_discovery_requested(
@@ -55,7 +55,7 @@ class ShureDiscoverySyncTest(TestCase):
 
         shure_result = result["shure"]
         self.assertEqual(shure_result["status"], "success")
-        self.assertEqual(shure_result["count"], 2)
+        self.assertEqual(shure_result["device_count"], 2)
 
         persisted = DiscoveredDevice.objects.order_by("ip")
         self.assertEqual(persisted.count(), 2)

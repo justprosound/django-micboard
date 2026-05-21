@@ -111,7 +111,7 @@ def apply_manufacturer_config(
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.integrations.common.base import ManufacturerPlugin
+    from micboard.services.common.base import ManufacturerPlugin
 
 
 class ManufacturerService:

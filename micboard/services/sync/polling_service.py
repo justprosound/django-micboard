@@ -210,7 +210,7 @@ class PollingService(PollingMixin):
         Returns:
             Dictionary with standardized health status
         """
-        from micboard.integrations.common import get_manufacturer_plugin
+        from micboard.services.common.base import get_manufacturer_plugin
         from micboard.services.notification.signal_emitter import SignalEmitter
 
         try:
@@ -281,7 +281,7 @@ class PollingService(PollingMixin):
 
             # Check API client health
             try:
-                from micboard.integrations.common import get_manufacturer_plugin
+                from micboard.services.common.base import get_manufacturer_plugin
 
                 plugin_class = get_manufacturer_plugin(manufacturer.code)
                 plugin = plugin_class(manufacturer)

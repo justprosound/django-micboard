@@ -39,7 +39,7 @@ class DeviceProbeService:
         self.verify_ssl = verify_ssl
         self.discovered_devices: list[dict[str, Any]] = []
         # Use shared resilient session and a simple in-process circuit breaker
-        from micboard.integrations.base_http_client import CircuitBreaker, create_resilient_session
+        from micboard.services.common.base import CircuitBreaker, create_resilient_session
 
         self.session = create_resilient_session(max_retries=3, backoff_factor=0.5)
         # Circuit named for metrics/observability
@@ -49,7 +49,7 @@ class DeviceProbeService:
 
     def _create_session(self) -> requests.Session:
         """Create HTTP session with retry strategy."""
-        from micboard.integrations.base_http_client import create_resilient_session
+        from micboard.services.common.base import create_resilient_session
 
         return create_resilient_session(max_retries=3, backoff_factor=0.5)
 

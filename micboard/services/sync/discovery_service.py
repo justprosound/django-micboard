@@ -4,11 +4,10 @@ import logging
 from typing import cast
 
 from micboard.discovery.network_utils import expand_cidrs, resolve_fqdns
-from micboard.integrations.common import get_manufacturer_plugin
-from micboard.integrations.common.base import BaseAPIClient
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base import BaseAPIClient, get_manufacturer_plugin
 
 logger = logging.getLogger(__name__)
 

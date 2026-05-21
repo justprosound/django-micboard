@@ -7,7 +7,7 @@ from typing import Any, cast
 
 from requests.auth import HTTPDigestAuth
 
-from micboard.integrations.base_http_client import BaseHTTPClient, BasePollingMixin
+from micboard.services.common.base import BaseHTTPClient, BasePollingMixin
 
 from .device_client import ShureDeviceClient
 from .discovery_client import ShureDiscoveryClient

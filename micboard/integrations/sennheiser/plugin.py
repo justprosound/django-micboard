@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, cast
 
-from micboard.integrations.common.base import ManufacturerPlugin
+from micboard.services.common.base import ManufacturerPlugin
 
 logger = logging.getLogger(__name__)
 
