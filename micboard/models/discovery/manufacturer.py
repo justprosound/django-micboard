@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import ClassVar
 
 from django.db import models
@@ -61,30 +62,36 @@ class Manufacturer(models.Model):
             logger.exception("Failed to log %s activity: %s", action, e)
 
     def save(self, *args, **kwargs):
-        """Persist manufacturer data and delegate side-effects to service layer."""
-        created = self.pk is None
-        old_active = False
-        if not created:
-            try:
-                old_active = Manufacturer.objects.get(pk=self.pk).is_active
-            except Manufacturer.DoesNotExist:
-                pass
+        """Persist manufacturer data and delegate side-effects to service layer.
 
-        super().save(*args, **kwargs)
-
-        # Delegate audit + discovery side-effects to ManufacturerService
-        from micboard.services.manufacturer.manufacturer import ManufacturerService
-
-        ManufacturerService.handle_manufacturer_save(
-            manufacturer=self, created=created, old_active=old_active
+        Deprecated: Use manufacturer.save_manufacturer() instead.
+        """
+        warnings.warn(
+            "Manufacturer.save() is deprecated, use manufacturer.save_manufacturer() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.manufacturer.signals import (
+            save_manufacturer as _save,
         )
 
-    def delete(self, *args, **kwargs):
-        """Persist deletion and delegate side-effects to service layer."""
-        super().delete(*args, **kwargs)
-        from micboard.services.manufacturer.manufacturer import ManufacturerService
+        _save(self, *args, **kwargs)
 
-        ManufacturerService.handle_manufacturer_delete(manufacturer=self)
+    def delete(self, *args, **kwargs):
+        """Persist deletion and delegate side-effects to service layer.
+
+        Deprecated: Use manufacturer.delete_manufacturer() instead.
+        """
+        warnings.warn(
+            "Manufacturer.delete() is deprecated, use manufacturer.delete_manufacturer() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.manufacturer.signals import (
+            delete_manufacturer as _delete,
+        )
+
+        return _delete(self, *args, **kwargs)
 
     def get_plugin_class(self):
         """Get the plugin class for this manufacturer."""

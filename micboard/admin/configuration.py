@@ -8,7 +8,7 @@ from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models import ConfigurationAuditLog, ManufacturerConfiguration
-from micboard.services.manufacturer.manufacturer import (
+from micboard.services.manufacturer.config import (
     apply_manufacturer_config,
     validate_manufacturer_config,
 )

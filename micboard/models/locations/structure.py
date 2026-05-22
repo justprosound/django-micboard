@@ -10,6 +10,7 @@ Optional multi-tenancy support:
 
 from __future__ import annotations
 
+import warnings
 from typing import ClassVar
 
 from django.contrib.sites.models import Site
@@ -80,21 +81,20 @@ class Building(models.Model):
         return str(self.name)
 
     def save(self, *args, **kwargs) -> None:
-        """Auto-assign regulatory domain based on country if not set."""
-        from django.db import OperationalError, ProgrammingError
+        """Auto-assign regulatory domain based on country if not set.
 
-        from micboard.models.rf_coordination import RegulatoryDomain
+        Deprecated: Use structure_service.save_building() instead.
+        """
+        warnings.warn(
+            "Building.save() is deprecated, use structure_service.save_building() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        from micboard.services.locations.structure_service import (
+            save_building as _save,
+        )
 
-        if self.country and not self.regulatory_domain:
-            try:
-                domain = RegulatoryDomain.objects.filter(country_code=self.country.upper()).first()
-                if domain:
-                    self.regulatory_domain = domain
-            except (ProgrammingError, OperationalError):
-                # Table doesn't exist yet (e.g., during migrations or tests)
-                pass
-
-        super().save(*args, **kwargs)
+        _save(self, *args, **kwargs)
 
 
 class Room(models.Model):

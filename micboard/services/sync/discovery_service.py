@@ -1,13 +1,19 @@
 """Network discovery service to manage manufacturer IP/FQDN scans."""
 
 import logging
-from typing import cast
 
-from micboard.discovery.network_utils import expand_cidrs, resolve_fqdns
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.common.base import BaseAPIClient, get_manufacturer_plugin
+from micboard.services.sync.discovery_utils import (
+    collect_base_candidates,
+    dedupe_preserve_order,
+    is_ip_managed_by_another_manufacturer,
+    prepare_scanning_data,
+)
+from micboard.services.sync.discovery_utils import (
+    get_manufacturer_client as utility_get_manufacturer_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,17 +29,12 @@ class DiscoveryService:
     """Manages network discovery across all configured manufacturers."""
 
     def _get_manufacturer_client(self, manufacturer: Manufacturer) -> BaseAPIClient:
-        return get_manufacturer_client(manufacturer)
+        return utility_get_manufacturer_client(manufacturer)
 
     def _is_ip_managed_by_another_manufacturer(
         self, ip_address: str, current_manufacturer: Manufacturer
     ) -> bool:
-        return cast(
-            bool,
-            WirelessChassis.objects.filter(ip=ip_address)
-            .exclude(manufacturer=current_manufacturer)
-            .exists(),
-        )
+        return is_ip_managed_by_another_manufacturer(ip_address, current_manufacturer)
 
     def add_discovery_candidate(
         self,
@@ -162,28 +163,24 @@ class DiscoveryService:
         max_hosts: int,
     ):
         """Runs discovery for a single manufacturer."""
-        candidate_ips: list[str] = []
+        # Collect base candidates from chassis and existing discovery IPs
+        candidate_ips = collect_base_candidates(manufacturer)
 
-        chassis_ips = (
-            WirelessChassis.objects.filter(manufacturer=manufacturer)
-            .exclude(ip__isnull=True)
-            .exclude(ip="")
-            .values_list("ip", flat=True)
+        # Prepare scanning data for CIDRs and FQDNs
+        cidr_hosts_map, fqdns_map, _ = prepare_scanning_data(
+            manufacturer, scan_cidrs, scan_fqdns, max_hosts
         )
-        candidate_ips.extend(chassis_ips)
 
-        if scan_cidrs:
-            cidrs = [dc.cidr for dc in DiscoveryCIDR.objects.filter(manufacturer=manufacturer)]
-            for ip in expand_cidrs(cidrs, max_hosts=max_hosts):
-                candidate_ips.append(ip)
+        # Add CIDR hosts to candidates
+        for hosts in cidr_hosts_map.values():
+            candidate_ips.extend(hosts)
 
-        if scan_fqdns:
-            fqdns = [df.fqdn for df in DiscoveryFQDN.objects.filter(manufacturer=manufacturer)]
-            resolved_fqdns = resolve_fqdns(fqdns)
-            for _, ips in resolved_fqdns.items():
-                candidate_ips.extend(ips)
+        # Add FQDN resolved IPs to candidates
+        for hosts in fqdns_map.values():
+            candidate_ips.extend(hosts)
 
-        unique_candidate_ips = list(dict.fromkeys(candidate_ips))
+        # Dedupe while preserving order
+        unique_candidate_ips = dedupe_preserve_order(candidate_ips)
         logger.info(
             "Manufacturer %s: Found %d unique candidate IPs from local sources.",
             manufacturer.code,

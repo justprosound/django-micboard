@@ -97,7 +97,7 @@ class ManufacturerAdmin(MicboardModelAdmin):
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
 
-        class AdminWithSettingsForm(form):
+        class AdminWithSettingsForm(form):  # type: ignore[misc,valid-type]
             def __init__(self, *args, **kw):
                 """Wrap the admin form and inject manufacturer settings fields when editing."""
                 super().__init__(*args, **kw)
@@ -130,14 +130,12 @@ class ManufacturerAdmin(MicboardModelAdmin):
     search_fields = ("name", "code")
 
     def save_model(self, request, obj, form, change):
-        """Delegate all business logic to ManufacturerService."""
-        from micboard.services.manufacturer.manufacturer import ManufacturerService
+        """Delegate side-effects to manufacturer signal handlers."""
+        from micboard.services.manufacturer.signals import handle_manufacturer_save
 
         super().save_model(request, obj, form, change)
         # Delegate audit and side-effects to service
-        ManufacturerService.handle_manufacturer_save(
-            manufacturer=obj, created=not change, old_active=None
-        )
+        handle_manufacturer_save(manufacturer=obj, created=not change, old_active=None)
         # Log admin action
         if change:
             self.log_change(request, obj, "Manufacturer modified via admin.")
@@ -145,10 +143,10 @@ class ManufacturerAdmin(MicboardModelAdmin):
             self.log_addition(request, obj, "Manufacturer created via admin.")
 
     def delete_model(self, request, obj):
-        """Delegate all business logic to ManufacturerService."""
-        from micboard.services.manufacturer.manufacturer import ManufacturerService
+        """Delegate side-effects to manufacturer signal handlers."""
+        from micboard.services.manufacturer.signals import handle_manufacturer_delete
 
-        ManufacturerService.handle_manufacturer_delete(manufacturer=obj)
+        handle_manufacturer_delete(manufacturer=obj)
         self.log_deletion(request, obj, "Manufacturer deleted via admin.")
         super().delete_model(request, obj)
 

@@ -16,6 +16,9 @@ from .device_metadata import DeviceMetadataAccessor, GenericMetadataAccessor, Sh
 from .device_specs import DeviceSpec, DeviceSpecService
 from .hardware import HardwareService, NormalizedHardware
 from .hardware_lifecycle import HardwareLifecycleManager, get_lifecycle_manager
+from .hardware_post_save_hooks import HardwarePostSaveHooks
+from .hardware_query import HardwareQueryService
+from .hardware_sync import HardwareSyncService
 from .location import LocationService
 from .performer import PerformerService
 from .performer_assignment import PerformerAssignmentService
@@ -29,7 +32,10 @@ __all__ = [
     "DeviceSpecService",
     "GenericMetadataAccessor",
     "HardwareLifecycleManager",
+    "HardwarePostSaveHooks",
+    "HardwareQueryService",
     "HardwareService",
+    "HardwareSyncService",
     "LocationService",
     "NormalizedHardware",
     "PerformerAssignmentService",

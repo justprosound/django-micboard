@@ -81,7 +81,7 @@ response = requests.get(
 
 ### Shared Rate Limiter
 
-**Module:** `micboard.integrations.common.rate_limiter`
+**Module:** `micboard.services.common.base.rate_limiter`
 
 Implements token bucket algorithm using Django cache for consistent rate limiting across all manufacturers.
 
@@ -93,7 +93,7 @@ Implements token bucket algorithm using Django cache for consistent rate limitin
 
 **Usage:**
 ```python
-from micboard.integrations.common.rate_limiter import rate_limit
+from micboard.services.common.base.rate_limiter import rate_limit
 
 @rate_limit(calls_per_second=10.0)
 def api_request(self):
@@ -105,7 +105,7 @@ def api_request(self):
 
 ### Base Exception Hierarchy
 
-**Module:** `micboard.integrations.common.exceptions`
+**Module:** `micboard.services.common.base.exceptions`
 
 Unified exception handling for API errors across all manufacturers.
 
@@ -390,12 +390,11 @@ MICBOARD = {
 
 ```python
 # Common utilities
-from micboard.integrations.common import rate_limit, APIError, APIRateLimitError
+from micboard.services.common.base import rate_limit, APIError, APIRateLimitError
 
 # Shure
-from micboard.integrations.shure.client import ShureSystemAPIClient
+from micboard.integrations.shure.client import ShureSystemAPIClient, ShureAPIError, ShureAPIRateLimitError
 from micboard.integrations.shure.device_client import ShureDeviceClient
-from micboard.integrations.shure.exceptions import ShureAPIError, ShureAPIRateLimitError
 
 # Sennheiser
 from micboard.integrations.sennheiser.client import SennheiserAPIClient

@@ -436,10 +436,10 @@ Retry-After: 2
 
 ### Rate Limiter Implementation
 
-The integration includes automatic rate limiting via `micboard.integrations.common.rate_limiter`:
+The integration includes automatic rate limiting via `micboard.services.common.base.rate_limiter`:
 
 ```python
-from micboard.integrations.shure.rate_limiter import rate_limit
+from micboard.services.common.base.rate_limiter import rate_limit
 
 class ShureDeviceClient:
     @rate_limit(calls_per_second=10.0)
@@ -454,7 +454,7 @@ Rate limit errors are handled through the exception hierarchy:
 - **`ShureAPIRateLimitError`** - Rate limit errors (HTTP 429)
 - **`ShureAPIError`** - Generic API errors
 
-Both inherit from base classes in `micboard.integrations.common.exceptions`.
+Both inherit from base classes in `micboard.services.common.base.exceptions`.
 
 ## Data Transformation
 
@@ -625,9 +625,9 @@ export SHURE_POLL_INTERVAL="30"
 - [Shure Test Suite](archive/SHURE_TEST_SUITE_COMPLETION.md)
 
 ### Common Integration Utilities
-- **Rate Limiter:** `micboard.integrations.common.rate_limiter`
-- **Exceptions:** `micboard.integrations.common.exceptions`
-- **Base Client:** `micboard.integrations.base_http_client`
+- **Rate Limiter:** `micboard.services.common.base.rate_limiter`
+- **Exceptions:** `micboard.services.common.base.exceptions`
+- **Base Client:** `micboard.services.common.base.client`
 
 ## Version History
 

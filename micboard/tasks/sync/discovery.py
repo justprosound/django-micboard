@@ -274,7 +274,9 @@ def _persist_supported_models(manufacturer: Manufacturer, client: Any) -> None:
             )
             if not created:
                 cfg_obj.value = json.dumps(models)
-                cfg_obj.save()
+                from micboard.services.discovery.registry_service import save_micboard_config
+
+                save_micboard_config(cfg_obj)
             logger.info("Persisted %d supported models for %s", len(models), manufacturer.code)
     except Exception as exc:
         logger.exception("Error persisting supported device models: %s", exc)

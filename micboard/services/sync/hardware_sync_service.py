@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from micboard.services.manufacturer.manufacturer import ManufacturerService
+from micboard.services.manufacturer.sync import ManufacturerSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +44,11 @@ class HardwareSyncService:
         TODO: Ensure all manufacturer-specific config is resolved via SettingsRegistry,
         and that this logic is vendor-agnostic and multi-tenant safe.
         """
-        # Use ManufacturerService for the core sync logic
-        result = ManufacturerService.sync_devices_for_manufacturer(
+        result = ManufacturerSyncService.sync_devices_for_manufacturer(
             manufacturer_code=manufacturer_code
         )
 
-        # Convert ManufacturerService result format to HardwareSyncService format
+        # Convert ManufacturerSyncService result format to HardwareSyncService format
         stats = {
             "total_devices": result["devices_added"] + result["devices_updated"],
             "created": result["devices_added"],
@@ -60,7 +59,7 @@ class HardwareSyncService:
 
         # If location specified and not dry run, assign location to new devices
         if location and not dry_run and result["success"]:
-            # Note: This would need to be implemented in ManufacturerService
+            # Note: This would need to be implemented in ManufacturerSyncService
             # to assign locations during sync. For now, this is a placeholder.
             pass
 

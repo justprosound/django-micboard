@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 
 from micboard.services.common.base import BaseAPIClient
+from micboard.services.common.base.rate_limiter import rate_limit
 from micboard.services.common.base.utils import validate_ipv4_list
 
-from .exceptions import ShureAPIError
-from .rate_limiter import rate_limit
+from .client import ShureAPIError
 
 logger = logging.getLogger(__name__)
 
