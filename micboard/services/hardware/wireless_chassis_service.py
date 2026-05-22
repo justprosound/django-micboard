@@ -52,7 +52,7 @@ def get_available_band_plans(chassis: WirelessChassis) -> list[tuple[str, str]]:
     if not mfg_code:
         return []
 
-    from micboard.models.device_specs import get_available_band_plans as _get_plans
+    from micboard.models.band_plans import get_available_band_plans as _get_plans
 
     return _get_plans(manufacturer=mfg_code)
 
@@ -87,7 +87,7 @@ def detect_band_plan_from_api_data(
         chassis.manufacturer.code.lower() if hasattr(chassis.manufacturer, "code") else "unknown"
     )
 
-    from micboard.models.device_specs import (
+    from micboard.models.band_plans import (
         detect_band_plan_from_api_string,
         get_band_plan,
         get_band_plan_from_model_code,
@@ -192,14 +192,14 @@ def prepare_chassis_for_save(chassis: WirelessChassis) -> dict:
             chassis.band_plan_min_mhz = band_plan["min_mhz"]
             chassis.band_plan_max_mhz = band_plan["max_mhz"]
         elif not chassis.band_plan_min_mhz or not chassis.band_plan_max_mhz:
-            from micboard.models.device_specs import parse_band_plan_from_name
+            from micboard.models.band_plans import parse_band_plan_from_name
 
             parsed = parse_band_plan_from_name(name=chassis.band_plan_name)
             if parsed:
                 chassis.band_plan_min_mhz = parsed["min_mhz"]
                 chassis.band_plan_max_mhz = parsed["max_mhz"]
     elif not chassis.band_plan_name and chassis.manufacturer and chassis.model:
-        from micboard.models.device_specs import (
+        from micboard.models.band_plans import (
             get_band_plan,
             get_band_plan_from_model_code,
         )
