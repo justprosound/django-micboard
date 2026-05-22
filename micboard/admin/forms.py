@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from django import forms
 
-from micboard.models.device_specs import get_available_band_plans
+from micboard.models.band_plans import get_available_band_plans
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 
@@ -33,8 +35,6 @@ class WirelessChassisAdminForm(forms.ModelForm):
                 choices = [("", "--- Select band plan ---")] + [
                     (key, name) for key, name in band_plans
                 ]
-                from typing import cast
-
                 selector = cast(forms.ChoiceField, self.fields["band_plan_selector"])
                 selector.choices = choices
 
@@ -66,12 +66,17 @@ class WirelessChassisAdminForm(forms.ModelForm):
     def clean(self):
         """Handle band plan selection and validate."""
         cleaned_data = super().clean()
+        if cleaned_data is None:
+            cleaned_data = {}
         band_plan_selector = cleaned_data.get("band_plan_selector")
 
         # If user selected a standard band plan, copy it to band_plan_name
         if band_plan_selector:
             # Find the full name from choices
-            for key, name in self.fields["band_plan_selector"].choices:
+            selector = cast(forms.ChoiceField, self.fields["band_plan_selector"])
+            # cast avoids django-stubs union-attr issue with ChoiceField.choices
+            selector_choices = cast(list, selector.choices)
+            for key, name in selector_choices:
                 if key == band_plan_selector:
                     cleaned_data["band_plan_name"] = name
                     break
