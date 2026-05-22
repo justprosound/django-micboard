@@ -43,7 +43,7 @@ from .core.performer import PerformerService
 from .core.performer_assignment import PerformerAssignmentService
 
 # Manufacturer services
-from .manufacturer.manufacturer import ManufacturerService
+from .manufacturer import ManufacturerQueryService, ManufacturerSyncService
 
 # Monitoring services
 from .monitoring.connection import ConnectionHealthService
@@ -58,10 +58,6 @@ from .sync.device_probe_service import (
     DeviceProbeService,
     probe_device_ip,
 )
-from .sync.hardware_deduplication_service import (
-    HardwareDeduplicationService,
-    get_hardware_deduplication_service,
-)
 from .sync.hardware_sync_service import HardwareSyncService
 from .sync.polling_api import APIServerPollingService
 from .sync.polling_service import PollingService, get_polling_service
@@ -75,11 +71,11 @@ __all__ = [
     "DeviceAPISyncService",
     "DeviceHealthService",
     "DeviceProbeService",
-    "HardwareDeduplicationService",
     "HardwareService",
     "HardwareSyncService",
     "HardwareLifecycleManager",
-    "ManufacturerService",
+    "ManufacturerQueryService",
+    "ManufacturerSyncService",
     "MonitoringService",
     "NormalizedHardware",
     "LocationService",
@@ -89,7 +85,6 @@ __all__ = [
     # Service Accessors
     "get_polling_service",
     "get_lifecycle_manager",
-    "get_hardware_deduplication_service",
     "probe_device_ip",
     # Utilities
     "SyncResult",

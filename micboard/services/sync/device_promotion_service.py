@@ -80,18 +80,14 @@ class DevicePromotionService:
     def _attempt_promotion_with_device_data(
         self, discovered, plugin, device_data
     ) -> tuple[bool, str, object]:
-        from micboard.services.manufacturer.manufacturer import ManufacturerService
-        from micboard.services.sync.hardware_deduplication_service import (
-            get_hardware_deduplication_service,
-        )
+        from micboard.services.deduplication import check_device
+        from micboard.services.manufacturer.sync import ManufacturerSyncService
 
         transformed = plugin.transform_device_data(device_data)
         if not transformed:
             return (False, "Failed to transform device data", None)
 
-        dedup_service = get_hardware_deduplication_service(discovered.manufacturer)
-
-        dedup_result = dedup_service.check_device(
+        dedup_result = check_device(
             serial_number=transformed.get("serial_number"),
             mac_address=transformed.get("mac_address"),
             ip=transformed.get("ip"),
@@ -100,19 +96,21 @@ class DevicePromotionService:
         )
 
         if dedup_result.is_conflict:
-            return (False, f"Device conflict: {dedup_result.conflict_reason}", None)
+            return (False, f"Device conflict: {dedup_result.conflict_type}", None)
 
         if dedup_result.is_duplicate and dedup_result.existing_device:
             chassis = dedup_result.existing_device
-            ManufacturerService._update_existing_chassis(
+            ManufacturerSyncService._update_existing_chassis(
                 chassis,
-                ManufacturerService._normalize_devices([device_data], plugin)[0],
+                ManufacturerSyncService._normalize_devices([device_data], plugin)[0],
             )
             return (True, "Updated existing chassis", chassis)
 
-        normalized = ManufacturerService._normalize_devices([device_data], plugin)
+        normalized = ManufacturerSyncService._normalize_devices([device_data], plugin)
         if normalized:
-            chassis = ManufacturerService._create_chassis(normalized[0], discovered.manufacturer)
+            chassis = ManufacturerSyncService._create_chassis(
+                normalized[0], discovered.manufacturer
+            )
             return (True, "Created new managed chassis", chassis)
 
         return (False, "Failed to normalize device data", None)

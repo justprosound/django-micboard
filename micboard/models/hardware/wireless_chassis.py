@@ -395,6 +395,12 @@ class WirelessChassis(models.Model):
 
     def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
         """Handle side effects before deletion."""
+        warnings.warn(
+            "WirelessChassis.delete() is deprecated, "
+            "use HardwareService.handle_chassis_delete() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from micboard.services.core.hardware import HardwareService
 
         HardwareService.handle_chassis_delete(chassis=self)

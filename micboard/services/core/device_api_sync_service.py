@@ -149,7 +149,7 @@ class DeviceAPISyncService:
 
         Args:
             device: Device to sync
-            service: ManufacturerService instance
+            service: Manufacturer plugin or API service instance
             fields: Optional list of fields to sync (None = all)
 
         Returns:
@@ -163,7 +163,8 @@ class DeviceAPISyncService:
 
             payload = build_api_payload(device, fields)
 
-            success = client.update_device(device.api_device_id, payload)
+            device_id = device.api_device_id if isinstance(device, WirelessChassis) else device.pk
+            success = client.update_device(device_id, payload)
 
             if success:
                 logger.info(

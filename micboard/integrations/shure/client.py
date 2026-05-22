@@ -7,12 +7,29 @@ from typing import Any, cast
 
 from requests.auth import HTTPDigestAuth
 
-from micboard.services.common.base import BaseHTTPClient, BasePollingMixin
+from micboard.services.common.base import (
+    APIError,
+    APIRateLimitError,
+    BaseHTTPClient,
+    BasePollingMixin,
+)
 
 from .device_client import ShureDeviceClient
 from .discovery_client import ShureDiscoveryClient
-from .exceptions import ShureAPIError, ShureAPIRateLimitError
 from .transformers import ShureDataTransformer
+
+
+class ShureAPIError(APIError):
+    """Shure System API error exception."""
+
+    pass
+
+
+class ShureAPIRateLimitError(ShureAPIError, APIRateLimitError):
+    """Shure System API rate limit error exception."""
+
+    pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -79,11 +96,11 @@ class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
         """Return health check endpoint for Shure API."""
         return "/api/v1/devices"
 
-    def get_exception_class(self) -> type[Exception]:
+    def get_exception_class(self) -> type[APIError]:
         """Return Shure-specific API exception class."""
         return ShureAPIError
 
-    def get_rate_limit_exception_class(self) -> type[Exception]:
+    def get_rate_limit_exception_class(self) -> type[APIRateLimitError]:
         """Return Shure-specific rate limit exception class."""
         return ShureAPIRateLimitError
 

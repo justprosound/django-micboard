@@ -1,5 +1,7 @@
 """Discovery candidate computation service."""
 
+from __future__ import annotations
+
 import ipaddress
 import logging
 
@@ -8,19 +10,26 @@ from django.utils import timezone
 
 from asgiref.sync import async_to_sync
 
+try:
+    from channels.layers import BaseChannelLayer, get_channel_layer
+except ImportError:
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from channels.layers import BaseChannelLayer
+
+    def get_channel_layer(alias: str = "default") -> BaseChannelLayer | None:
+        """Fallback stub when Channels is not installed."""
+        return None
+
+
 from micboard.discovery.network_utils import resolve_fqdns
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.sync.discovery_service import get_manufacturer_client
-
-try:
-    from channels.layers import get_channel_layer
-except ImportError:
-
-    def get_channel_layer():
-        return None
-
+from micboard.services.sync.discovery_utils import (
+    get_manufacturer_client as utility_get_manufacturer_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +112,7 @@ class DiscoveryCandidateService:
         """Collect base candidates from remote discovery IPs and local chassis."""
         candidates = []
 
-        client = get_manufacturer_client(manufacturer)
+        client = utility_get_manufacturer_client(manufacturer)
         if client and hasattr(client, "get_discovery_ips"):
             try:
                 remote_ips = client.get_discovery_ips() or []

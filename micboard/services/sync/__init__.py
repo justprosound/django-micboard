@@ -22,18 +22,12 @@ from .device_refresh_service import DeviceRefreshService
 from .discovery_candidates_service import DiscoveryCandidateService
 from .discovery_orchestration_service import DiscoveryOrchestrationService
 from .discovery_service import DiscoveryService
-from .hardware_deduplication_service import (
-    DeduplicationResult,
-    HardwareDeduplicationService,
-    get_hardware_deduplication_service,
-)
 from .hardware_sync_service import HardwareSyncService
 from .polling_api import APIServerPollingService
 from .polling_service import PollingService, get_polling_service
 
 __all__ = [
     "APIServerPollingService",
-    "DeduplicationResult",
     "DeviceAPIHealthChecker",
     "DeviceDetailService",
     "DeviceProbeService",
@@ -42,11 +36,9 @@ __all__ = [
     "DiscoveryCandidateService",
     "DiscoveryOrchestrationService",
     "DiscoveryService",
-    "HardwareDeduplicationService",
     "HardwareSyncService",
     "PollingMixin",
     "PollingService",
-    "get_hardware_deduplication_service",
     "get_polling_service",
     "probe_device_ip",
 ]

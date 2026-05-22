@@ -4,9 +4,9 @@ import logging
 from typing import Any, cast
 
 from micboard.services.common.base import BaseAPIClient
+from micboard.services.common.base.rate_limiter import rate_limit
 
-from .exceptions import ShureAPIError
-from .rate_limiter import rate_limit
+from .client import ShureAPIError
 from .transformers import ShureDataTransformer
 
 logger = logging.getLogger(__name__)
