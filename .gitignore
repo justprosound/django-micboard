@@ -57,7 +57,6 @@ venv/
 ENV/
 
 # IDEs
-.vscode/
 !.vscode/extensions.json
 .idea/
 *.swp
@@ -93,3 +92,13 @@ scripts/*_local.py
 *.pyc
 *.so
 .eggs/
+
+# Ruff cache
+.ruff_cache/
+
+# .omo session files
+.omo/
+
+# AI Agent session and cache
+.gemini/
+.agents/
