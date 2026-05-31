@@ -1,0 +1,106 @@
+# Warden Configuration
+# https://github.com/getsentry/warden
+#
+# AI-powered code review for django-micboard.
+# Runs security and code review skills on PRs and locally.
+
+version = 1
+
+[defaults]
+runtime = "pi"
+failOn = "high"
+reportOn = "medium"
+ignorePaths = [
+  "**/.venv/**",
+  "**/__pycache__/**",
+  "**/*.pyc",
+  "**/.ruff_cache/**",
+  "**/.mypy_cache/**",
+  "**/.pytest_cache/**",
+  "**/node_modules/**",
+  "**/htmlcov/**",
+  "**/*.egg-info/**",
+  "**/build/**",
+  "**/dist/**",
+  "**/.git/**",
+]
+
+# Model lanes
+# [defaults.agent]
+# model = "anthropic/claude-sonnet-4-6"
+# maxTurns = 30
+# reasoningEffort = "medium"
+
+# [defaults.auxiliary]
+# model = "anthropic/claude-haiku-4-5"
+
+# [defaults.synthesis]
+# model = "anthropic/claude-opus-4-5"
+
+# ── Built-in Skills ──────────────────────────────────────────────
+
+# Security vulnerability review
+[[skills]]
+name = "security-review"
+paths = ["micboard/**/*.py", "tests/**/*.py", "**/pyproject.toml"]
+ignorePaths = ["micboard/migrations/**"]
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened", "labeled"]
+draft = false
+labels = ["Warden"]
+
+[[skills.triggers]]
+type = "local"
+
+# General correctness and bug review
+[[skills]]
+name = "code-review"
+paths = [
+  "micboard/**/*.py",
+  "tests/**/*.py",
+  "micboard/templates/**",
+  "Justfile",
+]
+ignorePaths = ["micboard/migrations/**"]
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened", "labeled"]
+draft = false
+labels = ["Warden"]
+
+[[skills.triggers]]
+type = "local"
+
+# ── Custom Skills ────────────────────────────────────────────────
+
+# Django architecture & domain pattern review
+[[skills]]
+name = "./.warden/skills/django-architecture"
+paths = ["micboard/**/*.py"]
+ignorePaths = ["micboard/migrations/**"]
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened", "labeled"]
+draft = false
+labels = ["Warden"]
+
+[[skills.triggers]]
+type = "local"
+
+# Django migration safety review (only when migrations change)
+[[skills]]
+name = "./.warden/skills/migration-safety"
+paths = ["micboard/migrations/*.py"]
+
+[[skills.triggers]]
+type = "pull_request"
+actions = ["opened", "synchronize", "reopened", "labeled"]
+draft = false
+labels = ["Warden"]
+
+[[skills.triggers]]
+type = "local"
