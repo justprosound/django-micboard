@@ -19,7 +19,7 @@ Shure System API WebSocket Flow:
 
 Optional Dependency:
     This requires the 'websockets' package. Install with:
-    pip install django-micboard[websocket]
+    uv pip install django-micboard[websocket]
 
 See docs/shure-integration.md for full details on Shure System API integration.
 """
@@ -33,21 +33,18 @@ from typing import TYPE_CHECKING
 
 try:
     import websockets
-    from websockets import exceptions as websockets_exceptions
+    from websockets.exceptions import (
+        ConnectionClosedError as WebsocketConnectionClosedError,
+    )
+    from websockets.exceptions import (
+        ConnectionClosedOK as WebsocketClosedOKError,
+    )
 
     HAS_WEBSOCKETS = True
-    WebsocketClosedOKError = websockets_exceptions.ConnectionClosedOK
-    WebsocketConnectionClosedError = websockets_exceptions.ConnectionClosedError
 except ImportError:  # pragma: no cover - optional dependency
     websockets = None
-    websockets_exceptions = None
-    HAS_WEBSOCKETS = False
-
-    class WebsocketClosedOKError(Exception):
-        """Placeholder when websockets is unavailable."""
-
-    class WebsocketConnectionClosedError(Exception):
-        """Placeholder when websockets is unavailable."""
+    WebsocketClosedOKError = type("WebsocketClosedOKError", (Exception,), {})
+    WebsocketConnectionClosedError = type("WebsocketConnectionClosedError", (Exception,), {})
 
 
 if TYPE_CHECKING:
@@ -62,11 +59,13 @@ class ShureWebSocketError(Exception):
     pass
 
 
-def _parse_transport_id_from_message(message: str) -> str | None:
+def _parse_transport_id_from_message(message: str | bytes) -> str | None:
     try:
+        if isinstance(message, bytes):
+            message = message.decode("utf-8")
         payload = json.loads(message)
         return payload.get("transportId")
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, UnicodeDecodeError):
         logger.exception("Failed to parse WebSocket transport ID message")
         return None
 
@@ -91,9 +90,7 @@ def _subscribe_client_to_transport(client, device_id: str, transport_id: str) ->
         raise
 
 
-async def _read_and_dispatch_messages(
-    websocket, device_id: str, callback: Callable[[dict], None]
-) -> None:
+async def _read_and_dispatch_messages(websocket, device_id: str, callback: Callable[[dict], None]) -> None:
     async for message in websocket:
         try:
             data = json.loads(message)
@@ -125,12 +122,8 @@ async def connect_and_subscribe(
     from .client import ShureAPIError
 
     if not HAS_WEBSOCKETS or not websockets:
-        logger.error(
-            "websockets dependency not installed; install django-micboard[websocket] to enable"
-        )
-        raise ShureWebSocketError(
-            "websockets dependency missing; install django-micboard[websocket] to enable"
-        )
+        logger.error("websockets dependency not installed; install django-micboard[websocket] to enable")
+        raise ShureWebSocketError("websockets dependency missing; install django-micboard[websocket] to enable")
 
     if not client.websocket_url:
         logger.error("Shure API WebSocket URL not configured")
@@ -160,9 +153,7 @@ async def connect_and_subscribe(
     except WebsocketClosedOKError:
         logger.info("Shure API WebSocket connection closed gracefully for device %s", device_id)
     except WebsocketConnectionClosedError:
-        logger.exception(
-            "Shure API WebSocket connection closed with error for device %s", device_id
-        )
+        logger.exception("Shure API WebSocket connection closed with error for device %s", device_id)
         raise ShureWebSocketError(f"WebSocket connection error for device {device_id}") from None
     except ShureWebSocketError:
         raise

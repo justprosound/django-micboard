@@ -325,7 +325,7 @@ Most editors auto-detect and apply these settings.
 # Old way - manual commands (**FORBIDDEN – see policy below**)
 # python -m venv .venv
 # source .venv/bin/activate
-# pip install -e ".[dev,all]"
+# uv pip install -e ".[dev,all]"
 pytest
 ruff format .
 ruff check --fix .
@@ -399,10 +399,9 @@ cat .commitlintrc.yaml
 
 ```bash
 # Ensure dependency installed
-pip install django-lifecycle>=1.2.4
+uv pip install django-lifecycle>=1.2.4
 
 # Check model has LifecycleModelMixin
-# Should see: class WirelessChassis(LifecycleModelMixin, models.Model):
 ```
 
 ---

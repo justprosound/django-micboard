@@ -30,7 +30,7 @@ django-micboard is a community-driven, production-ready Django reusable app for 
 Add to your Django project:
 
 ```bash
-pip install django-micboard
+uv pip install django-micboard
 ```
 
 In `settings.py`:
