@@ -29,7 +29,7 @@ venv\Scripts\activate  # Windows
 
 3. Install development dependencies:
 ```bash
-pip install -r dev-requirements.txt
+uv pip install -r dev-requirements.txt
 ```
 
 4. Run tests:

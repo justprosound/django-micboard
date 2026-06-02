@@ -189,10 +189,10 @@ PYTHON_VERSION=$(python --version 2>&1 | awk '{print $2}' | cut -d'.' -f1,2)
 [[ "$PYTHON_VERSION" =~ ^3\.(9|10|11|12|13|14)$ ]] && pass "Python version $PYTHON_VERSION supported" || warn "Python version $PYTHON_VERSION may not be supported"
 
 # Check for test runner
-which pytest > /dev/null 2>&1 && pass "pytest installed" || warn "pytest not installed (run: pip install pytest)"
+which pytest > /dev/null 2>&1 && pass "pytest installed" || warn "pytest not installed (run: uv pip install pytest)"
 
 # Check for build tools
-python -m pip show build > /dev/null 2>&1 && pass "build module installed" || warn "build module not installed (run: pip install build)"
+python -m pip show build > /dev/null 2>&1 && pass "build module installed" || warn "build module not installed (run: uv pip install build)"
 
 # ============================================================================
 # Summary

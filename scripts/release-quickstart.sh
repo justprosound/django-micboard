@@ -34,19 +34,19 @@ fi
 # Create/activate virtual environment
 echo ""
 echo -e "${BLUE}[3/8] Virtual environment setup...${NC}"
-if [ ! -d "venv" ]; then
-    python -m venv venv
+if [ ! -d ".venv" ]; then
+    uv venv .venv
     echo "✓ Created virtual environment"
 else
     echo "✓ Virtual environment exists"
 fi
-source venv/bin/activate
+source .venv/bin/activate
 echo "✓ Activated"
 
 # Install dependencies
 echo ""
 echo -e "${BLUE}[4/8] Installing dependencies...${NC}"
-pip install -q -e ".[dev,test]" 2>/dev/null
+uv pip install -q -e ".[dev,test]" 2>/dev/null
 echo "✓ Dependencies installed"
 
 # Run tests with coverage

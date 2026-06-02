@@ -534,11 +534,11 @@ get-library-docs({
    1. **Removed APIs**: django.utils.encoding.force_text removed
    2. **Database**: Minimum PostgreSQL version is now 12
 
-   ### Migration Steps:
-   1. Update requirements.txt: django==5.0.0
-   2. Run: pip install -U django
-   3. Update deprecated function calls
-   4. Run migrations: python manage.py migrate
+    ### Migration Steps:
+    1. Update requirements.txt: django==5.0.0
+    2. Run: uv pip install -U django
+    3. Update deprecated function calls
+    4. Run migrations: python manage.py migrate
 
    Effort: Low-Medium (1-3 hours)
    ```
@@ -552,11 +552,11 @@ get-library-docs({
    - Behavior changes
    - Dependency requirement changes
 
-   ### Migration Steps:
-   1. Update dependency file ({package.json|requirements.txt|Gemfile|etc})
-   2. Install/update: {npm install|pip install|bundle update|etc}
-   3. Code changes required
-   4. Test thoroughly
+    ### Migration Steps:
+    1. Update dependency file ({package.json|requirements.txt|Gemfile|etc})
+    2. Install/update: {npm install|uv pip install|bundle update|etc}
+    3. Code changes required
+    4. Test thoroughly
 
    ### Should You Upgrade?
    ✅ YES if: [benefits outweigh effort]

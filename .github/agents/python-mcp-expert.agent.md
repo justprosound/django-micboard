@@ -162,10 +162,10 @@ python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 
 # Install FastMCP
-pip install fastmcp
+uv pip install fastmcp
 
 # Install dev dependencies
-pip install pytest pytest-asyncio httpx
+uv pip install pytest pytest-asyncio httpx
 ```
 
 ### 2. Development Structure

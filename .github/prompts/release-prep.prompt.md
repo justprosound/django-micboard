@@ -214,7 +214,7 @@ Now you may edit/create docs and meta files.
      - Title + one-line summary.
      - Features.
      - Requirements (Python/Django).
-     - Installation & integration (pip install, `INSTALLED_APPS`, URL snippet).
+     - Installation & integration (uv pip install, `INSTALLED_APPS`, URL snippet).
      - Local dev setup & running example project.
      - How to run tests.
      - Notes on `ruff` and `pre-commit`.

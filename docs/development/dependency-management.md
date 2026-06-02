@@ -16,9 +16,9 @@ To update a dependency, you should:
     ```
 
 3.  **Install the updated packages**: Update your local environment by running:
-
+    
     ```bash
-    pip install -r dev-requirements.txt
+    uv pip install -r dev-requirements.txt
     ```
 
 This process ensures that your dependency files are always up-to-date and your builds are reproducible.
