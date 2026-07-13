@@ -51,7 +51,7 @@ cryptography==46.0.3
     #   service-identity
 csscompressor==0.9.5
     # via mkdocs-minify-plugin
-daphne==4.2.1
+daphne==4.2.2
     # via django-micboard (pyproject.toml)
 django==5.2.7
     # via
