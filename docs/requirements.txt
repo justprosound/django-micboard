@@ -34,7 +34,7 @@ cffi==2.0.0
     # via cryptography
 channels==4.3.1
     # via django-micboard (pyproject.toml)
-charset-normalizer==3.4.4
+charset-normalizer==3.4.9
     # via requests
 click==8.3.0
     # via mkdocs
