@@ -30,7 +30,7 @@
 - Burst: 20 requests (token bucket algorithm)
 - Header: `Retry-After` indicates wait time
 
-**Integration Guide:** [Shure Integration Guide](./shure-integration.md)
+**Integration Guide:** [Shure Integration Guide](../shure-integration.md)
 
 ---
 
@@ -64,16 +64,14 @@ Sennheiser devices cannot be accessed via API in factory default state.
 
 #### Example Authentication
 ```python
-from requests.auth import HTTPBasicAuth
+import httpx
 
-auth = HTTPBasicAuth("api", "configured_password")
-response = requests.get(
-    "http://device-ip/api/endpoint",
-    auth=auth
-)
+with httpx.Client(auth=httpx.BasicAuth("api", "configured_password")) as client:
+    response = client.get("http://device-ip/api/endpoint")
+    response.raise_for_status()
 ```
 
-**Integration Guide:** [Sennheiser Integration Guide](./sennheiser-integration.md)
+**Integration Guide:** [Sennheiser Integration Reference](#sennheiser-sound-control-protocol)
 
 ---
 
@@ -101,7 +99,7 @@ def api_request(self):
     pass
 ```
 
-**Reference:** [Rate Limiting Documentation](./rate-limiting.md)
+**Reference:** [Shared Rate Limiter](#shared-rate-limiter)
 
 ### Base Exception Hierarchy
 
@@ -141,13 +139,13 @@ Abstract base class for HTTP-based API clients.
 
 ### Plugin Registration
 
-**File:** `micboard/integrations/common/__init__.py`
+**File:** `micboard/services/manufacturer/plugin_registry.py`
 
 ```python
-from micboard.integrations.common import get_manufacturer_plugin
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
 # Dynamically load manufacturer plugin
-plugin = get_manufacturer_plugin("shure")
+plugin = PluginRegistry.get_plugin("shure")
 devices = plugin.get_devices()
 ```
 
@@ -160,7 +158,7 @@ devices = plugin.get_devices()
 
 ### Adding New Manufacturers
 
-**Reference:** [Plugin Development Guide](../archive/plugin-development.md)
+**Reference:** [Adding New Manufacturers](../development/architecture.md#adding-new-manufacturers)
 
 Steps:
 1. Create manufacturer directory under `micboard/integrations/`
@@ -183,7 +181,7 @@ Steps:
 
 **Test Command:**
 ```bash
-pytest micboard/tests/test_shure_*.py -v
+uv run pytest micboard/tests/test_shure_*.py -v
 ```
 
 ### Sennheiser Integration Tests
@@ -198,14 +196,14 @@ pytest micboard/tests/test_shure_*.py -v
 
 ```bash
 # Run all tests
-pytest micboard/tests/ -v
+uv run pytest micboard/tests/ -v
 
 # Run with coverage
-pytest micboard/tests/ --cov=micboard
+uv run pytest micboard/tests/ --cov=micboard
 
 # Run specific manufacturer tests
-pytest micboard/tests/ -k "shure" -v
-pytest micboard/tests/ -k "sennheiser" -v
+uv run pytest micboard/tests/ -k "shure" -v
+uv run pytest micboard/tests/ -k "sennheiser" -v
 ```
 
 ---
@@ -390,18 +388,20 @@ MICBOARD = {
 
 ```python
 # Common utilities
-from micboard.services.common.base import rate_limit, APIError, APIRateLimitError
+from micboard.services.common.base.exceptions import APIError, APIRateLimitError
+from micboard.services.common.base.rate_limiter import rate_limit
 
 # Shure
-from micboard.integrations.shure.client import ShureSystemAPIClient, ShureAPIError, ShureAPIRateLimitError
+from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.integrations.shure.device_client import ShureDeviceClient
+from micboard.integrations.shure.exceptions import ShureAPIError, ShureAPIRateLimitError
 
 # Sennheiser
-from micboard.integrations.sennheiser.client import SennheiserAPIClient
+from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
 from micboard.integrations.sennheiser.exceptions import SennheiserAPIError, SennheiserAPIRateLimitError
 
 # Manufacturer plugin
-from micboard.integrations.common import get_manufacturer_plugin
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
 ```
 
 ---
@@ -410,9 +410,9 @@ from micboard.integrations.common import get_manufacturer_plugin
 
 - [Architecture Overview](../development/architecture.md)
 - [Shure Integration Guide](../shure-integration.md)
-- [Sennheiser Integration Guide](../archive/sennheiser-integration.md)
-- [Plugin Development](../archive/plugin-development.md)
-- [Rate Limiting](../archive/rate-limiting.md)
+- [Sennheiser Integration Reference](#sennheiser-sound-control-protocol)
+- [Adding New Manufacturers](../development/architecture.md#adding-new-manufacturers)
+- [Rate Limiting](#shared-rate-limiter)
 - [Shure Troubleshooting](../guides/shure-troubleshooting.md)
 
 ---

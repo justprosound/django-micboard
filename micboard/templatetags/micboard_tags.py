@@ -1,4 +1,8 @@
+from typing import Any
+
 from django import template
+
+from micboard.services.hardware.wireless_unit_service import get_battery_percentage
 
 register = template.Library()
 
@@ -9,3 +13,11 @@ def get_item(dictionary, key):
     if not dictionary:
         return None
     return dictionary.get(key)
+
+
+@register.filter
+def wireless_battery_percentage(unit: Any) -> int | None:
+    """Return a wireless unit's normalized battery percentage for templates."""
+    if unit is None:
+        return None
+    return get_battery_percentage(unit)

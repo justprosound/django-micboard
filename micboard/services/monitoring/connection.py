@@ -227,32 +227,12 @@ class ConnectionHealthService:
         }
 
     @staticmethod
-    def get_connections_for_manufacturer(*, manufacturer_code: str) -> QuerySet[RealTimeConnection]:
-        """Get all connections for a manufacturer (alias for get_connections_by_manufacturer)."""
-        return ConnectionHealthService.get_connections_by_manufacturer(
-            manufacturer_code=manufacturer_code
-        )
-
-    @staticmethod
-    def update_heartbeat(*, connection: RealTimeConnection) -> None:
-        """Update the heartbeat for a connection (alias for record_heartbeat)."""
-        ConnectionHealthService.record_heartbeat(connection=connection)
-
-    @staticmethod
-    def is_connection_healthy(
-        *, connection: RealTimeConnection, heartbeat_timeout_seconds: int = 60
-    ) -> bool:
-        """Check if a connection is healthy (alias for is_healthy)."""
-        return ConnectionHealthService.is_healthy(
-            connection=connection, heartbeat_timeout_seconds=heartbeat_timeout_seconds
-        )
-
-    @staticmethod
     def reset_connection_errors(*, connection: RealTimeConnection) -> RealTimeConnection:
         """Reset error count for a connection."""
         connection.error_count = 0
-        connection.last_error = None
-        connection.save(update_fields=["error_count", "last_error"])
+        connection.error_message = ""
+        connection.last_error_at = None
+        connection.save(update_fields=["error_count", "error_message", "last_error_at"])
         return connection
 
     # Async methods (Django 4.2+ async view support)
@@ -274,19 +254,21 @@ class ConnectionHealthService:
         )
 
     @staticmethod
-    async def aupdate_heartbeat(*, connection) -> None:
-        """Async: Update connection heartbeat timestamp.
+    async def arecord_heartbeat(*, connection: RealTimeConnection) -> None:
+        """Record a connection heartbeat asynchronously.
 
         Args:
             connection: RealTimeConnection instance
         """
         from asgiref.sync import sync_to_async
 
-        await sync_to_async(ConnectionHealthService.update_heartbeat)(connection=connection)
+        await sync_to_async(ConnectionHealthService.record_heartbeat)(connection=connection)
 
     @staticmethod
-    async def ais_connection_healthy(*, connection, heartbeat_timeout_seconds: int = 60) -> bool:
-        """Async: Check if connection is healthy.
+    async def ais_healthy(
+        *, connection: RealTimeConnection, heartbeat_timeout_seconds: int = 60
+    ) -> bool:
+        """Check connection health asynchronously.
 
         Args:
             connection: RealTimeConnection instance
@@ -297,7 +279,7 @@ class ConnectionHealthService:
         """
         from asgiref.sync import sync_to_async
 
-        return await sync_to_async(ConnectionHealthService.is_connection_healthy)(
+        return await sync_to_async(ConnectionHealthService.is_healthy)(
             connection=connection,
             heartbeat_timeout_seconds=heartbeat_timeout_seconds,
         )

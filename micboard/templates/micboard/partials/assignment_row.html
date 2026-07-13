@@ -11,20 +11,18 @@
     {% endif %}
   </td>
   <td>
-    <button class="btn btn-sm btn-warning" style="background-color:#f7b500;color:#111;border-color:#f7b500;"
-            hx-get="{% url 'micboard:update_assignment' assignment.id %}"
-            hx-target="#assignment-form-container"
-            hx-swap="innerHTML"
+    <a class="btn btn-sm btn-warning" style="background-color:#f7b500;color:#111;border-color:#f7b500;"
+            href="{% url 'micboard:update_assignment' assignment.id %}"
             aria-label="Edit assignment for {{ assignment.performer.name }}">
       Edit
-    </button>
-    <button class="btn btn-sm btn-danger" style="background-color:#a60000;color:#fff;border-color:#a60000;"
-            hx-delete="{% url 'micboard:delete_assignment' assignment.id %}"
-            hx-confirm="Delete this assignment?"
-            hx-target="#assignment-{{ assignment.id }}"
-            hx-swap="outerHTML"
-            aria-label="Delete assignment for {{ assignment.performer.name }}">
-      Delete
-    </button>
+    </a>
+    <form method="post" action="{% url 'micboard:delete_assignment' assignment.id %}" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-sm btn-danger" style="background-color:#a60000;color:#fff;border-color:#a60000;"
+              type="submit"
+              aria-label="Delete assignment for {{ assignment.performer.name }}">
+        Delete
+      </button>
+    </form>
   </td>
 </tr>

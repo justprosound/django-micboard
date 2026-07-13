@@ -1,24 +1,32 @@
 # Dependency Management
 
-This project uses `pip-tools` to manage Python dependencies. The dependencies are defined in the `pyproject.toml` file, under the `[project.dependencies]` and `[project.optional-dependencies]` sections.
+This project uses uv to manage Python dependencies. Direct and optional dependencies are defined in `pyproject.toml`; reproducible versions are recorded in `uv.lock`.
 
 ## Updating Dependencies
 
 To update a dependency, you should:
 
-1.  **Modify `pyproject.toml`**: Change the version specifier for the dependency you want to update. For example, to update `Django`, you could change `"Django>=4.2,<6.0"` to `"Django>=5.0,<6.0"`.
+1. **Modify `pyproject.toml`**: change the direct dependency or optional-extra constraint.
 
-2.  **Re-compile the requirements files**: Run the following command to regenerate the `requirements.txt` and `dev-requirements.txt` files:
+2. **Refresh and validate the lockfile**:
 
     ```bash
-    pip-compile --extra=dev --output-file=dev-requirements.txt pyproject.toml
-    pip-compile --output-file=requirements.txt pyproject.toml
+    uv lock --upgrade-package <package-name>
+    uv lock --check
     ```
 
-3.  **Install the updated packages**: Update your local environment by running:
-    
+3. **Sync and verify the complete supported surface**:
+
     ```bash
-    uv pip install -r dev-requirements.txt
+    uv sync --locked --all-extras
+    just lint
+    just test
     ```
 
-This process ensures that your dependency files are always up-to-date and your builds are reproducible.
+`docs/requirements.txt` is exported from the locked `docs` extra. Regenerate it; never edit it
+directly:
+
+```bash
+uv export --locked --no-dev --extra docs --no-emit-project \
+  --output-file docs/requirements.txt
+```

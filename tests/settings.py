@@ -7,6 +7,12 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 SITE_ID = 1
 
+HUEY = {
+    "huey_class": "huey.MemoryHuey",
+    "name": "micboard-tests",
+    "immediate": True,
+}
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -15,6 +21,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sites",
     "django.contrib.staticfiles",
+    "huey.contrib.djhuey",
     "micboard",
     "micboard.chargers",
     "micboard.multitenancy",

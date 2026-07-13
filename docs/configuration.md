@@ -167,22 +167,22 @@ The app provides several management commands for device management and monitorin
 
 ```bash
 # Poll devices from manufacturers
-python manage.py poll_devices
+uv run python manage.py poll_devices
 
 # Sync discovery results
-python manage.py sync_discovery
+uv run python manage.py sync_discovery
 
-# Add Shure devices manually
-python manage.py add_shure_devices
+# Add Shure device IPs manually (comma-separated)
+uv run python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
 
 # Subscribe to real-time status
-python manage.py realtime_status
+uv run python manage.py realtime_status
 
 # WebSocket subscriptions
-python manage.py websocket_subscribe
+uv run python manage.py websocket_subscribe
 
 # Server-Sent Events subscription
-python manage.py sse_subscribe
+uv run python manage.py sse_subscribe
 ```
 
 See [API Reference](api/management.md) for detailed command documentation.

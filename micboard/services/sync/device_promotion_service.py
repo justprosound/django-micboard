@@ -1,6 +1,13 @@
 """Service for promoting discovered devices to managed WirelessChassis instances."""
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from micboard.models.discovery.registry import DiscoveredDevice
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 logger = logging.getLogger(__name__)
 
@@ -8,7 +15,10 @@ logger = logging.getLogger(__name__)
 class DevicePromotionService:
     """Promotes discovered devices to managed WirelessChassis records."""
 
-    def promote_discovered_device(self, discovered) -> tuple[bool, str, object]:
+    def promote_discovered_device(
+        self,
+        discovered: DiscoveredDevice,
+    ) -> tuple[bool, str, WirelessChassis | None]:
         """Promote a discovered device to a managed WirelessChassis.
 
         Returns a tuple (success, message, chassis_or_none).
@@ -36,7 +46,7 @@ class DevicePromotionService:
             return (False, f"Exception during promotion: {e}", None)
 
     def _find_existing_chassis_for_discovered(self, discovered):
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         return WirelessChassis.objects.filter(
             ip=discovered.ip, manufacturer=discovered.manufacturer
@@ -55,12 +65,12 @@ class DevicePromotionService:
                 if dev.get("ip") == discovered.ip or dev.get("ipAddress") == discovered.ip:
                     return plugin, dev
         except Exception:
-            logger.debug("Error fetching devices from plugin for promotion: %s", discovered.ip)
+            logger.exception("Error fetching devices from plugin for promotion: %s", discovered.ip)
 
         return plugin, None
 
     def _create_basic_chassis_from_discovered(self, discovered):
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         logger.warning(
             "Could not fetch detailed data for %s from API, creating basic chassis",
@@ -79,8 +89,8 @@ class DevicePromotionService:
 
     def _attempt_promotion_with_device_data(
         self, discovered, plugin, device_data
-    ) -> tuple[bool, str, object]:
-        from micboard.services.deduplication import check_device
+    ) -> tuple[bool, str, WirelessChassis | None]:
+        from micboard.services.deduplication.check import check_device
         from micboard.services.manufacturer.sync import ManufacturerSyncService
 
         transformed = plugin.transform_device_data(device_data)
@@ -100,9 +110,12 @@ class DevicePromotionService:
 
         if dedup_result.is_duplicate and dedup_result.existing_device:
             chassis = dedup_result.existing_device
+            normalized = ManufacturerSyncService._normalize_devices([device_data], plugin)
+            if not normalized:
+                return (False, "Failed to normalize duplicate device data", None)
             ManufacturerSyncService._update_existing_chassis(
                 chassis,
-                ManufacturerSyncService._normalize_devices([device_data], plugin)[0],
+                normalized[0],
             )
             return (True, "Updated existing chassis", chassis)
 

@@ -4,50 +4,9 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Assignments</h1>
-        <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#createForm" aria-expanded="false" aria-controls="createForm">
+        <a class="btn btn-primary" href="{% url 'micboard:create_assignment' %}">
             New Assignment
-        </button>
-    </div>
-
-    <!-- Create Form -->
-    <div class="collapse mb-4" id="createForm">
-        <div class="card card-body">
-            <form action="{% url 'micboard:create_assignment' %}" method="post" aria-label="Create new assignment">
-                {% csrf_token %}
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label for="assignment-user" class="form-label">Performer</label>
-                        <select name="user" id="assignment-user" class="form-select" required>
-                            <option value="">Select Performer...</option>
-                            {% for p in performers %}
-                            <option value="{{ p.id }}">{{ p.get_full_name|default:p.username }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="assignment-channel" class="form-label">Channel</label>
-                        <select name="channel" id="assignment-channel" class="form-select" required>
-                            <option value="">Select Channel...</option>
-                            {% for c in channels %}
-                            <option value="{{ c.id }}">{{ c.chassis.name }} - Ch {{ c.channel_number }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label for="assignment-priority" class="form-label">Priority</label>
-                        <select name="priority" id="assignment-priority" class="form-select">
-                            <option value="low">Low</option>
-                            <option value="normal" selected>Normal</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-success w-100">Assign</button>
-                    </div>
-                </div>
-            </form>
-        </div>
+        </a>
     </div>
 
     <!-- Assignments Table -->
@@ -57,10 +16,10 @@
                 <thead class="table-light">
                     <tr>
                         <th scope="col">Performer</th>
-                        <th scope="col">Role</th>
-                        <th scope="col">Channel</th>
-                        <th scope="col">Frequency</th>
+                        <th scope="col">Wireless Unit</th>
+                        <th scope="col">Monitoring Group</th>
                         <th scope="col">Priority</th>
+                        <th scope="col">Status</th>
                         <th scope="col">Actions</th>
                     </tr>
                 </thead>

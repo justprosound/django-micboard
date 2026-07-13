@@ -18,9 +18,7 @@ MICBOARD_MULTI_SITE_MODE = True
 ```
 
 ```bash
-python manage.py migrate sites
-python manage.py makemigrations micboard
-python manage.py migrate micboard
+uv run --no-sync python manage.py migrate
 ```
 
 ### Option 3: MSP Mode (Full Multi-Tenancy)
@@ -39,28 +37,24 @@ MIDDLEWARE += ['micboard.multitenancy.middleware.TenantMiddleware']
 ```
 
 ```bash
-python manage.py migrate sites
-python manage.py makemigrations micboard_multitenancy
-python manage.py migrate micboard_multitenancy
-python manage.py makemigrations micboard
-python manage.py migrate micboard
+uv run --no-sync python manage.py migrate
 ```
 
 ## 📦 Service Layer Usage
 
-### DeviceService
+### HardwareQueryService
 
 ```python
-from micboard.services import DeviceService
+from micboard.services.core.hardware_query import HardwareQueryService
 
 # Single-site (default)
-receivers = DeviceService.get_active_receivers()
+chassis = HardwareQueryService.get_active_chassis()
 
 # Multi-site
-receivers = DeviceService.get_active_receivers(site_id=1)
+chassis = HardwareQueryService.get_active_chassis(site_id=1)
 
 # MSP mode
-receivers = DeviceService.get_active_receivers(
+chassis = HardwareQueryService.get_active_chassis(
     organization_id=org.id,
     campus_id=campus.id  # Optional
 )
@@ -69,7 +63,7 @@ receivers = DeviceService.get_active_receivers(
 ### LocationService
 
 ```python
-from micboard.services import LocationService
+from micboard.services.core.location import LocationService
 
 # Get all locations (tenant-aware)
 locations = LocationService.get_all_locations(
@@ -78,13 +72,13 @@ locations = LocationService.get_all_locations(
 )
 ```
 
-### ManufacturerService
+### ManufacturerSyncService
 
 ```python
-from micboard.services import ManufacturerService
+from micboard.services.manufacturer.sync import ManufacturerSyncService
 
 # Sync devices for organization
-result = ManufacturerService.sync_devices_for_manufacturer(
+result = ManufacturerSyncService.sync_devices_for_manufacturer(
     manufacturer_code='shure',
     organization_id=org.id,
     campus_id=campus.id
@@ -115,10 +109,10 @@ campus = Campus.objects.create(
 )
 
 # Assign buildings
-from micboard.models import Building
+from micboard.models.locations.structure import Building
 Building.objects.filter(name__contains='Engineering').update(
-    organization=org,
-    campus=campus
+    organization_id=org.pk,
+    campus_id=campus.pk,
 )
 ```
 
@@ -142,10 +136,10 @@ membership = OrganizationMembership.objects.create(
 ## 🔍 Tenant-Aware Managers
 
 ```python
-from micboard.multitenancy.managers import TenantAwareManager
+from micboard.models.base_managers import TenantOptimizedManager
 
 class MyModel(models.Model):
-    objects = TenantAwareManager()
+    objects = TenantOptimizedManager()
 
 # Usage
 qs = MyModel.objects.for_organization(organization=org)
@@ -162,7 +156,7 @@ def my_view(request):
     campus_id = request.campus_id
 
     # Use in service calls
-    receivers = DeviceService.get_active_receivers(
+    chassis = HardwareQueryService.get_active_chassis(
         organization_id=org.id if org else None
     )
 ```
@@ -221,26 +215,24 @@ micboard/
 ├── multitenancy/
 │   ├── __init__.py          # Conditional imports
 │   ├── models.py            # Organization/Campus/Membership
-│   ├── managers.py          # TenantAwareManager
 │   ├── middleware.py        # TenantMiddleware
 │   ├── admin.py             # Django admin
 │   └── apps.py              # App config
 ├── settings/
 │   └── multitenancy.py      # Settings template
 └── models/
-    └── locations.py         # Updated for tenant support
+    ├── base_managers.py     # Canonical tenant-aware manager
+    └── locations/           # Indexed tenant identifiers
 
 docs/
-├── multitenancy.md          # Full documentation
-└── archive/root/MULTITENANCY_IMPLEMENTATION.md  # Implementation summary
+└── multitenancy.md          # Full documentation
 ```
 
 ## 📚 Documentation Links
 
 - **Full Documentation**: [multitenancy.md](multitenancy.md)
-- **Implementation Summary**: [archive/root/MULTITENANCY_IMPLEMENTATION.md](archive/root/MULTITENANCY_IMPLEMENTATION.md)
-- **Migration Guide**: [micboard/multitenancy/migrations/README.md](../micboard/multitenancy/migrations/README.md)
-- **Settings Template**: [micboard/settings/multitenancy.py](../micboard/settings/multitenancy.py)
+- **Migration Guide**: [micboard/multitenancy/migrations/README.md](https://github.com/justprosound/django-micboard/blob/main/micboard/multitenancy/migrations/README.md)
+- **Settings Template**: [micboard/settings/multitenancy.py](https://github.com/justprosound/django-micboard/blob/main/micboard/settings/multitenancy.py)
 
 ## ✅ Backward Compatibility
 
@@ -248,23 +240,23 @@ All tenant parameters are **optional** - existing code works unchanged:
 
 ```python
 # ✅ All of these work
-DeviceService.get_active_receivers()
-DeviceService.get_active_receivers(organization_id=1)
-DeviceService.get_active_receivers(site_id=1, campus_id=2)
+HardwareQueryService.get_active_chassis()
+HardwareQueryService.get_active_chassis(organization_id=1)
+HardwareQueryService.get_active_chassis(site_id=1, campus_id=2)
 ```
 
 ## 🧪 Testing
 
 ```python
 from micboard.multitenancy.models import Organization
-from micboard.services import DeviceService
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 # Create test organization
 org = Organization.objects.create(name='Test Org', slug='test', site_id=1)
 
 # Test isolation
-receivers = DeviceService.get_active_receivers(organization_id=org.id)
-assert all(r.location.building.organization == org for r in receivers)
+receivers = WirelessChassis.objects.for_organization(organization=org)
+assert all(r.location.building.organization_id == org.pk for r in receivers)
 ```
 
 ## 🚨 Common Issues
@@ -273,7 +265,7 @@ assert all(r.location.building.organization == org for r in receivers)
 ```python
 # Assign buildings to default org
 org = Organization.objects.first()
-Building.objects.filter(organization__isnull=True).update(organization=org)
+Building.objects.filter(organization_id__isnull=True).update(organization_id=org.pk)
 ```
 
 ### "User can't see devices"

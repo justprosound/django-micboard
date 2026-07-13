@@ -8,24 +8,13 @@ import asyncio
 import logging
 from typing import Any
 
-from micboard.utils.dependencies import HAS_DJANGO_Q
-
-if HAS_DJANGO_Q:
-    from django_q.tasks import async_task
-else:
-
-    def async_task(func):
-        return func
-
-
 from micboard.integrations.shure.websocket import connect_and_subscribe
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.tasks.sync.polling import _update_models_from_api_data
 
 logger = logging.getLogger(__name__)
 
 
-@async_task
 def start_shure_websocket_subscriptions():
     """Start WebSocket subscriptions for all active Shure devices.
 
@@ -33,7 +22,8 @@ def start_shure_websocket_subscriptions():
     to Shure devices for real-time updates.
     """
     try:
-        from micboard.models.discovery import Manufacturer
+        from micboard.models.discovery.manufacturer import Manufacturer
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         # Get Shure manufacturer
         try:
@@ -43,13 +33,14 @@ def start_shure_websocket_subscriptions():
             return
 
         # Get Shure plugin
-        plugin = get_manufacturer_plugin(manufacturer.code)
-        if not plugin:
-            logger.error("Shure plugin not found")
-            return
+        plugin_class = get_manufacturer_plugin(manufacturer.code)
+        plugin = plugin_class(manufacturer)
 
         # Get active chassis
-        active_chassis = manufacturer.wireless_chassis.filter(status="online")
+        active_chassis = WirelessChassis.objects.filter(
+            manufacturer=manufacturer,
+            status="online",
+        )
         if not active_chassis:
             logger.info("No active wireless chassis found")
             return
@@ -108,11 +99,9 @@ async def _start_receiver_websocket_async(plugin, chassis):
         )
 
         # Set up callback for updates
-        from asgiref.sync import async_to_sync  # Add this import
-
-        def update_callback(data: dict[str, Any]):
+        async def update_callback(data: dict[str, Any]) -> None:
             connection.received_message()
-            async_to_sync(_process_websocket_update_async)(plugin, chassis.api_device_id, data)
+            await _process_websocket_update_async(plugin, chassis.api_device_id, data)
 
         # Connect and subscribe using the WebSocket function
         await connect_and_subscribe(client, chassis.api_device_id, update_callback)

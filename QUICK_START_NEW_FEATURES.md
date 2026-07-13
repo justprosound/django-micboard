@@ -229,10 +229,10 @@ MANUFACTURER_API_SERVERS = {
 
 ```bash
 # Import from a specific server
-python manage.py import_shure_devices --server-id main_venue --full
+uv run --no-sync python manage.py import_devices --server-id main_venue --full
 
 # Dry run to preview first
-python manage.py import_shure_devices --server-id main_venue --dry-run
+uv run --no-sync python manage.py import_devices --server-id main_venue --dry-run
 ```
 
 ---
@@ -248,7 +248,7 @@ python manage.py import_shure_devices --server-id main_venue --dry-run
 
 2. **Import Devices** (Management Command)
    ```bash
-   python manage.py import_shure_devices --server-id venue_name --full
+   uv run --no-sync python manage.py import_devices --server-id venue_name --full
    ```
 
 3. **Review Imports** (Admin > Wireless Chassis)
@@ -307,7 +307,7 @@ python manage.py import_shure_devices --server-id main_venue --dry-run
 - Check for FK errors in database
 
 **Gap Analysis Missing Data:**
-- Run `python manage.py check` to verify schema
+- Run `uv run --no-sync python manage.py check` to verify schema
 - Ensure devices have been imported
 - Check that nullable fields are actually NULL (not empty string)
 
@@ -317,13 +317,13 @@ python manage.py import_shure_devices --server-id main_venue --dry-run
 
 ```bash
 # Check overall system health
-python manage.py check
+uv run --no-sync python manage.py check
 
 # Import Shure devices
-python manage.py import_shure_devices --full
+uv run --no-sync python manage.py import_devices --full
 
 # Create new API server config
-python manage.py
+uv run --no-sync python manage.py
 
 # View accessory report
 # (Go to /admin/integrations/accessory/)

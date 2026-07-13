@@ -15,7 +15,7 @@ from micboard.models.discovery.configuration import ManufacturerConfiguration
 from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
 if TYPE_CHECKING:
-    from micboard.services.common.base import ManufacturerPlugin
+    from micboard.services.common.base.plugin import ManufacturerPlugin
 
 logger = logging.getLogger(__name__)
 

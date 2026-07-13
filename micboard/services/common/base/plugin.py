@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import importlib
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .client import BaseAPIClient
 
 
 def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
     """Return the plugin class for a manufacturer code.
 
     Attempts to import ``micboard.integrations.<code>.plugin`` and
-    locate the plugin class. Prefers <CodeTitle>Plugin, then falls
-    back to classes ending in 'Plugin' or with a ``get_devices`` method.
+    locate a concrete ``ManufacturerPlugin`` subclass. Prefers
+    ``<CodeTitle>Plugin``, then falls back to another plugin subclass.
     """
     code_str = str(code)
     module_paths = [
@@ -31,20 +34,19 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
     candidate_name = "".join(part.capitalize() for part in code_str.split("_")) + "Plugin"
     if hasattr(mod, candidate_name):
         cls = getattr(mod, candidate_name)
-        if isinstance(cls, type):
+        if isinstance(cls, type) and issubclass(cls, ManufacturerPlugin):
             return cls
 
     for attr in dir(mod):
         obj = getattr(mod, attr)
-        if isinstance(obj, type) and attr.endswith("Plugin"):
+        if (
+            isinstance(obj, type)
+            and obj is not ManufacturerPlugin
+            and issubclass(obj, ManufacturerPlugin)
+        ):
             return obj
 
-    for attr in dir(mod):
-        obj = getattr(mod, attr)
-        if isinstance(obj, type) and hasattr(obj, "get_devices"):
-            return obj
-
-    raise ImportError(f"No plugin class found in micboard.integrations.{code_str}")
+    raise ImportError(f"No ManufacturerPlugin subclass found in micboard.integrations.{code_str}")
 
 
 class BasePlugin(ABC):
@@ -72,7 +74,7 @@ class ManufacturerPlugin(BasePlugin):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_client(self) -> Any:
+    def get_client(self) -> BaseAPIClient:
         raise NotImplementedError()
 
     @abstractmethod
@@ -89,4 +91,16 @@ class ManufacturerPlugin(BasePlugin):
 
     @abstractmethod
     def check_health(self) -> dict[str, Any]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def add_discovery_ips(self, ips: list[str]) -> bool:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_discovery_ips(self) -> list[str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def remove_discovery_ips(self, ips: list[str]) -> bool:
         raise NotImplementedError()

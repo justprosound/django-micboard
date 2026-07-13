@@ -1,6 +1,7 @@
 # Troubleshooting
 
-> **CRITICAL POLICY:** All Python environment and dependency management for django-micboard—whether for developers or agents—MUST use [`uv`](https://github.com/astral-sh/uv) for all tasks. Use of pip, venv, poetry, or pipx is strictly forbidden in new setups. Escalate and remediate any legacy patterns. For doc/code research: use `context7` and `gh_grep`. See README for escalation details.
+All Python environment and dependency management for django-micboard uses
+[`uv`](https://github.com/astral-sh/uv).
 
 Common issues and solutions for django-micboard with Shure wireless microphone systems.
 
@@ -58,13 +59,13 @@ Common issues and solutions for django-micboard with Shure wireless microphone s
 1. **Verify Discovery IPs:**
    ```bash
    # Check configured IPs
-   python manage.py shell -c "from micboard.models import DiscoveryIP; print(list(DiscoveryIP.objects.values_list('ip', flat=True)))"
+   uv run python manage.py shell -c "from micboard.models.discovery.registry import DiscoveredDevice; print(list(DiscoveredDevice.objects.values_list('ip', flat=True)))"
    ```
 
 2. **Add Device IPs Manually:**
    ```bash
    # Add specific IPs
-   python manage.py add_shure_devices --ips 192.168.1.100 192.168.1.101
+   uv run python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
    ```
 
 3. **Check Device Network Configuration:**
@@ -77,7 +78,7 @@ Common issues and solutions for django-micboard with Shure wireless microphone s
    from micboard.integrations.shure.client import ShureSystemAPIClient
    client = ShureSystemAPIClient()
    try:
-       devices = client.get_devices()
+       devices = client.devices.get_devices()
        print(f"Found {len(devices)} devices")
    except Exception as e:
        print(f"Error: {e}")
@@ -97,7 +98,7 @@ Common issues and solutions for django-micboard with Shure wireless microphone s
 1. **Check Polling Status:**
    ```bash
    # Run manual poll
-   python manage.py poll_devices --manufacturer shure --verbose
+   uv run python manage.py poll_devices --manufacturer shure
    ```
 
 2. **Verify Polling Process:**
@@ -124,7 +125,7 @@ Common issues and solutions for django-micboard with Shure wireless microphone s
 
    client = ShureSystemAPIClient()
    start = time.time()
-   devices = client.get_devices()
+   devices = client.devices.get_devices()
    print(f"API call took {time.time() - start:.2f} seconds")
    ```
 
@@ -139,12 +140,13 @@ Common issues and solutions for django-micboard with Shure wireless microphone s
 
 1. **Verify ASGI Configuration:**
    ```python
-   # asgi.py should include:
-   from micboard.routing import websocket_urlpatterns
+   # asgi.py should include authentication and micboard's actual routing module:
+   from channels.auth import AuthMiddlewareStack
+   from micboard.websockets.routing import websocket_urlpatterns
 
    application = ProtocolTypeRouter({
-       'http': get_asgi_application(),
-       'websocket': URLRouter(websocket_urlpatterns),
+       "http": get_asgi_application(),
+       "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
    })
    ```
 
@@ -160,7 +162,7 @@ Common issues and solutions for django-micboard with Shure wireless microphone s
 3. **Test WebSocket Connection:**
    ```javascript
    // Browser console
-   const ws = new WebSocket('ws://your-server/ws/devices/');
+   const ws = new WebSocket('ws://your-server/ws');
    ws.onopen = () => console.log('Connected');
    ws.onerror = (e) => console.error('Error:', e);
    ```
@@ -355,7 +357,7 @@ Common issues and solutions for django-micboard with Shure wireless microphone s
    # Test battery API
    from micboard.integrations.shure.client import ShureSystemAPIClient
    client = ShureSystemAPIClient()
-   device = client.get_device('device_id')
+   device = client.devices.get_device("device_id")
    print(f"Battery: {device.get('battery_level')}")
    ```
 
@@ -426,7 +428,7 @@ LOGGING = {
 
 ```bash
 # Test API connectivity
-python manage.py shell -c "
+uv run python manage.py shell -c "
 from micboard.integrations.shure.client import ShureSystemAPIClient
 client = ShureSystemAPIClient()
 print('Testing API...')
@@ -438,14 +440,14 @@ except Exception as e:
 "
 
 # Check database status
-python manage.py shell -c "
-from micboard.models import Device
-print(f'Total devices: {Device.objects.count()}')
-print(f'Online devices: {Device.objects.filter(is_online=True).count()}')
+uv run python manage.py shell -c "
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+print(f'Total chassis: {WirelessChassis.objects.count()}')
+print(f'Online chassis: {WirelessChassis.objects.filter(is_online=True).count()}')
 "
 
 # Test WebSocket
-python manage.py shell -c "
+uv run python manage.py shell -c "
 from channels.layers import get_channel_layer
 layer = get_channel_layer()
 print('Channel layer:', layer)
@@ -487,13 +489,13 @@ When reporting issues, include:
 
 ```bash
 # System information
-python -c "import django; print(f'Django: {django.VERSION}')"
+uv run python -c "import django; print(f'Django: {django.VERSION}')"
 
 # Package versions
-uv pip list | grep -E "(django|channels|micboard)"
+uv tree --depth 1 | grep -E "(django|channels|micboard)"
 
 # Configuration check
-python manage.py shell -c "
+uv run python manage.py shell -c "
 from django.conf import settings
 print('Shure API configured:', hasattr(settings, 'MICBOARD_SHURE_API'))
 print('Channels configured:', hasattr(settings, 'CHANNEL_LAYERS'))

@@ -12,12 +12,14 @@ from __future__ import annotations
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.test import override_settings
 from django.utils import timezone
 
 import pytest
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
 
 
 @pytest.fixture
@@ -164,7 +166,7 @@ class TestTimestampManagement:
 class TestAuditLogging:
     """Test automatic audit logging hook."""
 
-    @patch("micboard.models.hardware.wireless_chassis.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_status_change_logged(self, mock_log_activity, chassis):
         """Status changes should be logged to audit system."""
         # Transition status
@@ -182,7 +184,7 @@ class TestAuditLogging:
         assert call_kwargs["old_values"]["status"] == "discovered"
         assert call_kwargs["new_values"]["status"] == "provisioning"
 
-    @patch("micboard.models.hardware.wireless_chassis.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_no_log_when_status_unchanged(self, mock_log_activity, chassis):
         """No audit log should be created when status doesn't change."""
         # Save without changing status
@@ -198,7 +200,7 @@ class TestBroadcastEvents:
     """Test automatic broadcast hook."""
 
     @patch(
-        "micboard.models.hardware.wireless_chassis.BroadcastService.broadcast_device_status_change"
+        "micboard.services.notification.broadcast_service.BroadcastService.broadcast_device_status"
     )
     def test_status_change_broadcasted(self, mock_broadcast, chassis):
         """Status changes should be broadcasted for real-time updates."""
@@ -210,12 +212,13 @@ class TestBroadcastEvents:
         mock_broadcast.assert_called_once()
         call_kwargs = mock_broadcast.call_args.kwargs
 
-        assert call_kwargs["device"] == chassis
-        assert call_kwargs["old_status"] == "discovered"
-        assert call_kwargs["new_status"] == "provisioning"
+        assert call_kwargs["device_id"] == chassis.pk
+        assert call_kwargs["device_type"] == "WirelessChassis"
+        assert call_kwargs["status"] == "provisioning"
+        assert call_kwargs["is_active"] is False
 
     @patch(
-        "micboard.models.hardware.wireless_chassis.BroadcastService.broadcast_device_status_change"
+        "micboard.services.notification.broadcast_service.BroadcastService.broadcast_device_status"
     )
     def test_no_broadcast_when_status_unchanged(self, mock_broadcast, chassis):
         """No broadcast should occur when status doesn't change."""
@@ -225,6 +228,29 @@ class TestBroadcastEvents:
 
         # Broadcast should not be called
         mock_broadcast.assert_not_called()
+
+
+class TestDiscoveryScheduling:
+    """Test that post-save discovery is submitted exactly once."""
+
+    @override_settings(TESTING=False)
+    @patch("micboard.services.core.hardware_post_save_hooks.enqueue_huey_task")
+    @patch("micboard.services.core.hardware_post_save_hooks.huey_is_configured", return_value=True)
+    @patch("micboard.tasks.sync.discovery.sync_receiver_discovery")
+    def test_huey_discovery_is_enqueued_once(
+        self,
+        mock_sync_receiver_discovery,
+        _mock_huey_is_configured,
+        mock_enqueue_huey_task,
+        chassis,
+    ):
+        HardwarePostSaveHooks._schedule_discovery(chassis)
+
+        mock_enqueue_huey_task.assert_called_once_with(
+            mock_sync_receiver_discovery,
+            chassis.pk,
+        )
+        mock_sync_receiver_discovery.assert_not_called()
 
 
 @pytest.mark.django_db

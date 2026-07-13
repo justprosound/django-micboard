@@ -13,7 +13,8 @@ import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-import requests
+import httpx
+from httpx import RequestError
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Sequence
@@ -39,19 +40,20 @@ class DeviceProbeService:
         self.verify_ssl = verify_ssl
         self.discovered_devices: list[dict[str, Any]] = []
         # Use shared resilient session and a simple in-process circuit breaker
-        from micboard.services.common.base import CircuitBreaker, create_resilient_session
+        from micboard.services.common.base.circuit_breaker import CircuitBreaker
+        from micboard.services.common.base.resilience import create_resilient_session
 
-        self.session = create_resilient_session(max_retries=3, backoff_factor=0.5)
+        self.session = create_resilient_session(max_retries=3, verify_ssl=verify_ssl)
         # Circuit named for metrics/observability
         self._circuit = CircuitBreaker(
             name="device_probe", failure_threshold=3, recovery_timeout=30
         )
 
-    def _create_session(self) -> requests.Session:
+    def _create_session(self) -> httpx.Client:
         """Create HTTP session with retry strategy."""
-        from micboard.services.common.base import create_resilient_session
+        from micboard.services.common.base.resilience import create_resilient_session
 
-        return create_resilient_session(max_retries=3, backoff_factor=0.5)
+        return create_resilient_session(max_retries=3, verify_ssl=self.verify_ssl)
 
     def probe_device(self, ip: str) -> dict[str, Any] | None:
         """Probe a single IP address for device API availability.
@@ -85,8 +87,7 @@ class DeviceProbeService:
                 response = self.session.get(
                     endpoint,
                     timeout=self.timeout,
-                    verify=self.verify_ssl,
-                    allow_redirects=False,
+                    follow_redirects=False,
                 )
                 if response.status_code in [200, 401]:
                     # Successful probe — reset circuit successes
@@ -98,7 +99,7 @@ class DeviceProbeService:
                         "accessible": response.status_code == 200,
                         "needs_auth": response.status_code == 401,
                     }
-            except requests.exceptions.RequestException as e:
+            except RequestError as e:
                 logger.debug("Failed to probe %s: %s", endpoint, e)
                 # Record failure in circuit breaker
                 if getattr(self, "_circuit", None):
@@ -221,7 +222,7 @@ class DeviceAPIHealthChecker:
             api_base_url: Base URL of API to check
         """
         self.api_base_url = api_base_url.rstrip("/")
-        self.session = requests.Session()
+        self.session = httpx.Client()
 
     def check_health(self, *, timeout: int = 5) -> bool:
         """Check if API is healthy and responding.
@@ -243,7 +244,7 @@ class DeviceAPIHealthChecker:
             else:
                 logger.warning("API at %s returned %s", self.api_base_url, response.status_code)
             return is_healthy
-        except requests.exceptions.RequestException as e:
+        except RequestError as e:
             logger.error("Failed to check API health at %s: %s", self.api_base_url, e)
             return False
 
@@ -267,7 +268,7 @@ class DeviceAPIHealthChecker:
                 "api_url": self.api_base_url,
                 "reachable": True,
             }
-        except requests.exceptions.RequestException as e:
+        except RequestError as e:
             return {
                 "healthy": False,
                 "status_code": None,

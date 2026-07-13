@@ -36,7 +36,7 @@ This makes it:
        def subscribe(self, handler: Callable, event_type: str) -> None: ...
    ```
 
-   The `EventBus` itself is ~40 lines. It routes `publish` calls to subscribed handlers synchronously (in-process). It does not replace Celery/django-q2 for async distribution — it replaces ad-hoc signal wiring.
+   The `EventBus` itself is ~40 lines. It routes `publish` calls to subscribed handlers synchronously (in-process). It does not replace native Huey for async distribution — it replaces ad-hoc signal wiring.
 
 2. **All three existing mechanisms become adapters behind this seam:**
    - Django model signals → add a `dispatch()` hook at the signal connection point that calls `EventBus.publish()`. The model signal is no longer wired directly to service logic — it publishes an event.
@@ -47,7 +47,7 @@ This makes it:
 
 4. **Event types are strings** (namespaced, e.g., `"chassis:created"`, `"chassis:status_changed"`, `"discovery:completed"`). This keeps the seam lightweight — no new base classes to import.
 
-5. **No replacement for django-q2.** Background task distribution remains in tasks. The EventBus is for in-process notification only. If a handler needs async execution, it publishes a task to django-q2.
+5. **No replacement for native Huey.** Background task distribution remains in tasks. The EventBus is for in-process notification only. If a handler needs async execution, it schedules a Huey task.
 
 ## Example Test Pattern
 

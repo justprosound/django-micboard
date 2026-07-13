@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from django.conf import settings
 from django.db import models
 
 
@@ -23,7 +24,7 @@ class MonitoringGroup(models.Model):
     )
     description = models.TextField(blank=True, help_text="Description of the monitoring group")
     users = models.ManyToManyField(
-        "auth.User",
+        settings.AUTH_USER_MODEL,
         related_name="monitoring_groups",
         blank=True,
         help_text="Users who are part of this monitoring group",

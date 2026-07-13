@@ -25,6 +25,8 @@ class HealthChecker:
             )
         self.base_url = base_url
         self.verify_ssl = verify_ssl
+        self.client: ShureSystemAPIClient | None = None
+        self.error = ""
         try:
             self.client = ShureSystemAPIClient(base_url=base_url, verify_ssl=verify_ssl)
         except Exception as e:
@@ -64,7 +66,7 @@ class HealthChecker:
                 logger.info("  See: docs/SHURE_NETWORK_GUID_TROUBLESHOOTING.md")
             else:
                 logger.info("✓ Found %s device(s)", count)
-                states = {}
+                states: dict[str, int] = {}
                 for device in devices:
                     state = device.get("state", "UNKNOWN")
                     states[state] = states.get(state, 0) + 1
@@ -86,7 +88,7 @@ class HealthChecker:
                 logger.warning("⚠ No discovery IPs configured")
             else:
                 logger.info("✓ Configured IPs: %s", len(ips))
-                subnets = {}
+                subnets: dict[str, int] = {}
                 for ip in ips:
                     subnet = ".".join(ip.split(".")[:3])
                     subnets[subnet] = subnets.get(subnet, 0) + 1
@@ -107,12 +109,10 @@ class HealthChecker:
             "/api/v1/devices": "WirelessChassis listing",
             "/api/v1/config/discovery/ips": "IP discovery configuration",
         }
-        results = {}
+        results: dict[str, int | str] = {}
         for endpoint, description in endpoints.items():
             try:
-                response = self.client.session.get(
-                    f"{self.base_url}{endpoint}", timeout=5, verify=self.verify_ssl
-                )
+                response = self.client.client.get(f"{self.base_url}{endpoint}", timeout=5)
                 status = "✓" if response.status_code == 200 else "⚠"
                 logger.info("%s %-40s %s - %s", status, endpoint, response.status_code, description)
                 results[endpoint] = response.status_code

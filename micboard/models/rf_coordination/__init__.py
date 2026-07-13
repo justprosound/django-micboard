@@ -14,10 +14,10 @@ from .compliance import (
 from .rf_channel import RFChannel, RFChannelManager, RFChannelQuerySet
 
 __all__ = [
+    "ExclusionZone",
+    "FrequencyBand",
     "RFChannel",
     "RFChannelManager",
     "RFChannelQuerySet",
     "RegulatoryDomain",
-    "FrequencyBand",
-    "ExclusionZone",
 ]

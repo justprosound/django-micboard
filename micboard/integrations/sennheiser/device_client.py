@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
-from micboard.services.common.base import BaseAPIClient
+from micboard.services.common.base.client import BaseAPIClient
+from micboard.services.common.base.rate_limiter import rate_limit
 
 from .exceptions import SennheiserAPIError
-from .rate_limiter import rate_limit
 from .transformers import SennheiserDataTransformer
 
 logger = logging.getLogger(__name__)

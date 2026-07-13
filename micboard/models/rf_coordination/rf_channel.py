@@ -8,8 +8,7 @@ Each RF channel represents an RF communication path with direction awareness:
 
 from __future__ import annotations
 
-import warnings
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -25,8 +24,11 @@ class RFChannelQuerySet(TenantOptimizedQuerySet):
 
     def for_user(self, user: User) -> RFChannelQuerySet:
         """Filter RF channels accessible to user via monitoring groups."""
+        tenant_scope = cast(RFChannelQuerySet, super().for_user(user=user))
+        if not user.is_authenticated:
+            return tenant_scope
         if user.is_superuser:
-            return self
+            return tenant_scope
 
         user_locations = user.monitoring_groups.filter(is_active=True).values_list(
             "monitoringgrouplocation__location", flat=True
@@ -39,7 +41,7 @@ class RFChannelQuerySet(TenantOptimizedQuerySet):
         if user_all_room_buildings:
             q_objects |= Q(chassis__location__building__in=user_all_room_buildings)
 
-        return self.filter(q_objects).distinct()
+        return tenant_scope.filter(q_objects).distinct()
 
     def by_direction(self, *, direction: str) -> RFChannelQuerySet:
         """Filter by link direction (receive/send/bidirectional)."""
@@ -238,117 +240,9 @@ class RFChannel(models.Model):
         return f"{self.chassis.name} - RF Ch {self.channel_number} ({direction_label})"
 
     def save(self, *args, **kwargs) -> None:
-        """Validate channel numbering, allowing WMAS chassis to exceed static counts.
-
-        Deprecated: Use rf_channel_service.validate_and_save_channel() instead.
-        """
-        warnings.warn(
-            "RFChannel.save() is deprecated, "
-            "use rf_channel_service.validate_and_save_channel() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Persist the channel after service-layer numbering validation."""
         from micboard.services.hardware.rf_channel_service import (
             validate_and_save_channel as _save,
         )
 
         _save(self, *args, **kwargs)
-
-    def is_receive_channel(self) -> bool:
-        """Check if this is a receive-direction channel.
-
-        Deprecated: Use rf_channel_service.is_receive_channel() instead.
-        """
-        warnings.warn(
-            "RFChannel.is_receive_channel() is deprecated, "
-            "use rf_channel_service.is_receive_channel() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.rf_channel_service import (
-            is_receive_channel as _is_rx,
-        )
-
-        return _is_rx(self)
-
-    def is_send_channel(self) -> bool:
-        """Check if this is a send-direction channel.
-
-        Deprecated: Use rf_channel_service.is_send_channel() instead.
-        """
-        warnings.warn(
-            "RFChannel.is_send_channel() is deprecated, "
-            "use rf_channel_service.is_send_channel() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.rf_channel_service import (
-            is_send_channel as _is_tx,
-        )
-
-        return _is_tx(self)
-
-    def get_regulatory_domain(self):
-        """Get the applicable regulatory domain for this RF channel.
-
-        Deprecated: Use micboard.services.hardware.rf_channel_service.get_regulatory_domain instead.
-        """
-        warnings.warn(
-            "RFChannel.get_regulatory_domain() is deprecated, "
-            "use rf_channel_service.get_regulatory_domain() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.rf_channel_service import get_regulatory_domain as _service
-
-        return _service(self)
-
-    def has_regulatory_coverage(self) -> bool:
-        """Check if this channel's frequency has regulatory data coverage.
-
-        Deprecated: Use micboard.services.hardware.rf_channel_service.has_regulatory_coverage instead.
-        """
-        warnings.warn(
-            "RFChannel.has_regulatory_coverage() is deprecated, "
-            "use rf_channel_service.has_regulatory_coverage() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.rf_channel_service import (
-            has_regulatory_coverage as _service,
-        )
-
-        return _service(self)
-
-    @property
-    def needs_regulatory_update(self) -> bool:
-        """Flag indicating admin needs to update regulatory information.
-
-        Deprecated: Use micboard.services.hardware.rf_channel_service.get_needs_regulatory_update instead.
-        """
-        warnings.warn(
-            "RFChannel.needs_regulatory_update is deprecated, "
-            "use rf_channel_service.get_needs_regulatory_update() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.rf_channel_service import (
-            get_needs_regulatory_update as _service,
-        )
-
-        return _service(self)
-
-    def get_regulatory_status(self) -> dict[str, str | bool | float | None]:
-        """Get comprehensive regulatory status information for admin UI.
-
-        Deprecated: Use micboard.services.hardware.rf_channel_service.get_regulatory_status instead.
-        """
-        warnings.warn(
-            "RFChannel.get_regulatory_status() is deprecated, "
-            "use rf_channel_service.get_regulatory_status() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.rf_channel_service import get_regulatory_status as _service
-
-        return _service(self)

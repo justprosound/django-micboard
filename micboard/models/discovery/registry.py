@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import ClassVar
 
 from django.db import models
@@ -34,16 +33,7 @@ class MicboardConfig(models.Model, DiscoveryTriggerMixin):
         return f"{manufacturer_name}: {self.key}: {self.value}"
 
     def save(self, *args, **kwargs):
-        """Trigger discovery scans when SHURE discovery config changes.
-
-        Deprecated: Use registry_service.save_micboard_config() instead.
-        """
-        warnings.warn(
-            "MicboardConfig.save() is deprecated, "
-            "use registry_service.save_micboard_config() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Persist configuration through the discovery registry service."""
         from micboard.services.discovery.registry_service import (
             save_micboard_config as _save,
         )
@@ -71,16 +61,7 @@ class DiscoveryCIDR(models.Model, DiscoveryTriggerMixin):
         return f"{self.manufacturer.name} {self.cidr}"
 
     def save(self, *args, **kwargs):
-        """Trigger scan when CIDR changes.
-
-        Deprecated: Use registry_service.save_discovery_cidr() instead.
-        """
-        warnings.warn(
-            "DiscoveryCIDR.save() is deprecated, "
-            "use registry_service.save_discovery_cidr() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Persist the CIDR through the discovery registry service."""
         from micboard.services.discovery.registry_service import (
             save_discovery_cidr as _save,
         )
@@ -108,16 +89,7 @@ class DiscoveryFQDN(models.Model, DiscoveryTriggerMixin):
         return f"{self.manufacturer.name} {self.fqdn}"
 
     def save(self, *args, **kwargs):
-        """Trigger scan when FQDN changes.
-
-        Deprecated: Use registry_service.save_discovery_fqdn() instead.
-        """
-        warnings.warn(
-            "DiscoveryFQDN.save() is deprecated, "
-            "use registry_service.save_discovery_fqdn() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Persist the FQDN through the discovery registry service."""
         from micboard.services.discovery.registry_service import (
             save_discovery_fqdn as _save,
         )
@@ -125,16 +97,7 @@ class DiscoveryFQDN(models.Model, DiscoveryTriggerMixin):
         _save(self, *args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        """Trigger scan when FQDN removed.
-
-        Deprecated: Use registry_service.delete_discovery_fqdn() instead.
-        """
-        warnings.warn(
-            "DiscoveryFQDN.delete() is deprecated, "
-            "use registry_service.delete_discovery_fqdn() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Delete the FQDN through the discovery registry service."""
         from micboard.services.discovery.registry_service import (
             delete_discovery_fqdn as _delete,
         )

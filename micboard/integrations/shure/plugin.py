@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
-from micboard.services.common.base import BasePlugin
+from micboard.services.common.base.plugin import ManufacturerPlugin
 
 from .client import ShureSystemAPIClient
 from .transformers import ShureDataTransformer
@@ -14,7 +14,7 @@ from .transformers import ShureDataTransformer
 logger = logging.getLogger(__name__)
 
 
-class ShurePlugin(BasePlugin):
+class ShurePlugin(ManufacturerPlugin):
     """Plugin for Shure wireless microphone systems."""
 
     @property
@@ -39,7 +39,15 @@ class ShurePlugin(BasePlugin):
 
     def get_devices(self) -> list[dict[str, Any]]:
         """Get list of all devices from Shure System API."""
-        return cast(list[dict[str, Any]], self.get_client().devices.get_devices())
+        return self.get_client().devices.get_devices()
+
+    def get_device(self, device_id: str) -> dict[str, Any] | None:
+        """Get detailed data for a specific device."""
+        return self.get_client().devices.get_device(device_id)
+
+    def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
+        """Get channel data for a device."""
+        return self.get_client().devices.get_device_channels(device_id)
 
     def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
         """Transform Shure API data to micboard format."""
@@ -81,12 +89,12 @@ class ShurePlugin(BasePlugin):
 
     def add_discovery_ips(self, ips: list[str]) -> bool:
         """Add IP addresses to the Shure System API manual discovery list."""
-        return cast(bool, self.get_client().discovery.add_discovery_ips(ips))
+        return self.get_client().discovery.add_discovery_ips(ips)
 
     def get_discovery_ips(self) -> list[str]:
         """Retrieve the current manual discovery IPs from Shure System API."""
-        return cast(list[str], self.get_client().discovery.get_discovery_ips())
+        return self.get_client().discovery.get_discovery_ips()
 
     def remove_discovery_ips(self, ips: list[str]) -> bool:
         """Remove IP addresses from the Shure System API manual discovery list."""
-        return cast(bool, self.get_client().discovery.remove_discovery_ips(ips))
+        return self.get_client().discovery.remove_discovery_ips(ips)

@@ -6,12 +6,12 @@ include CHANGELOG.md
 include pyproject.toml
 include .env.example
 
-# Include app package data
-recursive-include micboard/static *.js *.css *.scss *.map
-recursive-include micboard/templates *.html
-recursive-include micboard/management *.py
-recursive-include micboard/migrations *.py
-recursive-include micboard/fixtures *.yaml *.yml *.json
+# Include Django app resources. The wheel validator keeps this list aligned with
+# the source tree so new resource types cannot silently disappear from releases.
+recursive-include micboard/static *
+recursive-include micboard/templates *
+recursive-include micboard/migrations *
+recursive-include micboard/fixtures *
 
 # Exclude development, test, and cache files
 recursive-exclude * __pycache__

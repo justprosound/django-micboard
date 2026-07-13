@@ -4,17 +4,17 @@ This command provides a thin CLI wrapper around DeviceProbeService,
 allowing network administrators to discover devices via IP scanning.
 
 Examples:
-    python manage.py device_discovery discover --ips "192.168.1.1,192.168.1.2"
-    python manage.py device_discovery discover --file ips.txt
-    python manage.py device_discovery discover --env
-    python manage.py device_discovery test --ip 192.168.1.100
+    uv run --no-sync python manage.py device_discovery discover --ips "192.168.1.1,192.168.1.2"
+    uv run --no-sync python manage.py device_discovery discover --file ips.txt
+    uv run --no-sync python manage.py device_discovery discover --env
+    uv run --no-sync python manage.py device_discovery test --ip 192.168.1.100
 """
 
 import json
 
 from django.core.management.base import BaseCommand
 
-from micboard.services import DeviceAPIHealthChecker, DeviceProbeService
+from micboard.services.sync.device_probe_service import DeviceAPIHealthChecker, DeviceProbeService
 
 
 class Command(BaseCommand):

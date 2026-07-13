@@ -12,7 +12,7 @@ from django.utils import timezone
 from micboard.models.discovery import Manufacturer
 from micboard.models.realtime import RealTimeConnection
 from micboard.models.telemetry import APIHealthLog
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.services.notification.broadcast_service import BroadcastService
 
 logger = logging.getLogger(__name__)

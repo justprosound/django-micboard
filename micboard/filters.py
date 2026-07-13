@@ -1,15 +1,26 @@
 from __future__ import annotations
 
+from typing import Any
+
 from micboard.utils.dependencies import HAS_DJANGO_FILTER
 
 HAS_DJANGO_FILTERS = HAS_DJANGO_FILTER
 
-if HAS_DJANGO_FILTER:
+
+def _build_filter_classes() -> tuple[Any, Any]:
+    if not HAS_DJANGO_FILTER:
+
+        class UnavailableFilter:
+            """Placeholder used only while the optional django-filter extra is absent."""
+
+        return UnavailableFilter, UnavailableFilter
+
     import django_filters
 
-    from micboard.models import WirelessChassis, WirelessUnit
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.models.hardware.wireless_unit import WirelessUnit
 
-    class WirelessChassisFilter(django_filters.FilterSet):
+    class ChassisFilter(django_filters.FilterSet):
         """FilterSet for WirelessChassis (Receivers)."""
 
         class Meta:
@@ -23,7 +34,7 @@ if HAS_DJANGO_FILTER:
                 "location__room__name": ["exact"],
             }
 
-    class WirelessUnitFilter(django_filters.FilterSet):
+    class UnitFilter(django_filters.FilterSet):
         """FilterSet for WirelessUnits."""
 
         class Meta:
@@ -32,10 +43,8 @@ if HAS_DJANGO_FILTER:
                 "device_type": ["exact"],
                 "base_chassis__id": ["exact"],
             }
-else:
 
-    class WirelessChassisFilter:
-        pass
+    return ChassisFilter, UnitFilter
 
-    class WirelessUnitFilter:
-        pass
+
+WirelessChassisFilter, WirelessUnitFilter = _build_filter_classes()

@@ -2,15 +2,15 @@
 
 import logging
 
-from micboard.utils.dependencies import HAS_DJANGO_Q
+from micboard.utils.dependencies import huey_is_configured
 
 logger = logging.getLogger(__name__)
 
 
 def trigger_discovery(manufacturer_id: int | None) -> None:
     """Trigger async discovery scan for a manufacturer."""
-    if not HAS_DJANGO_Q:
-        logger.debug("django-q not available, skipping discovery trigger")
+    if not huey_is_configured():
+        logger.debug("Native Huey is unavailable or unconfigured; skipping discovery trigger")
         return
     if not manufacturer_id:
         logger.warning("No manufacturer_id available for discovery trigger")

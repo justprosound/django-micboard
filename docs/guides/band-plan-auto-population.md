@@ -106,7 +106,7 @@ manufacturer_code:
 
 ### Get Available Band Plans
 ```python
-from micboard.models.device_specs import get_available_band_plans
+from micboard.models.band_plans import get_available_band_plans
 
 # Get all band plans for a manufacturer
 plans = get_available_band_plans(manufacturer="shure")
@@ -115,7 +115,7 @@ plans = get_available_band_plans(manufacturer="shure")
 
 ### Lookup Specific Band Plan
 ```python
-from micboard.models.device_specs import get_band_plan
+from micboard.models.band_plans import get_band_plan
 
 plan = get_band_plan(manufacturer="shure", band_plan_key="g50")
 # Returns: {"name": "G50 (470-534 MHz)", "min_mhz": 470.0, "max_mhz": 534.0, "region": "US/EU"}
@@ -123,18 +123,20 @@ plan = get_band_plan(manufacturer="shure", band_plan_key="g50")
 
 ### Parse from Name String
 ```python
-from micboard.models.device_specs import parse_band_plan_from_name
+from micboard.models.band_plans import parse_band_plan_from_name
 
 result = parse_band_plan_from_name(name="G50 (470-534 MHz)")
 # Returns: {"min_mhz": 470.0, "max_mhz": 534.0}
 ```
 
-### Model Method
+### Chassis Service
 ```python
+from micboard.services.hardware.wireless_chassis_service import get_available_band_plans
+
 chassis = WirelessChassis.objects.get(pk=1)
 
 # Get available band plans for this chassis's manufacturer
-available = chassis.get_available_band_plans()
+available = get_available_band_plans(chassis)
 # Returns: [("g50", "G50 (470-534 MHz)"), ...]
 ```
 
@@ -175,7 +177,7 @@ if self.band_plan_name and self.manufacturer:
 Update all Shure ULXD4Q chassis to G50 band plan:
 
 ```python
-from micboard.models import WirelessChassis
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 chassis_list = WirelessChassis.objects.filter(
     manufacturer__code="shure",

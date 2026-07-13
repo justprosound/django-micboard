@@ -14,7 +14,7 @@ from django.utils import timezone
 from micboard.services.sync.base_polling_mixin import PollingMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class PollingService(PollingMixin):
         Returns:
             Mapping of manufacturer code to refresh summary including status and counts.
         """
-        from micboard.models import Manufacturer
+        from micboard.models.discovery.manufacturer import Manufacturer
 
         results: dict[str, dict[str, Any]] = {}
         queryset = (
@@ -100,7 +100,7 @@ class PollingService(PollingMixin):
             stats = HardwareSyncService.sync_devices(manufacturer_code=manufacturer.code)
 
             # Map stats back to result format
-            result = {
+            result: dict[str, Any] = {
                 "devices_created": stats.get("created", 0),
                 "devices_updated": stats.get("updated", 0),
                 "units_synced": 0,  # HardwareSyncService doesn't track units yet
@@ -153,15 +153,8 @@ class PollingService(PollingMixin):
             data: Polling result data
         """
         try:
-            from asgiref.sync import async_to_sync
-            from channels.layers import get_channel_layer
-
-            from micboard.models import WirelessChassis
-
-            channel_layer = get_channel_layer()
-            if not channel_layer:
-                logger.debug("No channel layer configured; skipping broadcast")
-                return
+            from micboard.models.hardware.wireless_chassis import WirelessChassis
+            from micboard.services.notification.broadcast_service import BroadcastService
 
             # Serialize chassis data for broadcast - use status field
             # Active states: online, degraded, provisioning
@@ -181,11 +174,9 @@ class PollingService(PollingMixin):
                 for chassis in chassis_qs
             ]
 
-            # Send to WebSocket group
-            async_to_sync(channel_layer.group_send)(
-                "micboard_updates",
-                {
-                    "type": "device_update",
+            BroadcastService.broadcast_device_update(
+                manufacturer=manufacturer,
+                data={
                     "manufacturer_code": manufacturer.code,
                     "receivers": serialized,
                     "timestamp": timezone.now().isoformat(),
@@ -210,7 +201,7 @@ class PollingService(PollingMixin):
         Returns:
             Dictionary with standardized health status
         """
-        from micboard.services.common.base import get_manufacturer_plugin
+        from micboard.services.common.base.plugin import get_manufacturer_plugin
         from micboard.services.notification.signal_emitter import SignalEmitter
 
         try:
@@ -247,11 +238,12 @@ class PollingService(PollingMixin):
         Returns:
             Dictionary with health status
         """
-        from micboard.models import Manufacturer, WirelessChassis
+        from micboard.models.discovery.manufacturer import Manufacturer
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         manufacturers = Manufacturer.objects.filter(is_active=True)
 
-        health = {
+        health: dict[str, Any] = {
             "timestamp": timezone.now().isoformat(),
             "overall_status": "healthy",
             "manufacturers": {},
@@ -271,7 +263,7 @@ class PollingService(PollingMixin):
             active_chassis = chassis_qs.filter(status__in=active_statuses)
             online_chassis = active_chassis.filter(status__in=online_statuses)
 
-            mfr_health = {
+            mfr_health: dict[str, Any] = {
                 "name": manufacturer.name,
                 "total_devices": chassis_qs.count(),
                 "active_devices": active_chassis.count(),
@@ -281,7 +273,7 @@ class PollingService(PollingMixin):
 
             # Check API client health
             try:
-                from micboard.services.common.base import get_manufacturer_plugin
+                from micboard.services.common.base.plugin import get_manufacturer_plugin
 
                 plugin_class = get_manufacturer_plugin(manufacturer.code)
                 plugin = plugin_class(manufacturer)

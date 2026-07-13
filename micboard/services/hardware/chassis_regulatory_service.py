@@ -16,11 +16,12 @@ from micboard.services.hardware.wireless_chassis_service import get_band_plan_st
 
 if TYPE_CHECKING:
     from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.models.rf_coordination.compliance import RegulatoryDomain
 
 logger = logging.getLogger(__name__)
 
 
-def get_regulatory_domain(chassis: WirelessChassis):
+def get_regulatory_domain(chassis: WirelessChassis) -> RegulatoryDomain | None:
     """Get the applicable regulatory domain for a wireless chassis.
 
     Delegates to the shared location resolution function in rf_channel_service.
@@ -41,18 +42,20 @@ def has_band_plan_regulatory_coverage(chassis: WirelessChassis) -> bool:
     if not domain:
         return False
 
-    if (
-        domain.min_frequency_mhz <= chassis.band_plan_min_mhz
-        and domain.max_frequency_mhz >= chassis.band_plan_max_mhz
-    ):
+    band_min = chassis.band_plan_min_mhz
+    band_max = chassis.band_plan_max_mhz
+    if band_min is None or band_max is None:
+        return False
+
+    if domain.min_frequency_mhz <= band_min and domain.max_frequency_mhz >= band_max:
         return True
 
-    from micboard.models.rf_coordination import FrequencyBand
+    from micboard.models.rf_coordination.compliance import FrequencyBand
 
     overlapping_bands = FrequencyBand.objects.filter(
         regulatory_domain=domain,
-        start_frequency_mhz__lt=chassis.band_plan_max_mhz,
-        end_frequency_mhz__gt=chassis.band_plan_min_mhz,
+        start_frequency_mhz__lt=band_max,
+        end_frequency_mhz__gt=band_min,
     ).exclude(band_type="forbidden")
 
     if not overlapping_bands.exists():
@@ -61,10 +64,6 @@ def has_band_plan_regulatory_coverage(chassis: WirelessChassis) -> bool:
     covered_min = min(band.start_frequency_mhz for band in overlapping_bands)
     covered_max = max(band.end_frequency_mhz for band in overlapping_bands)
 
-    band_min = chassis.band_plan_min_mhz
-    band_max = chassis.band_plan_max_mhz
-    if band_min is None or band_max is None:
-        return False
     return covered_min <= band_min and covered_max >= band_max
 
 

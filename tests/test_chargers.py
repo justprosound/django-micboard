@@ -1,20 +1,24 @@
-from django.test import RequestFactory, TestCase
+from django.contrib.auth.models import User
+from django.test import TestCase
 from django.urls import reverse
 
-from micboard.chargers.views import charger_display
 from micboard.models.hardware.charger import Charger, ChargerSlot
 from micboard.models.locations import Building, Location
+from micboard.models.monitoring.group import MonitoringGroup
 
 
 class ChargerDisplayViewTest(TestCase):
     def setUp(self):
-        self.factory = RequestFactory()
+        self.user = User.objects.create_user(username="charger-test-user")
         self.building = Building.objects.create(name="Test Building")
         self.location = Location.objects.create(name="Test Room", building=self.building)
+        group = MonitoringGroup.objects.create(name="Charger Test Group")
+        group.users.add(self.user)
+        group.locations.add(self.location)
+        self.client.force_login(self.user)
 
     def test_charger_display_no_chargers(self):
-        request = self.factory.get(reverse("micboard:charger_display"))
-        response = charger_display(request)
+        response = self.client.get(reverse("micboard:charger_display"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "No charging stations found.")
 
@@ -29,8 +33,7 @@ class ChargerDisplayViewTest(TestCase):
         )
 
         # Test with no slots first
-        request = self.factory.get(reverse("micboard:charger_display"))
-        response = charger_display(request)
+        response = self.client.get(reverse("micboard:charger_display"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Test Charger")
         # Since slots are empty, it should say "No microphones" or similar if we have an else block
@@ -48,7 +51,7 @@ class ChargerDisplayViewTest(TestCase):
             device_status="charging",
         )
 
-        response = charger_display(request)
+        response = self.client.get(reverse("micboard:charger_display"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "ULXD2")
         self.assertContains(response, "85%")

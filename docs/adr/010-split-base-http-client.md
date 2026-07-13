@@ -1,8 +1,12 @@
 # ADR-010: Split base_http_client.py into Three Concerns
 
-**Status:** Proposed
+**Status:** Superseded by the direct domain split
 **Date:** 2026-05-21
 **Deciders:** (to be assigned)
+
+The implemented split kept HTTP transport on `BaseHTTPClient`, moved manufacturer operations to
+typed device and discovery sub-clients, and removed the former polling mixin. This ADR remains as
+the historical design record; current callers use the composed sub-clients or manufacturer plugin.
 
 ## Context
 
@@ -10,15 +14,15 @@
 
 | Concern | Approx. Lines | What It Contains |
 |---------|--------------|------------------|
-| **HTTP Transport** | ~250 | Connection pooling (`requests.Session` + `HTTPAdapter` + `urllib3.Retry`), TLS verification, auth configuration template method, request dispatch |
-| **Polling Orchestration** | ~200 | `BasePollingMixin` — coordination logic for when to poll, how to sequence requests, response aggregation |
+| **HTTP Transport** | ~250 | Connection pooling (`httpx.Client`), TLS verification, auth configuration template method, request dispatch, and typed retries |
+| **Polling Orchestration** | ~200 | Former polling mixin coordinating request sequencing and response aggregation |
 | **Health Tracking** | ~100 | Health recording methods, status computation, health metadata |
 
 The class diagram is:
 
 ```
 BaseHTTPClient (HTTP transport + health tracking)
-     └── with BasePollingMixin (mixed in via cooperative inheritance)
+     └── former polling mixin (mixed in via cooperative inheritance)
             ├── ShureSystemAPIClient
             └── SennheiserSystemAPIClient
 ```
@@ -46,12 +50,15 @@ This structure causes:
                                          Depends on transport seam (injectable), not on HTTP directly.
    ```
 
-2. **`BaseHTTPClient` becomes a thin composition class** that instantiates and delegates to all three. The end-user class signature and method set remain identical — no call-site changes.
+2. **`BaseHTTPClient` becomes a thin composition class** that instantiates and delegates to all
+   three. Call sites move directly to the new domain modules in the same change.
 
-3. **Move to `integrations/common/`**. The new modules live in `integrations/common/` for consistency. The old `base_http_client.py` becomes a re-export shim for one release cycle, then is removed.
+3. **Move shared behavior directly into its canonical domain modules.** No re-export shim or
+   compatibility module is retained.
 
 4. **Each concern defines its own test seam:**
-   - `http_transport.py` tests: connection pooling configuration, retry behavior (mock `requests.adapters.HTTPAdapter`), auth template method.
+   - `http_transport.py` tests: connection pooling configuration, retry behavior with
+     `httpx.MockTransport`, and the auth template method.
    - `health_tracker.py` tests: pure computation — feed timestamps, assert health status. No mocks needed.
    - `polling_orchestrator.py` tests: inject fake transport, verify polling sequence. No network required.
 
@@ -59,7 +66,8 @@ This structure causes:
 
 - **Positive:** Each concern independently testable. Polling orchestration becomes a pure coordination module with a small seam — inject a fake transport to test any polling sequence. Health tracking is stateless computation. HTTP transport tests stay in the transport module.
 - **Negative:** Three files instead of one. The composition class adds ~20 lines of boilerplate.
-- **Migration:** (a) Extract `http_transport.py`, (b) extract `health_tracker.py`, (c) extract `polling_orchestrator.py`, (d) rewrite `BaseHTTPClient` as composition, (e) move to `integrations/common/`, (f) leave re-export shim, (g) remove shim after one release cycle. Execute as a single PR — no caller changes needed.
+- **Migration:** Extract each concern, update every call site to its canonical module, and remove the
+  old module in the same change.
 
 ## Compliance
 

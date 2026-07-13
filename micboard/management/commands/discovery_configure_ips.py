@@ -113,7 +113,7 @@ class IPConfigManager:
         logger.info("=" * 70)
         logger.info("Total discovery IPs: %s", len(current))
         if current:
-            subnets = {}
+            subnets: dict[str, int] = {}
             for ip in current:
                 subnet = ".".join(ip.split(".")[:3])
                 subnets[subnet] = subnets.get(subnet, 0) + 1

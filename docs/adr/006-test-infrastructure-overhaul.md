@@ -65,5 +65,5 @@ This means:
 
 ## Compliance
 
-- CI will enforce `pytest --cov=micboard --cov-fail-under=60` initially, stepping to 80% over time.
+- CI will enforce `uv run pytest --cov=micboard --cov-fail-under=60` initially, stepping to 80% over time.
 - New service methods require tests in the same PR.

@@ -210,7 +210,7 @@ Settings are looked up in this order. The **first one found** is used:
 1. Go to **Setting Definition** admin
 2. Search for the setting name
 3. Make sure it's marked **Active** (green checkmark)
-4. If missing, click **Initialize Settings** (or run `python manage.py init_settings`)
+4. If missing, click **Initialize Settings** (or run `uv run --no-sync python manage.py init_settings`)
 
 ### Problem: Old Value Still Being Used
 **Solution**:
@@ -242,7 +242,7 @@ Settings are looked up in this order. The **first one found** is used:
 
 ```bash
 # Initialize all settings
-python manage.py init_settings --manufacturer-defaults
+uv run --no-sync python manage.py init_settings --manufacturer-defaults
 
 # Verify
 # Go to Admin → Setting Definition
@@ -253,7 +253,7 @@ python manage.py init_settings --manufacturer-defaults
 
 ```bash
 # WARNING: Deletes all configured settings!
-python manage.py init_settings --reset
+uv run --no-sync python manage.py init_settings --reset
 ```
 
 ### Check Settings Value

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 
-from micboard.models import Manufacturer
+from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.tasks.sync.discovery import run_discovery_sync_task
 
 
@@ -56,7 +56,7 @@ class Command(BaseCommand):
                 )
                 return
         else:
-            manufacturers = Manufacturer.objects.filter(is_active=True)
+            manufacturers = list(Manufacturer.objects.filter(is_active=True))
 
         if not manufacturers:
             self.stdout.write(self.style.WARNING("No active manufacturers found"))

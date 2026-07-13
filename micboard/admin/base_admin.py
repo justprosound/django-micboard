@@ -24,6 +24,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+if TYPE_CHECKING:
+
+    class _AdminActionHost:
+        def message_user(
+            self,
+            request: HttpRequest,
+            message: str,
+            level: int,
+        ) -> None: ...
+else:
+
+    class _AdminActionHost:
+        pass
+
+
 class BaseHardwareAdmin(MicboardModelAdmin):
     """Base admin class for device models (Receiver, Transmitter, Charger).
 
@@ -89,7 +104,7 @@ class BaseHardwareAdmin(MicboardModelAdmin):
         )
 
 
-class AdminStatusActionsMixin:
+class AdminStatusActionsMixin(_AdminActionHost):
     """Mixin providing common status change actions.
 
     Includes:
@@ -140,7 +155,7 @@ class AdminStatusActionsMixin:
         )
 
 
-class AdminBulkActionsMixin:
+class AdminBulkActionsMixin(_AdminActionHost):
     """Mixin providing common bulk operation actions.
 
     Includes:
@@ -170,7 +185,7 @@ class AdminBulkActionsMixin:
         )
 
 
-class AdminApprovalActionsMixin:
+class AdminApprovalActionsMixin(_AdminActionHost):
     """Mixin providing approval/rejection actions.
 
     Used for models with approval workflows (DiscoveryQueue, etc).
@@ -360,15 +375,17 @@ def create_hardware_admin(
         include_status_actions, include_bulk_actions, include_approval_actions
     )
 
-    # Create the admin class with all appropriate mixins
-    class ConfiguredHardwareAdmin(BaseHardwareAdmin, *mixins):
-        """Dynamically configured device admin."""
+    configured_hardware_admin: Any = type(
+        "ConfiguredHardwareAdmin",
+        (BaseHardwareAdmin, *mixins),
+        {"__doc__": "Dynamically configured device admin."},
+    )
 
     # Set list display and filters if provided
     if list_display:
-        ConfiguredHardwareAdmin.list_display_fields = list_display
+        configured_hardware_admin.list_display_fields = list_display
     if list_filters:
-        ConfiguredHardwareAdmin.common_list_filters = list_filters
+        configured_hardware_admin.common_list_filters = list_filters
 
     # Build actions list
     actions_list = actions or []
@@ -380,6 +397,6 @@ def create_hardware_admin(
         actions_list.extend(["approve", "reject"])
 
     if actions_list:
-        ConfiguredHardwareAdmin.actions = actions_list
+        configured_hardware_admin.actions = actions_list
 
-    return ConfiguredHardwareAdmin
+    return configured_hardware_admin

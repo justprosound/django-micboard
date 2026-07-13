@@ -63,9 +63,12 @@ All 5 models have been fully extracted. Status per model:
 | 2 | `DiscoveredDevice` | Queue management, duplicate detection | `services/sync/discovered_device_service.py` | ✅ Done |
 | 3 | `WirelessUnit` | Status transitions, timestamp updates | `services/hardware/wireless_unit_service.py` | ✅ Done |
 | 4 | `RFChannel` | Frequency coordination, regulatory domain resolution | `services/hardware/rf_channel_service.py` | ✅ Done |
-| 5 | `WirelessChassis` | `save()` orchestration → 3-5 service methods; band_plan regulatory methods extracted to `chassis_regulatory_service.py` with deprecation shims | `services/hardware/chassis_regulatory_service.py` | ✅ Done |
+| 5 | `WirelessChassis` | `save()` orchestration → service methods; band-plan regulatory methods extracted to `chassis_regulatory_service.py` | `services/hardware/chassis_regulatory_service.py` | ✅ Done |
 
-Note on WirelessChassis: The band_plan regulatory methods (`get_regulatory_domain`, `has_band_plan_regulatory_coverage`, `needs_band_plan_regulatory_update`, `get_band_plan_regulatory_status`) were extracted to a dedicated regulatory service (`chassis_regulatory_service.py`) per **Option B**: all 4 methods in one pass. They share a single-source-of-truth `get_regulatory_domain_for_location(location)` in `rf_channel_service.py`. Model methods remain as deprecation shims delegating to the service.
+Note on WirelessChassis: Band-plan regulatory operations live in the dedicated
+`chassis_regulatory_service.py` module. They share the single-source-of-truth
+`get_regulatory_domain_for_location(location)` implementation in `rf_channel_service.py`; callers
+import those services directly and no model compatibility methods remain.
 
 ## Compliance
 

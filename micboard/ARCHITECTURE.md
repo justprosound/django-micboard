@@ -14,28 +14,28 @@ wireless audio hardware. It emphasizes:
 
 ### 1. Settings & Configuration
 
-The `micboard.conf` module provides centralized access to all Micboard settings:
+The settings service provides the single access point for all Micboard settings:
 
 ```python
-from micboard.conf import config
+from micboard.services.settings import settings as micboard_settings
 
 # Feature flags
-if config.msp_enabled:
+if micboard_settings.msp_enabled:
     print("MSP mode is enabled")
 
 # Settings from MICBOARD_CONFIG dict
-timeout = config.get('SHURE_API_TIMEOUT', default=10)
+timeout = micboard_settings.get("SHURE_API_TIMEOUT", default=10)
 
 # Direct property access
-allowed = config.allow_cross_org_view
+allowed = micboard_settings.allow_cross_org_view
 ```
 
-**Resolution Order** (settings_registry.py):
-1. Organization scope (if MSP_ENABLED)
-2. Site scope (if MULTI_SITE_MODE)
-3. Manufacturer scope
-4. Global default
-5. User-provided default
+**Resolution Order** (`services/settings/settings_service.py`):
+1. Scoped database setting (organization, site, or manufacturer)
+2. Host `MICBOARD_CONFIG` dictionary
+3. Host feature-flag setting
+4. App default
+5. Caller-provided default
 
 ### 2. Plugin Architecture (Manufacturer-Agnostic)
 
@@ -77,7 +77,7 @@ plugins = PluginRegistry.get_all_active_plugins()
 **Implementing a New Plugin:**
 
 ```python
-from micboard.integrations.common.base import ManufacturerPlugin
+from micboard.services.common.base.plugin import ManufacturerPlugin
 
 class MyPlugin(ManufacturerPlugin):
     manufacturer_code = 'mymanufacturer'
@@ -119,14 +119,8 @@ MICBOARD_SITE_ISOLATION = 'organization'
 **Scoping Queries:**
 
 ```python
-from micboard.multitenancy import get_current_tenant
-
-# Get tenant-filtered queryset
-tenant = get_current_tenant()
-devices = WirelessUnit.objects.filter_by_tenant(tenant)
-
-# Or using managers
-devices = WirelessUnit.objects.all()  # Auto-filtered by middleware
+# Scope querysets explicitly to the authenticated user.
+devices = WirelessUnit.objects.for_user(user=request.user)
 ```
 
 ### 4. Settings Registry

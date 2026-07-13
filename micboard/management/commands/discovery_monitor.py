@@ -97,7 +97,7 @@ class DiscoveryMonitor:
     def print_summary(self, current_devices: dict[str, dict[str, Any]]):
         elapsed = time.time() - self.start_time.timestamp()
         elapsed_str = self._format_elapsed(elapsed)
-        state_counts = defaultdict(int)
+        state_counts: defaultdict[str, int] = defaultdict(int)
         for device in current_devices.values():
             state = device.get("state", "UNKNOWN")
             state_counts[state] += 1

@@ -98,12 +98,15 @@ class BatteryHealthMonitor:
 ### Before
 ```python
 # services/polling_api.py - hardcoded timeouts
+import httpx
+
+
 class ShureAPIClient:
     TIMEOUT = 30
     MAX_DEVICES_PER_CALL = 100
 
     def get_devices(self, ip_list):
-        response = requests.get(
+        response = httpx.get(
             url,
             timeout=self.TIMEOUT,
             params={'ips': ip_list[:self.MAX_DEVICES_PER_CALL]}
@@ -112,7 +115,9 @@ class ShureAPIClient:
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+import httpx
+
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 class ShureAPIClient:
     def __init__(self, manufacturer):
@@ -130,7 +135,7 @@ class ShureAPIClient:
             manufacturer=self.manufacturer
         )
 
-        response = requests.get(
+        response = httpx.get(
             url,
             timeout=timeout,
             params={'ips': ip_list[:max_per_call]}
@@ -409,7 +414,7 @@ sennheiser_limit = SettingsRegistry.get(
 
 ### Step 1: Add SettingDefinition
 ```bash
-python manage.py init_settings
+uv run --no-sync python manage.py init_settings
 ```
 
 ### Step 2: Update Code Service by Service
@@ -432,7 +437,7 @@ Verify caching works as expected (5-min TTL)
 
 ### Check Current Settings
 ```bash
-python manage.py shell
+uv run --no-sync python manage.py shell
 from micboard.models.settings import Setting, SettingDefinition
 Setting.objects.filter(definition__key='battery_low_level')
 ```

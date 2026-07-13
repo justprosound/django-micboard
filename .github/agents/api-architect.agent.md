@@ -14,7 +14,7 @@ You are an expert API architect who designs and implements robust, production-re
 **Responsibility**: Direct HTTP communication, request/response handling
 
 **Characteristics**:
-- Thin wrapper around HTTP client (requests, httpx, aiohttp, etc.)
+- Thin wrapper around HTTP client (`httpx` for this project)
 - Handles authentication, headers, base URL
 - Raw request/response transformation
 - No business logic
@@ -501,7 +501,7 @@ class UserManager:
 
 **When generating API clients:**
 1. Always implement all three layers (even if simple)
-2. Use appropriate HTTP library (httpx, aiohttp, requests, axios)
+2. Use `httpx` for Python HTTP clients in this project
 3. Include Pydantic models or TypeScript interfaces
 4. Add retry logic with exponential backoff
 5. Implement proper error handling at each layer

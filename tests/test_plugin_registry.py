@@ -38,7 +38,7 @@ class PluginRegistryTests(TestCase):
         """Clean up after tests."""
         PluginRegistry.clear_cache()
 
-    @patch("micboard.services.common.base.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_plugin_class_caches_result(self, mock_get_plugin):
         """Test that plugin class is cached after first load."""
         mock_get_plugin.return_value = FakeManufacturerPlugin
@@ -54,7 +54,7 @@ class PluginRegistryTests(TestCase):
         # Mock should only be called once
         self.assertEqual(mock_get_plugin.call_count, 1)
 
-    @patch("micboard.services.common.base.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_plugin_not_found_returns_none(self, mock_get_plugin):
         """Test that missing plugin returns None."""
         mock_get_plugin.side_effect = ModuleNotFoundError("No plugin")
@@ -65,7 +65,7 @@ class PluginRegistryTests(TestCase):
 
     def test_clear_cache(self):
         """Test cache clearing."""
-        with patch("micboard.services.common.base.get_manufacturer_plugin") as mock_get:
+        with patch("micboard.services.common.base.plugin.get_manufacturer_plugin") as mock_get:
             mock_get.return_value = FakeManufacturerPlugin
 
             # Fill cache
@@ -81,7 +81,7 @@ class PluginRegistryTests(TestCase):
             PluginRegistry.get_plugin_class("fake")
             self.assertEqual(mock_get.call_count, 1)
 
-    @patch("micboard.services.common.base.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_plugin_loading_error_handling(self, mock_get_plugin):
         """Test error handling when plugin loading fails."""
         mock_get_plugin.side_effect = ImportError("Import failed")
@@ -89,7 +89,7 @@ class PluginRegistryTests(TestCase):
         with self.assertRaises(ImportError):
             PluginRegistry.get_plugin_class("fake")
 
-    @patch("micboard.services.common.base.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_all_active_plugins(self, mock_get_plugin):
         """Test getting all active plugins from database."""
         mock_get_plugin.return_value = FakeManufacturerPlugin
@@ -99,7 +99,9 @@ class PluginRegistryTests(TestCase):
             type("MockMfg", (), {"code": "fake", "name": "Fake"}),
         ]
 
-        with patch("micboard.models.Manufacturer.objects.filter") as mock_filter:
+        with patch(
+            "micboard.models.discovery.manufacturer.Manufacturer.objects.filter"
+        ) as mock_filter:
             mock_filter.return_value = mock_manufacturers
 
             plugins = PluginRegistry.get_all_active_plugins()
@@ -108,14 +110,14 @@ class PluginRegistryTests(TestCase):
             self.assertIsInstance(plugins, list)
             self.assertTrue(len(plugins) >= 0)
 
-    @patch("micboard.services.common.base.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_plugin_with_manufacturer_not_found(self, mock_get_plugin):
         """Test get_plugin when manufacturer is not found in database."""
         mock_get_plugin.return_value = FakeManufacturerPlugin
 
         # The code has an inner try/except for Manufacturer.DoesNotExist
         # We need to trigger it by making the get call raise that exception
-        with patch("micboard.models.Manufacturer") as mock_mfg_class:
+        with patch("micboard.models.discovery.manufacturer.Manufacturer") as mock_mfg_class:
             # Create a proper exception class for DoesNotExist
             class DoesNotExistError(Exception):
                 pass
@@ -130,7 +132,7 @@ class PluginRegistryTests(TestCase):
             # Plugin should be created with manufacturer=None
             self.assertIsInstance(plugin, FakeManufacturerPlugin)
 
-    @patch("micboard.services.common.base.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_all_active_plugins_with_failed_plugin(self, mock_get_plugin):
         """Test get_all_active_plugins handles plugins that fail to load."""
         # First plugin succeeds, second fails
@@ -144,7 +146,9 @@ class PluginRegistryTests(TestCase):
             type("MockMfg2", (), {"code": "fake2", "name": "Fake2"}),
         ]
 
-        with patch("micboard.models.Manufacturer.objects.filter") as mock_filter:
+        with patch(
+            "micboard.models.discovery.manufacturer.Manufacturer.objects.filter"
+        ) as mock_filter:
             mock_filter.return_value = mock_manufacturers
 
             # Reset cache between calls
@@ -157,7 +161,7 @@ class PluginRegistryTests(TestCase):
             # Should have fewer plugins than manufacturers (one failed)
             self.assertTrue(len(plugins) <= len(mock_manufacturers))
 
-    @patch("micboard.services.common.base.get_manufacturer_plugin")
+    @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_plugin_with_manufacturer_lookup_success(self, mock_get_plugin):
         """Test get_plugin successfully looks up manufacturer from database."""
         mock_get_plugin.return_value = FakeManufacturerPlugin
@@ -165,7 +169,7 @@ class PluginRegistryTests(TestCase):
         # Create a mock manufacturer object
         mock_mfg = type("MockMfg", (), {"code": "fake", "name": "Fake"})()
 
-        with patch("micboard.models.Manufacturer") as mock_mfg_class:
+        with patch("micboard.models.discovery.manufacturer.Manufacturer") as mock_mfg_class:
             # Set up successful database lookup
             mock_mfg_class.objects.get.return_value = mock_mfg
 
@@ -177,4 +181,5 @@ class PluginRegistryTests(TestCase):
 
             # Should return plugin instance with the looked-up manufacturer
             self.assertIsInstance(plugin, FakeManufacturerPlugin)
+            assert plugin is not None
             self.assertEqual(plugin.manufacturer, mock_mfg)

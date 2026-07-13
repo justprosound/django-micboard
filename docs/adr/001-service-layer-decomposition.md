@@ -41,5 +41,5 @@ We will decompose the services layer following these rules:
 
 ## Compliance
 
-- Run `ruff check . --select=PYL` to flag modules above threshold.
+- Run `uv run ruff check . --select=PYL` to flag modules above threshold.
 - CI will enforce: no service file >400 lines.

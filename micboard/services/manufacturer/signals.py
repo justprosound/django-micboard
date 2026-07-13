@@ -7,6 +7,7 @@ when manufacturers are created, updated, or deleted.
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 
 from micboard.models.audit import ActivityLog
 
@@ -48,17 +49,15 @@ def handle_manufacturer_save(*, manufacturer, created: bool, old_active: bool | 
         logger.exception("Failed to write activity log for manufacturer %s", manufacturer.pk)
 
     if (not created) and manufacturer.is_active and not old_active:
-        from micboard.utils.dependencies import HAS_DJANGO_Q
+        from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
-        if HAS_DJANGO_Q:
+        if huey_is_configured():
             try:
-                from django_q.tasks import async_task
-
                 from micboard.tasks.sync.discovery import (
                     run_manufacturer_discovery_task,
                 )
 
-                async_task(
+                enqueue_huey_task(
                     run_manufacturer_discovery_task,
                     manufacturer.pk,
                     False,
@@ -67,7 +66,9 @@ def handle_manufacturer_save(*, manufacturer, created: bool, old_active: bool | 
             except Exception:
                 logger.exception("Failed to trigger discovery on manufacturer activation")
         else:
-            logger.debug("Django-Q not installed; skipping discovery task trigger")
+            logger.debug(
+                "Native Huey is unavailable or unconfigured; skipping discovery task trigger"
+            )
 
 
 def save_manufacturer(manufacturer, *args, **kwargs) -> None:
@@ -81,10 +82,8 @@ def save_manufacturer(manufacturer, *args, **kwargs) -> None:
     created = manufacturer.pk is None
     old_active = False
     if not created:
-        try:
+        with suppress(_Manufacturer.DoesNotExist):
             old_active = _Manufacturer.objects.get(pk=manufacturer.pk).is_active
-        except _Manufacturer.DoesNotExist:
-            pass
 
     super(_Manufacturer, manufacturer).save(*args, **kwargs)
     handle_manufacturer_save(manufacturer=manufacturer, created=created, old_active=old_active)

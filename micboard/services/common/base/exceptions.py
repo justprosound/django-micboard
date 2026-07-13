@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-import requests
+from contextlib import suppress
+
+import httpx
 
 
 class APIError(Exception):
@@ -8,7 +10,7 @@ class APIError(Exception):
         self,
         message: str,
         status_code: int | None = None,
-        response: requests.Response | None = None,
+        response: httpx.Response | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -26,20 +28,15 @@ class APIRateLimitError(APIError):
         self,
         message: str = "Rate limit exceeded",
         retry_after: int | None = None,
-        response: requests.Response | None = None,
+        response: httpx.Response | None = None,
     ):
         super().__init__(message, status_code=429, response=response)
         self.retry_after = retry_after
         if response and "Retry-After" in response.headers:
-            try:
+            with suppress(ValueError, TypeError):
                 self.retry_after = int(response.headers["Retry-After"])
-            except (ValueError, TypeError):
-                pass
 
     def __str__(self) -> str:
         if self.retry_after:
-            return (
-                f"{self.__class__.__name__}: {self.message}. "
-                f"Retry after {self.retry_after} seconds."
-            )
+            return f"{self.__class__.__name__}: {self.message}. Retry after {self.retry_after} seconds."
         return f"{self.__class__.__name__}: {self.message}"

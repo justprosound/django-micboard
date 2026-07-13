@@ -5,36 +5,44 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.services.monitoring.alerts import get_alerts_for_user
 
 
 @login_required
 def channel_card_partial(request: HttpRequest, channel_id: int) -> HttpResponse:
     """HTMX partial: single channel status card."""
-    from micboard.models import RFChannel
+    from micboard.services.monitoring.monitoring_access import MonitoringService
 
-    channel = get_object_or_404(RFChannel, id=channel_id)
+    channel = get_object_or_404(
+        MonitoringService.get_accessible_channels(request.user),
+        id=channel_id,
+    )
     return render(request, "micboard/partials/channel_card.html", {"channel": channel})
 
 
 @login_required
 def charger_slot_partial(request: HttpRequest, slot_id: int) -> HttpResponse:
     """HTMX partial: charger slot status."""
-    from micboard.models import ChargerSlot
+    from micboard.services.monitoring.monitoring_access import MonitoringService
 
-    slot = get_object_or_404(ChargerSlot, id=slot_id)
+    slot = get_object_or_404(
+        MonitoringService.get_accessible_charger_slots(request.user), id=slot_id
+    )
     return render(request, "micboard/partials/charger_slot.html", {"slot": slot})
 
 
 @login_required
 def wall_section_partial(request: HttpRequest, section_id: int) -> HttpResponse:
     """HTMX partial: display wall section with chargers."""
-    from micboard.models import WallSection
     from micboard.services.kiosk import KioskService
+    from micboard.services.monitoring.monitoring_access import MonitoringService
 
-    section = get_object_or_404(WallSection, id=section_id)
-    data = KioskService.get_section_data(section.id)
+    section = get_object_or_404(
+        MonitoringService.get_accessible_wall_sections(request.user),
+        id=section_id,
+    )
+    data = KioskService.get_section_data(section_id=section.id, user=request.user)
     return render(
         request,
         "micboard/partials/wall_section.html",
@@ -45,14 +53,17 @@ def wall_section_partial(request: HttpRequest, section_id: int) -> HttpResponse:
 @login_required
 def alert_row_partial(request: HttpRequest, alert_id: int) -> HttpResponse:
     """HTMX partial: alert table row."""
-    alert = get_object_or_404(Alert, id=alert_id)
+    alert = get_object_or_404(get_alerts_for_user(request.user), id=alert_id)
     return render(request, "micboard/partials/alert_row.html", {"alert": alert})
 
 
 @login_required
 def assignment_row_partial(request: HttpRequest, assignment_id: int) -> HttpResponse:
     """HTMX partial: performer assignment row."""
-    assignment = get_object_or_404(PerformerAssignment, id=assignment_id)
+    assignment = get_object_or_404(
+        PerformerAssignment.objects.for_user(user=request.user),
+        id=assignment_id,
+    )
     return render(request, "micboard/partials/assignment_row.html", {"assignment": assignment})
 
 
@@ -61,7 +72,7 @@ def charger_grid_partial(request: HttpRequest) -> HttpResponse:
     """HTMX partial: full charger dashboard grid."""
     from micboard.services.kiosk import KioskService
 
-    data = KioskService.get_charger_dashboard_data()
+    data = KioskService.get_charger_dashboard_data(user=request.user)
     return render(request, "micboard/partials/charger_grid.html", data)
 
 

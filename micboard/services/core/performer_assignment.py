@@ -6,20 +6,60 @@ Handles assignment lifecycle, state transitions, and lookup helpers.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import Any
 
-from django.db.models import QuerySet
+from django.apps import apps
+from django.conf import settings
+from django.core.exceptions import PermissionDenied
+from django.db.models import Q, QuerySet
 
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.monitoring.group import MonitoringGroup
+from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
-
-if TYPE_CHECKING:  # pragma: no cover
-    from django.contrib.auth.models import User
 
 logger = logging.getLogger(__name__)
 
 
 class PerformerAssignmentService:
     """Business logic for performer-to-device assignments."""
+
+    MODIFY_ROLES = frozenset({"operator", "admin", "owner"})
+
+    @staticmethod
+    def ensure_can_modify_unit(*, user: Any, unit: WirelessUnit) -> None:
+        """Require an MSP role that permits assignment changes for the unit."""
+        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+            return
+        if user.is_superuser and getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True):
+            return
+        if not apps.is_installed("micboard.multitenancy"):
+            raise PermissionDenied("Multi-tenant assignment access is unavailable")
+
+        location = unit.base_chassis.location
+        if location is None:
+            raise PermissionDenied("The wireless unit is not assigned to an organization")
+        organization_id = location.building.organization_id
+        if organization_id is None:
+            raise PermissionDenied("The wireless unit is not assigned to an organization")
+
+        from micboard.multitenancy.models import OrganizationMembership
+
+        building = location.building
+        campus_scope = (
+            Q(campus_id__isnull=True)
+            if building.campus_id is None
+            else Q(campus_id__isnull=True) | Q(campus_id=building.campus_id)
+        )
+        can_modify = OrganizationMembership._default_manager.filter(
+            user=user,
+            organization_id=organization_id,
+            organization__is_active=True,
+            is_active=True,
+            role__in=PerformerAssignmentService.MODIFY_ROLES,
+        ).filter(campus_scope)
+        if not can_modify.exists():
+            raise PermissionDenied("This membership cannot modify device assignments")
 
     @staticmethod
     def get_active_assignments() -> QuerySet[PerformerAssignment]:
@@ -41,6 +81,7 @@ class PerformerAssignmentService:
         performer_id: int,
         unit_id: int,
         group_id: int,
+        user: Any,
         priority: str = "normal",
         notes: str | None = None,
         alert_on_battery_low: bool | None = None,
@@ -48,20 +89,34 @@ class PerformerAssignmentService:
         alert_on_audio_low: bool | None = None,
         alert_on_hardware_offline: bool | None = None,
         is_active: bool = True,
-        user: User | None = None,
     ) -> PerformerAssignment:
-        """Create a new performer assignment with optional alert preferences.
-
-        Backwards-compatible: callers that previously passed the smaller set of
-        arguments will continue to work.
-        """
+        """Create an assignment after validating every object against user scope."""
         from django.db import transaction
 
         with transaction.atomic():
+            try:
+                monitoring_group = (
+                    MonitoringGroup.objects.get(pk=group_id, is_active=True)
+                    if user.is_superuser
+                    else user.monitoring_groups.get(pk=group_id, is_active=True)
+                )
+                performer = Performer.objects.for_user(user=user).get(pk=performer_id)
+                wireless_unit = WirelessUnit.objects.for_user(user=user).get(pk=unit_id)
+            except (
+                MonitoringGroup.DoesNotExist,
+                Performer.DoesNotExist,
+                WirelessUnit.DoesNotExist,
+            ):
+                raise PermissionDenied(
+                    "Assignment references an object outside the user's scope"
+                ) from None
+
+            PerformerAssignmentService.ensure_can_modify_unit(user=user, unit=wireless_unit)
+
             assignment = PerformerAssignment.objects.create(
-                performer_id=performer_id,
-                wireless_unit_id=unit_id,
-                monitoring_group_id=group_id,
+                performer=performer,
+                wireless_unit=wireless_unit,
+                monitoring_group=monitoring_group,
                 priority=priority,
                 notes=notes or "",
                 alert_on_battery_low=bool(alert_on_battery_low)
@@ -87,6 +142,7 @@ class PerformerAssignmentService:
     def update_assignment(
         *,
         assignment_id: int,
+        user: Any,
         priority: str | None = None,
         notes: str | None = None,
         is_active: bool | None = None,
@@ -102,7 +158,16 @@ class PerformerAssignmentService:
         from django.db import transaction
 
         with transaction.atomic():
-            assignment = PerformerAssignment.objects.select_for_update().get(id=assignment_id)
+            assignment = (
+                PerformerAssignment.objects.for_user(user=user)
+                .select_related("wireless_unit__base_chassis__location__building")
+                .select_for_update()
+                .get(id=assignment_id)
+            )
+            PerformerAssignmentService.ensure_can_modify_unit(
+                user=user,
+                unit=assignment.wireless_unit,
+            )
 
             if priority is not None:
                 assignment.priority = priority
@@ -123,20 +188,36 @@ class PerformerAssignmentService:
             return assignment
 
     @staticmethod
-    def delete_assignment(*, assignment_id: int) -> bool:
+    def delete_assignment(*, assignment_id: int, user: Any) -> bool:
         """Permanently delete an assignment. Returns True if deleted, False if not found."""
         try:
-            assignment = PerformerAssignment.objects.get(id=assignment_id)
+            assignment = (
+                PerformerAssignment.objects.for_user(user=user)
+                .select_related("wireless_unit__base_chassis__location__building")
+                .get(id=assignment_id)
+            )
+            PerformerAssignmentService.ensure_can_modify_unit(
+                user=user,
+                unit=assignment.wireless_unit,
+            )
             assignment.delete()
             return True
         except PerformerAssignment.DoesNotExist:
             return False
 
     @staticmethod
-    def deactivate_assignment(*, assignment_id: int) -> bool:
+    def deactivate_assignment(*, assignment_id: int, user: Any) -> bool:
         """Deactivate an existing assignment."""
         try:
-            assignment = PerformerAssignment.objects.get(id=assignment_id)
+            assignment = (
+                PerformerAssignment.objects.for_user(user=user)
+                .select_related("wireless_unit__base_chassis__location__building")
+                .get(id=assignment_id)
+            )
+            PerformerAssignmentService.ensure_can_modify_unit(
+                user=user,
+                unit=assignment.wireless_unit,
+            )
             assignment.is_active = False
             assignment.save(update_fields=["is_active", "updated_at"])
             return True

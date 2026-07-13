@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from micboard.models import WirelessChassis
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.deduplication.result import DeduplicationResult
 
 if TYPE_CHECKING:
-    from micboard.models import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ def check_cross_vendor_api_id(
     Returns:
         List of tuples (manufacturer_code, count, devices)
     """
-    from micboard.models import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
     results: list[tuple[str, int, list]] = []
     exclude_id = current_manufacturer.id if current_manufacturer else -1

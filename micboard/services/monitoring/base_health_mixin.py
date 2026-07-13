@@ -6,7 +6,6 @@ Centralizes health checking logic and standardizes responses across manufacturer
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from django.utils import timezone
@@ -66,7 +65,7 @@ class HealthCheckMixin:
             logger.warning("Invalid health status: %s, defaulting to unknown", status)
             status = "unknown"
 
-        response = {
+        response: dict[str, Any] = {
             "status": status,
             "timestamp": timezone.now().isoformat(),
         }
@@ -256,50 +255,3 @@ class AggregatedHealthChecker:
             for name, result in health.get("details", {}).items()
             if result.get("status") in ("unhealthy", "error")
         ]
-
-
-def create_health_check_reporter(
-    *,
-    log_to_db: bool = False,
-    send_alerts: bool = False,
-) -> Callable:
-    """Create a health check reporter that logs/alerts on status changes.
-
-    Args:
-        log_to_db: If True, log health checks to database
-        send_alerts: If True, send alerts on unhealthy status
-
-    Returns:
-        Reporter function(name, health_status)
-    """
-
-    def reporter(name: str, health_status: dict[str, Any]) -> None:
-        """Report health status."""
-        status = health_status.get("status", "unknown")
-        logger.info("Health check %s: %s", name, status)
-
-        if log_to_db:
-            try:
-                from micboard.models import HealthCheckLog
-
-                HealthCheckLog.objects.create(
-                    check_name=name,
-                    status=status,
-                    details=health_status.get("details"),
-                )
-            except Exception:
-                logger.exception("Failed to log health check to database")
-
-        if send_alerts and status in ("unhealthy", "error"):
-            try:
-                from micboard.services.monitoring.alerts import create_health_alert
-
-                create_health_alert(
-                    name,
-                    status,
-                    health_status.get("error"),
-                )
-            except Exception:
-                logger.exception("Failed to send health alert")
-
-    return reporter

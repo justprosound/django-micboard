@@ -10,6 +10,8 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from django.utils import timezone
+
 if TYPE_CHECKING:
     from micboard.models.hardware.wireless_chassis import WirelessChassis
 
@@ -17,6 +19,16 @@ logger = logging.getLogger(__name__)
 
 
 _ACTIVE_STATES: set[str] = {"online", "degraded", "provisioning"}
+_OPERATIONAL_STATES: set[str] = {"online", "degraded"}
+_VALID_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "discovered": {"provisioning", "offline", "retired"},
+    "provisioning": {"online", "offline", "discovered"},
+    "online": {"degraded", "offline", "maintenance"},
+    "degraded": {"online", "offline", "maintenance"},
+    "offline": {"online", "degraded", "maintenance", "retired"},
+    "maintenance": {"online", "offline", "retired"},
+    "retired": set(),
+}
 
 
 def is_active_at_time(chassis: WirelessChassis, at_time: datetime | None = None) -> bool:
@@ -161,63 +173,150 @@ def apply_detected_band_plan(
     return False
 
 
-def prepare_chassis_for_save(chassis: WirelessChassis) -> dict:
-    """Prepare chassis for save by syncing specs and detecting band plan.
+def _prepare_lifecycle_fields(
+    chassis: WirelessChassis, *, created: bool
+) -> tuple[str | None, set[str]]:
+    """Validate a status transition and update lifecycle fields."""
+    old_status: str | None = None
+    lifecycle_update_fields: set[str] = set()
+    if created:
+        if chassis.status not in _OPERATIONAL_STATES:
+            return old_status, lifecycle_update_fields
+        chassis.is_online = True
+        chassis.last_online_at = timezone.now()
+        lifecycle_update_fields.update({"is_online", "last_online_at"})
+        return old_status, lifecycle_update_fields
 
-    Handles DeviceSpecService sync, role detection, and band plan resolution.
-    Returns dict with 'created' boolean for post-save handling.
-    """
+    previous = (
+        type(chassis)
+        .objects.only(
+            "status",
+            "is_online",
+            "last_online_at",
+            "total_uptime_minutes",
+        )
+        .get(pk=chassis.pk)
+    )
+    old_status = previous.status
+    if old_status == chassis.status:
+        return old_status, lifecycle_update_fields
+
+    allowed = _VALID_STATUS_TRANSITIONS.get(old_status, set())
+    if chassis.status not in allowed:
+        allowed_label = ", ".join(sorted(allowed)) if allowed else "none (terminal state)"
+        raise ValueError(
+            f"Invalid status transition: {old_status} → {chassis.status}. Allowed: {allowed_label}"
+        )
+
+    now = timezone.now()
+    was_operational = previous.is_online or old_status in _OPERATIONAL_STATES
+    is_operational = chassis.status in _OPERATIONAL_STATES
+    chassis.is_online = is_operational
+    lifecycle_update_fields.add("is_online")
+    if is_operational and not was_operational:
+        chassis.last_online_at = now
+        lifecycle_update_fields.add("last_online_at")
+    elif not is_operational and was_operational:
+        chassis.last_offline_at = now
+        lifecycle_update_fields.add("last_offline_at")
+        if previous.last_online_at:
+            elapsed_minutes = max(
+                0,
+                int((now - previous.last_online_at).total_seconds() // 60),
+            )
+            chassis.total_uptime_minutes = previous.total_uptime_minutes + elapsed_minutes
+            lifecycle_update_fields.add("total_uptime_minutes")
+    return old_status, lifecycle_update_fields
+
+
+def _manufacturer_code(chassis: WirelessChassis) -> str:
+    return (
+        chassis.manufacturer.code.lower()
+        if chassis.manufacturer and hasattr(chassis.manufacturer, "code")
+        else "unknown"
+    )
+
+
+def _apply_band_plan_fields(chassis: WirelessChassis, band_plan: dict[str, Any]) -> None:
+    chassis.band_plan_min_mhz = band_plan["min_mhz"]
+    chassis.band_plan_max_mhz = band_plan["max_mhz"]
+
+
+def _prepare_specs_and_band_plan(chassis: WirelessChassis) -> None:
+    """Apply device specifications and fill any missing band-plan data."""
+    if not chassis.manufacturer or not chassis.model:
+        return
+
+    from micboard.models.band_plans import (
+        get_band_plan,
+        get_band_plan_from_model_code,
+        parse_band_plan_from_name,
+    )
+    from micboard.models.device_specs import get_device_role
     from micboard.services.core.device_specs import DeviceSpecService
 
-    created = chassis.pk is None
-    band_plan = None
+    DeviceSpecService.apply_specs_to_chassis(chassis)
+    mfg_code = _manufacturer_code(chassis)
+    if not chassis.role:
+        chassis.role = get_device_role(manufacturer=mfg_code, model=chassis.model)
 
-    if chassis.manufacturer and chassis.model:
-        DeviceSpecService.apply_specs_to_chassis(chassis)
-
-        if not chassis.role:
-            from micboard.models.device_specs import get_device_role
-
-            mfg_code = (
-                chassis.manufacturer.code.lower()
-                if hasattr(chassis.manufacturer, "code")
-                else "unknown"
-            )
-            chassis.role = get_device_role(
-                manufacturer=mfg_code,
-                model=chassis.model,
-            )
-
-        if band_plan:
-            chassis.band_plan_min_mhz = band_plan["min_mhz"]
-            chassis.band_plan_max_mhz = band_plan["max_mhz"]
-        elif not chassis.band_plan_min_mhz or not chassis.band_plan_max_mhz:
-            from micboard.models.band_plans import parse_band_plan_from_name
-
+    if chassis.band_plan_name:
+        if not chassis.band_plan_min_mhz or not chassis.band_plan_max_mhz:
             parsed = parse_band_plan_from_name(name=chassis.band_plan_name)
             if parsed:
-                chassis.band_plan_min_mhz = parsed["min_mhz"]
-                chassis.band_plan_max_mhz = parsed["max_mhz"]
-    elif not chassis.band_plan_name and chassis.manufacturer and chassis.model:
-        from micboard.models.band_plans import (
-            get_band_plan,
-            get_band_plan_from_model_code,
-        )
+                _apply_band_plan_fields(chassis, parsed)
+        return
 
-        mfg_code = (
-            chassis.manufacturer.code.lower()
-            if hasattr(chassis.manufacturer, "code")
-            else "unknown"
-        )
-        detected = get_band_plan_from_model_code(manufacturer=mfg_code, model=chassis.model)
-        if detected:
-            chassis.band_plan_name = detected
-            band_plan = get_band_plan(
-                manufacturer=mfg_code,
-                band_plan_key=detected.lower().replace(" ", "_").replace("-", "_"),
-            )
-            if band_plan:
-                chassis.band_plan_min_mhz = band_plan["min_mhz"]
-                chassis.band_plan_max_mhz = band_plan["max_mhz"]
+    detected = get_band_plan_from_model_code(manufacturer=mfg_code, model=chassis.model)
+    if not detected:
+        return
+    chassis.band_plan_name = detected
+    band_plan = get_band_plan(
+        manufacturer=mfg_code,
+        band_plan_key=detected.lower().replace(" ", "_").replace("-", "_"),
+    )
+    if band_plan:
+        _apply_band_plan_fields(chassis, band_plan)
 
-    return {"created": created}
+
+def prepare_chassis_for_save(chassis: WirelessChassis) -> dict[str, Any]:
+    """Prepare chassis for save by syncing lifecycle, specs, and band plan."""
+    created = chassis._state.adding
+    old_status, lifecycle_update_fields = _prepare_lifecycle_fields(chassis, created=created)
+    _prepare_specs_and_band_plan(chassis)
+
+    return {
+        "created": created,
+        "old_status": old_status,
+        "status_changed": old_status is not None and old_status != chassis.status,
+        "update_fields": lifecycle_update_fields,
+    }
+
+
+def finalize_chassis_save(chassis: WirelessChassis, context: dict[str, Any]) -> None:
+    """Emit audit and realtime side effects after a persisted status change."""
+    if not context["status_changed"]:
+        return
+
+    old_status = context["old_status"]
+
+    from micboard.services.maintenance.audit import AuditService
+
+    AuditService.log_activity(
+        activity_type="hardware",
+        operation="status_change",
+        summary=f"Chassis status changed: {old_status} → {chassis.status}",
+        obj=chassis,
+        old_values={"status": old_status},
+        new_values={"status": chassis.status},
+    )
+
+    from micboard.services.notification.broadcast_service import BroadcastService
+
+    BroadcastService.broadcast_device_status(
+        service_code=chassis.manufacturer.code,
+        device_id=chassis.pk,
+        device_type=type(chassis).__name__,
+        status=chassis.status,
+        is_active=chassis.is_online,
+    )

@@ -63,7 +63,7 @@ fi
 log_success "All prerequisites found"
 echo ""
 
-# Sync dependencies with uv (recreates venv if needed)
+# Sync dependencies with uv (recreates project environment if needed)
 log_info "Syncing dependencies with uv (this may take a minute)..."
 if uv sync --frozen --extra dev 2>&1 | tail -5; then
     log_success "Dependencies synchronized"

@@ -8,8 +8,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any
 
+from django.contrib.auth.models import AnonymousUser, User
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from micboard.models.hardware.wireless_unit import WirelessUnit
@@ -18,10 +20,16 @@ from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.hardware.wireless_unit_service import get_battery_percentage
 from micboard.services.notification.email import send_alert_email
 
-if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models import PerformerAssignment as PerformerAssignmentType
-
 logger = logging.getLogger(__name__)
+
+
+def get_alerts_for_user(user: User | AnonymousUser) -> QuerySet[Alert]:
+    """Return alerts visible to a user, preserving superuser oversight."""
+    if not user.is_authenticated:
+        return Alert.objects.none()
+    if user.is_superuser:
+        return Alert.objects.all()
+    return Alert.objects.filter(user_id=user.pk)
 
 
 class AlertManager:
@@ -75,16 +83,12 @@ class AlertManager:
 
             if condition_func(unit):
                 # Get users in the monitoring group
-                group_users = (
-                    assignment.monitoring_group.user_profiles.all()
-                    if assignment.monitoring_group
-                    else []
-                )
+                group_users = assignment.monitoring_group.users.all()
 
-                for user_profile in group_users:
+                for user in group_users:
                     self._create_alert(
                         unit=unit,
-                        user=user_profile.user,
+                        user=user,
                         performer_assignment=assignment,
                         alert_type=alert_type,
                         message=message_func(unit),
@@ -99,23 +103,19 @@ class AlertManager:
         """
         # Get active performer assignments with offline alerts enabled
         assignments = PerformerAssignment.objects.filter(
-            wireless_unit=unit, is_active=True, alert_offline=True
+            wireless_unit=unit, is_active=True, alert_on_hardware_offline=True
         ).select_related("performer", "monitoring_group")
 
         # Check if unit is offline
         if unit.status != "online":
             for assignment in assignments:
                 # Get users in the monitoring group
-                group_users = (
-                    assignment.monitoring_group.user_profiles.all()
-                    if assignment.monitoring_group
-                    else []
-                )
+                group_users = assignment.monitoring_group.users.all()
 
-                for user_profile in group_users:
+                for user in group_users:
                     self._create_alert(
                         unit=unit,
-                        user=user_profile.user,
+                        user=user,
                         performer_assignment=assignment,
                         alert_type="hardware_offline",
                         message=f"Device offline: {unit.name}",
@@ -138,25 +138,17 @@ class AlertManager:
                 continue
 
             # Get users in the monitoring group to notify
-            group_users = (
-                assignment.monitoring_group.user_profiles.all()
-                if assignment.monitoring_group
-                else []
-            )
+            group_users = assignment.monitoring_group.users.all()
 
-            for user_profile in group_users:
-                user_prefs = (
-                    user_profile.user.alert_preferences
-                    if hasattr(user_profile.user, "alert_preferences")
-                    else None
-                )
+            for user in group_users:
+                user_prefs = user.alert_preferences if hasattr(user, "alert_preferences") else None
 
                 # Check critical battery level
                 critical_threshold = user_prefs.battery_critical_threshold if user_prefs else 10
                 if battery_pct <= critical_threshold:
                     self._create_alert(
                         unit=unit,
-                        user=user_profile.user,
+                        user=user,
                         performer_assignment=assignment,
                         alert_type="battery_critical",
                         message=(
@@ -168,7 +160,7 @@ class AlertManager:
                 elif battery_pct <= (user_prefs.battery_low_threshold if user_prefs else 20):
                     self._create_alert(
                         unit=unit,
-                        user=user_profile.user,
+                        user=user,
                         performer_assignment=assignment,
                         alert_type="battery_low",
                         message=f"Battery low: {battery_pct}% - {assignment.performer.name}",
@@ -225,11 +217,11 @@ class AlertManager:
         self,
         unit: WirelessUnit,
         user: Any,
-        performer_assignment: PerformerAssignmentType,
+        performer_assignment: PerformerAssignment,
         alert_type: str,
         message: str,
         unit_data: dict | None = None,
-    ) -> Alert:
+    ) -> Alert | None:
         """Create an alert if one doesn't already exist for similar conditions.
 
         Args:
@@ -243,9 +235,13 @@ class AlertManager:
         Returns:
             Alert instance (new or existing)
         """
-        # Check for existing similar alert in the last hour
+        channel = unit.assigned_resource
+        if channel is None:
+            logger.warning("Cannot create %s alert for unassigned unit %s", alert_type, unit.pk)
+            return None
+
         recent_alert = Alert.objects.filter(
-            wireless_unit=unit,
+            channel=channel,
             user=user,
             alert_type=alert_type,
             status__in=["pending", "sent"],
@@ -254,16 +250,16 @@ class AlertManager:
 
         if recent_alert:
             logger.debug("Similar alert already exists: %s", recent_alert)
-            return cast(Alert, recent_alert)
+            return recent_alert
 
         # Create new alert
         alert = Alert.objects.create(
-            wireless_unit=unit,
+            channel=channel,
             user=user,
-            performer_assignment=performer_assignment,
+            assignment=performer_assignment,
             alert_type=alert_type,
             message=message,
-            unit_data=unit_data or {},
+            channel_data=unit_data or {},
         )
 
         logger.info("Created alert: %s for user %s", alert, user.username)
@@ -276,7 +272,7 @@ class AlertManager:
             alert.status = "failed"
             alert.save(update_fields=["status"])
 
-        return cast(Alert, alert)
+        return alert
 
     def _get_unit_snapshot(self, unit: WirelessUnit) -> dict[str, Any]:
         """Get a snapshot of unit state for alert context."""
@@ -292,12 +288,13 @@ class AlertManager:
         }
 
         # Include channel info if available
-        if hasattr(unit, "channel") and unit.channel:
+        if unit.assigned_resource:
+            channel = unit.assigned_resource
             snapshot.update(
                 {
-                    "channel_number": unit.channel.channel_number,
-                    "chassis_name": unit.channel.chassis.name if unit.channel.chassis else None,
-                    "chassis_ip": unit.channel.chassis.ip if unit.channel.chassis else None,
+                    "channel_number": channel.channel_number,
+                    "chassis_name": channel.chassis.name,
+                    "chassis_ip": channel.chassis.ip,
                 }
             )
 

@@ -23,13 +23,13 @@ A shared base framework exists but is undersized:
 
 | Base File | Lines | Role | Gaps |
 |-----------|-------|------|------|
-| `integrations/common/base.py` | 93 | `BaseAPIClient` (ABC, 6 abstract methods), `BasePlugin`, `ManufacturerPlugin` | Stubs only — no concrete retry, rate-limiting, or pagination |
-| `integrations/base_http_client.py` | 635 | Shared HTTP client with connection pooling, `urllib3.Retry`, `BasePollingMixin`, health tracking | Single monolithic file mixing HTTP transport, polling orchestration, and health tracking |
-| `integrations/common/exceptions.py` | 71 | `APIError`, `APIRateLimitError`, `APIAuthenticationError`, `APITimeoutError` | Standalone — not integrated into shared client |
-| `integrations/common/rate_limiter.py` | 59 | Rate limiting decorators and context managers | Correct but underused |
+| `services/common/base/client.py` | Shared `httpx.Client` transport, typed retries, and health tracking | Manufacturer clients compose device and discovery sub-clients instead of delegating their APIs |
+| `services/common/base/plugin.py` | `BasePlugin`, the typed `ManufacturerPlugin` contract, and plugin lookup | Discovery and device workflows depend on this boundary |
+| `services/common/base/resilience.py` | Shared connection pooling and bounded connection retries | HTTP status retries stay in the calling service where replay safety is known |
+| `services/common/base/rate_limiter.py` | Rate limiting decorators | Applied by integration sub-clients |
 
 The per-manufacturer duplication patterns include:
-- Retry configuration (identical `urllib3.Retry` setup duplicated in each `client.py`)
+- Retry configuration duplicated in each `client.py`
 - Rate-limit application (same decorators re-exported in each `rate_limiter.py`)
 - Exception wrapping (same mapping from HTTP errors to domain exceptions)
 - Device model mapping (similar `_map_device_type()` in each `transformers.py`)

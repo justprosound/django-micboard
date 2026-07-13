@@ -21,42 +21,37 @@ This project adheres to the [Django Community Code of Conduct](https://www.djang
    cd django-micboard
    ```
 
-2. **Create a virtual environment with `uv`**:
+2. **Create the managed environment and install all supported extras**:
    ```bash
-   uv venv .venv
-   source .venv/bin/activate
+   uv sync --all-extras
    ```
 
-3. **Install development dependencies (with `uv`)**:
+3. **Install pre-commit hooks** (strongly recommended):
    ```bash
-   uv pip install -e ".[dev,all]"
-   ```
-
-4. **Install pre-commit hooks** (strongly recommended):
-   ```bash
-   pre-commit install
+   uv run --no-sync pre-commit install
    ```
 
 ### Running Tests Locally
 
 ```bash
 # Run all tests
-pytest
+uv run --no-sync pytest
 
 # Run specific test file
-pytest tests/test_conf.py -v
+uv run --no-sync pytest tests/test_settings_service.py -v
 
 # Run with coverage report
-pytest --cov=micboard --cov-report=html:htmlcov
+just coverage
 
 # Run only unit tests (fast)
-pytest -m unit
+uv run --no-sync pytest -m unit
 
 # Run integration tests (slower, includes DB)
-pytest -m integration
+uv run --no-sync pytest -m integration
 ```
 
-Test coverage must remain **above 85%** (enforced in CI).
+CI enforces the current **40%** non-regression floor while coverage is ratcheted toward the
+documented 60% target.
 
 ### Code Quality & Linting
 
@@ -64,29 +59,29 @@ We use `ruff` for linting, formatting, and import organization:
 
 ```bash
 # Check for linting issues
-ruff check .
+uv run --no-sync ruff check .
 
 # Auto-fix linting issues
-ruff check . --fix
+uv run --no-sync ruff check . --fix
 
 # Format code
-ruff format .
+uv run --no-sync ruff format .
 
 # Type checking with mypy
-mypy micboard
+uv run --no-sync python -m mypy micboard
 
 # Security scanning with bandit
-bandit -r micboard -ll
+uv run --no-sync bandit -r micboard -ll
 ```
 
 **Pre-commit hooks** will run automatically:
 
 ```bash
 # Install hooks (one-time setup)
-pre-commit install
+uv run --no-sync pre-commit install
 
 # Run manually
-pre-commit run --all-files
+uv run --no-sync pre-commit run --all-files
 ```
 
 ## Architecture & Code Patterns
@@ -99,19 +94,20 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
 
 ### Key Patterns to Follow
 
-1. **Use SettingsRegistry for app configuration**, not direct `settings.get()`:
+1. **Use the unified settings service**, not direct Django settings reads:
    ```python
-   from micboard.conf import config
+   from micboard.services.settings import settings as micboard_settings
 
-   if config.msp_enabled:
+   if micboard_settings.msp_enabled:
        ...
    ```
 
-2. **Extend base classes** rather than duplicating code:
+2. **Call domain services** rather than duplicating business logic in views, admin, tasks, or serializers:
    ```python
-   from micboard.services.shared.base_crud import BaseCRUDService
-   class MyService(BaseCRUDService):
-       ...
+   from micboard.services.shared.base_dto import PydanticBaseDTO
+
+   class DeviceDTO(PydanticBaseDTO):
+       api_device_id: str
    ```
 
 3. **Add type hints** to all public functions:
@@ -141,7 +137,7 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
 
 ## ⚠️ CRITICAL: Database Migrations
 
-**This is a reusable app with live production users. Migrations are protected.**
+**This is a pre-production reusable app, but migration history is protected.**
 
 ### Migration Rules
 
@@ -162,7 +158,7 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
 1. **Make your model changes** in `micboard/models/`
 2. **Run makemigrations** (if schema changes):
    ```bash
-   python manage.py makemigrations micboard
+   uv run --no-sync python manage.py makemigrations micboard
    ```
 3. **Review the generated migration**:
    ```bash
@@ -170,12 +166,21 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
    ```
 4. **Test both forward and backward** (if rolling back):
    ```bash
-   python manage.py migrate
-   python manage.py migrate micboard zero  # Test reverse
-   python manage.py migrate  # Forward again
+   uv run --no-sync python manage.py migrate
+   uv run --no-sync python manage.py migrate micboard zero  # Test reverse
+   uv run --no-sync python manage.py migrate  # Forward again
    ```
 5. **Document decisions** in commit message
 6. **Never modify existing migrations** – create a new one if needed
+
+Production hosts using the `standard` extra should add `django_safemigrate` to
+`INSTALLED_APPS` and apply migrations through its deployment-aware command:
+
+```bash
+uv run --no-sync python manage.py safemigrate
+```
+
+The repository keeps Django-generated migrations unchanged. Do not add safety metadata by hand.
 
 **Migration Review Checklist:**
 - [ ] Migration creates/modifies what was intended
@@ -204,10 +209,10 @@ changes must follow the controlled migration process above.
 
 4. **Run full test suite** before pushing:
    ```bash
-   pytest --cov=micboard --cov-fail-under=85
-   pre-commit run --all-files
-   mypy micboard
-   bandit -r micboard -ll
+   just coverage
+   uv run --no-sync pre-commit run --all-files
+   uv run --no-sync python -m mypy micboard
+   uv run --no-sync bandit -r micboard -ll
    ```
 
 5. **Update documentation**:
@@ -245,7 +250,7 @@ changes must follow the controlled migration process above.
 8. **PR checklist**:
    - [ ] Title is clear and descriptive
    - [ ] Description explains what and why
-   - [ ] Tests pass (`pytest` and `pre-commit`)
+   - [ ] Tests pass (`just test` and `just pre-commit`)
    - [ ] Documentation updated
    - [ ] Migrations reviewed (if applicable)
    - [ ] No breaking changes (or clearly documented)
@@ -257,7 +262,7 @@ If your change affects multi-tenant behavior:
 
 ```python
 from django.test import TestCase
-from micboard.models import Organization
+from micboard.multitenancy.models import Organization
 
 class MyMultiTenantTest(TestCase):
     def test_tenant_isolation(self):

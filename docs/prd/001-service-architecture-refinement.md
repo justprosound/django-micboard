@@ -39,7 +39,7 @@ The services layer (`micboard/services/`) has grown without architectural discip
 - discovery_service.py ≤400 lines
 - hardware_lifecycle.py ≤400 lines
 - No model `save()` overrides contain DB writes, external calls, or signal emission
-- `ruff check .` passes
+- `uv run ruff check .` passes
 - All existing tests pass without modification
 
 ## Risks

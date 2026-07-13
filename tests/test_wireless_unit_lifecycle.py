@@ -75,6 +75,8 @@ class TestWirelessUnitStatusTransitions:
 
     def test_valid_transition_online_to_degraded(self, wireless_unit):
         """Test valid transition from online to degraded."""
+        wireless_unit.status = "provisioning"
+        wireless_unit.save()
         wireless_unit.status = "online"
         wireless_unit.save()
 
@@ -85,6 +87,8 @@ class TestWirelessUnitStatusTransitions:
 
     def test_valid_transition_online_to_idle(self, wireless_unit):
         """Test valid transition from online to idle."""
+        wireless_unit.status = "provisioning"
+        wireless_unit.save()
         wireless_unit.status = "online"
         wireless_unit.save()
 
@@ -123,6 +127,10 @@ class TestWirelessUnitStatusTransitions:
 
     def test_invalid_transition_idle_to_provisioning(self, wireless_unit):
         """Test invalid transition from idle to provisioning."""
+        wireless_unit.status = "provisioning"
+        wireless_unit.save()
+        wireless_unit.status = "online"
+        wireless_unit.save()
         wireless_unit.status = "idle"
         wireless_unit.save()
 
@@ -137,6 +145,8 @@ class TestWirelessUnitTimestampManagement:
     def test_last_seen_updated_on_online(self, wireless_unit):
         """Test last_seen is updated when unit goes online."""
         initial_last_seen = wireless_unit.last_seen
+        wireless_unit.status = "provisioning"
+        wireless_unit.save()
         wireless_unit.status = "online"
         wireless_unit.save()
         wireless_unit.refresh_from_db()
@@ -147,6 +157,8 @@ class TestWirelessUnitTimestampManagement:
 
     def test_last_seen_updated_on_offline(self, wireless_unit):
         """Test last_seen is updated when unit goes offline."""
+        wireless_unit.status = "provisioning"
+        wireless_unit.save()
         wireless_unit.status = "online"
         wireless_unit.save()
 
@@ -160,35 +172,36 @@ class TestWirelessUnitTimestampManagement:
 class TestWirelessUnitBatteryMonitoring:
     """Test battery level monitoring and logging."""
 
-    @patch("micboard.models.hardware.wireless_unit.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_battery_drop_below_25_percent_logs(self, mock_log, wireless_unit):
         """Test that dropping below 25% triggers audit log."""
-        wireless_unit.battery = 30
+        wireless_unit.battery = 80
         wireless_unit.save()
 
-        wireless_unit.battery = 20
+        wireless_unit.battery = 50
         wireless_unit.save()
 
         assert mock_log.called
         call_args = mock_log.call_args
         assert call_args[1]["activity_type"] == "wireless_unit"
         assert call_args[1]["operation"] == "battery_warning"
-        assert "battery: 20%" in call_args[1]["summary"]
+        assert "battery: 19%" in call_args[1]["summary"]
 
-    @patch("micboard.models.hardware.wireless_unit.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_battery_drop_below_15_percent_logs_warning(self, mock_log, wireless_unit):
-        """Test that dropping below 15% triggers warning level audit log."""
-        wireless_unit.battery = 20
+        """Test that a critical battery warning is retained in passive mode."""
+        wireless_unit.battery = 50
         wireless_unit.save()
 
-        wireless_unit.battery = 10
+        wireless_unit.battery = 25
         wireless_unit.save()
 
         assert mock_log.called
         call_args = mock_log.call_args
-        assert call_args[1]["level"] == "warning"
+        assert call_args[1]["status"] == "warning"
+        assert call_args[1]["log_mode"] == "passive"
 
-    @patch("micboard.models.hardware.wireless_unit.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_battery_unknown_value_no_log(self, mock_log, wireless_unit):
         """Test that unknown battery value (255) does not trigger logs."""
         wireless_unit.battery = 255
@@ -196,14 +209,14 @@ class TestWirelessUnitBatteryMonitoring:
 
         assert not mock_log.called
 
-    @patch("micboard.models.hardware.wireless_unit.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_battery_increase_no_log(self, mock_log, wireless_unit):
         """Test that battery increasing does not trigger logs."""
-        wireless_unit.battery = 20
+        wireless_unit.battery = 50
         wireless_unit.save()
         mock_log.reset_mock()
 
-        wireless_unit.battery = 30
+        wireless_unit.battery = 80
         wireless_unit.save()
 
         assert not mock_log.called
@@ -212,9 +225,13 @@ class TestWirelessUnitBatteryMonitoring:
 class TestWirelessUnitAuditLogging:
     """Test audit logging integration via lifecycle hooks."""
 
-    @patch("micboard.models.hardware.wireless_unit.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_status_change_logged_to_audit(self, mock_log, wireless_unit):
         """Test that all status changes are logged to audit service."""
+        wireless_unit.status = "provisioning"
+        wireless_unit.save()
+        mock_log.reset_mock()
+
         wireless_unit.status = "online"
         wireless_unit.save()
 
@@ -222,11 +239,11 @@ class TestWirelessUnitAuditLogging:
         call_args = mock_log.call_args
         assert call_args[1]["activity_type"] == "wireless_unit"
         assert call_args[1]["operation"] == "status_change"
-        assert "discovered → online" in call_args[1]["summary"]
-        assert call_args[1]["old_values"]["status"] == "discovered"
+        assert "provisioning → online" in call_args[1]["summary"]
+        assert call_args[1]["old_values"]["status"] == "provisioning"
         assert call_args[1]["new_values"]["status"] == "online"
 
-    @patch("micboard.models.hardware.wireless_unit.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_no_audit_log_when_status_unchanged(self, mock_log, wireless_unit):
         """Test that audit log is not triggered if status doesn't change."""
         wireless_unit.name = "Updated Name"
@@ -242,7 +259,7 @@ class TestWirelessUnitAuditLogging:
 class TestWirelessUnitComplexWorkflows:
     """Test complex multi-step workflows."""
 
-    @patch("micboard.models.hardware.wireless_unit.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_full_lifecycle_workflow(self, mock_log, wireless_unit):
         """Test a complete lifecycle: discovered → provisioning → online → offline → retired."""
         # Step 1: Provisioning
@@ -273,9 +290,11 @@ class TestWirelessUnitComplexWorkflows:
         # Verify audit logs for each transition
         assert mock_log.call_count >= 4
 
-    @patch("micboard.models.hardware.wireless_unit.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_maintenance_workflow(self, mock_log, wireless_unit):
         """Test maintenance workflow: online → maintenance → online."""
+        wireless_unit.status = "provisioning"
+        wireless_unit.save()
         wireless_unit.status = "online"
         wireless_unit.save()
 

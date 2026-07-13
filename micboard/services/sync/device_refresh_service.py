@@ -1,8 +1,9 @@
 """Service for refreshing discovered device records from manufacturer APIs."""
 
 import logging
+from contextlib import suppress
 
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 
 logger = logging.getLogger(__name__)
 
@@ -138,10 +139,8 @@ class DeviceRefreshService:
 
         ch = transformed.get("channels")
         if ch is not None:
-            try:
+            with suppress(ValueError, TypeError):
                 discovered.channels = int(ch)
-            except Exception:
-                pass
 
         status_val = transformed.get("status")
         if isinstance(status_val, str):

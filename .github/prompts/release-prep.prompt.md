@@ -42,7 +42,8 @@ You should:
 **Reusable app context**
 
 - This is a Django **reusable app**, not a full product deployment.
-- The deliverable is a Python package (e.g. `myapp/`) to be installed via `pip` and added to `INSTALLED_APPS`.
+- The deliverable is a Python package (e.g. `myapp/`) added to a host project's
+  `pyproject.toml` with `uv add` and then added to `INSTALLED_APPS`.
 - Possible layout (adapt to what you actually see):
   - App package: `myapp/` with `apps.py`, `__init__.py`, `models.py`, `views.py`, `urls.py`, `admin.py`, `forms.py`, `templatetags/`, `management/commands/`, utils, signals, etc.
   - Example/demo project: `example/`, `demo/`, or `tests/project/` with `manage.py`, `settings.py`, `urls.py`, etc. (dev-only).
@@ -214,7 +215,7 @@ Now you may edit/create docs and meta files.
      - Title + one-line summary.
      - Features.
      - Requirements (Python/Django).
-     - Installation & integration (uv pip install, `INSTALLED_APPS`, URL snippet).
+     - Installation & integration (`uv add`, `INSTALLED_APPS`, URL snippet).
      - Local dev setup & running example project.
      - How to run tests.
      - Notes on `ruff` and `pre-commit`.

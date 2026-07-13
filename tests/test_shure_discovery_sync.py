@@ -1,3 +1,4 @@
+from typing import Any, cast
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -46,7 +47,7 @@ class ShureDiscoverySyncTest(TestCase):
                 return devices_from_api
 
         with patch(
-            "micboard.services.common.base.get_manufacturer_plugin",
+            "micboard.services.common.base.plugin.get_manufacturer_plugin",
             return_value=FakePlugin,
         ):
             result = DiscoveryOrchestrationService.handle_discovery_requested(
@@ -77,7 +78,7 @@ class ShureDiscoverySyncTest(TestCase):
         summary = {"missing_ips_submitted": 0, "errors": []}
         fake_service = FakeShureDiscoveryService()
 
-        _submit_missing_ips(self.manufacturer, discovered_ips, fake_service, summary)
+        _submit_missing_ips(self.manufacturer, discovered_ips, cast(Any, fake_service), summary)
 
         self.assertEqual(fake_service.added, [("10.0.0.5", "shure", "missing_chassis")])
         self.assertEqual(summary["missing_ips_submitted"], 1)

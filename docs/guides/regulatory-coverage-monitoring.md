@@ -78,11 +78,11 @@ The `WirelessChassis` model includes band plan regulatory checking:
 
 The `RFChannel` model includes frequency-specific regulatory checking:
 
-### 1. RFChannel Regulatory Checks (Primary)
+### 1. RFChannel Regulatory Services (Primary)
 
-The `RFChannel` model includes comprehensive regulatory checking methods:
+The RF-channel service module owns comprehensive regulatory checks:
 
-#### Methods Available on RFChannel
+#### Functions in `micboard.services.hardware.rf_channel_service`
 
 **`get_regulatory_domain()`**
 - Returns the applicable `RegulatoryDomain` based on chassis location
@@ -92,7 +92,7 @@ The `RFChannel` model includes comprehensive regulatory checking methods:
 - Returns `True` if the channel's frequency is covered by regulatory data
 - Returns `False` if no coverage exists
 
-**`needs_regulatory_update` (property)**
+**`get_needs_regulatory_update(channel)`**
 - Flags active channels operating without regulatory coverage
 - Used to trigger admin alerts
 
@@ -104,16 +104,16 @@ The `RFChannel` model includes comprehensive regulatory checking methods:
   - `needs_update`: bool
   - `message`: str (human-readable status)
 
-### 2. WirelessUnit Delegation (Secondary)
+### 2. WirelessUnit Regulatory Services (Secondary)
 
-`WirelessUnit` devices delegate regulatory checks to their assigned RFChannel:
+The wireless-unit service resolves and checks the unit's assigned RF channel:
 
-**`get_assigned_rf_channel()`**
+**`get_assigned_rf_channel(unit)`**
 - Returns the RFChannel this unit is assigned to
 - Returns None if no channel assigned
 
-**`get_regulatory_status()`**
-- Delegates to assigned RFChannel's `get_regulatory_status()`
+**`get_regulatory_status(unit)`**
+- Delegates to the RF-channel service
 - Returns "no channel assigned" status if not linked to any channel
 - Includes `source: "rf_channel"` or `source: "no_channel"` in response
 
@@ -144,7 +144,7 @@ The Django admin interface displays regulatory status at all three levels:
 A management command audits all three levels:
 
 ```bash
-python manage.py audit_regulatory_coverage
+uv run python manage.py audit_regulatory_coverage
 ```
 
 **Options:**
@@ -198,7 +198,7 @@ SUMMARY
 
 ACTION REQUIRED:
   1. Review chassis band plans and RF channels flagged above
-  2. Run: python manage.py import_efis_regulations --force
+  2. Run: uv run python manage.py import_efis_regulations --force
   3. Or manually add frequency bands in Django admin for missing regions
   4. Update chassis band plan fields if devices have band info
 ```
@@ -237,7 +237,7 @@ Understanding the three-layer data flow:
 
 **Option 1: Import EFIS Data (European frequencies)**
 ```bash
-python manage.py import_efis_regulations --force
+uv run python manage.py import_efis_regulations --force
 ```
 This imports the latest European regulatory data from CEPT EFIS API.
 
@@ -245,7 +245,7 @@ This imports the latest European regulatory data from CEPT EFIS API.
 1. Navigate to Django Admin → RF Coordination → Regulatory Domains
 2. Add or update the relevant domain (e.g., 'FCC', 'ACMA')
 3. Add frequency bands under that domain
-4. Re-run audit: `python manage.py audit_regulatory_coverage`
+4. Re-run audit: `uv run python manage.py audit_regulatory_coverage`
 
 **Option 3: Update Chassis Location**
 If the chassis location has wrong or missing regulatory domain:
@@ -269,7 +269,7 @@ If chassis is missing band plan information:
 Add to your cron/scheduled tasks:
 ```bash
 # Daily audit at 6am
-0 6 * * * cd /path/to/project && .venv/bin/python manage.py audit_regulatory_coverage --verbose >> /var/log/micboard/regulatory_audit.log 2>&1
+0 6 * * * cd /path/to/project && uv run --no-sync python manage.py audit_regulatory_coverage --verbose >> /var/log/micboard/regulatory_audit.log 2>&1
 ```
 
 **Integration with Monitoring Tools:**
@@ -299,11 +299,19 @@ The audit command exits with:
 The regulatory status is available programmatically:
 
 ```python
-from micboard.models import RFChannel, WirelessUnit
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.rf_coordination.rf_channel import RFChannel
+from micboard.services.hardware.rf_channel_service import (
+    get_needs_regulatory_update,
+    get_regulatory_status as get_rf_channel_regulatory_status,
+)
+from micboard.services.hardware.wireless_unit_service import (
+    get_regulatory_status as get_wireless_unit_regulatory_status,
+)
 
 # Check an RF channel (primary - where coordination happens)
 channel = RFChannel.objects.get(pk=1)
-status = channel.get_regulatory_status()
+status = get_rf_channel_regulatory_status(channel)
 print(status)
 # {
 #     'has_coverage': False,
@@ -314,12 +322,12 @@ print(status)
 # }
 
 # Flag for alerting
-if channel.needs_regulatory_update:
+if get_needs_regulatory_update(channel):
     send_alert_to_admin(channel)
 
 # Check a wireless unit (delegates to RF channel)
 unit = WirelessUnit.objects.get(pk=1)
-status = unit.get_regulatory_status()
+status = get_wireless_unit_regulatory_status(unit)
 print(status)
 # {
 #     'has_coverage': False,
@@ -351,6 +359,6 @@ Potential additions:
 
 ## Related Documentation
 
-- [EFIS Import Guide](../integration/efis-import.md) - European frequency data import
-- [RF Coordination Overview](../guides/rf-coordination.md) - Frequency management concepts
-- [Location Setup](../guides/location-setup.md) - Configuring buildings and regulatory domains
+- [Resolving Missing Coverage](#resolving-missing-coverage) - European frequency data import
+- [RF Coordination Overview](#rf-coordination-architecture) - Frequency management concepts
+- [Location Setup](admin-interface.md#location-management) - Configuring buildings and regulatory domains

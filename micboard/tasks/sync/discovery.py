@@ -20,8 +20,10 @@ from micboard.models.discovery.registry import (
     MicboardConfig,
 )
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base.plugin import ManufacturerPlugin
 from micboard.services.common.base.utils import validate_hostname
-from micboard.services.sync.discovery_service import DiscoveryService, get_manufacturer_client
+from micboard.services.sync.discovery_service import DiscoveryService
+from micboard.services.sync.discovery_utils import get_manufacturer_plugin_instance
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +112,9 @@ def cache_all_discovery_candidates(scan_cidrs: bool = False, scan_fqdns: bool = 
     for m in Manufacturer.objects.all():
         try:
             run_manufacturer_discovery_task(m.pk, scan_cidrs, scan_fqdns)
-            # After running discovery, retrieve the updated candidates from the client
-            client = get_manufacturer_client(m)
-            ips = client.get_discovery_ips()
+            # After running discovery, retrieve the updated candidates through the plugin.
+            plugin = get_manufacturer_plugin_instance(m)
+            ips = plugin.get_discovery_ips()
             cache_key = f"discovery_candidates_{m.code}_{int(scan_cidrs)}_{int(scan_fqdns)}"
             cache.set(cache_key, {m.code: {"ips": ips}}, timeout=300)
             logger.info("Cached %d candidates for %s", len(ips), m.code)
@@ -166,7 +168,7 @@ def run_discovery_sync_task(
             return summary
 
         # 0. Fetch and persist supported device models for this manufacturer
-        _persist_supported_models(manufacturer, client)
+        _persist_supported_models(manufacturer, client.devices)
 
         # 1) Poll API for devices and create/update receivers
         api_devices = _poll_and_create_receivers(manufacturer, plugin, summary)
@@ -235,13 +237,10 @@ def _add_config_entries(
 
 def _initialize_plugin_client(
     manufacturer: Manufacturer, summary: dict[str, Any]
-) -> tuple[Any, Any] | tuple[None, None]:
+) -> tuple[ManufacturerPlugin, Any] | tuple[None, None]:
     """Initialize plugin and client, return (plugin, client) or (None, None) on failure."""
     try:
-        from micboard.services.common.base import get_manufacturer_plugin
-
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
+        plugin = get_manufacturer_plugin_instance(manufacturer)
         client = plugin.get_client()
         return plugin, client
     except Exception as exc:
@@ -251,13 +250,13 @@ def _initialize_plugin_client(
         return None, None
 
 
-def _persist_supported_models(manufacturer: Manufacturer, client: Any) -> None:
+def _persist_supported_models(manufacturer: Manufacturer, device_client: Any) -> None:
     """Fetch and persist supported device models."""
     try:
         models = []
         try:
-            if hasattr(client, "get_supported_device_models"):
-                models = client.get_supported_device_models()
+            if hasattr(device_client, "get_supported_device_models"):
+                models = device_client.get_supported_device_models()
         except Exception:
             logger.debug("Could not fetch supported device models from API")
 
@@ -282,76 +281,88 @@ def _persist_supported_models(manufacturer: Manufacturer, client: Any) -> None:
         logger.exception("Error persisting supported device models: %s", exc)
 
 
+def _classify_device_type(model: str, raw_type: str) -> str:
+    normalized_type = raw_type.lower()
+    if "SBC" in model.upper() or "charger" in normalized_type:
+        return "charger"
+    if "transmitter" in normalized_type:
+        return "transmitter"
+    if "transceiver" in normalized_type:
+        return "transceiver"
+    return "receiver"
+
+
+def _normalize_discovered_device(device: dict[str, Any]) -> dict[str, Any] | None:
+    device_id = device.get("id") or device.get("api_device_id") or device.get("deviceId")
+    serial = device.get("serial") or device.get("serialNumber")
+    ip = device.get("ip") or device.get("ipAddress") or device.get("ipv4")
+    name = device.get("name") or device.get("model") or ""
+    model = device.get("model") or device.get("deviceType") or ""
+    if not serial or not ip:
+        logger.warning("Skipping device with missing serial/ip: %s", device)
+        return None
+
+    fqdn = _resolve_validated_fqdn(ip)
+    if fqdn:
+        device.setdefault("fqdn", fqdn)
+        device.setdefault("ptr_validated", True)
+        if not name or name in (model, ip):
+            name = _humanize_fqdn(fqdn)
+
+    return {
+        "api_device_id": device_id or "",
+        "device_type": _classify_device_type(model, device.get("type", "UNKNOWN")),
+        "firmware_version": device.get("firmware")
+        or device.get("firmware_version")
+        or device.get("firmwareVersion", ""),
+        "fqdn": fqdn or "",
+        "ip": ip,
+        "metadata": device,
+        "model": model,
+        "name": name,
+        "serial_number": serial,
+        "status": "pending",
+    }
+
+
+def _upsert_discovery_queue(
+    manufacturer: Manufacturer,
+    device_data: dict[str, Any],
+    summary: dict[str, Any],
+) -> None:
+    from micboard.models.discovery.queue import DiscoveryQueue
+
+    serial_number = device_data.pop("serial_number")
+    queue_entry, created = DiscoveryQueue.objects.update_or_create(
+        manufacturer=manufacturer,
+        serial_number=serial_number,
+        defaults=device_data,
+    )
+    conflicts = queue_entry.check_for_duplicates()
+    queue_entry.is_duplicate = conflicts["is_duplicate"]
+    queue_entry.is_ip_conflict = conflicts["is_ip_conflict"]
+    queue_entry.existing_device = conflicts["existing_device"]
+    queue_entry.existing_charger = conflicts["existing_charger"]
+    queue_entry.save()
+    if created:
+        summary["created_receivers"] += 1
+
+
 def _poll_and_create_receivers(
-    manufacturer: Manufacturer, plugin: Any, summary: dict[str, Any]
+    manufacturer: Manufacturer, plugin: ManufacturerPlugin, summary: dict[str, Any]
 ) -> list[dict[str, Any]] | None:
     """Poll API for devices and create/update DiscoveryQueue entries."""
-    from micboard.models import DiscoveryQueue
-
     api_devices: list[dict[str, Any]] = []
     try:
         api_devices = plugin.get_devices() or []
         if not api_devices:
             logger.info("No devices returned from API")
-        else:
-            for dev in api_devices:
-                device_id = dev.get("id") or dev.get("api_device_id") or dev.get("deviceId")
-                serial = dev.get("serial") or dev.get("serialNumber")
-                ip = dev.get("ip") or dev.get("ipAddress") or dev.get("ipv4")
-                name = dev.get("name") or dev.get("model") or ""
-                model = dev.get("model") or dev.get("deviceType") or ""
+            return api_devices
 
-                fqdn = _resolve_validated_fqdn(ip) if ip else None
-                if fqdn:
-                    dev.setdefault("fqdn", fqdn)
-                    dev.setdefault("ptr_validated", True)
-                    if not name or name == model or name == ip:
-                        name = _humanize_fqdn(fqdn)
-
-                if not serial or not ip:
-                    logger.warning("Skipping device with missing serial/ip: %s", dev)
-                    continue
-
-                # Determine device type
-                device_type = dev.get("type", "UNKNOWN")
-                if "SBC" in model.upper() or "charger" in device_type.lower():
-                    device_type = "charger"
-                elif "transmitter" in device_type.lower():
-                    device_type = "transmitter"
-                elif "transceiver" in device_type.lower():
-                    device_type = "transceiver"
-                else:
-                    device_type = "receiver"
-
-                # Create/Update DiscoveryQueue entry
-                q_entry, created = DiscoveryQueue.objects.update_or_create(
-                    manufacturer=manufacturer,
-                    serial_number=serial,
-                    defaults={
-                        "api_device_id": device_id or "",
-                        "ip": ip,
-                        "name": name,
-                        "fqdn": fqdn or "",
-                        "model": model,
-                        "device_type": device_type,
-                        "firmware_version": dev.get("firmware")
-                        or dev.get("firmware_version")
-                        or dev.get("firmwareVersion", ""),
-                        "metadata": dev,
-                        "status": "pending",
-                    },
-                )
-
-                # Auto-check for duplicates/movements
-                conflicts = q_entry.check_for_duplicates()
-                q_entry.is_duplicate = conflicts["is_duplicate"]
-                q_entry.is_ip_conflict = conflicts["is_ip_conflict"]
-                q_entry.existing_device = conflicts["existing_device"]
-                q_entry.existing_charger = conflicts["existing_charger"]
-                q_entry.save()
-
-                if created:
-                    summary["created_receivers"] += 1
+        for device in api_devices:
+            device_data = _normalize_discovered_device(device)
+            if device_data:
+                _upsert_discovery_queue(manufacturer, device_data, summary)
         return api_devices
     except Exception as exc:
         logger.exception("Error polling API: %s", exc)
@@ -377,7 +388,7 @@ def _submit_missing_ips(
             missing_ips.append(chassis.ip)
 
     # Also check DiscoveredDevice objects (devices found but not yet configured)
-    from micboard.models import DiscoveredDevice
+    from micboard.models.discovery.registry import DiscoveredDevice
 
     for dev in DiscoveredDevice.objects.filter(manufacturer=manufacturer):
         if dev.ip and dev.ip not in discovered_ips and dev.ip not in missing_ips:
@@ -405,33 +416,40 @@ def _submit_scanned_candidates(
     summary: dict[str, Any],
 ) -> None:
     """Expand CIDRs and resolve FQDNs and submit candidates."""
-    ips_to_submit: list[str] = []
+    ips_to_submit = []
     if scan_cidrs and cidrs:
-        from micboard.discovery.network_utils import expand_cidrs
-
-        for cidr in cidrs:
-            for ip in expand_cidrs([cidr], max_hosts=max_hosts):
-                if ip not in discovered_ips:
-                    ips_to_submit.append(ip)
+        ips_to_submit.extend(_expand_cidr_candidates(cidrs, max_hosts=max_hosts))
 
     if scan_fqdns and fqdns:
-        from micboard.discovery.network_utils import resolve_fqdns
+        ips_to_submit.extend(_resolve_fqdn_candidates(fqdns))
 
-        resolved = resolve_fqdns(fqdns)
-        for _f, ips in resolved.items():
-            for ip in ips:
-                if ip not in discovered_ips:
-                    ips_to_submit.append(ip)
+    unique_new_ips = [ip for ip in dict.fromkeys(ips_to_submit) if ip not in discovered_ips]
+    _submit_candidate_ips(manufacturer, unique_new_ips, discovery_service, summary)
 
-    ips_to_submit = list(dict.fromkeys(ips_to_submit))
-    if ips_to_submit:
-        for ip in ips_to_submit:
-            if discovery_service.add_discovery_candidate(
-                ip, manufacturer, source="scanned_candidate"
-            ):
-                summary["scanned_ips_submitted"] += 1
-            else:
-                summary["errors"].append(f"Failed to submit scanned IP {ip}")
+
+def _expand_cidr_candidates(cidrs: list[str], *, max_hosts: int) -> list[str]:
+    from micboard.discovery.network_utils import expand_cidrs
+
+    return [ip for cidr in cidrs for ip in expand_cidrs([cidr], max_hosts=max_hosts)]
+
+
+def _resolve_fqdn_candidates(fqdns: list[str]) -> list[str]:
+    from micboard.discovery.network_utils import resolve_fqdns
+
+    return [ip for ips in resolve_fqdns(fqdns).values() for ip in ips]
+
+
+def _submit_candidate_ips(
+    manufacturer: Manufacturer,
+    ips: list[str],
+    discovery_service: DiscoveryService,
+    summary: dict[str, Any],
+) -> None:
+    for ip in ips:
+        if discovery_service.add_discovery_candidate(ip, manufacturer, source="scanned_candidate"):
+            summary["scanned_ips_submitted"] += 1
+        else:
+            summary["errors"].append(f"Failed to submit scanned IP {ip}")
 
 
 def _finalize_job(job: DiscoveryJob, summary: dict[str, Any]) -> None:

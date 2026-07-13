@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
-from micboard.services.common.base import ManufacturerPlugin
+from micboard.services.common.base.plugin import ManufacturerPlugin
+
+from .client import SennheiserSystemAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +27,6 @@ class SennheiserPlugin(ManufacturerPlugin):
     def __init__(self, manufacturer: Any):
         """Initialize Sennheiser plugin and prepare client/transformer."""
         super().__init__(manufacturer)
-        from .client import SennheiserSystemAPIClient
-
         self.client: SennheiserSystemAPIClient = SennheiserSystemAPIClient()
         from .transformers import SennheiserDataTransformer
 
@@ -36,9 +36,13 @@ class SennheiserPlugin(ManufacturerPlugin):
         """Get list of all devices from Sennheiser SSCv2 API."""
         return self.client.devices.get_devices()
 
+    def get_client(self) -> SennheiserSystemAPIClient:
+        """Return the configured Sennheiser system client."""
+        return self.client
+
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get detailed data for a specific device."""
-        return cast(dict[str, Any] | None, self.client.devices.get_device(device_id))
+        return self.client.devices.get_device(device_id)
 
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Get channel data for a device."""
@@ -62,7 +66,10 @@ class SennheiserPlugin(ManufacturerPlugin):
 
         from .sse_client import connect_and_subscribe
 
-        async_to_sync(connect_and_subscribe)(self.client, device_id, callback)
+        async def async_callback(data: dict[str, Any]) -> None:
+            callback(data)
+
+        async_to_sync(connect_and_subscribe)(self.client, device_id, async_callback)
 
     def is_healthy(self) -> bool:
         """Check if the Sennheiser SSCv2 API client is healthy."""
@@ -74,12 +81,12 @@ class SennheiserPlugin(ManufacturerPlugin):
 
     def add_discovery_ips(self, ips: list[str]) -> bool:
         """Add IP addresses to the Sennheiser SSCv2 API manual discovery list."""
-        return self.client.add_discovery_ips(ips)
+        return self.client.discovery.add_discovery_ips(ips)
 
     def get_discovery_ips(self) -> list[str]:
         """Retrieve the current manual discovery IPs from Sennheiser SSCv2 API."""
-        return self.client.get_discovery_ips()
+        return self.client.discovery.get_discovery_ips()
 
     def remove_discovery_ips(self, ips: list[str]) -> bool:
         """Remove IP addresses from the Sennheiser SSCv2 API manual discovery list."""
-        return self.client.remove_discovery_ips(ips)
+        return self.client.discovery.remove_discovery_ips(ips)

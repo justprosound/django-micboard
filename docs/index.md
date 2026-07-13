@@ -4,10 +4,10 @@
 
 Django Micboard is a Django application for real-time monitoring and management of **Shure wireless microphone systems**. It provides a modern web interface for tracking microphone status, battery levels, RF signals, and audio levels across your wireless systems.
 
-**Version**: 25.10.17 (CalVer: YY.MM.DD)
+**Version**: 26.01.27 (CalVer: YY.MM.DD)
 **License**: AGPL-3.0-or-later
-**Python**: 3.9+
-**Django**: 4.2+/5.0+
+**Python**: 3.13+
+**Django**: 5.1 through 6.0
 
 ## Features
 
@@ -17,40 +17,39 @@ Django Micboard is a Django application for real-time monitoring and management 
 - 🚨 **Smart Alerts** - Configurable notifications for battery and RF issues
 - 📊 **Admin Dashboard** - Visual oversight of devices and system health
 - 🔒 **Rate Limiting** - Built-in API protection
-- 🐳 **Production Ready** - Django 4.2+/5.0+ compatible
+- 🧪 **Pre-production Beta** - Django 5.1 through 6.0 compatible
 
 ## Quick Start
 
-> **CRITICAL POLICY:** All installation and environment management must use [`uv`](https://github.com/astral-sh/uv). Direct use of pip, venv, or poetry is strictly forbidden. If you encounter legacy instructions, escalate to maintainers.
-> - Agents/developers: Use `context7` for docs and `gh_grep` for code search. See README for escalation.
+All installation and environment management uses [`uv`](https://github.com/astral-sh/uv).
 
 ```bash
-# Create and activate a uv virtual environment
-uv venv .venv
-source .venv/bin/activate
+# Add django-micboard to an existing uv-managed Django project
+uv add "django-micboard[standard,tasks]"
+```
 
-# Install django-micboard from PyPI
-uv pip install django-micboard
-
+```python
 # Add to Django settings
 INSTALLED_APPS = [
     # ... other apps
-    'channels',
-    'micboard',
+    "channels",
+    "micboard",
 ]
 
 # Configure Shure API
 MICBOARD_CONFIG = {
-    'SHURE_API_BASE_URL': 'https://your-shure-system.local:10000',
-    'SHURE_API_SHARED_KEY': 'your-shared-secret',
-    'SHURE_API_VERIFY_SSL': True,
+    "SHURE_API_BASE_URL": "https://your-shure-system.local:10000",
+    "SHURE_API_SHARED_KEY": "your-shared-secret",
+    "SHURE_API_VERIFY_SSL": True,
 }
+```
 
+```bash
 # Run migrations
-python manage.py migrate
+uv run --no-sync python manage.py migrate
 
 # Start monitoring
-python manage.py poll_devices
+uv run --no-sync python manage.py poll_devices
 ```
 
 
@@ -67,12 +66,11 @@ python manage.py poll_devices
 - [Shure Integration](shure-integration.md) - Shure System API setup and usage
 - [API Reference](api/endpoints.md) - REST and WebSocket endpoints
 - [Architecture](development/architecture.md) - System design overview
-- [Archive Index](archive/INDEX.md) - Historical docs and delivery records
 
 ## Requirements
 
-- Python 3.9+
-- Django 4.2+ or 5.0+
+- Python 3.13+
+- Django 5.1 through 6.0
 - Django Channels (for WebSocket support)
 - Redis (recommended for production)
 

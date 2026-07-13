@@ -100,7 +100,7 @@ All notable changes to django-micboard are documented here.
 - Automatic retry with exponential backoff (0.5s, 1s, 2s)
 - Health tracking for Shure System API connection
 - Configurable timeouts and SSL verification
-- Connection pooling via requests.Session
+- Connection pooling via `httpx.Client`
 
 **API Endpoints**
 - `/api/data/` - Get all device data (rate limited: 120 req/min)
@@ -113,7 +113,7 @@ All notable changes to django-micboard are documented here.
 - `/api/groups/{id}/` - Update group settings
 
 **WebSocket**
-- Real-time device updates via `ws://server/ws/micboard/`
+- Real-time device updates via `ws://server/ws`
 - Automatic reconnection
 - Message types: device_update, alert, status
 

@@ -8,6 +8,6 @@ from .structure import Building, Location, Room
 
 __all__ = [
     "Building",
-    "Room",
     "Location",
+    "Room",
 ]

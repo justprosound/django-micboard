@@ -12,7 +12,8 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
-from micboard.models import Alert
+from micboard.models.monitoring.alert import Alert
+from micboard.services.monitoring.alerts import get_alerts_for_user
 
 # Alert business logic has been moved to the service layer
 # (see `micboard.services.monitoring.alerts.AlertManager`).
@@ -32,7 +33,12 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
     page_number = request.GET.get("page", 1)
 
     # Base queryset
-    alerts = Alert.objects.select_related("channel", "user").order_by("-created_at")
+    visible_alerts = get_alerts_for_user(request.user)
+    alerts = visible_alerts.select_related(
+        "assignment",
+        "channel__chassis",
+        "user",
+    ).order_by("-created_at")
 
     # Apply filters
     if status_filter and status_filter != "all":
@@ -46,11 +52,11 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
 
     # Alert statistics
     stats = {
-        "total": Alert.objects.count(),
-        "pending": Alert.objects.filter(status="pending").count(),
-        "acknowledged": Alert.objects.filter(status="acknowledged").count(),
-        "resolved": Alert.objects.filter(status="resolved").count(),
-        "failed": Alert.objects.filter(status="failed").count(),
+        "total": visible_alerts.count(),
+        "pending": visible_alerts.filter(status="pending").count(),
+        "acknowledged": visible_alerts.filter(status="acknowledged").count(),
+        "resolved": visible_alerts.filter(status="resolved").count(),
+        "failed": visible_alerts.filter(status="failed").count(),
     }
 
     context = {
@@ -68,7 +74,14 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET"])
 def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """View to display detailed information about a specific alert."""
-    alert = get_object_or_404(Alert.objects.select_related("channel", "user"), id=alert_id)
+    alert = get_object_or_404(
+        get_alerts_for_user(request.user).select_related(
+            "assignment",
+            "channel__chassis",
+            "user",
+        ),
+        id=alert_id,
+    )
 
     context = {
         "alert": alert,

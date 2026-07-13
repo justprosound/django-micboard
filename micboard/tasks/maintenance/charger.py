@@ -3,7 +3,7 @@ import logging
 from django.core.cache import cache
 
 from micboard.models.discovery import Manufacturer
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,11 @@ def poll_charger_data(manufacturer_id: int):
                                 }
                             )
                 except Exception:
-                    # If no channels, empty slots
-                    pass
+                    logger.warning(
+                        "Could not read charger channels for device %s",
+                        device_id,
+                        exc_info=True,
+                    )
 
                 charging_stations_data.append(
                     {

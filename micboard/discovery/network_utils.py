@@ -23,10 +23,8 @@ def expand_cidrs(cidrs: list[str], max_hosts: int = 1024) -> Iterator[str]:
             continue
         # Skip very large networks unless explicitly allowed
         hosts = list(net.hosts())
-        count = 0
-        for ip in hosts:
+        for count, ip in enumerate(hosts, start=1):
             yield str(ip)
-            count += 1
             if count >= max_hosts:
                 break
 

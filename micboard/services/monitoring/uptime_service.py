@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from django.utils import timezone
 
-from micboard.models import WirelessChassis
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
@@ -104,7 +104,7 @@ class UptimeService:
         Returns:
             Uptime percentage (0-100)
         """
-        from micboard.models import DeviceMovementLog
+        from micboard.models.discovery.queue import DeviceMovementLog
 
         cutoff = timezone.now() - timedelta(days=days)
         total_time = timezone.now() - cutoff
@@ -229,7 +229,7 @@ class BulkUptimeCalculator:
         Returns:
             Dict mapping device_id -> uptime_percentage
         """
-        from micboard.models import DeviceMovementLog
+        from micboard.models.discovery.queue import DeviceMovementLog
 
         cutoff = timezone.now() - timedelta(days=days)
         total_time = timezone.now() - cutoff

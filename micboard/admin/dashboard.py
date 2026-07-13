@@ -7,23 +7,21 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from typing import Any
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from micboard.decorators import rate_limit_view
-from micboard.models import (
-    ActivityLog,
-    Manufacturer,
-    RFChannel,
-    ServiceSyncLog,
-    WirelessChassis,
-    WirelessUnit,
-)
+from micboard.models.audit.activity_log import ActivityLog, ServiceSyncLog
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.maintenance.efis_import import EFISImportService
 from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
@@ -33,7 +31,7 @@ logger = logging.getLogger(__name__)
 @login_required
 @require_http_methods(["GET"])
 @rate_limit_view(max_requests=60, window_seconds=60)
-def admin_dashboard(request) -> render:
+def admin_dashboard(request) -> HttpResponse:
     """Main admin dashboard showing system platform status.
 
     Displays:
@@ -191,7 +189,7 @@ def admin_dashboard(request) -> render:
     }
 
     # System health summary
-    system_health = {
+    system_health: dict[str, Any] = {
         "status": "healthy",
         "total_devices": receiver_stats["total"] + transmitter_stats["total"],
         "online_devices": receiver_stats["online"] + transmitter_stats["online"],
