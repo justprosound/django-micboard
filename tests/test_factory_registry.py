@@ -77,6 +77,13 @@ def test_factory_registry_matches_installed_project_models() -> None:
     assert set(registered_labels) == expected_labels
 
 
+def test_factory_registry_loading_is_idempotent() -> None:
+    """Repeated registry reads preserve one adapter per model."""
+    first = iter_factory_specs()
+
+    assert iter_factory_specs() == first
+
+
 def test_factory_lookup_accepts_model_classes_instances_and_labels() -> None:
     """Callers can use whichever model representation they already have."""
     expected = factory_for(Manufacturer)

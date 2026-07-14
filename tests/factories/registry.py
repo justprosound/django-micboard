@@ -39,7 +39,6 @@ class FactorySpec:
 
 
 _factory_specs: dict[str, FactorySpec] = {}
-_factories_loaded = False
 
 
 def register_factory(label: str) -> Callable[[FactoryClass], FactoryClass]:
@@ -56,17 +55,12 @@ def register_factory(label: str) -> Callable[[FactoryClass], FactoryClass]:
 
 
 def _load_factories() -> None:
-    """Import each installed domain adapter exactly once."""
-    global _factories_loaded
-    if _factories_loaded:
-        return
-
+    """Import the installed domain adapters through Python's module cache."""
     for module_name in _CORE_FACTORY_MODULES:
         import_module(module_name)
     for app_name, module_name in _OPTIONAL_FACTORY_MODULES.items():
         if apps.is_installed(app_name):
             import_module(module_name)
-    _factories_loaded = True
 
 
 def _model_label(model_or_label: type[models.Model] | models.Model | str) -> str:
