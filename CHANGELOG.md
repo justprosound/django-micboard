@@ -25,6 +25,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Reusable-app host coverage**: Core-only and custom-user host settings, migration integrity,
   package API, installed-wheel, query-budget, and WebSocket routing regression tests
 - **Release verification**: Wheel-content validation and installed-wheel smoke testing
+- **Complete model factory catalog**: Domain-grouped Factory Boy adapters for every installed
+  project model, with registry completeness, persistence, validation, optional-app, and
+  swappable-user coverage
 
 ### Changed
 
@@ -56,6 +59,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   `MICBOARD_CONFIG` reads are isolated to the settings service
 - **Dependency automation**: Consolidate updates under Renovate and refresh locked Click and
   filelock versions
+- **Host-aware test users**: Shared pytest fixtures now use the host project's configured user
+  model
 
 ### Fixed
 
