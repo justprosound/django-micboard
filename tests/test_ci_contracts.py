@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -47,3 +48,14 @@ def test_local_wheel_recipe_runs_the_ci_smoke_contract_in_development_mode() -> 
 
     assert "scripts/smoke_test_installed_wheel.py" in justfile
     assert "DEBUG=True" in smoke_script
+
+
+def test_dependency_automation_uses_canonical_uv_inputs() -> None:
+    """Renovate must not edit generated exports or bypass their documentation check."""
+    renovate_config = json.loads((ROOT / "renovate.json").read_text())
+    docs_workflow = (WORKFLOWS / "docs.yml").read_text()
+    pre_commit_config = (ROOT / ".pre-commit-config.yaml").read_text()
+
+    assert "docs/requirements.txt" in renovate_config["ignorePaths"]
+    assert "startsWith(github.head_ref, 'renovate/')" not in docs_workflow
+    assert "scripts/check_docs_requirements.py" in pre_commit_config

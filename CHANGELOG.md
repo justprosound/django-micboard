@@ -72,8 +72,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   connection ownership, and aggregate connection statistics in two fixed queries
 - **Settings access**: Route app startup and callers through `SettingsService`; raw
   `MICBOARD_CONFIG` reads are isolated to the settings service
-- **Dependency automation**: Consolidate updates under Renovate and refresh locked Click and
-  filelock versions
+- **Dependency automation**: Consolidate updates under Renovate; refresh locked Click, filelock,
+  certifi, idna, Pillow, and platformdirs versions; ignore generated requirements exports; enforce
+  lock/export consistency; and run documentation checks on dependency branches
 - **Host-aware test users**: Shared pytest fixtures now use the host project's configured user
   model
 - **Optional admin integrations**: Enable admin enhancements only when the host registers their
