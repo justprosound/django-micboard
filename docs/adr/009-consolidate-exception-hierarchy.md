@@ -30,6 +30,13 @@ manufacturer-specific catches even though ordinary transport failures did not.
    response bodies are never read into public details implicitly.
 5. `services/common/base/exceptions.py` is deleted and all call sites import the canonical root
    directly. No re-export or compatibility module remains.
+6. Operational service failures that need a public identity also live in `micboard/exceptions.py`.
+   Service modules do not define their own exception roots.
+7. Django authorization/validation exceptions, Pydantic validator `ValueError`, abstract-method
+   `NotImplementedError`, and programmer precondition errors remain native at their intended
+   framework boundaries rather than being hidden inside generic service errors.
+8. Public service seams preserve canonical `MicboardError` metadata but translate unexpected
+   failures to fixed, secret-safe structured errors before they can reach additional callers.
 
 ## Final Hierarchy
 
@@ -45,8 +52,12 @@ Exception
     ManufacturerNotSupportedError
     HardwareNotFoundError
     HardwareValidationError
+    OrganizationDeviceQuotaExceededError
     LocationNotFoundError
     LocationAlreadyExistsError
+    SettingNotFoundError
+    AdminAuditSetupError
+    SubscriptionLeaseLostError
     DiscoveryError
     ServiceError
 ```
@@ -57,9 +68,12 @@ Exception
   failures.
 - **Positive:** Rate-limit metadata and response objects remain available without exposing vendor
   response text.
+- **Positive:** Service-specific setup, settings, and lease failures are catchable through the same
+  root without losing stable machine-readable codes.
 - **Negative:** Transport exception strings now use the structured `MicboardError` format.
 
 ## Compliance
 
 - No new exception modules outside `micboard/exceptions.py` or plugin-local exception files.
+- No exception classes are defined inside `micboard/services/`.
 - Call sites import root exceptions directly; aliases and re-exports are forbidden.

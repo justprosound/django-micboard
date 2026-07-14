@@ -1,6 +1,7 @@
 """Public exception payload and message contracts."""
 
 from micboard.exceptions import (
+    AdminAuditSetupError,
     APIAuthenticationError,
     APIError,
     APIRateLimitError,
@@ -14,6 +15,8 @@ from micboard.exceptions import (
     MicboardError,
     OrganizationDeviceQuotaExceededError,
     ServiceError,
+    SettingNotFoundError,
+    SubscriptionLeaseLostError,
 )
 
 
@@ -74,6 +77,37 @@ def test_marker_errors_accept_base_contract() -> None:
         error = error_type("failed", code="DOMAIN")
         assert isinstance(error, MicboardError)
         assert str(error) == "[DOMAIN] failed"
+
+
+def test_missing_setting_error_exposes_the_requested_key() -> None:
+    """Required setting failures use the canonical structured exception root."""
+    error = SettingNotFoundError("SHURE_API_URL")
+
+    assert isinstance(error, MicboardError)
+    assert error.code == "SETTING_NOT_FOUND"
+    assert error.details == {"key": "SHURE_API_URL"}
+    assert "Required setting 'SHURE_API_URL' not found" in str(error)
+
+
+def test_admin_audit_setup_error_uses_a_stable_code() -> None:
+    """Admin audit precondition failures remain typed without exposing extra details."""
+    error = AdminAuditSetupError("Admin audit requires an active superuser")
+
+    assert isinstance(error, MicboardError)
+    assert error.code == "ADMIN_AUDIT_SETUP_ERROR"
+    assert error.details == {}
+
+
+def test_subscription_lease_loss_has_a_fixed_public_message() -> None:
+    """Lease ownership failures expose no cache key or worker token."""
+    error = SubscriptionLeaseLostError()
+
+    assert isinstance(error, MicboardError)
+    assert error.code == "SUBSCRIPTION_LEASE_LOST"
+    assert error.details == {}
+    assert str(error) == (
+        "[SUBSCRIPTION_LEASE_LOST] Realtime subscription supervisor lease was lost"
+    )
 
 
 def test_api_error_family_uses_one_structured_root() -> None:

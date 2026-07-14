@@ -55,6 +55,15 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- **Canonical service exceptions**: Move settings, admin-audit setup, and realtime lease failures
+  under `MicboardError`, reject future service-local exception roots, and translate unexpected API
+  polling failures to a fixed secret-safe public error without flattening known transport metadata
+- **Focused vendor clients**: Remove unverified test-only enrichment endpoints, Shure forwarding
+  methods, and duplicate Sennheiser polling orchestration; production plugins continue to use the
+  shared transport, discovery, transformation, and subscription contracts directly
+- **Bounded vendor coordination**: Scope shared rate-limit locks to each remote API endpoint and
+  reject Shure discovery updates whose merged remote and requested address list exceeds the global
+  candidate limit
 - **Protected release pipeline**: Prepare version and changelog changes on a release pull request,
   run the required CI, CodeQL, Bandit, package, and documentation checks before auto-merge, and
   publish the exact protected merge commit from environment-bound OIDC jobs

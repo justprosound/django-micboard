@@ -10,6 +10,7 @@ from django.core.exceptions import PermissionDenied
 
 import pytest
 
+from micboard.exceptions import APIError, ServiceError
 from micboard.models.integrations import ManufacturerAPIServer
 from micboard.services.integrations.api_server_service import APIServerConnectionService
 from micboard.services.sync.discovery_trigger_service import trigger_discovery
@@ -75,13 +76,45 @@ def test_managed_poll_records_bounded_transport_failure() -> None:
             "fetch_server_devices",
             side_effect=RuntimeError("private credential detail"),
         ),
-        pytest.raises(RuntimeError, match="private credential detail"),
+        pytest.raises(ServiceError) as exc_info,
     ):
         APIServerPollingService.poll_managed_device(server=server, chassis=chassis)
 
+    assert "private credential detail" not in str(exc_info.value)
+    assert exc_info.value.details == {
+        "service": "api_server_polling",
+        "operation": "poll_managed_device",
+    }
     assert server.status == ManufacturerAPIServer.Status.ERROR
     assert server.status_message == "Polling failed (RuntimeError)"
     server.save.assert_called_once_with(update_fields=["status", "status_message"])
+
+
+def test_managed_poll_preserves_canonical_transport_error_metadata() -> None:
+    """Known transport errors retain their exact typed status and retry contract."""
+    server = _server(location_name="Stage")
+    chassis = SimpleNamespace(
+        api_device_id="shure-device",
+        location_id=1,
+        location=SimpleNamespace(name="Stage"),
+        manufacturer=SimpleNamespace(code="shure"),
+    )
+    failure = APIError("bounded failure", status_code=503)
+
+    with (
+        patch.object(APIServerPollingService, "_server_owns_chassis", return_value=True),
+        patch.object(
+            APIServerConnectionService,
+            "fetch_server_devices",
+            side_effect=failure,
+        ),
+        pytest.raises(APIError) as exc_info,
+    ):
+        APIServerPollingService.poll_managed_device(server=server, chassis=chassis)
+
+    assert exc_info.value is failure
+    assert exc_info.value.status_code == 503
+    assert server.status_message == "Polling failed (APIError)"
 
 
 @pytest.mark.django_db

@@ -10,13 +10,19 @@ from polling_service.py instead.
 
 from __future__ import annotations
 
-from django.core.exceptions import PermissionDenied
+import logging
+
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 
+from micboard.exceptions import MicboardError, ServiceError
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.integrations import ManufacturerAPIServer
 from micboard.models.locations.structure import Location
 from micboard.services.integrations.api_server_service import APIServerConnectionService
+from micboard.utils.exception_logging import sanitized_exception_info
+
+logger = logging.getLogger(__name__)
 
 
 class APIServerPollingService:
@@ -75,7 +81,18 @@ class APIServerPollingService:
             server.status = ManufacturerAPIServer.Status.ERROR
             server.status_message = f"Polling failed ({type(exc).__name__})"
             server.save(update_fields=["status", "status_message"])
-            raise
+            if isinstance(exc, (MicboardError, ValidationError)):
+                raise
+            logger.exception(
+                "Unexpected API server polling failure for server %s",
+                server.pk,
+                exc_info=sanitized_exception_info(exc),
+            )
+            raise ServiceError(
+                "api_server_polling",
+                "poll_managed_device",
+                "unexpected polling failure; details redacted",
+            ) from None
 
     @staticmethod
     def _server_owns_chassis(

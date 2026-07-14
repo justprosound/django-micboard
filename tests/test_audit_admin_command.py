@@ -16,6 +16,7 @@ from django.test import override_settings
 
 import pytest
 
+from micboard.exceptions import AdminAuditSetupError
 from micboard.management.commands import audit_admin as command_module
 from micboard.services.maintenance import admin_audit_service as service_module
 from micboard.services.maintenance.admin_audit_dtos import (
@@ -26,10 +27,7 @@ from micboard.services.maintenance.admin_audit_dtos import (
     AdminAuditStats,
     AdminModelAuditResult,
 )
-from micboard.services.maintenance.admin_audit_service import (
-    AdminAuditService,
-    AdminAuditSetupError,
-)
+from micboard.services.maintenance.admin_audit_service import AdminAuditService
 
 
 def _model(name: str = "Receiver", *, app_label: str = "inventory") -> Any:

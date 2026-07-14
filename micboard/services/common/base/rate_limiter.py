@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from collections.abc import Callable
@@ -12,13 +13,25 @@ logger = logging.getLogger(__name__)
 _CallableT = TypeVar("_CallableT", bound=Callable[..., Any])
 
 
+def _endpoint_scope(instance: Any) -> str:
+    """Return an opaque stable scope for one remote API endpoint."""
+    api_client = getattr(instance, "api_client", instance)
+    base_url = getattr(api_client, "base_url", None)
+    if isinstance(base_url, str) and base_url:
+        normalized_url = base_url.rstrip("/")
+        return hashlib.sha256(normalized_url.encode()).hexdigest()[:16]
+    return f"instance-{id(instance)}"
+
+
 def rate_limit(*, calls_per_second: float = 10.0) -> Callable[[_CallableT], _CallableT]:
     """Rate-limit calls to a decorated client method through the shared cache."""
 
     def _decorator(func: _CallableT) -> _CallableT:
         @wraps(func)
         def _wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-            cache_key = f"rate_limit_{self.__class__.__name__}_{func.__name__}"
+            cache_key = (
+                f"rate_limit_{self.__class__.__name__}_{func.__name__}_{_endpoint_scope(self)}"
+            )
             min_interval = 1.0 / calls_per_second
 
             last_call = cache.get(cache_key, 0)

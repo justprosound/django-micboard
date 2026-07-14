@@ -6,11 +6,12 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.test import TestCase
 
+from micboard.exceptions import SettingNotFoundError
 from micboard.forms.settings import BulkSettingConfigForm
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.settings.registry import Setting, SettingDefinition
 from micboard.multitenancy.models import Organization
-from micboard.services.settings.registry import SettingNotFoundError, SettingsRegistry
+from micboard.services.settings.registry import SettingsRegistry
 
 
 class SettingDefinitionTests(TestCase):

@@ -92,3 +92,22 @@ def test_public_service_functions_are_fully_typed() -> None:
                 )
 
     assert not violations, "\n".join(violations)
+
+
+def test_services_do_not_define_or_import_alternate_exception_roots() -> None:
+    """Service errors belong to the canonical root, never local modules or compatibility paths."""
+    violations: list[str] = []
+    forbidden_module = "micboard.services.shared.exceptions"
+
+    for path in sorted(Path("micboard/services").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name.endswith(("Error", "Exception")):
+                violations.append(f"{path}:{node.lineno}:local exception {node.name}")
+            elif (isinstance(node, ast.ImportFrom) and node.module == forbidden_module) or (
+                isinstance(node, ast.Import)
+                and any(alias.name == forbidden_module for alias in node.names)
+            ):
+                violations.append(f"{path}:{node.lineno}:forbidden import {forbidden_module}")
+
+    assert violations == []

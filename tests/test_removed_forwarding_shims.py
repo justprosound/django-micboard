@@ -5,6 +5,9 @@ from importlib.util import find_spec
 import micboard.filters as filters
 import micboard.multitenancy as multitenancy
 from micboard.admin import receiver_inlines
+from micboard.integrations.sennheiser.device_client import SennheiserDeviceClient
+from micboard.integrations.shure.device_client import ShureDeviceClient
+from micboard.integrations.shure.plugin import ShurePlugin
 from micboard.services.core import hardware_lifecycle
 from micboard.services.core.device_metadata import SennheiserMetadataAccessor
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager, HardwareStatus
@@ -82,3 +85,19 @@ def test_noop_device_api_status_module_is_absent() -> None:
     assert find_spec("micboard.services.chargers.charger_display_service") is None
     assert find_spec("micboard.chargers.views") is None
     assert find_spec("micboard.services.monitoring.connection_validation") is None
+
+
+def test_unverified_vendor_enrichment_and_duplicate_polling_apis_are_absent() -> None:
+    """Vendor clients expose only operations used by the production plugin contract."""
+    for client_class in (ShureDeviceClient, SennheiserDeviceClient):
+        for method_name in (
+            "get_transmitter_data",
+            "get_device_identity",
+            "get_device_network",
+            "get_device_status",
+            "_enrich_device_data",
+            "poll_all_devices",
+        ):
+            assert not hasattr(client_class, method_name)
+    for method_name in ("get_device_identity", "get_device_network", "get_device_status"):
+        assert not hasattr(ShurePlugin, method_name)

@@ -33,6 +33,9 @@ would have only two consumers. Similar filenames are not sufficient evidence for
    `services/realtime/subscription_lifecycle_service.py`: eligible inventory selection, transform,
    persistence, chassis projection, and broadcast. Keep connection setup, authentication, event
    framing, and cleanup in each transport adapter.
+7. Keep vendor client APIs limited to operations used by the production plugin contract. Do not
+   retain speculative enrichment endpoints, test-only forwarding methods, or a second polling
+   orchestrator alongside the manufacturer synchronization service.
 
 ## Consequences
 
@@ -50,3 +53,5 @@ would have only two consumers. Similar filenames are not sufficient evidence for
 - Protocol-specific code has fixture or mock-transport tests for authentication, response bounds,
   and streaming lifecycle.
 - Integration clients do not own persistence, tenant scope, or domain orchestration.
+- Test-only and unverified vendor API methods are removed rather than retained as compatibility
+  surfaces.

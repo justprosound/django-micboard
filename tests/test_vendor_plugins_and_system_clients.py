@@ -32,9 +32,6 @@ def test_shure_plugin_delegates_to_lazy_client_and_transformer(monkeypatch) -> N
             get_devices=Mock(return_value=[{"id": "one"}]),
             get_device=Mock(return_value={"id": "one"}),
             get_device_channels=Mock(return_value=[]),
-            get_device_identity=Mock(return_value={"serial": "one"}),
-            get_device_network=Mock(return_value={"hostname": "one"}),
-            get_device_status=Mock(return_value={"status": "online"}),
         ),
         discovery=SimpleNamespace(
             add_discovery_ips=Mock(return_value=True),
@@ -61,9 +58,6 @@ def test_shure_plugin_delegates_to_lazy_client_and_transformer(monkeypatch) -> N
     assert plugin.get_devices() == [{"id": "one"}]
     assert plugin.get_device("one") == {"id": "one"}
     assert plugin.get_device_channels("one") == []
-    assert plugin.get_device_identity("one") == {"serial": "one"}
-    assert plugin.get_device_network("one") == {"hostname": "one"}
-    assert plugin.get_device_status("one") == {"status": "online"}
     assert plugin.transform_device_data({}) == {"id": "normalized"}
     assert plugin.transform_transmitter_data({}, 1) == {"slot": 1}
     assert plugin.is_healthy()

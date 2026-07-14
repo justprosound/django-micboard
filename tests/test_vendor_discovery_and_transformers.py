@@ -79,6 +79,15 @@ def test_shure_discovery_add_and_remove_cover_fallbacks() -> None:
     assert unexpected_existing.add_discovery_ips(["192.0.2.5"])
 
 
+def test_shure_discovery_rejects_an_oversized_merged_remote_list(monkeypatch) -> None:
+    """Existing and requested addresses cannot bypass the shared discovery bound."""
+    monkeypatch.setattr("micboard.integrations.shure.discovery_client.MAX_DISCOVERY_CANDIDATES", 2)
+    api = vendor_api({"ips": ["192.0.2.1", "192.0.2.2"]})
+
+    assert not ShureDiscoveryClient(api).add_discovery_ips(["192.0.2.3"])
+    api._make_request.assert_called_once_with("GET", "/api/v1/config/discovery/ips")
+
+
 def test_sennheiser_discovery_add_remove_success_and_failure() -> None:
     api = vendor_api(
         None,

@@ -8,15 +8,13 @@ from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
+from micboard.exceptions import AdminAuditSetupError
 from micboard.services.maintenance.admin_audit_dtos import (
     MAX_ADMIN_AUDIT_THREADS,
     AdminAuditOptions,
     AdminAuditReport,
 )
-from micboard.services.maintenance.admin_audit_service import (
-    AdminAuditService,
-    AdminAuditSetupError,
-)
+from micboard.services.maintenance.admin_audit_service import AdminAuditService
 
 
 class Command(BaseCommand):

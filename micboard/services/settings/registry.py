@@ -7,17 +7,13 @@ from typing import Any, Protocol
 
 from django.core.cache import cache
 
+from micboard.exceptions import SettingNotFoundError
+
 
 class SettingsScopeReference(Protocol):
     """Minimal model contract required to identify one settings scope."""
 
     pk: Any
-
-
-class SettingNotFoundError(Exception):
-    """Raised when a required setting cannot be resolved."""
-
-    pass
 
 
 class SettingsRegistry:
@@ -96,7 +92,7 @@ class SettingsRegistry:
 
         # Required but not found
         if required:
-            raise SettingNotFoundError(f"Required setting '{key}' not found")
+            raise SettingNotFoundError(key)
 
         return None
 

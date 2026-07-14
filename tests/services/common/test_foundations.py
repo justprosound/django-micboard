@@ -102,6 +102,35 @@ def test_rate_limiter_sleeps_only_inside_window(monkeypatch) -> None:
     assert cache_set.call_count == 2
 
 
+def test_rate_limiter_scopes_shared_cache_by_endpoint(monkeypatch) -> None:
+    """Unrelated API servers must not consume one another's rate-limit window."""
+    monkeypatch.setattr(limiter_module.time, "time", lambda: 10.0)
+    cache_get = Mock(return_value=0)
+    monkeypatch.setattr(limiter_module.cache, "get", cache_get)
+    monkeypatch.setattr(limiter_module.cache, "set", Mock())
+
+    class Service:
+        def __init__(self, base_url: str) -> None:
+            self.api_client = SimpleNamespace(base_url=base_url)
+
+        @limiter_module.rate_limit(calls_per_second=2)
+        def operation(self) -> None:
+            return None
+
+    first = Service("https://first.private.example")
+    second = Service("https://second.private.example")
+    same_endpoint = Service("https://first.private.example")
+
+    first.operation()
+    second.operation()
+    same_endpoint.operation()
+
+    keys = [call.args[0] for call in cache_get.call_args_list]
+    assert keys[0] != keys[1]
+    assert keys[0] == keys[2]
+    assert "first.private.example" not in keys[0]
+
+
 def test_address_and_hostname_validation_covers_invalid_shapes(caplog) -> None:
     assert validate_ipv4_list(["192.0.2.1", "2001:db8::1", "bad"], "vendor") == ["192.0.2.1"]
     assert validate_ipv4_list(["2001:db8::1", "bad"]) == []

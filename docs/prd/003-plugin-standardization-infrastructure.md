@@ -49,6 +49,9 @@ also created ambiguous import and configuration paths.
 - **Protocol ownership:** Shure and Sennheiser retain manufacturer-local device, discovery,
   transform, and streaming adapters. Only transport-neutral behavior with two verified consumers is
   shared.
+- **Production surface:** Vendor clients expose only endpoints consumed by the plugin and service
+  contracts. Speculative enrichment calls and duplicate polling orchestration are removed without
+  compatibility wrappers.
 - **Settings unification:** `SettingsService.get(key, default=None, organization=None, site=None,
   manufacturer=None)` is the single entry point. The former proxy shim is removed, and a lint
   rule forbids direct `settings.MICBOARD_CONFIG` access.

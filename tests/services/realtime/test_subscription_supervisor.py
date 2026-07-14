@@ -11,6 +11,7 @@ from django.test import override_settings
 
 import pytest
 
+from micboard.exceptions import SubscriptionLeaseLostError
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.realtime import subscription_supervisor as supervisor_module
 from micboard.services.realtime.subscription_dtos import (
@@ -28,7 +29,6 @@ from micboard.services.realtime.subscription_dtos import (
 from micboard.services.realtime.subscription_supervisor import (
     RealtimeSubscriptionLease,
     RealtimeSubscriptionSupervisor,
-    SubscriptionLeaseLostError,
     build_device_https_url,
 )
 from tests.factories.discovery import ManufacturerFactory

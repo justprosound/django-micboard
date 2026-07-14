@@ -16,6 +16,7 @@ from django.db import connections, models, reset_queries
 from django.test import Client
 from django.urls import reverse
 
+from micboard.exceptions import AdminAuditSetupError
 from micboard.services.maintenance.admin_audit_checks import AdminModelAuditService
 from micboard.services.maintenance.admin_audit_dtos import (
     AdminAuditMessage,
@@ -30,10 +31,6 @@ logger = logging.getLogger(__name__)
 
 Registry = Mapping[type[models.Model], ModelAdmin]
 RegistryEntry = tuple[type[models.Model], ModelAdmin]
-
-
-class AdminAuditSetupError(RuntimeError):
-    """Raised when the live admin cannot be audited safely."""
 
 
 class AdminAuditService:

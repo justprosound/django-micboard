@@ -20,6 +20,7 @@ from django.db.models import QuerySet
 from asgiref.sync import sync_to_async
 from pydantic import ValidationError
 
+from micboard.exceptions import SubscriptionLeaseLostError
 from micboard.services.realtime.subscription_dtos import (
     DEFAULT_MAX_SUBSCRIPTION_CONCURRENCY,
     DEFAULT_MAX_SUBSCRIPTION_DEVICES,
@@ -43,10 +44,6 @@ SUBSCRIPTION_SELECTION_CURSOR_SECONDS = 30 * 24 * 60 * 60
 
 SubscriptionItem = TypeVar("SubscriptionItem")
 SubscriptionModel = TypeVar("SubscriptionModel", bound=models.Model)
-
-
-class SubscriptionLeaseLostError(RuntimeError):
-    """Raised when another worker owns a realtime supervisor lease."""
 
 
 def build_device_https_url(*, ip_address: object, port: object = 443) -> str:
@@ -316,7 +313,7 @@ class RealtimeSubscriptionSupervisor:
             await asyncio.sleep(SUBSCRIPTION_LEASE_REFRESH_SECONDS)
             refreshed = await sync_to_async(lease.refresh, thread_sensitive=True)()
             if not refreshed:
-                raise SubscriptionLeaseLostError("Realtime subscription supervisor lease was lost")
+                raise SubscriptionLeaseLostError()
 
     @staticmethod
     def _selection_cursor_key(*, transport: str, scope: str | int) -> str:

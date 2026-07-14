@@ -212,6 +212,37 @@ class LocationNotFoundError(MicboardError):
         )
 
 
+class SettingNotFoundError(MicboardError):
+    """Raised when a required setting cannot be resolved."""
+
+    def __init__(self, key: str) -> None:
+        """Identify the required setting key that could not be resolved."""
+        super().__init__(
+            f"Required setting '{key}' not found",
+            code="SETTING_NOT_FOUND",
+            details={"key": key},
+        )
+
+
+class AdminAuditSetupError(MicboardError):
+    """Raised when the live admin cannot be audited safely."""
+
+    def __init__(self, message: str) -> None:
+        """Retain one sanitized setup failure message under a stable code."""
+        super().__init__(message, code="ADMIN_AUDIT_SETUP_ERROR")
+
+
+class SubscriptionLeaseLostError(MicboardError):
+    """Raised when another worker owns a realtime supervisor lease."""
+
+    def __init__(self) -> None:
+        """Use a fixed message that cannot expose cache or worker identifiers."""
+        super().__init__(
+            "Realtime subscription supervisor lease was lost",
+            code="SUBSCRIPTION_LEASE_LOST",
+        )
+
+
 class ServiceError(MicboardError):
     """Raised when service operation fails."""
 

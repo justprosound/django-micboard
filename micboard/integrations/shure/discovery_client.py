@@ -58,6 +58,9 @@ class ShureDiscoveryClient:
                 logger.debug("No existing discovery IPs returned; starting fresh")
 
             combined = list(dict.fromkeys(list(existing) + list(valid_ips)))
+            if len(combined) > MAX_DISCOVERY_CANDIDATES:
+                logger.warning("Merged discovery list exceeded the hard limit")
+                return False
             # Replace discovery list via PUT
             self.api_client._make_request(
                 "PUT", "/api/v1/config/discovery/ips", json={"ips": combined}
