@@ -12,12 +12,13 @@ from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, Q
+from django.forms.models import BaseInlineFormSet
 from django.shortcuts import render
 from django.urls import path
 from django.utils.html import format_html
 
 from micboard.admin.forms import WirelessChassisAdminForm
-from micboard.admin.mixins import MicboardModelAdmin
+from micboard.admin.mixins import MicboardModelAdmin, TenantScopedAdminInlineMixin
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.integrations import Accessory
@@ -58,14 +59,46 @@ class WirelessUnitInline(admin.StackedInline):
         return get_battery_percentage(obj)
 
 
-class RFChannelInline(admin.StackedInline):
+class RFChannelInlineFormSet(BaseInlineFormSet):
+    """Keep active-unit assignments on the inline's own chassis."""
+
+    unit_fields = ("active_wireless_unit", "active_iem_receiver")
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        chassis_id = self.instance.pk
+        for form in self.forms:
+            for field_name in self.unit_fields:
+                field = form.fields.get(field_name)
+                queryset = getattr(field, "queryset", None)
+                if queryset is not None:
+                    field.queryset = queryset.filter(base_chassis_id=chassis_id)
+
+    def clean(self) -> None:
+        """Reject forged unit assignments even if a custom widget bypasses choices."""
+        super().clean()
+        chassis_id = self.instance.pk
+        for form in self.forms:
+            if not hasattr(form, "cleaned_data") or form.cleaned_data.get("DELETE"):
+                continue
+            for field_name in self.unit_fields:
+                unit = form.cleaned_data.get(field_name)
+                if unit is not None and unit.base_chassis_id != chassis_id:
+                    form.add_error(
+                        field_name,
+                        "Selected wireless unit must belong to this chassis.",
+                    )
+
+
+class RFChannelInline(TenantScopedAdminInlineMixin, admin.StackedInline):
     """Inline admin for RFChannel model."""
 
     model = RFChannel
     fk_name = "chassis"
+    formset = RFChannelInlineFormSet
 
 
-class AccessoryInline(admin.TabularInline):
+class AccessoryInline(TenantScopedAdminInlineMixin, admin.TabularInline):
     """Inline admin for managing accessories attached to a chassis."""
 
     model = Accessory
@@ -348,39 +381,56 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.action(permissions=["change"], description="Mark selected chassis as online")
     def mark_online(self, request, queryset):
         """Mark selected chassis as online."""
-        from micboard.services.core.hardware import HardwareService
+        from micboard.services.core.hardware_sync import HardwareSyncService
 
         updated = 0
         for chassis in queryset:
-            HardwareService.sync_hardware_status(obj=chassis, online=True)
+            HardwareSyncService.sync_hardware_status(obj=chassis, online=True)
             updated += 1
         self.message_user(request, f"{updated} chassis marked as online.")
 
     @admin.action(permissions=["change"], description="Mark selected chassis as offline")
     def mark_offline(self, request, queryset):
         """Mark selected chassis as offline."""
-        from micboard.services.core.hardware import HardwareService
+        from micboard.services.core.hardware_sync import HardwareSyncService
 
         updated = 0
         for chassis in queryset:
-            HardwareService.sync_hardware_status(obj=chassis, online=False)
+            HardwareSyncService.sync_hardware_status(obj=chassis, online=False)
             updated += 1
         self.message_user(request, f"{updated} chassis marked as offline.")
 
     @admin.action(permissions=["change"], description="Sync selected chassis from API")
     def sync_from_api(self, request, queryset):
         """Sync exactly the tenant-scoped chassis selected by the operator."""
-        from micboard.services.hardware.chassis_refresh_service import ChassisRefreshService
+        from micboard.services.hardware.chassis_refresh_service import (
+            MAX_CHASSIS_REFRESH_BATCH,
+            ChassisRefreshService,
+        )
         from micboard.tasks.sync.polling import refresh_selected_chassis
         from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
         using = queryset.db
-        chassis_ids = list(queryset.order_by("pk").values_list("pk", flat=True))
+        chassis_ids = list(
+            queryset.order_by("pk").values_list("pk", flat=True)[: MAX_CHASSIS_REFRESH_BATCH + 1]
+        )
         if not chassis_ids:
             self.message_user(request, "No chassis selected.", level=messages.WARNING)
             return
+        if len(chassis_ids) > MAX_CHASSIS_REFRESH_BATCH:
+            self.message_user(
+                request,
+                f"Select at most {MAX_CHASSIS_REFRESH_BATCH} chassis per API refresh.",
+                level=messages.ERROR,
+            )
+            return
         if huey_is_configured():
-            enqueue_huey_task(refresh_selected_chassis, chassis_ids, using=using)
+            enqueue_huey_task(
+                refresh_selected_chassis,
+                chassis_ids,
+                request.user.pk,
+                using=using,
+            )
             self.message_user(
                 request,
                 f"Queued {len(chassis_ids)} chassis for API refresh.",
@@ -396,7 +446,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             )
             return
 
-        result = ChassisRefreshService.refresh_ids(chassis_ids=chassis_ids, using=using)
+        result = ChassisRefreshService.refresh(queryset=queryset.filter(pk__in=chassis_ids))
         if result.synced_count:
             self.message_user(request, f"{result.synced_count} chassis synced from API.")
         if result.failed_count:

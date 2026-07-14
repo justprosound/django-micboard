@@ -3,25 +3,21 @@
 from __future__ import annotations
 
 import logging
-from types import TracebackType
 from typing import Any
 from urllib.parse import urlsplit
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from micboard.models.integrations import ManufacturerAPIServer
+from micboard.services.integrations.dtos import APIServerHealthCheckBatchResult
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
-
-def sanitized_api_exception_info(
-    exc: Exception,
-) -> tuple[type[RuntimeError], RuntimeError, TracebackType | None]:
-    """Return traceback context whose rendered exception cannot expose credentials."""
-    safe_exception = RuntimeError(f"{type(exc).__name__}: API error details redacted")
-    return RuntimeError, safe_exception, exc.__traceback__
+MAX_API_SERVER_HEALTH_CHECK_BATCH = 20
 
 
 class APIServerConnectionService:
@@ -98,7 +94,7 @@ class APIServerConnectionService:
             logger.exception(
                 "Manufacturer API server health check failed for server %s",
                 server.pk,
-                exc_info=sanitized_api_exception_info(exc),
+                exc_info=sanitized_exception_info(exc),
             )
             server.status = ManufacturerAPIServer.Status.ERROR
             server.status_message = f"Connection failed ({type(exc).__name__})"
@@ -106,3 +102,90 @@ class APIServerConnectionService:
             server.save(
                 update_fields=["status", "status_message", "last_health_check", "updated_at"]
             )
+
+    @classmethod
+    def test_selected_connections(
+        cls,
+        *,
+        api_server_ids: list[int],
+        actor_id: int,
+        using: str = "default",
+    ) -> APIServerHealthCheckBatchResult:
+        """Test an exact, bounded selection after rechecking the actor's permission."""
+        requested = len(api_server_ids)
+        truncated = requested > MAX_API_SERVER_HEALTH_CHECK_BATCH
+        selected_ids = tuple(
+            dict.fromkeys(
+                server_id
+                for server_id in api_server_ids[:MAX_API_SERVER_HEALTH_CHECK_BATCH]
+                if isinstance(server_id, int) and not isinstance(server_id, bool) and server_id > 0
+            )
+        )
+
+        user_model = get_user_model()
+        try:
+            actor = user_model._default_manager.using(using).get(pk=actor_id)
+        except user_model.DoesNotExist:
+            actor = None
+
+        if (
+            actor is None
+            or not actor.is_active
+            or not actor.is_staff
+            or not actor.has_perm("micboard.change_manufacturerapiserver")
+            or not cls._actor_has_platform_scope(actor)
+        ):
+            logger.warning(
+                "Denied queued API server health-check batch for actor %s",
+                actor_id,
+            )
+            return APIServerHealthCheckBatchResult(
+                requested=requested,
+                checked=0,
+                failed=0,
+                missing=0,
+                denied=True,
+                truncated=truncated,
+            )
+
+        servers = list(
+            ManufacturerAPIServer._default_manager.using(using)
+            .filter(pk__in=selected_ids)
+            .order_by("pk")
+        )
+        failed = 0
+        for server in servers:
+            try:
+                cls.test_connection_and_record(server)
+            except Exception as exc:
+                failed += 1
+                logger.exception(
+                    "Queued API server health check could not record server %s",
+                    server.pk,
+                    exc_info=sanitized_exception_info(exc),
+                )
+                continue
+            if server.status == ManufacturerAPIServer.Status.ERROR:
+                failed += 1
+
+        return APIServerHealthCheckBatchResult(
+            requested=requested,
+            checked=len(servers),
+            failed=failed,
+            missing=len(selected_ids) - len(servers),
+            denied=False,
+            truncated=truncated,
+        )
+
+    @staticmethod
+    def _actor_has_platform_scope(actor: Any) -> bool:
+        """Mirror admin policy for credential-bearing platform-global rows."""
+        msp_enabled = getattr(settings, "MICBOARD_MSP_ENABLED", False)
+        multi_site_enabled = getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
+        if not (msp_enabled or multi_site_enabled):
+            return True
+        if not actor.is_superuser:
+            return False
+        if multi_site_enabled:
+            return True
+        return bool(getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True))

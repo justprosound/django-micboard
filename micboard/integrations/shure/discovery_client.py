@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import logging
+from itertools import islice
 
+from micboard.discovery.limits import MAX_DISCOVERY_CANDIDATES
 from micboard.services.common.base.client import BaseAPIClient
 from micboard.services.common.base.rate_limiter import rate_limit
 from micboard.services.common.base.utils import validate_ipv4_list
+from micboard.utils.exception_logging import sanitized_exception_info
 
 from .exceptions import ShureAPIError
 
@@ -29,7 +32,11 @@ class ShureDiscoveryClient:
             True if the request was accepted (202), False otherwise
         """
         try:
-            valid_ips = validate_ipv4_list(ips, "add_discovery_ips")
+            bounded_inputs = list(islice(iter(ips), MAX_DISCOVERY_CANDIDATES + 1))
+            if len(bounded_inputs) > MAX_DISCOVERY_CANDIDATES:
+                logger.warning("Discovery add request exceeded the hard limit")
+                return False
+            valid_ips = validate_ipv4_list(bounded_inputs, "add_discovery_ips")
             if not valid_ips:
                 logger.warning("No valid IPs provided to add_discovery_ips")
                 return False
@@ -39,7 +46,14 @@ class ShureDiscoveryClient:
                 # Shure API uses /api/v1/ base path in this deployment
                 res = self.api_client._make_request("GET", "/api/v1/config/discovery/ips")
                 if res and isinstance(res, dict):
-                    existing = res.get("ips", [])
+                    remote_ips = res.get("ips", [])
+                    if (
+                        not isinstance(remote_ips, list)
+                        or len(remote_ips) > MAX_DISCOVERY_CANDIDATES
+                    ):
+                        logger.warning("Existing discovery response was invalid or oversized")
+                        return False
+                    existing = validate_ipv4_list(remote_ips, "existing_discovery_ips")
             except ShureAPIError:
                 logger.debug("No existing discovery IPs returned; starting fresh")
 
@@ -49,8 +63,12 @@ class ShureDiscoveryClient:
                 "PUT", "/api/v1/config/discovery/ips", json={"ips": combined}
             )
             return True
-        except ShureAPIError:
-            logger.exception("Failed to add discovery IPs: %s", ips)
+        except ShureAPIError as exc:
+            logger.error(
+                "Failed to add %d discovery IPs",
+                len(ips),
+                exc_info=sanitized_exception_info(exc),
+            )
             return False
 
     @rate_limit(calls_per_second=1.0)
@@ -74,8 +92,11 @@ class ShureDiscoveryClient:
                     )
                     return []
             return []
-        except ShureAPIError:
-            logger.exception("Failed to fetch discovery IPs")
+        except ShureAPIError as exc:
+            logger.error(
+                "Failed to fetch discovery IPs",
+                exc_info=sanitized_exception_info(exc),
+            )
             return []
 
     @rate_limit(calls_per_second=1.0)
@@ -87,7 +108,11 @@ class ShureDiscoveryClient:
         Returns True on success, False otherwise.
         """
         try:
-            valid_ips = validate_ipv4_list(ips, "remove_discovery_ips")
+            bounded_inputs = list(islice(iter(ips), MAX_DISCOVERY_CANDIDATES + 1))
+            if len(bounded_inputs) > MAX_DISCOVERY_CANDIDATES:
+                logger.warning("Discovery removal request exceeded the hard limit")
+                return False
+            valid_ips = validate_ipv4_list(bounded_inputs, "remove_discovery_ips")
             if not valid_ips:
                 logger.warning("No valid IPs provided to remove_discovery_ips")
                 return False
@@ -103,6 +128,10 @@ class ShureDiscoveryClient:
                     "POST", "/api/v1/config/discovery/ips/remove", json={"ips": valid_ips}
                 )
             return True
-        except ShureAPIError:
-            logger.exception("Failed to remove discovery IPs: %s", ips)
+        except ShureAPIError as exc:
+            logger.error(
+                "Failed to remove %d discovery IPs",
+                len(ips),
+                exc_info=sanitized_exception_info(exc),
+            )
             return False

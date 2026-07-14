@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from micboard.discovery.limits import MAX_DISCOVERY_CANDIDATES
 from micboard.services.sync.discovery_service import DiscoveryService
 from tests.factories.discovery import DiscoveryFQDNFactory, ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
@@ -26,7 +27,7 @@ def test_incomplete_discovery_still_removes_proven_cross_vendor_conflicts() -> N
     with (
         patch(
             "micboard.services.sync.discovery_service.collect_local_candidates",
-            return_value=["192.0.2.75"],
+            return_value=(["192.0.2.75"], True),
         ),
         patch(
             "micboard.services.sync.discovery_service.prepare_scanning_data",
@@ -37,7 +38,7 @@ def test_incomplete_discovery_still_removes_proven_cross_vendor_conflicts() -> N
             return_value=plugin,
         ),
     ):
-        DiscoveryService().run_manufacturer_discovery(
+        succeeded = DiscoveryService().run_manufacturer_discovery(
             manufacturer,
             scan_cidrs=False,
             scan_fqdns=True,
@@ -46,6 +47,8 @@ def test_incomplete_discovery_still_removes_proven_cross_vendor_conflicts() -> N
 
     plugin.add_discovery_ips.assert_not_called()
     plugin.remove_discovery_ips.assert_called_once_with(["192.0.2.75"])
+    assert succeeded.success is False
+    assert succeeded.sources_complete is False
 
 
 def test_manufacturer_discovery_aborts_before_vendor_writes_when_local_read_fails() -> None:
@@ -94,7 +97,7 @@ def test_manufacturer_discovery_suppresses_removals_when_dns_is_incomplete() -> 
             side_effect=socket.gaierror("resolver unavailable"),
         ),
     ):
-        DiscoveryService().run_manufacturer_discovery(
+        succeeded = DiscoveryService().run_manufacturer_discovery(
             manufacturer,
             scan_cidrs=False,
             scan_fqdns=True,
@@ -102,5 +105,98 @@ def test_manufacturer_discovery_suppresses_removals_when_dns_is_incomplete() -> 
         )
 
     plugin.get_discovery_ips.assert_called_once_with()
+    plugin.add_discovery_ips.assert_not_called()
+    plugin.remove_discovery_ips.assert_not_called()
+    assert succeeded.success is False
+
+
+def test_manufacturer_discovery_suppresses_removals_when_local_inventory_is_truncated() -> None:
+    """A hard local cap never turns unseen chassis into stale vendor candidates."""
+    manufacturer = ManufacturerFactory()
+    plugin = MagicMock()
+    plugin.get_discovery_ips.return_value = ["192.0.2.80", "192.0.2.81"]
+
+    with (
+        patch(
+            "micboard.services.sync.discovery_service.collect_local_candidates",
+            return_value=(["192.0.2.80"], False),
+        ),
+        patch(
+            "micboard.services.sync.discovery_service.prepare_scanning_data",
+            return_value=({}, {}, 0, True),
+        ),
+        patch(
+            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            return_value=plugin,
+        ),
+    ):
+        succeeded = DiscoveryService().run_manufacturer_discovery(
+            manufacturer,
+            scan_cidrs=False,
+            scan_fqdns=False,
+            max_hosts=16,
+        )
+
+    plugin.add_discovery_ips.assert_not_called()
+    plugin.remove_discovery_ips.assert_not_called()
+    assert succeeded.success is False
+    assert succeeded.sources_complete is False
+
+
+def test_manufacturer_discovery_marks_oversized_remote_state_incomplete() -> None:
+    """A truncated remote snapshot cannot authorize deletion or report success."""
+    manufacturer = ManufacturerFactory()
+    plugin = MagicMock()
+    plugin.get_discovery_ips.return_value = [
+        f"2001:db8:50::{index:x}" for index in range(MAX_DISCOVERY_CANDIDATES + 1)
+    ]
+
+    with (
+        patch(
+            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            return_value=plugin,
+        ),
+        patch.object(DiscoveryService, "_get_conflicting_ips", return_value=set()),
+    ):
+        succeeded = DiscoveryService().run_manufacturer_discovery(
+            manufacturer,
+            scan_cidrs=False,
+            scan_fqdns=False,
+            max_hosts=16,
+        )
+
+    assert succeeded.success is False
+    assert succeeded.remote_source_complete is False
+    plugin.add_discovery_ips.assert_not_called()
+    plugin.remove_discovery_ips.assert_not_called()
+
+
+def test_manufacturer_discovery_bounds_invalid_remote_iterable_before_filtering() -> None:
+    """Invalid vendor items cannot evade the raw response consumption limit."""
+    manufacturer = ManufacturerFactory()
+    plugin = MagicMock()
+    consumed = 0
+
+    def invalid_remote_items():
+        nonlocal consumed
+        for _index in range(MAX_DISCOVERY_CANDIDATES + 2):
+            consumed += 1
+            yield object()
+
+    plugin.get_discovery_ips.return_value = invalid_remote_items()
+    with patch(
+        "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+        return_value=plugin,
+    ):
+        succeeded = DiscoveryService().run_manufacturer_discovery(
+            manufacturer,
+            scan_cidrs=False,
+            scan_fqdns=False,
+            max_hosts=16,
+        )
+
+    assert succeeded.success is False
+    assert succeeded.remote_source_complete is False
+    assert consumed == MAX_DISCOVERY_CANDIDATES + 1
     plugin.add_discovery_ips.assert_not_called()
     plugin.remove_discovery_ips.assert_not_called()

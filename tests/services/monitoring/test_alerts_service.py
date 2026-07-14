@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth.models import AnonymousUser
 from django.template.loader import render_to_string
-from django.test import override_settings
 from django.utils import timezone
 
 import pytest
 
 from micboard.models.monitoring.alert import Alert
+from micboard.services.monitoring.alert_delivery_service import AlertDeliveryService
 from micboard.services.monitoring.alerts import (
     AlertManager,
     acknowledge_alert,
@@ -22,40 +21,11 @@ from micboard.services.monitoring.alerts import (
     resolve_alert,
 )
 from tests.factories.base import UserFactory
-from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
 from tests.factories.monitoring import (
     AlertFactory,
     PerformerAssignmentFactory,
     UserAlertPreferenceFactory,
 )
-
-
-@pytest.fixture
-def assigned_unit(db) -> SimpleNamespace:
-    """Create an assigned unit, RF channel, monitoring group, and user."""
-    with (
-        override_settings(TESTING=True),
-        patch(
-            "micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin",
-            return_value=None,
-        ),
-    ):
-        chassis = WirelessChassisFactory(max_channels=1)
-        channel = chassis.rf_channels.get(channel_number=1)
-        unit = WirelessUnitFactory(
-            base_chassis=chassis,
-            manufacturer=chassis.manufacturer,
-            assigned_resource=channel,
-            slot=1,
-        )
-
-    assignment = PerformerAssignmentFactory(
-        wireless_unit=unit,
-        alert_on_audio_low=True,
-    )
-    user = UserFactory()
-    assignment.monitoring_group.users.add(user)
-    return SimpleNamespace(unit=unit, assignment=assignment, user=user, channel=channel)
 
 
 @pytest.mark.django_db
@@ -80,7 +50,9 @@ def test_wireless_unit_checks_create_and_deduplicate_condition_alerts(assigned_u
     assigned_unit.unit.audio_level = -50
     manager = AlertManager()
 
-    with patch("micboard.services.monitoring.alerts.send_alert_email") as send_email:
+    with patch(
+        "micboard.services.monitoring.alert_delivery_service.send_alert_email"
+    ) as send_email:
         manager.check_wireless_unit_alerts(assigned_unit.unit)
         manager.check_wireless_unit_alerts(assigned_unit.unit)
 
@@ -107,13 +79,13 @@ def test_battery_preferences_select_low_alert_and_unknown_battery_is_ignored(
     assigned_unit.unit.battery = 38
     manager = AlertManager()
 
-    with patch("micboard.services.monitoring.alerts.send_alert_email"):
-        manager._check_battery_alerts(assigned_unit.unit, [assigned_unit.assignment])
+    with patch("micboard.services.monitoring.alert_delivery_service.send_alert_email"):
+        manager.check_wireless_unit_alerts(assigned_unit.unit)
     assert Alert.objects.get().alert_type == "battery_low"
 
     Alert.objects.all().delete()
     assigned_unit.unit.battery = 255
-    manager._check_battery_alerts(assigned_unit.unit, [assigned_unit.assignment])
+    manager.check_wireless_unit_alerts(assigned_unit.unit)
     assert not Alert.objects.exists()
 
 
@@ -167,7 +139,7 @@ def test_alert_checks_prefetch_assignments_users_and_preferences(
 
     with (
         django_assert_num_queries(3),
-        patch.object(manager, "_create_alert") as create_alert,
+        patch.object(AlertDeliveryService, "create_alert") as create_alert,
     ):
         manager.check_wireless_unit_alerts(assigned_unit.unit)
 
@@ -183,7 +155,7 @@ def test_offline_checks_notify_group_users_only_when_device_is_offline(assigned_
     assert not Alert.objects.exists()
 
     assigned_unit.unit.status = "offline"
-    with patch("micboard.services.monitoring.alerts.send_alert_email"):
+    with patch("micboard.services.monitoring.alert_delivery_service.send_alert_email"):
         manager.check_hardware_offline_alerts(assigned_unit.unit)
 
     alert = Alert.objects.get()
@@ -192,46 +164,11 @@ def test_offline_checks_notify_group_users_only_when_device_is_offline(assigned_
 
 
 @pytest.mark.django_db
-def test_create_alert_requires_channel_and_marks_email_failures(assigned_unit) -> None:
-    """Unassigned units are skipped and delivery failures remain visible."""
-    manager = AlertManager()
-    assigned_unit.unit.assigned_resource = None
-
-    assert (
-        manager._create_alert(
-            unit=assigned_unit.unit,
-            user=assigned_unit.user,
-            performer_assignment=assigned_unit.assignment,
-            alert_type="signal_loss",
-            message="No channel",
-        )
-        is None
-    )
-
-    assigned_unit.unit.assigned_resource = assigned_unit.channel
-    with patch(
-        "micboard.services.monitoring.alerts.send_alert_email",
-        side_effect=RuntimeError("mail unavailable"),
-    ):
-        alert = manager._create_alert(
-            unit=assigned_unit.unit,
-            user=assigned_unit.user,
-            performer_assignment=assigned_unit.assignment,
-            alert_type="signal_loss",
-            message="Signal lost",
-        )
-
-    assert alert is not None
-    alert.refresh_from_db()
-    assert alert.status == "failed"
-
-
-@pytest.mark.django_db
 def test_alert_wrappers_and_state_transitions(assigned_unit) -> None:
     """Public wrappers delegate and acknowledgement timestamps are persisted."""
     with (
         patch("micboard.services.monitoring.alerts.alert_manager") as manager,
-        patch("micboard.services.monitoring.alerts.send_alert_email"),
+        patch("micboard.services.monitoring.alert_delivery_service.send_alert_email"),
     ):
         check_transmitter_alerts(assigned_unit.unit)
         check_hardware_offline_alerts(assigned_unit.unit)

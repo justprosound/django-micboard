@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
@@ -9,7 +10,12 @@ from typing import Any, Self
 import httpx
 from httpx import RequestError, TimeoutException
 
+from micboard.services.common.network_limits import (
+    HTTP_RESPONSE_READ_CHUNK_BYTES,
+    HTTPClientLimits,
+)
 from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
+from micboard.utils.exception_logging import sanitized_exception_info
 
 from .circuit_breaker import CircuitBreaker, CircuitOpenError
 from .exceptions import APIError, APIRateLimitError
@@ -50,6 +56,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         self.retry_status_codes = config_dict.get(
             f"{prefix}_RETRY_STATUS_CODES", [429, 500, 502, 503, 504]
         )
+        self.http_limits = HTTPClientLimits.from_settings()
 
         self._last_successful_request: float | None = None
         self._consecutive_failures = 0
@@ -74,7 +81,14 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         except (TypeError, httpx.InvalidURL) as exc:
             raise ValueError(f"{prefix}_BASE_URL must be an absolute HTTPS URL") from exc
 
-        if parsed_url.scheme != "https" or not parsed_url.host:
+        if (
+            parsed_url.scheme != "https"
+            or not parsed_url.host
+            or parsed_url.username
+            or parsed_url.password
+            or parsed_url.query
+            or parsed_url.fragment
+        ):
             raise ValueError(f"{prefix}_BASE_URL must be an absolute HTTPS URL")
 
     @abstractmethod
@@ -117,7 +131,8 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
     def check_health(self) -> dict[str, Any]:
         try:
             endpoint = self._get_health_check_endpoint()
-            response = self.client.get(
+            response = self._send_bounded_request(
+                "GET",
                 f"{self.base_url}{endpoint}",
                 timeout=5,
             )
@@ -137,24 +152,27 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
                 details=details,
             )
 
-        except RequestError as e:
-            logger.exception("Health check request failed for %s", self.base_url)
+        except (APIError, RequestError) as exc:
+            logger.exception(
+                "Health check request failed for %s",
+                self._get_config_prefix(),
+                exc_info=sanitized_exception_info(exc),
+            )
             return self._standardize_health_response(
                 status="error",
-                error=f"Health check failed: {e}",
+                error=f"Health check failed ({type(exc).__name__}); details redacted.",
             )
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Any | None:
         url = f"{self.base_url}{endpoint}"
-        logger.debug("Making %s request to %s", method, url)
+        logger.debug("Making %s request for %s", method, self._get_config_prefix())
         kwargs.setdefault("timeout", self.timeout)
 
         if getattr(self, "_circuit", None) and not self._circuit.allow_request():
             logger.error(
-                "Circuit open for %s; failing fast for %s %s",
+                "Circuit open for %s; failing fast for %s request",
                 self._get_config_prefix(),
                 method,
-                url,
             )
             raise CircuitOpenError(f"Circuit open for {self._get_config_prefix()}")
 
@@ -162,45 +180,100 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         max_retries = retry_strategy["total"]
         retry_status_codes = set(retry_strategy["status_forcelist"])
 
-        for attempt in range(max_retries + 1):
+        attempt = 0
+        while True:
             try:
-                response = self.client.request(method, url, **kwargs)
+                response = self._send_bounded_request(method, url, **kwargs)
             except RequestError as exc:
                 self._record_request_failure()
                 if attempt < max_retries:
                     logger.exception(
-                        "API request failed; retrying attempt %d/%d: %s %s",
+                        "API request failed for %s; retrying attempt %d/%d: %s",
+                        self._get_config_prefix(),
                         attempt + 1,
                         max_retries,
                         method,
-                        url,
+                        exc_info=sanitized_exception_info(exc),
                     )
                     self._sleep_before_retry(attempt)
+                    attempt += 1
                     continue
 
                 api_exc = self.get_exception_class()
                 if isinstance(exc, TimeoutException):
-                    logger.exception("API timeout error: %s %s", method, url)
-                    raise api_exc(f"Timeout error for {url}", response=None) from exc
+                    logger.exception(
+                        "API timeout for %s %s request",
+                        self._get_config_prefix(),
+                        method,
+                        exc_info=sanitized_exception_info(exc),
+                    )
+                    raise api_exc("Timeout error; details redacted", response=None) from exc
 
-                logger.exception("API connection error: %s %s", method, url)
-                raise api_exc(f"Connection error to {url}", response=None) from exc
+                logger.exception(
+                    "API connection error for %s %s request",
+                    self._get_config_prefix(),
+                    method,
+                    exc_info=sanitized_exception_info(exc),
+                )
+                raise api_exc("Connection error; details redacted", response=None) from exc
+            except APIError:
+                raise
             except Exception as exc:
                 self._record_request_failure()
-                logger.exception("API request failed: %s %s", method, url)
+                logger.exception(
+                    "Unexpected API request failure for %s %s request",
+                    self._get_config_prefix(),
+                    method,
+                    exc_info=sanitized_exception_info(exc),
+                )
                 api_exc = self.get_exception_class()
-                raise api_exc(f"Unknown request error for {url}", response=None) from exc
+                raise api_exc("Unknown request error; details redacted", response=None) from exc
 
             if response.status_code in retry_status_codes and attempt < max_retries:
                 self._record_request_failure()
                 self._sleep_before_retry(attempt, response=response)
+                attempt += 1
                 continue
 
             # Keep response handling outside the request exception block. This preserves
             # canonical API/rate-limit exceptions raised by `_handle_response`.
             return self._handle_response(response, method, url)
 
-        raise RuntimeError("HTTP retry loop exited without returning or raising")
+    def _send_bounded_request(
+        self,
+        method: str,
+        url: str,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Read a successful decoded response under a strict byte ceiling."""
+        with self.client.stream(method, url, **kwargs) as response:
+            if response.status_code >= 400:
+                return response
+
+            content_length = response.headers.get("Content-Length")
+            if content_length is not None:
+                try:
+                    declared_length = int(content_length)
+                except ValueError:
+                    declared_length = 0
+                if declared_length > self.http_limits.max_response_bytes:
+                    self._raise_oversized_response(method)
+
+            chunks: list[bytes] = []
+            bytes_read = 0
+            for chunk in response.iter_bytes(chunk_size=HTTP_RESPONSE_READ_CHUNK_BYTES):
+                bytes_read += len(chunk)
+                if bytes_read > self.http_limits.max_response_bytes:
+                    self._raise_oversized_response(method)
+                chunks.append(chunk)
+
+            return httpx.Response(
+                status_code=response.status_code,
+                headers=response.headers,
+                content=b"".join(chunks),
+                request=response.request,
+                extensions=response.extensions,
+            )
 
     def _record_request_failure(self) -> None:
         """Record one failed transport attempt."""
@@ -209,8 +282,11 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         if getattr(self, "_circuit", None):
             try:
                 self._circuit.record_failure()
-            except Exception:
-                logger.exception("Circuit record_failure failed")
+            except Exception as exc:
+                logger.exception(
+                    "Circuit failure metric update failed",
+                    exc_info=sanitized_exception_info(exc),
+                )
 
     def _sleep_before_retry(
         self,
@@ -220,7 +296,18 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
     ) -> None:
         """Wait before a retry, honoring Retry-After when the server provides it."""
         retry_after = self._extract_retry_after(response) if response is not None else None
-        delay = float(retry_after) if retry_after is not None else self.retry_backoff * (2**attempt)
+        if retry_after is not None:
+            delay = float(retry_after)
+        else:
+            try:
+                retry_backoff = float(self.retry_backoff)
+            except (TypeError, ValueError):
+                retry_backoff = 0.0
+            if not math.isfinite(retry_backoff) or retry_backoff <= 0:
+                return
+            bounded_attempt = min(max(attempt, 0), 30)
+            delay = retry_backoff * (2**bounded_attempt)
+        delay = min(delay, self.http_limits.max_retry_delay_seconds)
         if delay > 0:
             time.sleep(delay)
 
@@ -232,27 +319,32 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
 
             if status == 429:
                 retry_after = self._extract_retry_after(response)
-                logger.error("API HTTP 429 rate limit: %s %s", method, url)
+                logger.error(
+                    "API HTTP 429 rate limit for %s %s request",
+                    self._get_config_prefix(),
+                    method,
+                )
                 rate_limit_exc = self.get_rate_limit_exception_class()
                 raise rate_limit_exc(
-                    message=f"Rate limit exceeded for {method} {url}",
+                    message=f"Rate limit exceeded for {method} request",
                     retry_after=retry_after,
                     response=response,
                 )
 
             logger.error(
-                "API HTTP error: %s %s - Status %s: %s",
+                "API HTTP error for %s %s request: status %s; body redacted",
+                self._get_config_prefix(),
                 method,
-                url,
                 status,
-                response.text[:200],
             )
             api_exc = self.get_exception_class()
             raise api_exc(
-                message=f"HTTP error for {method} {url}",
+                message=f"HTTP error for {method} request; response body redacted",
                 status_code=status,
                 response=response,
             ) from None
+
+        content = self._bounded_response_content(response, method=method)
 
         self._last_successful_request = time.time()
         self._consecutive_failures = 0
@@ -261,29 +353,73 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         if getattr(self, "_circuit", None):
             try:
                 self._circuit.record_success()
-            except Exception:
-                logger.exception("Circuit record_success failed")
+            except Exception as exc:
+                logger.exception(
+                    "Circuit success metric update failed",
+                    exc_info=sanitized_exception_info(exc),
+                )
 
         try:
-            result = response.json() if response.content else None
+            result = response.json() if content else None
         except JSONDecodeError as exc:
             self._record_request_failure()
-            logger.exception("Failed to parse JSON response from %s %s", method, url)
+            logger.exception(
+                "Failed to parse JSON response for %s %s request; body redacted",
+                self._get_config_prefix(),
+                method,
+                exc_info=sanitized_exception_info(exc),
+            )
             api_exc = self.get_exception_class()
             raise api_exc(
-                message=f"Invalid JSON response from {url}",
+                message="Invalid JSON API response; body redacted",
                 response=response,
             ) from exc
-        logger.debug("Request successful: %s %s", method, url)
+        logger.debug("Request successful for %s %s", self._get_config_prefix(), method)
         return result
+
+    def _bounded_response_content(self, response: httpx.Response, *, method: str) -> bytes:
+        """Reject a vendor response that exceeds the configured JSON byte budget."""
+        content_length = response.headers.get("Content-Length")
+        if content_length is not None:
+            try:
+                declared_length = int(content_length)
+            except ValueError:
+                declared_length = 0
+            if declared_length > self.http_limits.max_response_bytes:
+                self._raise_oversized_response(method)
+
+        content = response.content
+        if len(content) > self.http_limits.max_response_bytes:
+            self._raise_oversized_response(method)
+        return content
+
+    def _raise_oversized_response(self, method: str) -> None:
+        """Record and raise one secret-safe oversized-response failure."""
+        self._record_request_failure()
+        logger.error(
+            "API response exceeded the byte limit for %s %s request; body redacted",
+            self._get_config_prefix(),
+            method,
+        )
+        api_exc = self.get_exception_class()
+        raise api_exc(
+            message=f"API response exceeded byte limit for {method} request; body redacted",
+            response=None,
+        ) from None
 
     def _extract_retry_after(self, response: httpx.Response) -> int | None:
         try:
             retry_after_header = response.headers.get("Retry-After")
             if retry_after_header is not None:
-                return int(retry_after_header)
-        except ValueError:
-            logger.exception("Invalid Retry-After header in API response")
+                retry_after = int(retry_after_header)
+                if retry_after <= 0:
+                    return None
+                return min(retry_after, math.ceil(self.http_limits.max_retry_delay_seconds))
+        except ValueError as exc:
+            logger.exception(
+                "Invalid Retry-After header in API response; value redacted",
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
         return None
 

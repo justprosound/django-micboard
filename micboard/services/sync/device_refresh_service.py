@@ -4,6 +4,7 @@ import logging
 from contextlib import suppress
 
 from micboard.services.common.base.plugin import get_manufacturer_plugin
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +72,11 @@ class DeviceRefreshService:
             discovered.save()
             return True
 
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "Exception while refreshing discovered device %s",
                 getattr(discovered, "pk", None),
+                exc_info=sanitized_exception_info(exc),
             )
             return False
 
@@ -121,8 +123,12 @@ class DeviceRefreshService:
         try:
             if hasattr(plugin, "transform_device_data"):
                 return plugin.transform_device_data(device_data)
-        except Exception:
-            logger.exception("Error transforming device data for %s", discovered.ip)
+        except Exception as exc:
+            logger.exception(
+                "Error transforming discovered device %s",
+                getattr(discovered, "pk", None),
+                exc_info=sanitized_exception_info(exc),
+            )
         return None
 
     def _apply_transformed_to_discovered(self, discovered, transformed, device_data) -> None:

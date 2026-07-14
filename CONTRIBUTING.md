@@ -50,8 +50,8 @@ uv run --no-sync pytest -m unit
 uv run --no-sync pytest -m integration
 ```
 
-CI enforces the current **49%** non-regression floor while coverage is ratcheted toward the
-documented 60% target.
+CI enforces a **95% branch-coverage** non-regression floor across every distributable Python
+module. Run `just coverage` before opening a pull request.
 
 ### Model Factories
 

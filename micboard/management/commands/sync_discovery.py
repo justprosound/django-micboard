@@ -8,8 +8,13 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 
+from micboard.discovery.limits import (
+    DEFAULT_DISCOVERY_CANDIDATE_LIMIT,
+    MAX_DISCOVERY_CANDIDATES,
+    clamp_candidate_limit,
+)
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.tasks.sync.discovery import run_discovery_sync_task
+from micboard.services.sync.discovery_sync_service import DiscoverySyncService
 
 
 class Command(BaseCommand):
@@ -36,15 +41,21 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-hosts",
             type=int,
-            default=1024,
-            help="Maximum number of hosts to scan per CIDR (default: 1024)",
+            default=DEFAULT_DISCOVERY_CANDIDATE_LIMIT,
+            help=(
+                "Maximum total discovery candidates per synchronization "
+                f"(default: {DEFAULT_DISCOVERY_CANDIDATE_LIMIT}; "
+                f"hard limit: {MAX_DISCOVERY_CANDIDATES})"
+            ),
         )
 
     def handle(self, *args, **options):
         manufacturer_code = options.get("manufacturer")
         scan_cidrs = options.get("scan_cidrs", False)
         scan_fqdns = options.get("scan_fqdns", False)
-        max_hosts = options.get("max_hosts", 1024)
+        max_hosts = clamp_candidate_limit(
+            options.get("max_hosts", DEFAULT_DISCOVERY_CANDIDATE_LIMIT)
+        )
 
         if manufacturer_code:
             try:
@@ -69,15 +80,14 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"  Scan CIDRs: {scan_cidrs}")
         self.stdout.write(f"  Scan FQDNs: {scan_fqdns}")
-        self.stdout.write(f"  Max hosts per CIDR: {max_hosts}")
+        self.stdout.write(f"  Max candidates per sync: {max_hosts}")
         self.stdout.write("")
 
         for manufacturer in manufacturers:
             self.stdout.write(f"Processing {manufacturer.name} ({manufacturer.code})...")
 
-            # Run the discovery sync task
-            result = run_discovery_sync_task(
-                manufacturer_id=manufacturer.id,
+            result = DiscoverySyncService().run(
+                manufacturer.id,
                 add_cidrs=None,
                 add_fqdns=None,
                 scan_cidrs=scan_cidrs,

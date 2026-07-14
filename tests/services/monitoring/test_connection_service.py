@@ -6,13 +6,11 @@ import asyncio
 from datetime import timedelta
 from unittest.mock import patch
 
-from django.http import HttpRequest, HttpResponse
 from django.test import override_settings
 from django.utils import timezone
 
 import pytest
 
-from micboard.middleware import ConnectionHealthMiddleware
 from micboard.services.monitoring.connection import ConnectionHealthService
 from tests.async_utils import run_async_with_heartbeat
 from tests.factories.discovery import ManufacturerFactory
@@ -112,33 +110,6 @@ def test_health_checks_and_unhealthy_query_cover_missing_or_stale_heartbeats() -
 
     assert unhealthy == {stale, missing}
     assert set(ConnectionHealthService.get_active_connections()) == {healthy, stale, missing}
-
-
-@pytest.mark.django_db
-def test_connection_health_middleware_has_constant_relation_loading(
-    django_assert_num_queries,
-) -> None:
-    """API health checks load unhealthy chassis manufacturers in one query."""
-    RealTimeConnectionFactory(
-        status="connected",
-        last_message_at=None,
-    )
-    RealTimeConnectionFactory(
-        status="connected",
-        last_message_at=timezone.now() - timedelta(minutes=5),
-    )
-    request = HttpRequest()
-    request.path = "/api/status/"
-    middleware = ConnectionHealthMiddleware(lambda _request: HttpResponse())
-
-    with django_assert_num_queries(1):
-        middleware.process_request(request)
-
-    assert len(request.unhealthy_connections) == 2  # type: ignore[attr-defined]
-    assert all(
-        connection.chassis.manufacturer.code
-        for connection in request.unhealthy_connections  # type: ignore[attr-defined]
-    )
 
 
 @pytest.mark.django_db

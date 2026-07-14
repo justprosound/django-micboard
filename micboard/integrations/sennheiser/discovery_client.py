@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import logging
+from itertools import islice
 
+from micboard.discovery.limits import MAX_DISCOVERY_CANDIDATES
 from micboard.services.common.base.client import BaseAPIClient
 from micboard.services.common.base.rate_limiter import rate_limit
 from micboard.services.common.base.utils import validate_ipv4_list
+from micboard.utils.exception_logging import sanitized_exception_info
 
 from .exceptions import SennheiserAPIError
 
@@ -25,7 +28,11 @@ class SennheiserDiscoveryClient:
         Placeholder - SSCv2 discovery endpoints need to be verified.
         """
         try:
-            valid_ips = validate_ipv4_list(ips, "add_discovery_ips")
+            bounded_inputs = list(islice(iter(ips), MAX_DISCOVERY_CANDIDATES + 1))
+            if len(bounded_inputs) > MAX_DISCOVERY_CANDIDATES:
+                logger.warning("Discovery add request exceeded the hard limit")
+                return False
+            valid_ips = validate_ipv4_list(bounded_inputs, "add_discovery_ips")
             if not valid_ips:
                 logger.warning("No valid IPs provided to add_discovery_ips")
                 return False
@@ -34,8 +41,12 @@ class SennheiserDiscoveryClient:
                 "PUT", "/api/config/discovery/ips", json={"ips": valid_ips}
             )
             return True
-        except SennheiserAPIError:
-            logger.exception("Failed to add discovery IPs: %s", ips)
+        except SennheiserAPIError as exc:
+            logger.error(
+                "Failed to add %d discovery IPs",
+                len(ips),
+                exc_info=sanitized_exception_info(exc),
+            )
             return False
 
     @rate_limit(calls_per_second=1.0)
@@ -56,15 +67,22 @@ class SennheiserDiscoveryClient:
                     )
                     return []
             return []
-        except SennheiserAPIError:
-            logger.exception("Failed to fetch discovery IPs")
+        except SennheiserAPIError as exc:
+            logger.error(
+                "Failed to fetch discovery IPs",
+                exc_info=sanitized_exception_info(exc),
+            )
             return []
 
     @rate_limit(calls_per_second=1.0)
     def remove_discovery_ips(self, ips: list[str]) -> bool:
         """Remove IP addresses from the Sennheiser SSCv2 API manual discovery list."""
         try:
-            valid_ips = validate_ipv4_list(ips, "remove_discovery_ips")
+            bounded_inputs = list(islice(iter(ips), MAX_DISCOVERY_CANDIDATES + 1))
+            if len(bounded_inputs) > MAX_DISCOVERY_CANDIDATES:
+                logger.warning("Discovery removal request exceeded the hard limit")
+                return False
+            valid_ips = validate_ipv4_list(bounded_inputs, "remove_discovery_ips")
             if not valid_ips:
                 logger.warning("No valid IPs provided to remove_discovery_ips")
                 return False
@@ -73,6 +91,10 @@ class SennheiserDiscoveryClient:
                 "DELETE", "/api/config/discovery/ips", json={"ips": valid_ips}
             )
             return True
-        except SennheiserAPIError:
-            logger.exception("Failed to remove discovery IPs: %s", ips)
+        except SennheiserAPIError as exc:
+            logger.error(
+                "Failed to remove %d discovery IPs",
+                len(ips),
+                exc_info=sanitized_exception_info(exc),
+            )
             return False

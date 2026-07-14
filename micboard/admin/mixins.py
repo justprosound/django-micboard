@@ -260,6 +260,42 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 
+class TenantScopedAdminInlineMixin:
+    """Apply the shared tenant boundary to editable inline relationships."""
+
+    @staticmethod
+    def _scope_queryset_for_user(queryset: Any, *, user: Any) -> Any:
+        return MicboardModelAdmin._scope_queryset_for_user(queryset, user=user)
+
+    def _scope_related_queryset(
+        self,
+        db_field: Any,
+        request: Any,
+        kwargs: dict[str, Any],
+    ) -> None:
+        MicboardModelAdmin._scope_related_queryset(self, db_field, request, kwargs)  # type: ignore[arg-type]
+
+    def formfield_for_foreignkey(
+        self,
+        db_field: Any,
+        request: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Build an inline foreign-key widget without cross-tenant choices."""
+        self._scope_related_queryset(db_field, request, kwargs)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)  # type: ignore[misc]
+
+    def formfield_for_manytomany(
+        self,
+        db_field: Any,
+        request: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Build an inline many-to-many widget without cross-tenant choices."""
+        self._scope_related_queryset(db_field, request, kwargs)
+        return super().formfield_for_manytomany(db_field, request, **kwargs)  # type: ignore[misc]
+
+
 class MicboardSortableAdmin(BaseSortableAdmin, MicboardModelAdmin):
     """Sortable version of MicboardModelAdmin."""
 

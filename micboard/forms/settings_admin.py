@@ -174,8 +174,11 @@ class SettingValueForm(ModelForm):
         if definition and value:
             try:
                 definition.parse_value(value)
-            except Exception as exc:
-                self.add_error("value", f"Invalid value for type {definition.setting_type}: {exc}")
+            except Exception:
+                self.add_error(
+                    "value",
+                    f"Invalid value for type {definition.setting_type}; details redacted.",
+                )
 
         selected_scope = {
             "organization_id": cleaned_data.get("organization_id"),

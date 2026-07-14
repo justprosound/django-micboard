@@ -73,16 +73,7 @@ def has_regulatory_coverage(channel: RFChannel) -> bool:
     if not domain or not channel.frequency:
         return False
 
-    if domain.min_frequency_mhz <= channel.frequency <= domain.max_frequency_mhz:
-        return True
-
-    from micboard.models.rf_coordination.compliance import FrequencyBand
-
-    return FrequencyBand.objects.filter(
-        regulatory_domain=domain,
-        start_frequency_mhz__lte=channel.frequency,
-        end_frequency_mhz__gte=channel.frequency,
-    ).exists()
+    return domain.min_frequency_mhz <= channel.frequency <= domain.max_frequency_mhz
 
 
 def get_needs_regulatory_update(channel: RFChannel) -> bool:

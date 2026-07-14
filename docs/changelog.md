@@ -16,10 +16,11 @@ All notable changes to django-micboard are documented here.
 - **Real-Time Subscription Tasks** - SSE tasks for Sennheiser, WebSocket tasks for Shure
 - **Management Commands** - `realtime_status` command for connection monitoring
 - **Admin Interface Enhancements** - Real-time connection monitoring with color-coded status
-- **Automatic Subscription Startup** - Real-time subscriptions start automatically after polling
+- **Explicit Subscription Startup** - Foreground commands and native Huey entrypoints start
+  real-time supervisors independently from polling
 
 ### Changed
-- **Polling Integration** - `poll_devices` now starts real-time subscriptions after polling completes
+- **Polling Separation** - `poll_devices` remains one-shot and never starts subscription supervisors
 - **Architecture Documentation** - Updated to reflect real-time connection management
 - **Test Suite** - Added tests for real-time connection functionality
 

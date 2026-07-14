@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from django.db.models import Prefetch
+from django.db.models import Case, IntegerField, Prefetch, Value, When
 
 from micboard.models.hardware.charger import ChargerSlot
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.hardware.wireless_unit_service import get_battery_percentage
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +111,12 @@ class ChargerAssignmentService:
         except WirelessUnit.DoesNotExist:
             logger.warning("WirelessUnit not found for serial %s", slot.device_serial)
             return None
-        except Exception as e:
-            logger.exception("Error getting performer for slot %s: %s", slot.id, e)
+        except Exception as exc:
+            logger.exception(
+                "Error getting performer for slot %s",
+                slot.id,
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
     @staticmethod
@@ -223,6 +228,18 @@ class ChargerAssignmentService:
             PerformerAssignment.objects.for_user(user=user)
             .filter(wireless_unit_id__in=unit_ids, is_active=True)
             .select_related("performer")
+            .order_by(
+                "wireless_unit_id",
+                Case(
+                    When(priority="critical", then=Value(0)),
+                    When(priority="high", then=Value(1)),
+                    When(priority="normal", then=Value(2)),
+                    When(priority="low", then=Value(3)),
+                    default=Value(4),
+                    output_field=IntegerField(),
+                ),
+                "-updated_at",
+            )
         )
         for assignment in assignments:
             assignments_by_unit.setdefault(assignment.wireless_unit_id, assignment)
@@ -359,49 +376,3 @@ class ChargerAssignmentService:
             },
             "sections": sections_data,
         }
-
-    @staticmethod
-    def assign_charger_to_section(charger_id: int, section_id: int) -> bool:
-        """Assign a charger to a wall section.
-
-        Args:
-            charger_id: Charger model ID
-            section_id: WallSection model ID
-
-        Returns:
-            True if successful, False otherwise
-        """
-        from micboard.models.hardware.charger import Charger
-        from micboard.models.hardware.display_wall import WallSection
-
-        try:
-            charger = Charger.objects.get(id=charger_id)
-            section = WallSection.objects.get(id=section_id)
-            section.chargers.add(charger)
-            logger.info("Assigned charger %s to section %s", charger_id, section_id)
-            return True
-        except (Charger.DoesNotExist, WallSection.DoesNotExist) as e:
-            logger.warning("Error assigning charger to section: %s", e)
-            return False
-
-    @staticmethod
-    def remove_charger_from_section(charger_id: int, section_id: int) -> bool:
-        """Remove a charger from a wall section.
-
-        Args:
-            charger_id: Charger model ID
-            section_id: WallSection model ID
-
-        Returns:
-            True if successful, False otherwise
-        """
-        from micboard.models.hardware.display_wall import WallSection
-
-        try:
-            section = WallSection.objects.get(id=section_id)
-            section.chargers.remove(charger_id)
-            logger.info("Removed charger %s from section %s", charger_id, section_id)
-            return True
-        except WallSection.DoesNotExist:
-            logger.warning("Section %s not found", section_id)
-            return False

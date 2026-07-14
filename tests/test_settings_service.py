@@ -163,8 +163,8 @@ class MicboardAppConfigTests(TestCase):
                 side_effect=register_lifecycle,
             ) as register_lifecycle_mock,
             patch("django.core.checks.register"),
-            patch.object(app_config, "_register_security_middleware"),
-            patch.object(app_config, "_register_context_processors"),
+            patch.object(app_config, "_recommend_security_middleware"),
+            patch.object(app_config, "_recommend_context_processors"),
             patch.object(app_config, "_register_background_tasks"),
         ):
             app_config.ready()

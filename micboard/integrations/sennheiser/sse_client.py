@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Protocol
 
 import httpx
 from asgiref.sync import sync_to_async
+
+from micboard.services.common.network_limits import (
+    SSE_READ_CHUNK_BYTES,
+    SSEStreamLimits,
+)
 
 from .exceptions import SennheiserAPIError
 
@@ -80,16 +85,16 @@ async def connect_and_subscribe(
                 )
                 return
 
-            async for line in stream_response.aiter_lines():
-                if not line.startswith("data: "):
-                    continue
-
-                data_str = line[6:]
-                try:
-                    data = json.loads(data_str)
-                    await callback(data)
-                except json.JSONDecodeError:
-                    logger.debug("Invalid JSON in SSE event data")
+            limits = SSEStreamLimits.from_settings()
+            async for line in _iter_bounded_sse_lines(
+                stream_response,
+                max_line_bytes=limits.max_line_bytes,
+            ):
+                await _dispatch_sse_event(
+                    line,
+                    callback=callback,
+                    max_event_bytes=limits.max_event_bytes,
+                )
 
     except SennheiserAPIError:
         logger.exception("Sennheiser event subscription failed")
@@ -97,3 +102,62 @@ async def connect_and_subscribe(
     except Exception:
         logger.exception("Sennheiser event subscription failed")
         raise SennheiserAPIError("Sennheiser event subscription failed") from None
+
+
+async def _iter_bounded_sse_lines(
+    response: httpx.Response,
+    *,
+    max_line_bytes: int,
+) -> AsyncIterator[bytes]:
+    """Yield SSE lines without retaining an over-limit vendor-controlled line."""
+    line_buffer = bytearray()
+    discarding_line = False
+
+    async for chunk in response.aiter_bytes(chunk_size=SSE_READ_CHUNK_BYTES):
+        segments = chunk.split(b"\n")
+        for index, segment in enumerate(segments):
+            line_complete = index < len(segments) - 1
+            if not discarding_line:
+                if len(line_buffer) + len(segment) > max_line_bytes:
+                    line_buffer.clear()
+                    discarding_line = True
+                else:
+                    line_buffer.extend(segment)
+
+            if not line_complete:
+                continue
+
+            if discarding_line:
+                logger.warning("Discarded SSE line that exceeded the byte limit")
+            else:
+                line = bytes(line_buffer)
+                yield line[:-1] if line.endswith(b"\r") else line
+            line_buffer.clear()
+            discarding_line = False
+
+    if discarding_line:
+        logger.warning("Discarded SSE line that exceeded the byte limit")
+    elif line_buffer:
+        line = bytes(line_buffer)
+        yield line[:-1] if line.endswith(b"\r") else line
+
+
+async def _dispatch_sse_event(
+    line: bytes,
+    *,
+    callback: Callable[[dict[str, Any]], Awaitable[None]],
+    max_event_bytes: int,
+) -> None:
+    """Decode and dispatch one bounded single-line SSE data event."""
+    if not line.startswith(b"data: "):
+        return
+
+    event_data = line[6:]
+    if len(event_data) > max_event_bytes:
+        logger.warning("Discarded SSE event data that exceeded the byte limit")
+        return
+    try:
+        data = json.loads(event_data)
+        await callback(data)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.debug("Invalid JSON in SSE event data")

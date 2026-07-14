@@ -196,7 +196,9 @@ class ManufacturerPlugin(ABC):
 
 The Django admin includes a "Hardware Layout Overview" to provide a compact, hardware-first view of receivers grouped by manufacturer and location. It focuses on the mapping Receiver -> Channel -> Frequency and optionally the assigned user. This view is useful for site technicians to quickly confirm physical configurations.
 
-API health is aggregated per-manufacturer and surfaced in the public UI as a footer indicator; each plugin exposes a `check_health()` method and the application aggregates these results via a context processor to show overall and per-manufacturer statuses.
+API health is probed by native Huey tasks and surfaced in the public UI as a footer indicator.
+The context processor reads a bounded aggregate from cache, falling back to the latest persisted
+per-manufacturer health logs; public request rendering never performs manufacturer network I/O.
 
 ### 5. Views and API Endpoints
 
@@ -225,7 +227,8 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 **Device Polling** (`poll_devices`):
 - Poll manufacturer APIs for device data
 - Update models and broadcast via WebSocket
-- Start real-time subscriptions after queued polling
+- Evaluate a hard-bounded set of alert-eligible wireless units
+- Never start or enqueue real-time subscription supervisors
 - Support for async execution with native Huey
 
 ### 6. Admin Interface
@@ -274,14 +277,15 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 
 ### Real-time Updates (WebSocket + SSE)
 ```
-1. poll_devices --async enqueues manufacturer polling
-2. After polling completes, start real-time subscriptions:
-   a. For Shure: Start WebSocket subscriptions
-   b. For Sennheiser: Start SSE subscriptions
-3. RealTimeConnection models track subscription status
-4. Health monitoring tasks check connection health
-5. Updates broadcast via WebSocket to connected clients
-6. Automatic reconnection on failures
+1. The host explicitly launches a foreground command or native Huey task entrypoint:
+   a. For Shure: start the WebSocket supervisor
+   b. For Sennheiser: start the SSE supervisor
+2. A process-shared cache lease permits one supervisor per transport/manufacturer
+3. Hard device and concurrency limits bound subscription work
+4. RealTimeConnection models track subscription status
+5. Health monitoring tasks check connection health
+6. Updates broadcast via WebSocket to connected clients
+7. Polling runs independently and never starts supervisors
 ```
 
 ### API Request Flow

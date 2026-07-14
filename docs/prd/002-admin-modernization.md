@@ -5,7 +5,9 @@
 
 ## Summary
 
-The `micboard/admin/dashboard.py` monolith (2,431 lines, ~50+ HTMX views) has been **fully decomposed** into per-domain admin modules. No further extraction is needed — the remaining `dashboard.py` (399 lines) contains only 3 cross-cutting dashboard views.
+The `micboard/admin/dashboard.py` monolith (2,431 lines, ~50+ HTMX views) was fully decomposed into
+reachable per-domain admin modules. The final three legacy dashboard views and the unregistered
+gap-analysis admin were removed on 2026-07-14 after a route audit confirmed neither was reachable.
 
 ## What Was Done
 
@@ -20,7 +22,7 @@ The monolithic `dashboard.py` views were extracted into existing per-domain admi
 | Manufacturer configuration | `configuration.py` | Done |
 | Monitoring & alerts | `monitoring.py` | Done |
 | Settings | `settings.py` | Done |
-| Gap analysis | `gap_analysis.py` | Done |
+| Gap analysis | Removed | Unregistered and unreachable |
 | Admin URL config | Per-module `get_urls()` | Done |
 
 ## Remaining Technical Debt
@@ -32,7 +34,7 @@ Two admin modules slightly exceed the 400-line guideline:
 
 ## Success Metrics
 
-- `dashboard.py`: 2,431 → 399 lines (✅ routing hub, 3 views)
+- `dashboard.py`: 2,431 lines → removed after all reachable views moved to domain modules
 - All per-domain admin modules ≤542 lines (⬇️ trending toward ≤400)
 - No `admin_urls.py` needed — URLs are per-module via `get_urls()`
 - `uv run ruff check .` and `uv run pytest` pass

@@ -11,7 +11,6 @@ import httpx
 import pytest
 
 import micboard.integrations.shure.websocket as shure_websocket_module
-import micboard.management.commands.diagnostic_api_test as diagnostic_api_test_module
 import micboard.services.maintenance.efis_import as efis_import_module
 from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
 from micboard.integrations.shure.client import ShureSystemAPIClient
@@ -93,32 +92,6 @@ def test_shure_client_rejects_cleartext_websocket_url(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="SHURE_API_WEBSOCKET_URL must be an absolute WSS URL"):
         ShureSystemAPIClient(base_url="https://shure.test")
-
-
-def test_diagnostic_client_does_not_log_shared_key(monkeypatch, caplog) -> None:
-    """The diagnostic command reports configuration without exposing credential fragments."""
-    private_key = "private-shared-key"
-    client = MagicMock()
-    monkeypatch.setattr(
-        diagnostic_api_test_module,
-        "ShureSystemAPIClient",
-        MagicMock(return_value=client),
-    )
-    monkeypatch.setattr(
-        diagnostic_api_test_module.django_settings,
-        "MICBOARD_CONFIG",
-        {},
-        raising=False,
-    )
-
-    with caplog.at_level(logging.INFO, logger=diagnostic_api_test_module.__name__):
-        initialized = diagnostic_api_test_module.ShureAPITester(
-            shared_key=private_key
-        ).initialize_client()
-
-    assert initialized is True
-    assert private_key not in caplog.text
-    assert private_key[-4:] not in caplog.text
 
 
 def test_resilient_session_uses_httpx_certificate_verification_defaults(monkeypatch) -> None:

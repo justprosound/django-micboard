@@ -22,20 +22,17 @@ than hard-coding paths.
 
 ## Service-Layer Queries
 
-Host-project views can build their own API using the typed service layer:
+Host-project views can build their own API using user-scoped model managers:
 
 ```python
-from micboard.services.core.hardware_query import HardwareQueryService
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-chassis = HardwareQueryService.get_active_chassis(
-    organization_id=organization_id,
-    campus_id=campus_id,
-)
+chassis = WirelessChassis.objects.for_user(user=request.user).active()
 payload = list(chassis.values("id", "name", "status"))
 ```
 
 Apply authentication, authorization, pagination, throttling, and serialization in the host
-project. Do not expose an unscoped queryset directly.
+project. Keep the authenticated `for_user()` scope on every request-facing queryset.
 
 ## WebSocket API
 

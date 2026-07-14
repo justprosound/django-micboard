@@ -46,7 +46,7 @@ This violates the single-responsibility principle. Models should define data str
 5. **The service layer already has candidates for hosting extracted logic:**
    - `services/core/hardware_lifecycle.py` (381L) — extend for WirelessChassis lifecycle
    - `services/core/hardware.py` (534L) — extend for WirelessChassis CRUD orchestration
-   - `services/sync/discovery_candidates_service.py` (321L) — extend for DiscoveredDevice logic
+   - `services/sync/discovery_sync_service.py` — orchestrates claimed discovery synchronization
 
 ## Consequences
 

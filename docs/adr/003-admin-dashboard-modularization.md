@@ -18,7 +18,7 @@ The original dashboard.py views were distributed to per-domain modules:
 
 | Concern | Destination | Notes |
 |---|---|---|
-| Dashboard overview | `dashboard.py` | 3 cross-cutting views retained |
+| Dashboard overview | Removed | Retained views were never registered and exposed global data |
 | Chassis management | `receivers.py` | WirelessChassisAdmin |
 | Wireless unit CRUD | `channels.py` | RFChannelAdmin, WirelessUnitAdmin |
 | Discovery queue | `discovery_admin.py` | DiscoveryQueueAdmin |
@@ -26,12 +26,15 @@ The original dashboard.py views were distributed to per-domain modules:
 | Manufacturer config | `configuration.py` | ManufacturerConfigurationAdmin |
 | Monitoring/alerts | `monitoring.py` | DiscoveredDeviceAdmin, etc. |
 | Settings | `settings.py` | SettingDefinitionAdmin |
-| Gap analysis | `gap_analysis.py` | HardwareGapAnalysisAdmin |
+| Gap analysis | Removed | The admin class and standalone view were never registered |
 
 No backward-compat shims were introduced (per AGENTS.md policy).
 
 ## Consequences
 
 - **Positive:** Each module independently navigable and testable. Merge conflicts reduced.
-- **Positive:** `dashboard.py` reduced from 2,431 to 399 lines.
+- **Positive:** The reachable admin surface is entirely domain-owned.
 - **Known:** `configuration.py` (~240 lines), `receivers.py` (~432 lines) remain slightly over or near the 400-line target.
+- **Cleanup (2026-07-14):** Removed the unreachable dashboard and gap-analysis modules, their
+  template, DTOs, and tests. Neither module was imported, registered, or routed; retaining them
+  would have preserved global unscoped data views as latent security hazards.

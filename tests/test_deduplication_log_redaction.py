@@ -23,6 +23,7 @@ def _manufacturer(*, code: str = "test-vendor", pk: int = 7) -> MagicMock:
     manufacturer = MagicMock(spec=Manufacturer)
     manufacturer.code = code
     manufacturer.id = pk
+    manufacturer.pk = pk
     return manufacturer
 
 
@@ -33,6 +34,7 @@ def _existing_chassis() -> MagicMock:
     chassis.mac_address = "00:11:22:33:44:55"
     chassis.serial_number = "SERIAL-OLD"
     chassis.manufacturer = _manufacturer(code="existing-vendor", pk=8)
+    chassis.manufacturer_id = 8
     return chassis
 
 
@@ -110,6 +112,8 @@ def test_serial_move_log_excludes_serial_and_ip_addresses(
 ) -> None:
     manufacturer = _manufacturer()
     existing = _existing_chassis()
+    existing.manufacturer = manufacturer
+    existing.manufacturer_id = manufacturer.pk
 
     with (
         patch.object(WirelessChassis.objects, "get", return_value=existing),
@@ -160,6 +164,8 @@ def test_mac_move_log_excludes_network_identifiers(
 ) -> None:
     manufacturer = _manufacturer()
     existing = _existing_chassis()
+    existing.manufacturer = manufacturer
+    existing.manufacturer_id = manufacturer.pk
 
     with (
         patch.object(WirelessChassis.objects, "get", return_value=existing),

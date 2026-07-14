@@ -32,7 +32,7 @@ class APIRateLimitError(APIError):
     ):
         super().__init__(message, status_code=429, response=response)
         self.retry_after = retry_after
-        if response and "Retry-After" in response.headers:
+        if self.retry_after is None and response and "Retry-After" in response.headers:
             with suppress(ValueError, TypeError):
                 self.retry_after = int(response.headers["Retry-After"])
 

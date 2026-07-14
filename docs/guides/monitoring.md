@@ -52,6 +52,35 @@ uv run --no-sync python manage.py poll_devices --manufacturer shure --async
 
 Use your deployment scheduler to enqueue the one-shot command at the required interval.
 
+After a manufacturer poll, Micboard evaluates alerts for active assigned wireless units in primary
+key order. `MICBOARD_POLL_ALERT_MAX_UNITS` limits each scan (default: 100, hard maximum: 500).
+Three additional top-level Django settings bound fanout within that scan:
+`MICBOARD_POLL_ALERT_MAX_ASSIGNMENTS` (default: 100, hard maximum: 500),
+`MICBOARD_POLL_ALERT_MAX_RECIPIENTS` (default: 250, hard maximum: 1,000), and
+`MICBOARD_POLL_ALERT_MAX_DELIVERIES` (default: 250, hard maximum: 1,000). Micboard rotates shared
+cache cursors through bounded pages so later units, assignments, and recipients are not permanently
+starved. Inactive assignments, monitoring groups, and users are excluded. Recipient membership and
+tenant scope are revalidated immediately before alert persistence and again before email delivery,
+so deactivation or reassignment during a poll fails closed. A cache outage falls back to the first
+bounded page and never disables alert evaluation.
+
+Polling does not start realtime subscription supervisors. Launch the appropriate supervisor as a
+separate foreground process:
+
+```bash
+# Shure
+uv run --no-sync python manage.py websocket_subscribe
+
+# Sennheiser
+uv run --no-sync python manage.py sse_subscribe --manufacturer sennheiser
+```
+
+Hosts that schedule through native Huey should explicitly enqueue the registered
+`start_shure_websocket_subscriptions` or `start_sse_subscriptions` entrypoint once. Multi-process
+deployments require a process-shared Django cache for the singleton lease. A stopped or crashed
+supervisor may take up to 60 seconds to become eligible for restart. See
+[Real-time Updates](realtime-updates.md#running-subscription-supervisors) for limits and settings.
+
 ### Health Monitoring
 
 Monitor connection health and detect issues:
@@ -92,35 +121,29 @@ Assign devices to specific users:
 
 ```python
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.core.performer_assignment_dtos import CreatePerformerAssignment
 
 # Assign a wireless unit to a performer
 assignment = PerformerAssignmentService.create_assignment(
-    performer_id=performer.id,
-    unit_id=wireless_unit.id,
-    group_id=monitoring_group.id,
+    command=CreatePerformerAssignment(
+        performer_id=performer.id,
+        unit_id=wireless_unit.id,
+        group_id=monitoring_group.id,
+        alert_on_battery_low=True,
+    ),
     user=user,
-    alert_on_battery_low=True,
 )
 ```
 
 ### Location Tracking
 
-Track devices by location:
+Read locations through the authenticated monitoring scope. Create, update, and assign locations
+through the permission-checked Django admin:
 
 ```python
-from micboard.services.core.location import LocationService
-from micboard.models.locations.structure import Building
+from micboard.services.monitoring.monitoring_access import MonitoringService
 
-# Create location
-building = Building.objects.get(name="Venue")
-location = LocationService.create_location(
-    building=building,
-    name="Main Stage",
-    description="Primary performance area",
-)
-
-# Assign device to location
-LocationService.assign_device_to_location(device=device, location=location)
+locations = MonitoringService.get_accessible_locations(request.user)
 ```
 
 ## Troubleshooting

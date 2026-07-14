@@ -5,11 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from functools import partial
-from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
-
-from django.core.management import call_command
 
 import httpx
 import pytest
@@ -21,8 +18,6 @@ from micboard.integrations.sennheiser.plugin import SennheiserPlugin
 from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.integrations.shure.exceptions import ShureAPIError, ShureAPIRateLimitError
 from micboard.integrations.shure.plugin import ShurePlugin
-from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.registry import DiscoveredDevice
 from micboard.services.common.base.plugin import ManufacturerPlugin
 from micboard.services.settings.settings_service import settings as app_settings
 
@@ -96,7 +91,7 @@ def test_shure_client_configures_httpx_digest_auth_and_request(monkeypatch) -> N
             request=httpx.Request("GET", "https://shure.test/api/v1/devices"),
         )
         request = Mock(return_value=response)
-        monkeypatch.setattr(client.client, "request", request)
+        monkeypatch.setattr(client, "_send_bounded_request", request)
 
         assert client._make_request("GET", "/api/v1/devices") == {"status": "ok"}
         assert "verify" not in request.call_args.kwargs
@@ -119,7 +114,7 @@ def test_shure_client_preserves_rate_limit_exception(monkeypatch) -> None:
             headers={"Retry-After": "7"},
             request=httpx.Request("GET", "https://shure.test/api/v1/devices"),
         )
-        monkeypatch.setattr(client.client, "request", Mock(return_value=response))
+        monkeypatch.setattr(client, "_send_bounded_request", Mock(return_value=response))
 
         with pytest.raises(ShureAPIRateLimitError) as exc_info:
             client._make_request("GET", "/api/v1/devices")
@@ -159,7 +154,7 @@ def test_shure_client_retries_retryable_server_error(monkeypatch) -> None:
 
     with ShureSystemAPIClient(base_url="https://shure.test") as client:
         request = Mock(side_effect=responses)
-        monkeypatch.setattr(client.client, "request", request)
+        monkeypatch.setattr(client, "_send_bounded_request", request)
 
         assert client._make_request("GET", "/api/v1/devices") == {"status": "ok"}
 
@@ -184,7 +179,7 @@ def test_shure_client_wraps_invalid_json_response(monkeypatch) -> None:
         request=httpx.Request("GET", "https://shure.test/api/v1/devices"),
     )
     with ShureSystemAPIClient(base_url="https://shure.test") as client:
-        monkeypatch.setattr(client.client, "request", Mock(return_value=response))
+        monkeypatch.setattr(client, "_send_bounded_request", Mock(return_value=response))
 
         with pytest.raises(ShureAPIError) as exc_info:
             client._make_request("GET", "/api/v1/devices")
@@ -219,8 +214,13 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
         async def __aexit__(self, *exc_info: object) -> None:
             return None
 
-        async def aiter_lines(self):
-            for line in ('data: {"state": "online"}', "data: not-json", "event: ping"):
+        async def aiter_bytes(self, chunk_size: int):
+            assert chunk_size == 8192
+            for line in (
+                b'data: {"state": "online"}\n',
+                b"data: not-json\n",
+                b"event: ping\n",
+            ):
                 yield line
 
     class FakeAsyncClient:
@@ -268,6 +268,78 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
     assert "not-json" not in caplog.text
 
 
+def test_sse_line_reader_discards_chunked_newline_free_overflow(caplog) -> None:
+    """A hostile line is never retained past its cap, even across many chunks."""
+
+    class ChunkedResponse:
+        async def aiter_bytes(self, chunk_size: int):
+            assert chunk_size == 8192
+            yield b"data: "
+            yield b"x" * 8
+            yield b"x" * 8
+            yield b"\n"
+            yield b"data: {}\r\n"
+            yield b"tail"
+
+    async def collect_lines() -> list[bytes]:
+        return [
+            line
+            async for line in sennheiser_sse_module._iter_bounded_sse_lines(
+                ChunkedResponse(),  # type: ignore[arg-type]
+                max_line_bytes=12,
+            )
+        ]
+
+    with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
+        lines = asyncio.run(collect_lines())
+
+    assert lines == [b"data: {}", b"tail"]
+    assert "exceeded the byte limit" in caplog.text
+
+
+def test_sse_line_reader_discards_newline_free_overflow_at_eof(caplog) -> None:
+    """An unterminated oversized stream is dropped without yielding retained payload data."""
+
+    class NewlineFreeResponse:
+        async def aiter_bytes(self, chunk_size: int):
+            assert chunk_size == 8192
+            yield b"data: "
+            yield b"x" * 32
+
+    async def collect_lines() -> list[bytes]:
+        return [
+            line
+            async for line in sennheiser_sse_module._iter_bounded_sse_lines(
+                NewlineFreeResponse(),  # type: ignore[arg-type]
+                max_line_bytes=12,
+            )
+        ]
+
+    with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
+        lines = asyncio.run(collect_lines())
+
+    assert lines == []
+    assert "exceeded the byte limit" in caplog.text
+
+
+def test_sse_event_dispatch_rejects_oversized_payload_before_json_decode(caplog) -> None:
+    """The event budget applies independently inside an accepted bounded line."""
+    callback = AsyncMock()
+
+    with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
+        asyncio.run(
+            sennheiser_sse_module._dispatch_sse_event(
+                b'data: {"secret":"vendor-payload"}',
+                callback=callback,
+                max_event_bytes=8,
+            )
+        )
+
+    callback.assert_not_awaited()
+    assert "vendor-payload" not in caplog.text
+    assert "exceeded the byte limit" in caplog.text
+
+
 def test_sennheiser_sse_missing_session_propagates_connection_failure(monkeypatch) -> None:
     """A failed handshake must let connection tracking leave its connecting state."""
     adapted_calls: list[tuple[object, bool]] = []
@@ -286,39 +358,3 @@ def test_sennheiser_sse_missing_session_propagates_connection_failure(monkeypatc
         asyncio.run(sennheiser_sse_module.connect_and_subscribe(client, "device-1", AsyncMock()))
 
     assert adapted_calls == [(client._make_request, True)]
-
-
-@pytest.mark.django_db
-def test_discovery_add_devices_command_uses_verified_httpx(monkeypatch) -> None:
-    manufacturer = Manufacturer.objects.create(name="Shure", code="shure")
-    client_options: list[dict[str, object]] = []
-
-    class FakeClient:
-        def __init__(self, **kwargs) -> None:
-            self.kwargs = kwargs
-            client_options.append(kwargs)
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc_info: object) -> None:
-            return None
-
-        def get(self, url: str) -> object:
-            return object()
-
-    monkeypatch.setattr(httpx, "Client", FakeClient)
-
-    call_command(
-        "discovery_add_devices",
-        ips="192.0.2.10",
-        manufacturer=manufacturer.code,
-        stdout=StringIO(),
-        stderr=StringIO(),
-    )
-
-    assert DiscoveredDevice.objects.filter(
-        ip="192.0.2.10",
-        manufacturer=manufacturer,
-    ).exists()
-    assert client_options == [{"timeout": 1}]

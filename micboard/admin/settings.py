@@ -168,8 +168,11 @@ class SettingDefinitionAdmin(MicboardModelAdmin):
         try:
             parsed = obj.parse_value(obj.default_value)
             return settings_presentation.format_value(obj, parsed)
-        except Exception as e:
-            return format_html("<em style='color: red;'>Parse Error: {}</em>", e)
+        except Exception as exc:
+            return format_html(
+                "<em style='color: red;'>Parse Error ({}); details redacted.</em>",
+                type(exc).__name__,
+            )
 
 
 @admin.register(Setting)
@@ -298,8 +301,11 @@ class SettingAdmin(MicboardModelAdmin):
                 "<code>{}</code>",
                 settings_presentation.format_value(obj.definition, repr(parsed)),
             )
-        except Exception as e:
-            return format_html("<em style='color: red;'>Parse Error: {}</em>", e)
+        except Exception as exc:
+            return format_html(
+                "<em style='color: red;'>Parse Error ({}); details redacted.</em>",
+                type(exc).__name__,
+            )
 
     def save_model(self, request: Any, obj: Setting, form: ModelForm, change: bool) -> None:
         previous_key = None

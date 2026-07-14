@@ -117,7 +117,7 @@ class ShureDeviceClient:
                 self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/identify"),
             )
         except ShureAPIError:
-            logger.debug("Identity endpoint not available for device %s", device_id)
+            logger.debug("Shure identity endpoint unavailable; device identifier redacted")
             return None
 
     def get_device_network(self, device_id: str) -> dict[str, Any] | None:
@@ -128,7 +128,7 @@ class ShureDeviceClient:
                 self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/network"),
             )
         except ShureAPIError:
-            logger.debug("Network endpoint not available for device %s", device_id)
+            logger.debug("Shure network endpoint unavailable; device identifier redacted")
             return None
 
     def get_device_status(self, device_id: str) -> dict[str, Any] | None:
@@ -139,7 +139,7 @@ class ShureDeviceClient:
                 self.api_client._make_request("GET", f"/api/v1/devices/{device_id}/status"),
             )
         except ShureAPIError:
-            logger.debug("Status endpoint not available for device %s", device_id)
+            logger.debug("Shure status endpoint unavailable; device identifier redacted")
             return None
 
     def _enrich_device_data(self, device_id: str, device_data: dict[str, Any]) -> dict[str, Any]:

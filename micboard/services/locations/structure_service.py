@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,8 +24,9 @@ def prepare_building(building) -> None:
             domain = RegulatoryDomain.objects.filter(country_code=building.country.upper()).first()
             if domain:
                 building.regulatory_domain = domain
-        except (ProgrammingError, OperationalError):
+        except (ProgrammingError, OperationalError) as exc:
             logger.exception(
                 "Could not resolve the regulatory domain for building country %s",
                 building.country,
+                exc_info=sanitized_exception_info(exc),
             )

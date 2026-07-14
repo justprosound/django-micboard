@@ -138,24 +138,3 @@ class MonitoringService:
         """Get wall sections whose parent display wall is visible to the user."""
         walls = MonitoringService.get_accessible_display_walls(user)
         return WallSection.objects.filter(wall__in=walls)
-
-    @staticmethod
-    def evaluate_alerts_for_user(user: Any) -> list[dict]:
-        """Entrypoint for triggering alert evaluation for a specific user.
-
-        Evaluates alert rules against current device telemetry and returns
-        a list of triggered alerts for the user's accessible devices.
-
-        Args:
-            user: User to evaluate alerts for
-
-        Returns:
-            List of alert dictionaries (empty when not implemented)
-
-        Raises:
-            NotImplementedError: Alert evaluation rules engine not yet implemented.
-        """
-        raise NotImplementedError(
-            "Alert evaluation rules engine is not yet implemented. "
-            "Use MonitoringService from monitoring_service.py for device health metrics instead."
-        )

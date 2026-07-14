@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from micboard.services.common.base.client import BaseHTTPClient
+from micboard.utils.exception_logging import sanitized_exception_info
 
 from .device_client import ShureDeviceClient
 from .discovery_client import ShureDiscoveryClient
@@ -80,10 +81,10 @@ class ShureSystemAPIClient(BaseHTTPClient):
                     username="shure",
                     password=str(self.shared_key),
                 )
-            except Exception as e:
+            except Exception as exc:
                 logger.warning(
-                    "HTTP Digest Auth setup failed: %s. Continuing with x-api-key header only",
-                    e,
+                    "HTTP Digest Auth setup failed; continuing with x-api-key header only",
+                    exc_info=sanitized_exception_info(exc),
                 )
 
     def _get_health_check_endpoint(self) -> str:

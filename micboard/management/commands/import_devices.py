@@ -5,7 +5,6 @@ import logging
 from django.core.management.base import BaseCommand
 
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 logger = logging.getLogger(__name__)
 
@@ -122,11 +121,12 @@ class Command(BaseCommand):
                 )
             else:
                 if dry_run:
-                    exists = WirelessChassis.objects.filter(serial_number=serial).exists()
-                    if exists:
+                    if created:
+                        self.stdout.write(f"    Would create: {serial}")
+                    elif updated:
                         self.stdout.write(f"    Would update: {serial}")
                     else:
-                        self.stdout.write(f"    Would create: {serial}")
+                        self.stdout.write("    Would skip: conflicting or invalid identity")
                 else:
                     if created:
                         self.stdout.write(self.style.SUCCESS(f"    ✓ Created: {serial}"))

@@ -193,20 +193,12 @@ class KioskHealthView(View):
             JSON with health status for each charger
         """
         try:
-            wall = (
-                MonitoringService.get_accessible_display_walls(request.user)
-                .prefetch_related("sections__chargers")
-                .get(id=wall_id, is_active=True)
+            wall, charger_health = ConnectionValidationService.get_display_wall_charger_health(
+                wall_id=wall_id,
+                user=request.user,
             )
         except DisplayWall.DoesNotExist:
             return JsonResponse({"error": "Wall not found"}, status=404)
-
-        charger_health = []
-        accessible_chargers = MonitoringService.get_accessible_chargers(request.user)
-        for section in wall.sections.filter(is_active=True):
-            for charger in section.chargers.filter(pk__in=accessible_chargers):
-                health = ConnectionValidationService.check_charger_health(charger.id)
-                charger_health.append(health)
 
         return JsonResponse(
             {

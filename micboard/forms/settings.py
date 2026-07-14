@@ -264,8 +264,10 @@ class BulkSettingConfigForm(forms.Form):
                 # Invalidate cache
                 SettingsRegistry.invalidate_cache(defn.key)
 
-            except Exception as e:
-                results["errors"].append(f"Error setting {defn.label}: {e}")
+            except Exception as exc:
+                results["errors"].append(
+                    f"Error setting {defn.label} ({type(exc).__name__}); details redacted."
+                )
 
         return results
 
@@ -399,7 +401,9 @@ class ManufacturerSettingsForm(forms.Form):
 
             except SettingDefinition.DoesNotExist:
                 results["errors"].append(f"Setting definition not found for {setting_key}")
-            except Exception as e:
-                results["errors"].append(f"Error saving {field_name}: {e}")
+            except Exception as exc:
+                results["errors"].append(
+                    f"Error saving {field_name} ({type(exc).__name__}); details redacted."
+                )
 
         return results

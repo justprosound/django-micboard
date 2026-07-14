@@ -80,8 +80,8 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 3. ~~**Admin dashboard monolith** - The former dashboard module was split into focused admin and
    view modules.~~
 4. **Manufacturer plugin duplication** - Shure + Sennheiser plugin stacks are 80-90% structurally identical; no shared base reduces maintenance.
-5. **Thin test coverage** - Branch coverage is 50.13% against a 60% target. Model factories and
-   targeted service coverage are complete; integration and end-to-end coverage remain incomplete.
+5. ~~**Thin test coverage** - Branch coverage now exceeds 95%, with model factories plus service,
+   integration, command, admin, and host-configuration contracts enforced in CI.~~
 6. ~~**Compat shim** - `micboard/manufacturers/` was a backward-compat shim. Now removed (ADR-008).~~
 
 ## Key File Locations
@@ -102,6 +102,6 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 | Fixtures | `micboard/fixtures/` |
 | Huey integration | `huey.contrib.djhuey` plus the project's `HUEY` setting |
 | URLs | `micboard/urls.py`, `micboard/urls/` |
-| Middleware | `micboard/middleware.py` |
+| Middleware | `micboard/multitenancy/middleware.py` |
 | Metrics | `micboard/metrics.py` |
 | Exceptions | `micboard/exceptions.py` |

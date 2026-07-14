@@ -8,6 +8,7 @@ from __future__ import annotations
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Count, Q
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
@@ -56,13 +57,13 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
     page_obj = paginator.get_page(page_number)
 
     # Alert statistics
-    stats = {
-        "total": visible_alerts.count(),
-        "pending": visible_alerts.filter(status="pending").count(),
-        "acknowledged": visible_alerts.filter(status="acknowledged").count(),
-        "resolved": visible_alerts.filter(status="resolved").count(),
-        "failed": visible_alerts.filter(status="failed").count(),
-    }
+    stats = visible_alerts.aggregate(
+        total=Count("pk"),
+        pending=Count("pk", filter=Q(status="pending")),
+        acknowledged=Count("pk", filter=Q(status="acknowledged")),
+        resolved=Count("pk", filter=Q(status="resolved")),
+        failed=Count("pk", filter=Q(status="failed")),
+    )
 
     context = {
         "alerts": page_obj,

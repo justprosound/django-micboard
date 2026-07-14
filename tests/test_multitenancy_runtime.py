@@ -36,6 +36,10 @@ from micboard.multitenancy.middleware import (
 )
 from micboard.multitenancy.models import Campus, Organization, OrganizationMembership
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.core.performer_assignment_dtos import (
+    CreatePerformerAssignment,
+    UpdatePerformerAssignment,
+)
 from micboard.services.monitoring.monitoring_access import MonitoringService
 
 _for_user = cast(Any, TenantOptimizedQuerySet.for_user)
@@ -720,23 +724,29 @@ def test_assignment_writes_require_operator_role(django_user_model) -> None:
 
     with pytest.raises(PermissionDenied):
         PerformerAssignmentService.update_assignment(
-            assignment_id=assignment.pk,
+            command=UpdatePerformerAssignment(
+                assignment_id=assignment.pk,
+                notes="viewer mutation",
+            ),
             user=user,
-            notes="viewer mutation",
         )
     with pytest.raises(PermissionDenied):
         PerformerAssignmentService.create_assignment(
-            performer_id=performer.pk,
-            unit_id=second_unit.pk,
-            group_id=group.pk,
+            command=CreatePerformerAssignment(
+                performer_id=performer.pk,
+                unit_id=second_unit.pk,
+                group_id=group.pk,
+            ),
             user=user,
         )
 
     membership.role = "operator"
     membership.save(update_fields=["role"])
     updated = PerformerAssignmentService.update_assignment(
-        assignment_id=assignment.pk,
+        command=UpdatePerformerAssignment(
+            assignment_id=assignment.pk,
+            notes="operator mutation",
+        ),
         user=user,
-        notes="operator mutation",
     )
     assert updated.notes == "operator mutation"

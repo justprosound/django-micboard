@@ -14,6 +14,8 @@ from django.core.mail import EmailMessage, get_connection
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 if TYPE_CHECKING:  # pragma: no cover
     from micboard.models.monitoring.alert import Alert
 
@@ -26,7 +28,7 @@ class EmailService:
     Uses Django's email backend for reliable delivery.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Prepare an email backend connection for sending messages."""
         self.connection = get_connection()
 
@@ -81,8 +83,12 @@ class EmailService:
                 logger.error("Failed to send alert notification for alert %s", alert.id)
                 return False
 
-        except Exception as e:
-            logger.exception("Error sending alert notification for alert %s: %s", alert.id, e)
+        except Exception as exc:
+            logger.exception(
+                "Error sending alert notification for alert %s",
+                alert.id,
+                exc_info=sanitized_exception_info(exc),
+            )
             return False
 
     def send_system_notification(
@@ -122,8 +128,11 @@ class EmailService:
                 logger.error("Failed to send system notification")
                 return False
 
-        except Exception as e:
-            logger.exception("Error sending system notification: %s", e)
+        except Exception as exc:
+            logger.exception(
+                "Error sending system notification",
+                exc_info=sanitized_exception_info(exc),
+            )
             return False
 
     def _get_default_recipients(self) -> list[str]:

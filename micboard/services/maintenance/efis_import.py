@@ -19,6 +19,7 @@ import httpx
 from micboard.models.audit.activity_log import ActivityLog
 from micboard.models.rf_coordination.compliance import FrequencyBand, RegulatoryDomain
 from micboard.services.common.base.resilience import create_resilient_session
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -134,17 +135,21 @@ class EFISImportService:
                 "bands_updated": bands_updated,
             }
 
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.exception("EFIS import failed")
+        except Exception as exc:
+            logger.exception(
+                "EFIS import failed",
+                exc_info=sanitized_exception_info(exc),
+            )
+            safe_message = f"EFIS import failed ({type(exc).__name__}); details redacted."
             ActivityLog.objects.create(
                 activity_type=ActivityLog.ACTIVITY_COMPLIANCE,
                 operation="failure",
                 user=user,
-                summary=f"EFIS import failed: {exc}",
+                summary=safe_message,
                 status="failed",
-                error_message=str(exc),
+                error_message=safe_message,
             )
-            return {"success": False, "message": str(exc)}
+            return {"success": False, "message": safe_message}
         finally:
             session.close()
 
@@ -239,7 +244,9 @@ class EFISImportService:
                 return response.json()
             except (httpx.RequestError, httpx.HTTPStatusError) as exc:
                 if attempt >= max_retries - 1:
-                    raise RuntimeError(f"EFIS request failed for {url}: {exc}") from exc
+                    raise RuntimeError(
+                        f"EFIS request failed ({type(exc).__name__}); details redacted."
+                    ) from exc
                 attempt += 1
                 time.sleep(backoff_factor * (2**attempt))
 

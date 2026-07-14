@@ -220,8 +220,8 @@ class HardwareLifecycleManager:
                 "device_type": device_type,
                 "from_status": from_status,
                 "to_status": to_status,
-                "reason": reason,
-                "metadata": metadata or {},
+                "reason_provided": bool(reason),
+                "has_metadata": bool(metadata),
             },
         )
 

@@ -30,8 +30,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   project model, with registry completeness, persistence, validation, optional-app, and
   swappable-user coverage
 - **Service-layer regression coverage**: Direct Factory Boy-backed tests for discovery,
-  deduplication, hardware lifecycle, locations, performers, alerts, connections, and uptime, with
-  every targeted module at 90% coverage or higher
+  deduplication, hardware lifecycle, locations, performers, alerts, and connections, with every
+  targeted module at 90% coverage or higher
 - **Import architecture gate**: Detect internal strongly connected components and reject
   model-to-service, model-to-task, service-to-task, and service-to-app dependency reversals
 - **Performance contracts**: Query budgets for discovery batching, alert fanout, connection health,
@@ -40,6 +40,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   approval, monitoring summaries, settings diffs, and HTMX channel fragments
 - **Plugin development guide**: Live registry, shared transport, discovery, transformer,
   protocol-specific streaming, security, native Huey, and test contracts for new manufacturers
+- **Maintenance workflow coverage**: Branch-focused tests for supported discovery, diagnostics,
+  audit, settings, metrics, and realtime subscription commands and services
+- **Poll-to-alert lifecycle coverage**: Exercise a native Huey task through persisted API-server
+  credentials, normalized device telemetry, alert persistence, recipient delivery, replay
+  deduplication, and cross-tenant rejection
 
 ### Changed
 
@@ -51,7 +56,24 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   classes from their defining domain modules
 - **Explicit task imports**: Remove legacy task aliases and import task functions from their
   defining domain modules
-
+- **Queued API-server checks**: Move admin-triggered vendor health checks to a hard-capped native
+  Huey batch that revalidates the initiating user's permission in the worker
+- **Fair, bounded alert fanout**: Rotate shared-cache cursors through eligible wireless units,
+  active assignments, and active group recipients; cap assignment, recipient, and delivery work;
+  and revalidate current user, group, assignment, and tenant scope before persistence and email
+- **Bounded manufacturer polling**: Fail closed on oversized vendor inventories, bulk-index device
+  identities instead of issuing per-device lookup queries, and chunk full-fleet realtime updates
+- **Coalesced discovery dispatch**: Reconcile only after chassis identity changes, collapse
+  manufacturer-sync batches to one post-commit request, and suppress duplicate Huey enqueues with
+  a short fail-open shared-cache claim
+- **Bounded charger polling**: Move native Huey charger work into a typed service, cap device,
+  station, slot, and vendor-text processing, resume list-like inventories across cached pages,
+  publish only full-cycle snapshots with a deterministic station prefix, deduplicate station
+  requests, read health once, and revalidate that queued manufacturers remain active
+- **Service surface cleanup**: Remove unused unscoped hardware, location, performer, and
+  manufacturer query facades in favor of authenticated model managers and active service paths
+- **Realtime event cleanup**: Remove the duplicate polling emitter and unused arbitrary error,
+  sync-completion, and discovery-approval WebSocket event paths
 - **pyproject.toml**: Fixed package data inclusion for fixtures and migrations
 - **MANIFEST.in**: Improved to include `.env.example` and exclude workspace-only files
 - **.gitignore**: Enhanced to prevent tracking of development artifacts and egg-info directories
@@ -64,13 +86,23 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   locked `uv` environments
 - **HTTP integrations**: Use `httpx` consistently with typed retry, rate-limit, and API error
   handling
+- **Bounded vendor transports**: Stream decoded HTTP and SSE data under configurable package
+  ceilings, clamp retry delays, reject oversized JSON responses before parsing, discard oversized
+  SSE lines and events without payload logging, and revoke queued or live vendor work when its
+  manufacturer becomes inactive while preserving the explicit `poll_devices --force` override
 - **Public project cleanup**: Remove private-host branding, obsolete queue guidance, and stale
   live-integration scripts
-- **Quality floor**: Raise enforced coverage from 40% to 49% while retaining the documented 60%
-  target
+- **Operator tooling cleanup**: Remove destructive hard-coded seeding and vendor-specific scratch
+  diagnostics while retaining supported admin auditing, discovery, health, import, and monitoring
+  commands
+- **Maintenance safeguards**: Bound CIDR expansion memory, fail closed outside regulatory-domain
+  limits, propagate discovery batch failures, and preserve accurate structured sync metadata
+- **Quality floor**: Raise enforced branch coverage from 49% to 95%, inventory every distributable
+  Python module, and add behavioral contracts across services, models, commands, admin, and tasks
 - **Discovery reconciliation**: Batch exclusivity checks and manufacturer API updates, preserve
-  remote state while configured sources are incomplete, and still remove database-proven
-  cross-vendor ownership conflicts
+  remote state while configured sources are incomplete, rotate shared budgets fairly across local
+  inventory and configured scan definitions, and still remove database-proven cross-vendor
+  ownership conflicts
 - **Monitoring queries**: Prefetch alert recipients and preferences, eager-load unhealthy
   connection ownership, and aggregate connection statistics in two fixed queries
 - **Settings access**: Route app startup and callers through `SettingsService`; raw
@@ -81,6 +113,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   while services own validation, derived state, audit, discovery, and post-commit behavior
 - **Realtime update persistence**: Share one service between SSE, WebSocket, and command entry
   points, treating event payloads as partial snapshots that cannot mark unrelated devices offline
+- **Realtime supervision**: Separate long-running SSE/WebSocket supervisors from polling, share a
+  renewable singleton lease across commands and native Huey entrypoints, and hard-bound device and
+  concurrency counts
+- **Fair realtime supervision**: Rotate bounded inventory windows across rounds and restarts with a
+  shared-cache cursor and time-slice long-lived subscriptions through a fixed worker pool so blocked
+  or dropped connections cannot permanently starve later devices; reload eligible batches within
+  the same supervisor lifetime with configurable rotation and reconnect delays
+- **Realtime service boundaries**: Move SSE and Shure WebSocket subscription orchestration into
+  typed services shared by thin native Huey tasks and foreground management commands
+- **Post-poll alerts**: Rotate through a configurable, hard-capped set of assigned wireless units
+  instead of scanning arbitrary manufacturer inventory or permanently starving later rows
 - **Dependency automation**: Consolidate updates under Renovate; refresh locked Click, filelock,
   certifi, idna, Pillow, and platformdirs versions; ignore generated requirements exports; enforce
   lock/export consistency; and run documentation checks on dependency branches
@@ -102,8 +145,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Configuration import consistency across app modules
 - Whitespace issues in documentation and code examples
 - Admin settings diff tests updated to validate masking and access control
-- Restore the complete admin-audit engine after an incomplete service extraction caused default
-  audits to run no checks
+- Preserve the public admin-audit command while moving registry selection and Unfold, media,
+  search-depth, template, eager-loading, and live query checks into typed services; quick audits now
+  skip HTTP query capture and audits no longer create a predictable persistent superuser account
 - Restore wireless-unit admin registration and lifecycle/regulatory dispatch behavior
 - Correct release provenance so tags and published artifacts target the release commit
 - Enforce organization, campus, monitoring-group, and membership-role boundaries across model
@@ -116,10 +160,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Stop normal Django ORM writes from emitting false deprecation warnings for required model
   lifecycle hooks, and fail tests on future deprecation warnings
 - Correct alert preference field lookups so battery, signal, and audio notifications are emitted
+- Prevent persistent alert-fanout truncation from pinning work to one unit or alert class by
+  advancing the unit cursor after each attempt and alternating offline/transmitter priority
 - Treat connected rows without a heartbeat as unhealthy and remove manufacturer-dependent query
   growth from connection statistics
 - Validate hardware transitions from the locked database row and support chassis without an
   `updated_at` field
+- Reconcile imported online devices through provisioning and roll back the complete import when
+  any lifecycle transition is rejected
 - Require a building hierarchy when creating locations, reject cross-building rooms, serialize
   duplicate checks for building-level locations, and prevent stale callers from restoring old data
 - Preserve managed IPv4 and IPv6 chassis addresses when reconciling discovery candidates
@@ -138,6 +186,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Group queryset deletion callbacks and suppress obsolete discovery work during manufacturer
   cascades
 - Require change permission for every mutating admin action and for discovery queue transitions
+- Scope managed-device polling by API-server manufacturer and location before transport, preserve
+  embedded channel telemetry without double transformation, normalize nullable transmitter values,
+  and dispatch alerts only to their owning user's email address
 - Keep test factories isolated from manufacturer discovery APIs while retaining explicit lifecycle
   coverage for production task submission
 - Keep discovery approval fail-closed when queue records disagree about API IDs, serial numbers,
@@ -157,8 +208,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   membership- and site-scoped WebSocket groups
 - Move ORM work and blocking subscription handshakes off hardware event loops, and materialize
   public async query results before returning them to callers
+- Format authenticated WebSocket origins correctly for IPv4 and IPv6 literals and reject invalid
+  device ports before constructing a client
 - Run the installed-wheel smoke contract from the local `just wheel` gate and mark its in-memory
   SQLite host explicitly as development-only
+- Preserve the last complete charger dashboard snapshot while resumable inventory pages accumulate,
+  retain the same vendor-order station prefix when a full cycle exceeds its station cap, and fail
+  closed when any station request makes the cycle incomplete
 
 ### Removed
 
@@ -170,6 +226,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   template filters instead of deprecated model delegation methods
 - **Cross-layer model delegates**: Call realtime, monitoring, organization, discovery, and plugin
   services directly from their owning application adapters
+- **Obsolete runtime surfaces**: Delete destructive seeding and direct-probing commands, legacy
+  polling/discovery orchestrators, unused compatibility facades, duplicate realtime emitters,
+  private middleware, and their stale templates and guides
 
 ### Security
 
@@ -184,7 +243,23 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   certificate authorities use the standard `SSL_CERT_FILE` or `SSL_CERT_DIR` trust configuration
 - Redact API keys and subscription handshake identifiers from integration logs, and hardware
   identities and private network addresses from deduplication and probe logs
+- Serialize polling and import identity reads and writes behind one database lock, canonicalize
+  valid MAC addresses, discard invalid MAC placeholders, and fail closed on cross-manufacturer
+  serial, MAC, or occupied-IP conflicts in both live and dry-run imports
+- Keep raw realtime event payloads and transport/cache exception details out of command and worker
+  output
+- Centralize secret-safe exception metadata so traceback context remains useful without rendering
+  vendor payloads, credentials, private addresses, or forged log lines
 - Pin GitHub Actions to immutable commits and keep coverage enforcement and reports self-contained
+- Revalidate WebSocket authentication and current route membership immediately before every
+  outbound event, including pong replies to client pings, and close revoked connections after
+  discarding groups
+- Build release artifacts without write or OIDC permissions, seal them with a SHA-256 manifest,
+  verify the manifest in isolated publisher jobs, and publish through native `uv` trusted
+  publishing with least-privilege permissions
+- Treat incomplete local inventory, configured scan definitions, CIDR/FQDN expansion, and remote
+  discovery payloads as non-authoritative for removals while still clearing database-proven
+  cross-manufacturer conflicts
 - Fail closed for unsupported or tenantless resources in MSP mode and prevent cross-tenant
   WebSocket subscription or broadcast leakage
 - Scope stored settings overrides to active, internally consistent organization/campus memberships
@@ -193,6 +268,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   performer-assignment choices when cross-organization access is disabled
 - Disable generic admin import and export routes until request-aware resources can prove tenant
   scoping for every transferred row
+- Scope charger and RF-channel admin inline choices to the current tenant, and reject forged
+  cross-tenant or cross-chassis relationships during formset validation
+- Refuse same-version release retries unless the current main commit is the exact release-metadata
+  commit, preventing newer code from being published under previously prepared metadata
 
 ### Documentation
 

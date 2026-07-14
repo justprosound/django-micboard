@@ -1,28 +1,31 @@
-"""Management command to add Shure devices for discovery via System API."""
+"""Submit validated IP addresses to a manufacturer's discovery workflow."""
 
 from __future__ import annotations
 
-import logging
+import ipaddress
+import re
+from itertools import islice
+from typing import Any
 
 from django.core.management.base import BaseCommand
 
-import httpx
-
+from micboard.discovery.limits import MAX_DISCOVERY_CANDIDATES
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.registry import DiscoveredDevice
-
-logger = logging.getLogger(__name__)
+from micboard.services.sync.discovery_service import DiscoveryService
 
 
 class Command(BaseCommand):
-    help = "Add Shure device IP addresses for discovery"
+    """Validate operator-supplied addresses and submit them through the service layer."""
 
-    def add_arguments(self, parser):
+    help = "Add device IP addresses to a manufacturer's discovery candidates"
+
+    def add_arguments(self, parser: Any) -> None:
+        """Register bounded discovery candidate options."""
         parser.add_argument(
             "--ips",
             type=str,
             required=True,
-            help="Comma-separated list of device IP addresses (e.g., '172.21.1.100,172.21.1.101')",
+            help="Comma-separated device IP addresses",
         )
         parser.add_argument(
             "--manufacturer",
@@ -31,71 +34,49 @@ class Command(BaseCommand):
             help="Manufacturer code (default: shure)",
         )
 
-    def handle(self, *args, **options):
-        manufacturer_code = options["manufacturer"]
-        ips_str = options["ips"]
-
+    def handle(self, *args: Any, **options: Any) -> None:
+        """Submit a bounded, canonical address list without direct network probing."""
+        manufacturer_code = str(options["manufacturer"])
         try:
             manufacturer = Manufacturer.objects.get(code=manufacturer_code)
         except Manufacturer.DoesNotExist:
             self.stderr.write(self.style.ERROR(f"Manufacturer '{manufacturer_code}' not found"))
             return
 
-        # Parse IP addresses
-        ip_addresses = [ip.strip() for ip in ips_str.split(",") if ip.strip()]
+        raw_addresses = list(
+            islice(
+                (match.group(0).strip() for match in re.finditer(r"[^,]+", options["ips"])),
+                MAX_DISCOVERY_CANDIDATES + 1,
+            )
+        )
+        if len(raw_addresses) > MAX_DISCOVERY_CANDIDATES:
+            self.stderr.write(
+                self.style.ERROR(
+                    f"Candidate count exceeds hard limit of {MAX_DISCOVERY_CANDIDATES}"
+                )
+            )
+            return
 
-        if not ip_addresses:
+        canonical_addresses: list[str] = []
+        invalid_count = 0
+        for raw_address in raw_addresses:
+            try:
+                canonical_addresses.append(str(ipaddress.ip_address(raw_address)))
+            except ValueError:
+                invalid_count += 1
+        canonical_addresses = list(dict.fromkeys(canonical_addresses))
+        if not canonical_addresses:
             self.stderr.write(self.style.ERROR("No valid IP addresses provided"))
             return
 
-        self.stdout.write(f"Adding {len(ip_addresses)} devices for {manufacturer.name}...")
-        added_count = 0
-        failed_count = 0
-
-        with httpx.Client(timeout=1) as client:
-            for ip in ip_addresses:
-                self.stdout.write(f"  Checking {ip}...", ending=" ")
-
-                try:
-                    # Probe common device endpoints before recording the candidate.
-                    for protocol in ["http", "https"]:
-                        for port in [80, 443]:
-                            try:
-                                client.get(f"{protocol}://{ip}:{port}")
-                                break
-                            except httpx.RequestError:
-                                continue
-                        else:
-                            continue
-                        break
-
-                    # Create or update discovered device record
-                    _device, created = DiscoveredDevice.objects.update_or_create(
-                        ip=ip,
-                        defaults={
-                            "manufacturer": manufacturer,
-                            "device_type": "shure_device",
-                            "channels": 0,  # Will be updated by polling
-                        },
-                    )
-
-                    if created:
-                        self.stdout.write(self.style.SUCCESS("✓ Added"))
-                    else:
-                        self.stdout.write(self.style.WARNING("⟳ Updated"))
-
-                    added_count += 1
-
-                except Exception as e:
-                    logger.exception("Failed to add discovered device at %s", ip)
-                    self.stderr.write(self.style.ERROR(f"✗ Failed: {e}"))
-                    failed_count += 1
-
-        self.stdout.write("")
-        self.stdout.write(
-            self.style.SUCCESS(f"Added/updated {added_count} devices, {failed_count} failed")
+        submission = DiscoveryService().add_discovery_candidates(
+            manufacturer,
+            canonical_addresses,
         )
-        self.stdout.write("")
+        rejected_count = invalid_count + submission.rejected_count + len(submission.failed_ips)
         self.stdout.write(
-            "Now run: uv run --no-sync python manage.py poll_devices --manufacturer shure"
+            self.style.SUCCESS(
+                f"Submitted {len(submission.submitted_ips)} discovery candidates; "
+                f"rejected {rejected_count}"
+            )
         )

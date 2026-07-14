@@ -7,10 +7,23 @@ management command to make it reusable and easier to test.
 from __future__ import annotations
 
 import logging
-
-from django.db import transaction
+from typing import TYPE_CHECKING, Any
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.core.hardware_lifecycle import (
+    HardwareStatus,
+    get_lifecycle_manager,
+    map_api_state_to_status,
+)
+from micboard.services.deduplication.check import check_device
+from micboard.services.deduplication.identity_mutation_lock import (
+    DeviceIdentityMutationLockService,
+)
+from micboard.utils.mac_address import canonicalize_mac_address
+
+if TYPE_CHECKING:
+    from micboard.models.discovery.manufacturer import Manufacturer
+    from micboard.models.locations.structure import Location
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +31,45 @@ logger = logging.getLogger(__name__)
 class ImportService:
     """Service responsible for importing a single device payload into the DB."""
 
+    @staticmethod
+    def _reconcile_status(
+        chassis: WirelessChassis,
+        target_status: str,
+        *,
+        server_id: str | None,
+    ) -> None:
+        """Apply an imported status through valid lifecycle transitions."""
+        transition_statuses = [target_status]
+        if (
+            chassis.status == HardwareStatus.DISCOVERED.value
+            and target_status == HardwareStatus.ONLINE.value
+        ):
+            transition_statuses.insert(0, HardwareStatus.PROVISIONING.value)
+
+        lifecycle = get_lifecycle_manager(service_code=getattr(chassis.manufacturer, "code", None))
+        metadata = {
+            "source": "import",
+            "server_id": server_id,
+            "target_status": target_status,
+        }
+        for next_status in transition_statuses:
+            if lifecycle.transition_device(
+                chassis,
+                next_status,
+                reason="Device state received during import",
+                metadata=metadata,
+            ):
+                continue
+            raise RuntimeError(
+                f"Lifecycle rejected imported status transition to {next_status!r} "
+                f"for chassis {chassis.pk}"
+            )
+
     def import_device(
         self,
-        device: dict,
-        manufacturer,
-        location=None,
+        device: dict[str, Any],
+        manufacturer: Manufacturer,
+        location: Location | None = None,
         server_id: str | None = None,
         dry_run: bool = False,
         full: bool = False,
@@ -31,48 +78,94 @@ class ImportService:
 
         Returns a tuple (created: bool, updated: bool).
         """
-        serial = device.get("serial") or device.get("serialNumber")
+        del full
+        raw_serial = device.get("serial") or device.get("serialNumber")
         model = device.get("model") or device.get("deviceType")
-        ip = device.get("ip") or device.get("ipAddress")
-        mac = device.get("mac") or device.get("macAddress")
-        api_device_id = device.get("id") or device.get("deviceId")
+        raw_ip = device.get("ip") or device.get("ipAddress")
+        raw_mac = device.get("mac") or device.get("macAddress")
+        raw_api_device_id = device.get("id") or device.get("deviceId")
         device_type = device.get("type", "UNKNOWN")
 
-        if not serial or not ip or api_device_id is None:
+        serial = str(raw_serial).strip() if raw_serial is not None else ""
+        ip = str(raw_ip).strip() if raw_ip is not None else ""
+        api_device_id = str(raw_api_device_id).strip() if raw_api_device_id is not None else ""
+        mac = canonicalize_mac_address(str(raw_mac)) if raw_mac is not None else None
+
+        if not serial or not ip or not api_device_id:
             return False, False
 
-        if dry_run:
-            exists = WirelessChassis.objects.filter(serial_number=serial).exists()
-            # created, updated
-            return (not exists, exists)
+        role = self._device_role(device_type)
 
-        # Determine role based on device type
-        role = "receiver"
-        dt_low = device_type.lower() if isinstance(device_type, str) else ""
-        if "transmitter" in dt_low:
-            role = "transmitter"
-        elif "transceiver" in dt_low:
-            role = "transceiver"
+        status = map_api_state_to_status(
+            str(device.get("state") or "UNKNOWN").upper(),
+            "discovered",
+        )
 
-        with transaction.atomic():
-            _chassis, created = WirelessChassis.objects.update_or_create(
-                serial_number=str(serial),
-                defaults={
-                    "manufacturer": manufacturer,
-                    "model": model or "Unknown",
-                    "role": role,
-                    "ip": str(ip),
-                    "mac_address": mac,
-                    "location": location,
-                    "status": (device.get("state") or "unknown").lower(),
-                    "is_online": device.get("state") == "ONLINE",
-                    "api_device_id": str(api_device_id),
-                },
+        chassis_defaults = {
+            "model": model or "Unknown",
+            "role": role,
+            "ip": ip,
+            "mac_address": mac,
+            "location": location,
+            "status": status,
+            "is_online": status == "online",
+            "api_device_id": api_device_id,
+        }
+
+        with DeviceIdentityMutationLockService.acquire(
+            manufacturer=manufacturer
+        ) as locked_manufacturer:
+            deduplication = check_device(
+                serial_number=serial,
+                mac_address=mac,
+                ip=ip,
+                api_device_id=api_device_id,
+                manufacturer=locked_manufacturer,
             )
+            if deduplication.is_conflict:
+                return False, False
 
-            if created:
+            chassis = deduplication.existing_device
+            if chassis is not None and chassis.manufacturer_id != locked_manufacturer.pk:
+                return False, False
+            if dry_run:
+                return (chassis is None, chassis is not None)
+
+            if chassis is None:
+                WirelessChassis.objects.create(
+                    manufacturer=locked_manufacturer,
+                    serial_number=serial,
+                    **chassis_defaults,
+                )
                 return True, False
+
+            metadata_updates = {
+                field: chassis_defaults[field]
+                for field in ("model", "role", "ip", "location", "api_device_id")
+            }
+            if mac is not None:
+                metadata_updates["mac_address"] = mac
+            for field, value in metadata_updates.items():
+                setattr(chassis, field, value)
+            chassis.save(update_fields=list(metadata_updates))
+
+            if status != chassis.status:
+                self._reconcile_status(
+                    chassis,
+                    status,
+                    server_id=server_id,
+                )
             return False, True
+
+    @staticmethod
+    def _device_role(device_type: object) -> str:
+        """Map untrusted manufacturer type text to one supported chassis role."""
+        normalized = device_type.lower() if isinstance(device_type, str) else ""
+        if "transmitter" in normalized:
+            return "transmitter"
+        if "transceiver" in normalized:
+            return "transceiver"
+        return "receiver"
 
     def import_from_servers(
         self, api_servers: dict, manufacturer, options: dict
@@ -88,10 +181,8 @@ class ImportService:
             Tuple of (total_discovered, total_imported, total_updated)
         """
         from micboard.models.locations.structure import Location
-        from micboard.services.integrations.api_server_service import (
-            APIServerConnectionService,
-            sanitized_api_exception_info,
-        )
+        from micboard.services.integrations.api_server_service import APIServerConnectionService
+        from micboard.utils.exception_logging import sanitized_exception_info
 
         total_discovered = 0
         total_imported = 0
@@ -140,7 +231,7 @@ class ImportService:
                         logger.exception(
                             "Error importing device from %s",
                             server_id,
-                            exc_info=sanitized_api_exception_info(exc),
+                            exc_info=sanitized_exception_info(exc),
                         )
                         continue
 
@@ -148,7 +239,7 @@ class ImportService:
                 logger.exception(
                     "Failed to connect to server %s",
                     server_id,
-                    exc_info=sanitized_api_exception_info(exc),
+                    exc_info=sanitized_exception_info(exc),
                 )
                 continue
 

@@ -137,7 +137,9 @@ def get_iem_metrics(unit: WirelessUnit) -> dict[str, int | None]:
 def get_assigned_rf_channel(unit: WirelessUnit) -> RFChannel | None:
     """Get the RFChannel this unit is assigned to, if any."""
     if hasattr(unit, "active_on_receive_channels"):
-        return unit.active_on_receive_channels.first()
+        active_channel = unit.active_on_receive_channels.first()
+        if active_channel:
+            return active_channel
 
     if hasattr(unit, "assigned_resource") and unit.assigned_resource:
         return unit.assigned_resource

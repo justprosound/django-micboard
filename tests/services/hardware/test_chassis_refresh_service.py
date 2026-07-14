@@ -4,15 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.contrib.auth.models import Permission
 from django.db import connection
+from django.test import override_settings
 from django.utils import timezone
 
 import pytest
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.hardware.chassis_refresh_service import ChassisRefreshService
+from micboard.services.hardware.chassis_refresh_service import (
+    MAX_CHASSIS_REFRESH_BATCH,
+    ChassisRefreshService,
+)
 from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from tests.factories.base import UserFactory
 from tests.factories.hardware import WirelessChassisFactory
+from tests.factories.locations import BuildingFactory, LocationFactory
+from tests.factories.multitenancy import OrganizationFactory, OrganizationMembershipFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -93,3 +101,75 @@ def test_refresh_reports_missing_device_without_mutation(monkeypatch: pytest.Mon
     assert result.failed_count == 1
     assert chassis.name == original_name
     assert chassis.status == "offline"
+
+
+@override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
+def test_queued_refresh_rechecks_actor_tenant_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A queued selection cannot refresh a chassis outside the actor's current tenant."""
+    allowed_organization = OrganizationFactory()
+    foreign_organization = OrganizationFactory()
+    actor = UserFactory(is_active=True, is_staff=True, is_superuser=False)
+    actor.user_permissions.add(Permission.objects.get(codename="change_wirelesschassis"))
+    OrganizationMembershipFactory(
+        user=actor,
+        organization=allowed_organization,
+        campus=None,
+    )
+    allowed = WirelessChassisFactory(
+        status="offline",
+        location=LocationFactory(building=BuildingFactory(organization_id=allowed_organization.pk)),
+    )
+    foreign = WirelessChassisFactory(
+        status="offline",
+        location=LocationFactory(building=BuildingFactory(organization_id=foreign_organization.pk)),
+    )
+    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    _Plugin.requested_ids = []
+
+    result = ChassisRefreshService.refresh_authorized_ids(
+        chassis_ids=[allowed.pk, foreign.pk],
+        actor_id=actor.pk,
+    )
+
+    assert result.synced_count == 1
+    assert result.failed_count == 1
+    assert result.denied is False
+    assert _Plugin.requested_ids == [allowed.api_device_id]
+
+
+def test_queued_refresh_rejects_deactivated_actor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deactivation after enqueue prevents transport and persistence work."""
+    actor = UserFactory(is_active=False, is_staff=True, is_superuser=True)
+    chassis = WirelessChassisFactory(status="offline")
+    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    _Plugin.requested_ids = []
+
+    result = ChassisRefreshService.refresh_authorized_ids(
+        chassis_ids=[chassis.pk],
+        actor_id=actor.pk,
+    )
+
+    assert result.denied is True
+    assert result.failed_count == 1
+    assert _Plugin.requested_ids == []
+
+
+def test_queued_refresh_bounds_arbitrary_id_iterables() -> None:
+    """A malformed task payload cannot drive unbounded queryset construction."""
+    actor = UserFactory(is_active=True, is_staff=True, is_superuser=True)
+    consumed = 0
+
+    def chassis_ids():
+        nonlocal consumed
+        for identifier in range(1, MAX_CHASSIS_REFRESH_BATCH + 3):
+            consumed += 1
+            yield identifier
+
+    result = ChassisRefreshService.refresh_authorized_ids(
+        chassis_ids=chassis_ids(),
+        actor_id=actor.pk,
+    )
+
+    assert consumed == MAX_CHASSIS_REFRESH_BATCH + 1
+    assert result.truncated is True
+    assert result.synced_count == 0

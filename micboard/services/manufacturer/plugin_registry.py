@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 if TYPE_CHECKING:  # pragma: no cover
     from micboard.services.common.base.plugin import ManufacturerPlugin
 
@@ -45,8 +47,12 @@ class PluginRegistry:
             _plugin_cache[manufacturer_code] = plugin_class
             logger.debug("Loaded plugin for %s", manufacturer_code)
             return plugin_class
-        except (ModuleNotFoundError, ImportError) as e:
-            logger.error("Failed to load plugin for %s: %s", manufacturer_code, e)
+        except (ModuleNotFoundError, ImportError) as exc:
+            logger.error(
+                "Failed to load plugin for %s",
+                manufacturer_code,
+                exc_info=sanitized_exception_info(exc),
+            )
             raise
 
     @staticmethod
@@ -75,8 +81,12 @@ class PluginRegistry:
                     manufacturer = None
 
             return plugin_class(manufacturer)
-        except (ValueError, ModuleNotFoundError, ImportError) as e:
-            logger.warning("Could not instantiate plugin for %s: %s", manufacturer_code, e)
+        except (ValueError, ModuleNotFoundError, ImportError) as exc:
+            logger.warning(
+                "Could not instantiate plugin for %s",
+                manufacturer_code,
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
     @staticmethod

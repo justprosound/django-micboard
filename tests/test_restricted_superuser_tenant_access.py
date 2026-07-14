@@ -16,6 +16,7 @@ from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.multitenancy.models import Organization, OrganizationMembership
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.core.performer_assignment_dtos import CreatePerformerAssignment
 from micboard.services.monitoring.alerts import acknowledge_alert, get_alerts_for_user
 from micboard.services.monitoring.monitoring_access import MonitoringService
 
@@ -229,9 +230,11 @@ class RestrictedSuperuserTenantAccessTests(TestCase):
 
         with self.assertRaises(PermissionDenied):
             PerformerAssignmentService.create_assignment(
-                performer_id=self.performer.pk,
-                unit_id=self.assignment_target.pk,
-                group_id=self.denied_group.pk,
+                command=CreatePerformerAssignment(
+                    performer_id=self.performer.pk,
+                    unit_id=self.assignment_target.pk,
+                    group_id=self.denied_group.pk,
+                ),
                 user=self.superuser,
             )
 

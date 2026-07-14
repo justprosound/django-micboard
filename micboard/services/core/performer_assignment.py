@@ -11,12 +11,16 @@ from typing import Any
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q, QuerySet
+from django.db.models import Q
 
 from micboard.models.hardware.wireless_unit import WirelessUnit
-from micboard.models.monitoring.group import MonitoringGroup
+from micboard.models.monitoring.group import MonitoringGroup, MonitoringGroupLocation
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.services.core.performer_assignment_dtos import (
+    CreatePerformerAssignment,
+    UpdatePerformerAssignment,
+)
 from micboard.services.shared.access_policy import has_unrestricted_tenant_access
 
 logger = logging.getLogger(__name__)
@@ -26,6 +30,37 @@ class PerformerAssignmentService:
     """Business logic for performer-to-device assignments."""
 
     MODIFY_ROLES = frozenset({"operator", "admin", "owner"})
+
+    @staticmethod
+    def ensure_group_can_manage_unit(*, group: MonitoringGroup, unit: WirelessUnit) -> None:
+        """Require the selected group to cover the unit in tenant-aware deployments."""
+        if not (
+            getattr(settings, "MICBOARD_MSP_ENABLED", False)
+            or getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
+        ):
+            return
+
+        location = unit.base_chassis.location
+        if location is None:
+            raise PermissionDenied("The wireless unit is not assigned to a managed location")
+
+        location_access = MonitoringGroupLocation.objects.filter(
+            monitoring_group=group,
+        ).filter(
+            Q(location_id=location.pk)
+            | Q(
+                include_all_rooms=True,
+                location__building_id=location.building_id,
+            )
+        )
+        channel_access = (
+            unit.assigned_resource_id is not None
+            and group.channels.filter(pk=unit.assigned_resource_id).exists()
+        )
+        if not location_access.exists() and not channel_access:
+            raise PermissionDenied(
+                "The monitoring group does not manage the wireless unit's tenant scope"
+            )
 
     @staticmethod
     def ensure_can_modify_unit(*, user: Any, unit: WirelessUnit) -> None:
@@ -63,33 +98,10 @@ class PerformerAssignmentService:
             raise PermissionDenied("This membership cannot modify device assignments")
 
     @staticmethod
-    def get_active_assignments() -> QuerySet[PerformerAssignment]:
-        """Get all active performer assignments with related data."""
-        return (
-            PerformerAssignment.objects.filter(is_active=True)
-            .select_related(
-                "performer",
-                "wireless_unit",
-                "wireless_unit__base_chassis",
-                "monitoring_group",
-            )
-            .order_by("-priority", "performer__name")
-        )
-
-    @staticmethod
     def create_assignment(
         *,
-        performer_id: int,
-        unit_id: int,
-        group_id: int,
+        command: CreatePerformerAssignment,
         user: Any,
-        priority: str = "normal",
-        notes: str | None = None,
-        alert_on_battery_low: bool | None = None,
-        alert_on_signal_loss: bool | None = None,
-        alert_on_audio_low: bool | None = None,
-        alert_on_hardware_offline: bool | None = None,
-        is_active: bool = True,
     ) -> PerformerAssignment:
         """Create an assignment after validating every object against user scope."""
         from django.db import transaction
@@ -97,12 +109,16 @@ class PerformerAssignmentService:
         with transaction.atomic():
             try:
                 monitoring_group = (
-                    MonitoringGroup.objects.get(pk=group_id, is_active=True)
+                    MonitoringGroup.objects.get(pk=command.group_id, is_active=True)
                     if has_unrestricted_tenant_access(user)
-                    else user.monitoring_groups.get(pk=group_id, is_active=True)
+                    else user.monitoring_groups.get(pk=command.group_id, is_active=True)
                 )
-                performer = Performer.objects.for_user(user=user).get(pk=performer_id)
-                wireless_unit = WirelessUnit.objects.for_user(user=user).get(pk=unit_id)
+                performer = Performer.objects.for_user(user=user).get(pk=command.performer_id)
+                wireless_unit = (
+                    WirelessUnit.objects.for_user(user=user)
+                    .select_related("base_chassis__location__building")
+                    .get(pk=command.unit_id)
+                )
             except (
                 MonitoringGroup.DoesNotExist,
                 Performer.DoesNotExist,
@@ -113,28 +129,32 @@ class PerformerAssignmentService:
                 ) from None
 
             PerformerAssignmentService.ensure_can_modify_unit(user=user, unit=wireless_unit)
+            PerformerAssignmentService.ensure_group_can_manage_unit(
+                group=monitoring_group,
+                unit=wireless_unit,
+            )
 
-            assignment = PerformerAssignment.objects.create(
+            assignment = PerformerAssignment(
                 performer=performer,
                 wireless_unit=wireless_unit,
                 monitoring_group=monitoring_group,
-                priority=priority,
-                notes=notes or "",
-                alert_on_battery_low=bool(alert_on_battery_low)
-                if alert_on_battery_low is not None
-                else False,
-                alert_on_signal_loss=bool(alert_on_signal_loss)
-                if alert_on_signal_loss is not None
-                else False,
-                alert_on_audio_low=bool(alert_on_audio_low)
-                if alert_on_audio_low is not None
-                else False,
-                alert_on_hardware_offline=bool(alert_on_hardware_offline)
-                if alert_on_hardware_offline is not None
-                else False,
-                is_active=is_active,
+                priority=command.priority,
+                notes=command.notes,
+                is_active=command.is_active,
                 assigned_by=user,
             )
+            alert_values = {
+                "alert_on_battery_low": command.alert_on_battery_low,
+                "alert_on_signal_loss": command.alert_on_signal_loss,
+                "alert_on_audio_low": command.alert_on_audio_low,
+                "alert_on_hardware_offline": command.alert_on_hardware_offline,
+            }
+            for field_name, value in alert_values.items():
+                if value is not None:
+                    setattr(assignment, field_name, value)
+
+            assignment.full_clean()
+            assignment.save()
 
             # TODO: emit audit log / signals if required by calling code
             return assignment
@@ -142,15 +162,8 @@ class PerformerAssignmentService:
     @staticmethod
     def update_assignment(
         *,
-        assignment_id: int,
+        command: UpdatePerformerAssignment,
         user: Any,
-        priority: str | None = None,
-        notes: str | None = None,
-        is_active: bool | None = None,
-        alert_on_battery_low: bool | None = None,
-        alert_on_signal_loss: bool | None = None,
-        alert_on_audio_low: bool | None = None,
-        alert_on_hardware_offline: bool | None = None,
     ) -> PerformerAssignment:
         """Update fields on an existing assignment and return the instance.
 
@@ -161,30 +174,27 @@ class PerformerAssignmentService:
         with transaction.atomic():
             assignment = (
                 PerformerAssignment.objects.for_user(user=user)
-                .select_related("wireless_unit__base_chassis__location__building")
+                .select_related(
+                    "monitoring_group",
+                    "wireless_unit__base_chassis__location__building",
+                )
                 .select_for_update()
-                .get(id=assignment_id)
+                .get(id=command.assignment_id)
             )
             PerformerAssignmentService.ensure_can_modify_unit(
                 user=user,
                 unit=assignment.wireless_unit,
             )
+            PerformerAssignmentService.ensure_group_can_manage_unit(
+                group=assignment.monitoring_group,
+                unit=assignment.wireless_unit,
+            )
 
-            if priority is not None:
-                assignment.priority = priority
-            if notes is not None:
-                assignment.notes = notes
-            if is_active is not None:
-                assignment.is_active = is_active
-            if alert_on_battery_low is not None:
-                assignment.alert_on_battery_low = alert_on_battery_low
-            if alert_on_signal_loss is not None:
-                assignment.alert_on_signal_loss = alert_on_signal_loss
-            if alert_on_audio_low is not None:
-                assignment.alert_on_audio_low = alert_on_audio_low
-            if alert_on_hardware_offline is not None:
-                assignment.alert_on_hardware_offline = alert_on_hardware_offline
+            update_values = command.model_dump(exclude={"assignment_id"}, exclude_none=True)
+            for field_name, value in update_values.items():
+                setattr(assignment, field_name, value)
 
+            assignment.full_clean()
             assignment.save()
             return assignment
 

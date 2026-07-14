@@ -1,73 +1,28 @@
 import logging
 
-from django.core.cache import cache
-
 from micboard.models.discovery import Manufacturer
-from micboard.services.common.base.plugin import get_manufacturer_plugin
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
 
-def poll_charger_data(manufacturer_id: int):
-    """Task to poll charger data from a specific manufacturer's API."""
+def poll_charger_data(manufacturer_id: int) -> dict[str, int | bool] | None:
+    """Resolve one active manufacturer ID and delegate bounded charger polling."""
     try:
-        manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
+        manufacturer = Manufacturer.objects.get(pk=manufacturer_id, is_active=True)
+        from micboard.services.chargers.polling_service import ChargerPollingService
 
-        all_devices = plugin.get_devices()  # list of dicts
-
-        charging_stations_data = []
-        charging_station_models = ["SBC250", "SBC850", "MXWNCS8", "MXWNCS4", "SBC220"]
-
-        for device_data in all_devices:
-            device_id = device_data.get("api_device_id")
-            if (
-                device_id is not None
-                and isinstance(device_id, str)
-                and (
-                    device_data.get("model") in charging_station_models
-                    or device_data.get("device_type") in charging_station_models
-                )
-            ):
-                station_slots = []
-                # Get channels for this charger
-                try:
-                    channels = plugin.get_device_channels(device_id)
-                    for channel in channels:
-                        tx_data = channel.get("tx")
-                        if tx_data:
-                            station_slots.append(
-                                {
-                                    "slot_number": channel.get("channel", 0),
-                                    "mic_name": tx_data.get("name", "Unknown Mic"),
-                                    "battery_level": tx_data.get("battery_percentage", 0),
-                                    "charging": tx_data.get("charging_status", False),
-                                }
-                            )
-                except Exception:
-                    logger.warning(
-                        "Could not read charger channels for device %s",
-                        device_id,
-                        exc_info=True,
-                    )
-
-                charging_stations_data.append(
-                    {
-                        "id": device_id,
-                        "name": device_data.get("name", f"Charger {device_id}"),
-                        "status": "online" if plugin.get_client().is_healthy() else "offline",
-                        "slots": station_slots,
-                    }
-                )
-        # Cache the data
-        cache.set(f"charger_data_{manufacturer.code}", charging_stations_data, timeout=60)
+        return ChargerPollingService.poll(manufacturer).model_dump()
 
     except Manufacturer.DoesNotExist:
         logger.warning(
-            "Manufacturer with ID %s not found for charger polling task.", manufacturer_id
+            "Active manufacturer with ID %s not found for charger polling task.",
+            manufacturer_id,
         )
-    except Exception as e:
+    except Exception as exc:
         logger.exception(
-            "Error polling charger data for manufacturer ID %s: %s", manufacturer_id, e
+            "Error polling charger data for manufacturer ID %s",
+            manufacturer_id,
+            exc_info=sanitized_exception_info(exc),
         )
+    return None

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from django.contrib import admin
 from django.db import transaction
@@ -96,23 +96,25 @@ def test_admin_bulk_delete_registers_one_grouped_cleanup() -> None:
     assert not WirelessChassis.objects.filter(pk__in=chassis_ids).exists()
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_queryset_delete_groups_chassis_cleanup(django_capture_on_commit_callbacks) -> None:
-    """Queryset deletion submits one cleanup batch instead of one callback per row."""
+    """Queryset deletion submits one claimed reconciliation per manufacturer."""
     first = WirelessChassisFactory()
     second = WirelessChassisFactory(manufacturer=first.manufacturer)
 
     with (
-        patch.object(HardwarePostSaveHooks, "_remove_ips_from_discovery") as cleanup,
+        patch(
+            "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+        ) as dispatch,
         django_capture_on_commit_callbacks(execute=True),
     ):
         WirelessChassis.objects.filter(pk__in=[first.pk, second.pk]).delete()
 
-    cleanup.assert_called_once()
-    assert {target.ip for target in cleanup.call_args.kwargs["targets"]} == {
-        str(first.ip),
-        str(second.ip),
-    }
+    dispatch.assert_called_once_with(
+        manufacturer_id=first.manufacturer_id,
+        scan_cidrs=False,
+        scan_fqdns=False,
+    )
 
 
 @pytest.mark.django_db
@@ -127,7 +129,7 @@ def test_manufacturer_cascade_skips_obsolete_discovery_cleanup() -> None:
 
     with (
         patch.object(HardwarePostSaveHooks, "handle_chassis_delete") as chassis_cleanup,
-        patch("micboard.model_lifecycle._schedule_manufacturer_discovery") as schedule_discovery,
+        patch("micboard.model_lifecycle.schedule_discovery_on_commit") as schedule_discovery,
     ):
         Manufacturer.objects.filter(pk=first.manufacturer_id).delete()
 
@@ -148,7 +150,9 @@ def test_queryset_fqdn_delete_deduplicates_discovery(
     )
 
     with (
-        patch("micboard.model_lifecycle._dispatch_manufacturer_discovery") as dispatch,
+        patch(
+            "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+        ) as dispatch,
         django_capture_on_commit_callbacks(execute=True),
     ):
         DiscoveryFQDN.objects.filter(manufacturer=manufacturer).delete()
@@ -274,71 +278,187 @@ def test_deferred_status_broadcast_skips_deleted_chassis() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-def test_deferred_external_save_hooks_run_after_commit() -> None:
-    """Manufacturer and task effects must wait for durable persistence."""
+def test_deferred_discovery_reconciliation_runs_after_commit() -> None:
+    """Identity reconciliation must wait for durable persistence."""
     chassis = WirelessChassisFactory()
 
-    with patch.object(HardwarePostSaveHooks, "_run_external_save_hooks") as run_hooks:
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
         with transaction.atomic():
-            chassis.name = "Committed chassis name"
-            chassis.save()
+            chassis.api_device_id = "committed-identity"
+            chassis.save(update_fields=["api_device_id"])
 
-            run_hooks.assert_not_called()
+            dispatch.assert_not_called()
 
-        run_hooks.assert_called_once_with(
-            chassis_id=chassis.pk,
-            created=False,
-            using="default",
+        dispatch.assert_called_once_with(
+            manufacturer_id=chassis.manufacturer_id,
+            scan_cidrs=False,
+            scan_fqdns=False,
         )
 
 
 @pytest.mark.django_db(transaction=True)
-def test_deferred_external_save_hooks_are_discarded_on_rollback() -> None:
-    """Manufacturer and task effects must not run for rolled-back writes."""
+def test_deferred_discovery_reconciliation_is_discarded_on_rollback() -> None:
+    """Identity reconciliation must not run for rolled-back writes."""
     chassis = WirelessChassisFactory()
-    original_name = chassis.name
+    original_api_device_id = chassis.api_device_id
 
-    with patch.object(HardwarePostSaveHooks, "_run_external_save_hooks") as run_hooks:
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
         with transaction.atomic():
-            chassis.name = "Rolled-back chassis name"
-            chassis.save()
+            chassis.api_device_id = "rolled-back-identity"
+            chassis.save(update_fields=["api_device_id"])
             transaction.set_rollback(True)
 
-        run_hooks.assert_not_called()
+        dispatch.assert_not_called()
 
     chassis.refresh_from_db()
-    assert chassis.name == original_name
+    assert chassis.api_device_id == original_api_device_id
 
 
 @pytest.mark.django_db(transaction=True)
-def test_delete_cleanup_runs_after_commit() -> None:
-    """Manufacturer cleanup must observe a durable chassis deletion."""
+def test_chassis_saves_deduplicate_reconciliation_per_manufacturer_and_commit() -> None:
+    """One transaction changing many identities enqueues one manufacturer task."""
+    first = WirelessChassisFactory()
+    second = WirelessChassisFactory(manufacturer=first.manufacturer)
+
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
+        with transaction.atomic():
+            first.serial_number = "updated-first-serial"
+            first.save(update_fields=["serial_number"])
+            second.serial_number = "updated-second-serial"
+            second.save(update_fields=["serial_number"])
+
+            dispatch.assert_not_called()
+
+        dispatch.assert_called_once_with(
+            manufacturer_id=first.manufacturer_id,
+            scan_cidrs=False,
+            scan_fqdns=False,
+        )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_ordinary_chassis_update_does_not_schedule_discovery() -> None:
+    """Display metadata and status-neutral saves cannot enqueue fleet discovery."""
     chassis = WirelessChassisFactory()
 
-    with patch.object(HardwarePostSaveHooks, "_remove_ips_from_discovery") as cleanup:
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
+        chassis.name = "Display-only update"
+        chassis.save()
+
+    dispatch.assert_not_called()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_partial_non_identity_save_ignores_unpersisted_identity_changes() -> None:
+    """Only fields named in a partial write can trigger discovery reconciliation."""
+    chassis = WirelessChassisFactory()
+    original_serial = chassis.serial_number
+
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
+        chassis.serial_number = "not-persisted"
+        chassis.name = "Persisted display update"
+        chassis.save(update_fields=["name"])
+
+    dispatch.assert_not_called()
+    chassis.refresh_from_db()
+    assert chassis.serial_number == original_serial
+
+
+@pytest.mark.django_db(transaction=True)
+def test_chassis_create_schedules_discovery() -> None:
+    """A newly persisted chassis reconciles its manufacturer once."""
+    manufacturer = WirelessChassisFactory().manufacturer
+
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
+        chassis = WirelessChassisFactory(
+            manufacturer=manufacturer,
+            api_device_id="new-identity",
+            serial_number="new-serial",
+            ip="192.0.2.251",
+        )
+
+    dispatch.assert_called_once_with(
+        manufacturer_id=chassis.manufacturer_id,
+        scan_cidrs=False,
+        scan_fqdns=False,
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_chassis_manufacturer_change_reconciles_old_and_new_owners() -> None:
+    """Moving an identity between manufacturers reconciles both inventories."""
+    chassis = WirelessChassisFactory()
+    previous_manufacturer_id = chassis.manufacturer_id
+    new_manufacturer = Manufacturer.objects.create(
+        name="Replacement manufacturer",
+        code="replacement-manufacturer",
+    )
+
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
+        chassis.manufacturer = new_manufacturer
+        chassis.save(update_fields=["manufacturer"])
+
+    assert dispatch.call_args_list == [
+        call(
+            manufacturer_id=previous_manufacturer_id,
+            scan_cidrs=False,
+            scan_fqdns=False,
+        ),
+        call(
+            manufacturer_id=new_manufacturer.pk,
+            scan_cidrs=False,
+            scan_fqdns=False,
+        ),
+    ]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_delete_reconciliation_runs_after_commit() -> None:
+    """Manufacturer reconciliation must observe a durable chassis deletion."""
+    chassis = WirelessChassisFactory()
+
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
         with transaction.atomic():
             chassis.delete()
 
-            cleanup.assert_not_called()
+            dispatch.assert_not_called()
 
-        cleanup.assert_called_once()
-        targets = cleanup.call_args.kwargs["targets"]
-        assert len(targets) == 1
-        assert targets[0].ip == str(chassis.ip)
-        assert cleanup.call_args.kwargs["using"] == "default"
+        dispatch.assert_called_once_with(
+            manufacturer_id=chassis.manufacturer_id,
+            scan_cidrs=False,
+            scan_fqdns=False,
+        )
 
 
 @pytest.mark.django_db(transaction=True)
-def test_delete_cleanup_is_discarded_on_rollback() -> None:
-    """Manufacturer cleanup must not run when chassis deletion rolls back."""
+def test_delete_reconciliation_is_discarded_on_rollback() -> None:
+    """Manufacturer reconciliation must not run when chassis deletion rolls back."""
     chassis = WirelessChassisFactory()
     chassis_pk = chassis.pk
 
-    with patch.object(HardwarePostSaveHooks, "_remove_ips_from_discovery") as cleanup:
+    with patch(
+        "micboard.services.sync.discovery_trigger_service._dispatch_scheduled_discovery"
+    ) as dispatch:
         with transaction.atomic():
             chassis.delete()
             transaction.set_rollback(True)
 
-        cleanup.assert_not_called()
+        dispatch.assert_not_called()
 
     assert WirelessChassis.objects.filter(pk=chassis_pk).exists()

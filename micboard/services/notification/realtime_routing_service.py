@@ -8,6 +8,8 @@ from typing import Any
 
 from django.conf import settings
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 logger = logging.getLogger(__name__)
 
 GLOBAL_UPDATES_GROUP = "micboard_updates"
@@ -94,8 +96,11 @@ class RealtimeRoutingService:
                 "location__building__site_id",
             )
             return {device_id: site_id for device_id, site_id in rows if site_id is not None}
-        except Exception:
-            logger.exception("Failed to resolve chassis site routes")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve chassis site routes",
+                exc_info=sanitized_exception_info(exc),
+            )
             return {}
 
     @classmethod
@@ -119,8 +124,11 @@ class RealtimeRoutingService:
                 for device_id, organization_id, campus_id in rows
                 if organization_id is not None
             }
-        except Exception:
-            logger.exception("Failed to resolve chassis tenant routes")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve chassis tenant routes",
+                exc_info=sanitized_exception_info(exc),
+            )
             return {}
 
     @classmethod
@@ -153,8 +161,11 @@ class RealtimeRoutingService:
                 )
                 .first()
             )
-        except Exception:
-            logger.exception("Failed to resolve wireless unit tenant route")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve wireless unit tenant route",
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
         if row is None or row[0] is None:
@@ -178,8 +189,11 @@ class RealtimeRoutingService:
                 .values_list("base_chassis__location__building__site_id", flat=True)
                 .first()
             )
-        except Exception:
-            logger.exception("Failed to resolve wireless unit site route")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve wireless unit site route",
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
     @staticmethod
@@ -208,8 +222,11 @@ class RealtimeRoutingService:
                 for organization_id, campus_id in rows
                 if organization_id is not None
             )
-        except Exception:
-            logger.exception("Failed to resolve manufacturer tenant routes")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve manufacturer tenant routes",
+                exc_info=sanitized_exception_info(exc),
+            )
             return ()
 
     @staticmethod
@@ -230,6 +247,9 @@ class RealtimeRoutingService:
                 .values_list("location__building__site_id", flat=True)
                 .distinct()
             )
-        except Exception:
-            logger.exception("Failed to resolve manufacturer site routes")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve manufacturer site routes",
+                exc_info=sanitized_exception_info(exc),
+            )
             return ()

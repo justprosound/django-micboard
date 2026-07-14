@@ -20,6 +20,7 @@ from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.core.performer_assignment_dtos import UpdatePerformerAssignment
 
 
 class AlertAccessTests(TestCase):
@@ -320,10 +321,11 @@ class PerformerAssignmentAccessTests(TestCase):
     def test_invalid_create_rerenders_form(self) -> None:
         response = self.client.post(reverse("micboard:create_assignment"), {})
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         self.assertContains(
             response,
-            "Performer, Wireless Unit, and Monitoring Group are required",
+            "Correct the invalid assignment values and try again.",
+            status_code=400,
         )
 
     def test_unassigned_performer_can_receive_first_assignment(self) -> None:
@@ -417,9 +419,11 @@ class PerformerAssignmentAccessTests(TestCase):
     def test_service_rejects_cross_scope_assignment_update(self) -> None:
         with self.assertRaises(PerformerAssignment.DoesNotExist):
             PerformerAssignmentService.update_assignment(
-                assignment_id=self.other_assignment.pk,
+                command=UpdatePerformerAssignment(
+                    assignment_id=self.other_assignment.pk,
+                    notes="cross-scope update",
+                ),
                 user=self.user,
-                notes="cross-scope update",
             )
 
         self.other_assignment.refresh_from_db()

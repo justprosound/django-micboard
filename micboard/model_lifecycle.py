@@ -6,18 +6,14 @@ pre/post-save events into service-layer calls and task-layer dispatches.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from functools import partial
 from typing import Any
 
-from django.conf import settings
-from django.db import transaction
 from django.db.models.signals import post_delete, post_save, pre_delete, pre_save
 
-logger = logging.getLogger(__name__)
+from micboard.services.sync.discovery_trigger_service import schedule_discovery_on_commit
 
 _CHASSIS_CONTEXT = "_micboard_chassis_save_context"
 _CHANNEL_CONTEXT = "_micboard_channel_save_context"
@@ -66,12 +62,24 @@ def _prepare_chassis(sender: type[Any], instance: Any, using: str, **kwargs: Any
         return
     from micboard.services.hardware.ip_ownership_service import HardwareIPOwnershipService
     from micboard.services.hardware.wireless_chassis_service import prepare_chassis_for_save
+    from micboard.services.sync.chassis_discovery_schedule_service import (
+        ChassisDiscoveryScheduleService,
+    )
 
     HardwareIPOwnershipService.validate_for_instance(instance=instance, using=using)
+    context = prepare_chassis_for_save(instance, using=using)
+    context["discovery_manufacturer_ids"] = (
+        ChassisDiscoveryScheduleService.affected_manufacturer_ids(
+            instance,
+            created=context["created"],
+            using=using,
+            update_fields=kwargs.get("update_fields"),
+        )
+    )
     _remember_context(
         instance,
         _CHASSIS_CONTEXT,
-        prepare_chassis_for_save(instance, using=using),
+        context,
     )
 
 
@@ -96,26 +104,13 @@ def _finish_chassis(
         created=created,
         using=using,
     )
-    transaction.on_commit(
-        partial(_dispatch_chassis_discovery, chassis_id=instance.pk, using=using),
-        using=using,
-        robust=True,
-    )
-
-
-def _dispatch_chassis_discovery(*, chassis_id: int, using: str) -> None:
-    if getattr(settings, "TESTING", False):
-        return
-    try:
-        from micboard.tasks.sync.discovery import sync_receiver_discovery
-        from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
-
-        if huey_is_configured():
-            enqueue_huey_task(sync_receiver_discovery, chassis_id, using=using)
-        else:
-            logger.debug("Native Huey is unavailable or unconfigured; skipping chassis discovery")
-    except Exception:
-        logger.exception("Failed to schedule discovery for chassis %s", chassis_id)
+    for manufacturer_id in context.get("discovery_manufacturer_ids", ()):
+        schedule_discovery_on_commit(
+            manufacturer_id=manufacturer_id,
+            scan_cidrs=False,
+            scan_fqdns=False,
+            using=using,
+        )
 
 
 def _delete_chassis(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
@@ -246,7 +241,7 @@ def _finish_manufacturer(
         old_active=context.get("old_active", False),
     )
     if should_discover:
-        _schedule_manufacturer_discovery(
+        schedule_discovery_on_commit(
             manufacturer_id=instance.pk,
             scan_cidrs=False,
             scan_fqdns=False,
@@ -260,52 +255,13 @@ def _delete_manufacturer(sender: type[Any], instance: Any, **kwargs: Any) -> Non
     handle_manufacturer_delete(manufacturer=instance)
 
 
-def _schedule_manufacturer_discovery(
-    *,
-    manufacturer_id: int,
-    scan_cidrs: bool,
-    scan_fqdns: bool,
-    using: str,
-) -> None:
-    connection = transaction.get_connection(using)
-    savepoints = set(connection.savepoint_ids)
-    discovery_key = (manufacturer_id, scan_cidrs, scan_fqdns)
-    if any(
-        callback_savepoints == savepoints
-        and getattr(callback, "_micboard_discovery_key", None) == discovery_key
-        for callback_savepoints, callback, _robust in connection.run_on_commit
-    ):
-        return
-
-    callback = partial(
-        _dispatch_manufacturer_discovery,
-        manufacturer_id=manufacturer_id,
-        scan_cidrs=scan_cidrs,
-        scan_fqdns=scan_fqdns,
-    )
-    callback.__dict__["_micboard_discovery_key"] = discovery_key
-    transaction.on_commit(callback, using=using, robust=True)
-
-
-def _dispatch_manufacturer_discovery(
-    *, manufacturer_id: int, scan_cidrs: bool, scan_fqdns: bool
-) -> None:
-    from micboard.tasks.sync.discovery import dispatch_manufacturer_discovery
-
-    dispatch_manufacturer_discovery(
-        manufacturer_id,
-        scan_cidrs=scan_cidrs,
-        scan_fqdns=scan_fqdns,
-    )
-
-
 def _config_saved(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
     if kwargs.get("raw", False):
         return
     from micboard.services.discovery.registry_service import discovery_manufacturer_for_config
 
     if manufacturer_id := discovery_manufacturer_for_config(instance):
-        _schedule_manufacturer_discovery(
+        schedule_discovery_on_commit(
             manufacturer_id=manufacturer_id,
             scan_cidrs=True,
             scan_fqdns=True,
@@ -323,7 +279,7 @@ def _registry_entry_changed(sender: type[Any], instance: Any, using: str, **kwar
     from micboard.services.discovery.registry_service import discovery_manufacturer_for_entry
 
     if manufacturer_id := discovery_manufacturer_for_entry(instance):
-        _schedule_manufacturer_discovery(
+        schedule_discovery_on_commit(
             manufacturer_id=manufacturer_id,
             scan_cidrs=True,
             scan_fqdns=True,

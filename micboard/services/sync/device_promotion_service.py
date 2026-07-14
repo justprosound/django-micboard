@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 if TYPE_CHECKING:
     from micboard.models.discovery.registry import DiscoveredDevice
     from micboard.models.hardware.wireless_chassis import WirelessChassis
@@ -26,11 +28,11 @@ class DevicePromotionService:
         if not discovered.manufacturer:
             return (False, "No manufacturer specified for discovered device", None)
 
-        existing = self._find_existing_chassis_for_discovered(discovered)
-        if existing:
-            return (False, f"Device already managed as chassis: {existing}", existing)
-
         try:
+            existing = self._find_existing_chassis_for_discovered(discovered)
+            if existing:
+                return (False, f"Device already managed as chassis: {existing}", existing)
+
             plugin, device_data = self._get_plugin_and_device_data_for_promotion(discovered)
             if not plugin:
                 return (False, "Plugin not available for manufacturer", None)
@@ -41,9 +43,17 @@ class DevicePromotionService:
 
             return self._attempt_promotion_with_device_data(discovered, plugin, device_data)
 
-        except Exception as e:
-            logger.exception("Error promoting discovered device %s", discovered.ip)
-            return (False, f"Exception during promotion: {e}", None)
+        except Exception as exc:
+            logger.exception(
+                "Error promoting discovered device %s",
+                getattr(discovered, "pk", None),
+                exc_info=sanitized_exception_info(exc),
+            )
+            return (
+                False,
+                f"Promotion failed ({type(exc).__name__}); details redacted.",
+                None,
+            )
 
     def _find_existing_chassis_for_discovered(self, discovered):
         from micboard.models.hardware.wireless_chassis import WirelessChassis
@@ -64,8 +74,12 @@ class DevicePromotionService:
             for dev in api_devices:
                 if dev.get("ip") == discovered.ip or dev.get("ipAddress") == discovered.ip:
                     return plugin, dev
-        except Exception:
-            logger.exception("Error fetching devices from plugin for promotion: %s", discovered.ip)
+        except Exception as exc:
+            logger.exception(
+                "Error fetching vendor devices for discovered device %s",
+                getattr(discovered, "pk", None),
+                exc_info=sanitized_exception_info(exc),
+            )
 
         return plugin, None
 

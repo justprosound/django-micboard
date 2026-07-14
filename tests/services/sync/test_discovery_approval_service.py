@@ -253,8 +253,8 @@ def test_existing_device_identity_change_preserves_known_metadata() -> None:
     assert chassis.firmware_version == "1.2.3"
 
 
-def test_existing_device_persists_derived_specs_before_channel_reconciliation() -> None:
-    """Approval must keep persisted capacity aligned with provisioned RF channels."""
+def test_existing_device_preserves_explicit_capacity_before_channel_reconciliation() -> None:
+    """An unknown model must not erase a discovered capacity before reconciliation."""
     reviewer = UserFactory()
     _grant(reviewer, "change_wirelesschassis")
     chassis = WirelessChassisFactory(
@@ -278,7 +278,7 @@ def test_existing_device_persists_derived_specs_before_channel_reconciliation() 
     )
 
     chassis.refresh_from_db()
-    assert chassis.max_channels == 4
+    assert chassis.max_channels == 8
     assert chassis.rf_channels.count() == chassis.max_channels
 
 

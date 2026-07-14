@@ -17,6 +17,7 @@ from micboard.services.monitoring.alerts import (
     check_hardware_offline_alerts,
     check_transmitter_alerts,
 )
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,7 @@ class DeviceUpdateService:
         active_chassis_ids: list[int] = []
         snapshot_failed = False
 
-        for device_data in api_data:
-            device_identifier = str(
-                device_data.get("api_device_id") or device_data.get("id") or "unknown"
-            )
+        for device_index, device_data in enumerate(api_data, start=1):
             try:
                 transformed_data = plugin.transform_device_data(device_data)
                 if not transformed_data:
@@ -86,17 +84,30 @@ class DeviceUpdateService:
                     raise ValueError("Persisted wireless chassis is missing its primary key")
                 active_chassis_ids.append(chassis.pk)
 
-                for channel_data in plugin.get_device_channels(api_device_id):
+                embedded_channels = transformed_data.get("channels")
+                if isinstance(embedded_channels, list) and embedded_channels:
+                    channel_data_items = embedded_channels
+                    transmitter_is_normalized = True
+                else:
+                    channel_data_items = plugin.get_device_channels(api_device_id)
+                    transmitter_is_normalized = False
+
+                for channel_data in channel_data_items:
                     cls._update_channel_and_unit(
                         chassis=chassis,
                         channel_data=channel_data,
                         plugin=plugin,
                         api_device_id=api_device_id,
+                        transmitter_is_normalized=transmitter_is_normalized,
                     )
                 updated_count += 1
-            except Exception:
+            except Exception as exc:
                 snapshot_failed = True
-                logger.exception("Error updating device %s", device_identifier)
+                logger.exception(
+                    "Error updating vendor device at snapshot position %s",
+                    device_index,
+                    exc_info=sanitized_exception_info(exc),
+                )
 
         if authoritative_snapshot and not snapshot_failed:
             cls.mark_offline_receivers(
@@ -136,9 +147,17 @@ class DeviceUpdateService:
 
         lifecycle = get_lifecycle_manager(manufacturer.code)
         if created:
-            logger.info("Created new wireless chassis: %s (%s)", chassis.name, api_device_id)
+            logger.info(
+                "Created wireless chassis %s for manufacturer %s",
+                chassis.pk,
+                manufacturer.pk,
+            )
         else:
-            logger.debug("Updated wireless chassis: %s", api_device_id)
+            logger.debug(
+                "Updated wireless chassis %s for manufacturer %s",
+                chassis.pk,
+                manufacturer.pk,
+            )
             if chassis.status not in {"online", "degraded", "maintenance"}:
                 if chassis.status == "discovered" and not lifecycle.transition_device(
                     chassis,
@@ -161,6 +180,7 @@ class DeviceUpdateService:
         channel_data: dict[str, Any],
         plugin: DeviceUpdatePlugin,
         api_device_id: str,
+        transmitter_is_normalized: bool = False,
     ) -> None:
         """Update one RF channel and its attached wireless unit."""
         channel_number = int(channel_data.get("channel", 0))
@@ -168,7 +188,11 @@ class DeviceUpdateService:
         if not isinstance(raw_unit, dict):
             return
 
-        transformed_unit = plugin.transform_transmitter_data(raw_unit, channel_number)
+        transformed_unit = (
+            raw_unit
+            if transmitter_is_normalized
+            else plugin.transform_transmitter_data(raw_unit, channel_number)
+        )
         if not transformed_unit:
             return
 
@@ -178,9 +202,9 @@ class DeviceUpdateService:
         )
         if created:
             logger.info(
-                "Created channel %d for wireless chassis %s",
-                channel_number,
-                chassis.name,
+                "Created RF channel %s for wireless chassis %s",
+                channel.pk,
+                chassis.pk,
             )
 
         slot = cls._assign_unit_slot(
@@ -195,21 +219,33 @@ class DeviceUpdateService:
                 "slot": slot,
                 "manufacturer": chassis.manufacturer,
                 "base_chassis": chassis,
-                "battery": transformed_unit.get("battery", 255),
+                "battery": (
+                    transformed_unit["battery"]
+                    if transformed_unit.get("battery") is not None
+                    else 255
+                ),
                 "battery_charge": transformed_unit.get("battery_charge"),
-                "battery_type": transformed_unit.get("battery_type", ""),
-                "battery_runtime": transformed_unit.get("runtime", ""),
-                "battery_health": transformed_unit.get("battery_health", ""),
+                "battery_type": transformed_unit.get("battery_type") or "",
+                "battery_runtime": transformed_unit.get("runtime") or "",
+                "battery_health": transformed_unit.get("battery_health") or "",
                 "battery_cycles": transformed_unit.get("battery_cycles"),
                 "battery_temperature_c": transformed_unit.get("battery_temperature_c"),
-                "audio_level": transformed_unit.get("audio_level", 0),
-                "rf_level": transformed_unit.get("rf_level", 0),
-                "frequency": transformed_unit.get("frequency", ""),
-                "antenna": transformed_unit.get("antenna", ""),
-                "tx_offset": transformed_unit.get("tx_offset", 255),
-                "quality": transformed_unit.get("quality", 255),
-                "status": transformed_unit.get("status", ""),
-                "name": transformed_unit.get("name", ""),
+                "audio_level": transformed_unit.get("audio_level") or 0,
+                "rf_level": transformed_unit.get("rf_level") or 0,
+                "frequency": transformed_unit.get("frequency") or "",
+                "antenna": transformed_unit.get("antenna") or "",
+                "tx_offset": (
+                    transformed_unit["tx_offset"]
+                    if transformed_unit.get("tx_offset") is not None
+                    else 255
+                ),
+                "quality": (
+                    transformed_unit["quality"]
+                    if transformed_unit.get("quality") is not None
+                    else 255
+                ),
+                "status": transformed_unit.get("status") or "",
+                "name": transformed_unit.get("name") or "",
             },
         )
         check_transmitter_alerts(unit)
@@ -226,10 +262,9 @@ class DeviceUpdateService:
         existing = WirelessUnit.objects.filter(assigned_resource=channel).only("slot").first()
         if existing is not None:
             logger.debug(
-                "Reusing slot %d for %s channel %d",
+                "Reusing slot %d for RF channel %s",
                 existing.slot,
-                api_device_id,
-                channel_number,
+                channel.pk,
             )
             return existing.slot
 
@@ -241,7 +276,7 @@ class DeviceUpdateService:
         slot = int.from_bytes(digest[:4], byteorder="big") % 10000
         while WirelessUnit.objects.filter(slot=slot).exists():
             slot = (slot + 1) % 10000
-        logger.info("Assigned slot %d for %s channel %d", slot, api_device_id, channel_number)
+        logger.info("Assigned slot %d for RF channel %s", slot, channel.pk)
         return slot
 
     @staticmethod
@@ -266,12 +301,20 @@ class DeviceUpdateService:
             try:
                 lifecycle.mark_offline(chassis, reason="Device not found in API poll")
                 offline_count += 1
-            except Exception:
-                logger.exception("Error marking wireless chassis %s offline", chassis.pk)
+            except Exception as exc:
+                logger.exception(
+                    "Error marking wireless chassis %s offline",
+                    chassis.pk,
+                    exc_info=sanitized_exception_info(exc),
+                )
 
         if not offline_count:
             return
-        logger.warning("Marked %d chassis offline for %s", offline_count, manufacturer.name)
+        logger.warning(
+            "Marked %d chassis offline for manufacturer %s",
+            offline_count,
+            manufacturer.pk,
+        )
         refreshed_chassis = WirelessChassis.objects.filter(
             manufacturer=manufacturer,
             status="offline",

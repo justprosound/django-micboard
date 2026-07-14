@@ -6,43 +6,99 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from django.core.exceptions import PermissionDenied
+
 from micboard.models.discovery import Manufacturer
-from micboard.models.hardware import WirelessUnit
-from micboard.services.monitoring.alerts import (
-    check_hardware_offline_alerts,
-    check_transmitter_alerts,
-)
+from micboard.models.hardware import WirelessChassis
+from micboard.models.integrations import ManufacturerAPIServer
 
 logger = logging.getLogger(__name__)
 
 
+def poll_api_server_device(
+    api_server_id: int,
+    chassis_id: int,
+) -> dict[str, int] | None:
+    """Poll one API-server-owned chassis through the service layer."""
+    try:
+        server = ManufacturerAPIServer.objects.get(pk=api_server_id)
+        chassis = WirelessChassis.objects.select_related("manufacturer", "location").get(
+            pk=chassis_id
+        )
+
+        from micboard.services.sync.polling_api import APIServerPollingService
+
+        updated = APIServerPollingService.poll_managed_device(
+            server=server,
+            chassis=chassis,
+        )
+        return {
+            "api_server_id": server.pk,
+            "chassis_id": chassis.pk,
+            "devices_updated": updated,
+        }
+    except (ManufacturerAPIServer.DoesNotExist, WirelessChassis.DoesNotExist):
+        logger.warning(
+            "API server %s or managed chassis %s was not found for polling",
+            api_server_id,
+            chassis_id,
+        )
+    except PermissionDenied:
+        logger.warning(
+            "Rejected API server %s ownership claim for managed chassis %s",
+            api_server_id,
+            chassis_id,
+        )
+    except Exception as exc:
+        from micboard.utils.exception_logging import sanitized_exception_info
+
+        logger.exception(
+            "Failed to poll managed chassis %s through API server %s",
+            chassis_id,
+            api_server_id,
+            exc_info=sanitized_exception_info(exc),
+        )
+    return None
+
+
 def refresh_selected_chassis(
     chassis_ids: list[int],
+    actor_id: int,
     *,
     using: str = "default",
-) -> dict[str, int]:
-    """Refresh an explicit admin selection in a native Huey worker."""
+) -> dict[str, int | bool]:
+    """Refresh an authorized, bounded admin selection in a native Huey worker."""
     from micboard.services.hardware.chassis_refresh_service import ChassisRefreshService
 
-    result = ChassisRefreshService.refresh_ids(chassis_ids=chassis_ids, using=using)
+    result = ChassisRefreshService.refresh_authorized_ids(
+        chassis_ids=chassis_ids,
+        actor_id=actor_id,
+        using=using,
+    )
     return result.model_dump()
 
 
-def poll_manufacturer_devices(manufacturer_id: int) -> dict[str, Any] | None:
-    """Poll one manufacturer through the service layer and run follow-up work."""
+def poll_manufacturer_devices(
+    manufacturer_id: int,
+    *,
+    force: bool = False,
+) -> dict[str, Any] | None:
+    """Poll one currently active manufacturer unless an operator explicitly forced it."""
     try:
-        manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
+        manufacturer_filters: dict[str, int | bool] = {"pk": manufacturer_id}
+        if not force:
+            manufacturer_filters["is_active"] = True
+        manufacturer = Manufacturer.objects.get(**manufacturer_filters)
 
         # Use the new PollingService for clean service-based approach
         from micboard.services.sync.polling_service import PollingService
 
         service = PollingService()
-        result = service.poll_manufacturer(manufacturer)
+        result = service.poll_manufacturer(manufacturer, force=force)
 
-        # Run alerts for each unit after polling.
-        for unit in WirelessUnit.objects.filter(manufacturer=manufacturer):
-            check_hardware_offline_alerts(unit)
-            check_transmitter_alerts(unit)
+        from micboard.services.monitoring.poll_alert_service import PollAlertService
+
+        alert_scan = PollAlertService.evaluate_manufacturer(manufacturer)
 
         logger.info(
             "Polling task complete for %s: %d devices created/updated, %d transmitters",
@@ -50,47 +106,26 @@ def poll_manufacturer_devices(manufacturer_id: int) -> dict[str, Any] | None:
             result.get("devices_created", 0) + result.get("devices_updated", 0),
             result.get("units_synced", 0),
         )
-
-        # Start real-time subscriptions
-        _start_realtime_subscriptions(manufacturer)
+        if alert_scan.failed:
+            logger.warning(
+                "Post-poll alert evaluation failed for %d of %d bounded wireless units",
+                alert_scan.failed,
+                alert_scan.scanned,
+            )
 
         return result
 
     except Manufacturer.DoesNotExist:
         logger.warning(
-            "Manufacturer with ID %s not found for device polling task.", manufacturer_id
+            "Manufacturer with ID %s not found or inactive for device polling task.",
+            manufacturer_id,
         )
-    except Exception as e:
-        logger.exception("Error polling devices for manufacturer ID %s: %s", manufacturer_id, e)
+    except Exception as exc:
+        from micboard.utils.exception_logging import sanitized_exception_info
+
+        logger.exception(
+            "Error polling devices for manufacturer ID %s",
+            manufacturer_id,
+            exc_info=sanitized_exception_info(exc),
+        )
     return None
-
-
-def _start_realtime_subscriptions(manufacturer):
-    """Start real-time subscriptions for a manufacturer."""
-    from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
-
-    if not huey_is_configured():
-        logger.debug(
-            "Native Huey is unavailable or unconfigured; "
-            "skipping real-time subscription background tasks"
-        )
-        return
-
-    try:
-        if manufacturer.code == "shure":
-            # Start WebSocket subscriptions for Shure
-            from micboard.tasks.monitoring.websocket import start_shure_websocket_subscriptions
-
-            enqueue_huey_task(start_shure_websocket_subscriptions)
-            logger.info("Started WebSocket subscriptions for %s", manufacturer.name)
-        elif manufacturer.code == "sennheiser":
-            # Start SSE subscriptions for Sennheiser
-            from micboard.tasks.monitoring.sse import start_sse_subscriptions
-
-            enqueue_huey_task(start_sse_subscriptions, manufacturer.id)
-            logger.info("Started SSE subscriptions for %s", manufacturer.name)
-        else:
-            logger.debug("No real-time subscriptions available for %s", manufacturer.code)
-
-    except Exception as e:
-        logger.exception("Error starting real-time subscriptions for %s: %s", manufacturer.name, e)

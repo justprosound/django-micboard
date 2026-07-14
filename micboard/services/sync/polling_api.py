@@ -10,20 +10,13 @@ from polling_service.py instead.
 
 from __future__ import annotations
 
-import logging
-from typing import Any
-
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.integrations import ManufacturerAPIServer
-from micboard.services.core.hardware import HardwareService
-from micboard.services.integrations.api_server_service import (
-    APIServerConnectionService,
-    sanitized_api_exception_info,
-)
-
-logger = logging.getLogger(__name__)
+from micboard.models.locations import Location
+from micboard.services.integrations.api_server_service import APIServerConnectionService
 
 
 class APIServerPollingService:
@@ -34,76 +27,50 @@ class APIServerPollingService:
     """
 
     @staticmethod
-    def poll_all_active_devices() -> dict[str, int]:
-        """Trigger polling for all active devices across all configured APIs.
+    def poll_managed_device(
+        *,
+        server: ManufacturerAPIServer,
+        chassis: WirelessChassis,
+    ) -> int:
+        """Poll one explicitly managed chassis through its persisted API server.
 
-        Returns:
-            Dictionary with success and failed counts
+        The server's manufacturer and physical location form the ownership boundary.
+        Validation happens before opening the vendor transport so a queued task cannot
+        use one tenant's endpoint to update another tenant's hardware.
         """
-        # 1. Get all enabled API servers
-        api_servers = ManufacturerAPIServer.objects.filter(enabled=True)
-        results = {"success": 0, "failed": 0}
+        target_device_id = chassis.api_device_id.strip()
+        if (
+            not APIServerPollingService._server_owns_chassis(server, chassis)
+            or not target_device_id
+        ):
+            raise PermissionDenied("API server does not own the requested managed chassis")
 
-        for server in api_servers:
-            try:
-                APIServerPollingService.poll_server_devices(server)
-                results["success"] += 1
-            except Exception as exc:
-                logger.exception(
-                    "Failed to poll API server %s",
-                    server.pk,
-                    exc_info=sanitized_api_exception_info(exc),
-                )
-                results["failed"] += 1
-
-        return results
-
-    @staticmethod
-    def poll_server_devices(server: ManufacturerAPIServer) -> None:
-        """Poll specific API server and update related devices.
-
-        Args:
-            server: ManufacturerAPIServer instance to poll
-
-        Raises:
-            Exception: If poll fails (sets server status to ERROR)
-        """
         if server.manufacturer != ManufacturerAPIServer.Manufacturer.SHURE:
-            logger.debug(
-                "Skipping unsupported API server manufacturer %s for server %s",
-                server.manufacturer,
-                server.pk,
-            )
-            return
+            return 0
 
         try:
-            api_devices = APIServerConnectionService.fetch_server_devices(server)
-            if api_devices is None:
-                return
+            api_devices = APIServerConnectionService.fetch_server_devices(server) or []
+            target_devices = [
+                device
+                for device in api_devices
+                if str(device.get("id") or device.get("api_device_id") or "").strip()
+                == target_device_id
+            ]
 
-            for dev_data in api_devices:
-                serial = dev_data.get("serial") or dev_data.get("serialNumber")
-                if not serial:
-                    continue
+            from micboard.integrations.shure.plugin import ShurePlugin
+            from micboard.services.sync.device_update_service import DeviceUpdateService
 
-                # Find local chassis
-                chassis = WirelessChassis.objects.filter(serial_number=serial).first()
-                if not chassis:
-                    continue
+            updated = DeviceUpdateService.update_models_from_api_data(
+                api_data=target_devices[:1],
+                manufacturer=chassis.manufacturer,
+                plugin=ShurePlugin(chassis.manufacturer),
+            )
 
-                # Update status
-                is_online = dev_data.get("state") == "ONLINE"
-                HardwareService.sync_hardware_status(obj=chassis, online=is_online)
-
-                chassis.last_seen = timezone.now()
-                chassis.save(update_fields=["last_seen"])
-
-            # Update server health
             server.status = ManufacturerAPIServer.Status.ACTIVE
             server.status_message = ""
             server.last_health_check = timezone.now()
             server.save(update_fields=["status", "status_message", "last_health_check"])
-
+            return updated
         except Exception as exc:
             server.status = ManufacturerAPIServer.Status.ERROR
             server.status_message = f"Polling failed ({type(exc).__name__})"
@@ -111,37 +78,23 @@ class APIServerPollingService:
             raise
 
     @staticmethod
-    def get_server_status(server: ManufacturerAPIServer) -> dict[str, Any]:
-        """Get current status of an API server.
+    def _server_owns_chassis(
+        server: ManufacturerAPIServer,
+        chassis: WirelessChassis,
+    ) -> bool:
+        """Fail closed unless the server's legacy location name is globally unambiguous."""
+        server_location = server.location_name.strip()
+        if (
+            not server.enabled
+            or server.manufacturer != chassis.manufacturer.code
+            or not server_location
+            or chassis.location_id is None
+        ):
+            return False
 
-        Args:
-            server: ManufacturerAPIServer instance
-
-        Returns:
-            Dictionary with server status details
-        """
-        return {
-            "name": server.name,
-            "manufacturer": server.manufacturer,
-            "status": server.status,
-            "enabled": server.enabled,
-            "last_health_check": server.last_health_check,
-            "status_message": server.status_message,
-            "base_url": server.base_url,
-        }
-
-    @staticmethod
-    def get_all_server_statuses() -> dict[str, Any]:
-        """Get status of all API servers.
-
-        Returns:
-            Dictionary with statuses for all configured servers
-        """
-        servers = ManufacturerAPIServer.objects.all()
-        return {
-            "total": servers.count(),
-            "enabled": servers.filter(enabled=True).count(),
-            "active": servers.filter(status="active").count(),
-            "error": servers.filter(status="error").count(),
-            "servers": [APIServerPollingService.get_server_status(s) for s in servers],
-        }
+        matching_location_ids = tuple(
+            Location.objects.filter(name=server_location, is_active=True)
+            .order_by("pk")
+            .values_list("pk", flat=True)[:2]
+        )
+        return matching_location_ids == (chassis.location_id,)

@@ -244,6 +244,8 @@ class WallSection(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = WallSectionQuerySet.as_manager()
+
     class Meta:
         verbose_name = "Wall Section"
         verbose_name_plural = "Wall Sections"

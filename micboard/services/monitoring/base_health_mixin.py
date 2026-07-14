@@ -6,12 +6,11 @@ Centralizes health checking logic and standardizes responses across manufacturer
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from django.utils import timezone
 
-if TYPE_CHECKING:  # pragma: no cover
-    pass
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -95,12 +94,10 @@ class HealthCheckMixin:
         # Try to extract status field (varies by manufacturer)
         status_field = raw_response.get("status")
         if not status_field:
-            # Try alternative names
-            status_field = (
-                raw_response.get("healthy")
-                or raw_response.get("is_healthy")
-                or raw_response.get("api_healthy")
-            )
+            for field_name in ("healthy", "is_healthy", "api_healthy"):
+                if field_name in raw_response:
+                    status_field = raw_response[field_name]
+                    break
 
         # Convert boolean to status string
         if isinstance(status_field, bool):
@@ -222,9 +219,13 @@ class AggregatedHealthChecker:
                 elif status == "degraded" and worst_status not in ("error", "unhealthy"):
                     worst_status = "degraded"
 
-            except Exception as e:
-                error_msg = f"Health check failed: {e}"
-                logger.exception("Error checking health for %s", name)
+            except Exception as exc:
+                error_msg = f"Health check failed ({type(exc).__name__}); details redacted."
+                logger.exception(
+                    "Error checking health for %s",
+                    name,
+                    exc_info=sanitized_exception_info(exc),
+                )
                 results[name] = {
                     "status": "error",
                     "timestamp": timezone.now().isoformat(),

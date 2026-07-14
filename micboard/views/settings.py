@@ -16,6 +16,7 @@ from django.views.generic import FormView
 
 from micboard.forms.settings import BulkSettingConfigForm, ManufacturerSettingsForm
 from micboard.services.settings.presentation_service import settings_presentation
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +61,12 @@ class BulkSettingConfigView(LoginRequiredMixin, PermissionRequiredMixin, FormVie
 
             return redirect(self.success_url)
 
-        except Exception:
-            logger.exception("Failed to save bulk settings for user %s", self.request.user.pk)
+        except Exception as exc:
+            logger.exception(
+                "Failed to save bulk settings for user %s",
+                self.request.user.pk,
+                exc_info=sanitized_exception_info(exc),
+            )
             messages.error(self.request, "❌ Settings could not be saved. Please try again.")
             return self.form_invalid(form)
 
@@ -113,10 +118,11 @@ class ManufacturerSettingsView(LoginRequiredMixin, PermissionRequiredMixin, Form
 
             return redirect(self.success_url)
 
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "Failed to save manufacturer settings for user %s",
                 self.request.user.pk,
+                exc_info=sanitized_exception_info(exc),
             )
             messages.error(self.request, "❌ Settings could not be saved. Please try again.")
             return self.form_invalid(form)

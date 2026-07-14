@@ -42,34 +42,22 @@ uv run --no-sync python manage.py migrate
 
 ## 📦 Service Layer Usage
 
-### HardwareQueryService
+### Authenticated hardware queries
 
 ```python
-from micboard.services.core.hardware_query import HardwareQueryService
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.hardware.wireless_unit import WirelessUnit
 
-# Single-site (default)
-chassis = HardwareQueryService.get_active_chassis()
-
-# Multi-site
-chassis = HardwareQueryService.get_active_chassis(site_id=1)
-
-# MSP mode
-chassis = HardwareQueryService.get_active_chassis(
-    organization_id=org.id,
-    campus_id=campus.id  # Optional
-)
+chassis = WirelessChassis.objects.for_user(user=request.user).active()
+units = WirelessUnit.objects.for_user(user=request.user).active()
 ```
 
-### LocationService
+### Authenticated location queries
 
 ```python
-from micboard.services.core.location import LocationService
+from micboard.services.monitoring.monitoring_access import MonitoringService
 
-# Get all locations (tenant-aware)
-locations = LocationService.get_all_locations(
-    organization_id=org.id,
-    campus_id=campus.id
-)
+locations = MonitoringService.get_accessible_locations(request.user)
 ```
 
 ### ManufacturerSyncService
@@ -155,10 +143,7 @@ def my_view(request):
     org = request.organization  # Set by TenantMiddleware
     campus_id = request.campus_id
 
-    # Use in service calls
-    chassis = HardwareQueryService.get_active_chassis(
-        organization_id=org.id if org else None
-    )
+    chassis = WirelessChassis.objects.for_user(user=request.user).active()
 ```
 
 ## 🔄 Organization Switching
@@ -234,15 +219,12 @@ docs/
 - **Migration Guide**: [micboard/multitenancy/migrations/README.md](https://github.com/justprosound/django-micboard/blob/main/micboard/multitenancy/migrations/README.md)
 - **Settings Template**: [micboard/settings/multitenancy.py](https://github.com/justprosound/django-micboard/blob/main/micboard/settings/multitenancy.py)
 
-## ✅ Backward Compatibility
+## ✅ Explicit access scope
 
-All tenant parameters are **optional** - existing code works unchanged:
+Request-facing queries require the authenticated user:
 
 ```python
-# ✅ All of these work
-HardwareQueryService.get_active_chassis()
-HardwareQueryService.get_active_chassis(organization_id=1)
-HardwareQueryService.get_active_chassis(site_id=1, campus_id=2)
+WirelessChassis.objects.for_user(user=request.user).active()
 ```
 
 ## 🧪 Testing

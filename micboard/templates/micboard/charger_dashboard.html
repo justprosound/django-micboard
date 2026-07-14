@@ -85,9 +85,12 @@
         <form class="d-flex gap-2" hx-post="{% url 'micboard:charger_dashboard' %}" hx-target=".charger-container" hx-select=".charger-container" hx-swap="outerHTML" aria-label="Set display width">
             {% csrf_token %}
             <label for="display-width-input" class="visually-hidden">Display width (pixels)</label>
-            <input type="number" id="display-width-input" name="display_width_px" value="{{ display_width_px }}" class="form-control form-control-sm" style="width: 100px;" aria-label="Display width in pixels">
+            {{ display_width_form.display_width_px }}
             <button type="submit" class="btn btn-sm btn-outline-light">Set Width</button>
         </form>
+        {% if display_width_form.errors %}
+        <div class="alert alert-danger mt-2" role="alert">Enter a display width between 320 and 16384 pixels.</div>
+        {% endif %}
     </div>
     <div id="charger-grid"
          class="charger-grid"

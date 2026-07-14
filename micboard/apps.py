@@ -64,8 +64,8 @@ class MicboardConfig(AppConfig):
         register(check_micboard_configuration, Tags.compatibility)
 
         # Advise about recommended middleware and context processors (do not modify settings)
-        self._register_security_middleware()
-        self._register_context_processors()
+        self._recommend_security_middleware()
+        self._recommend_context_processors()
         self._register_background_tasks()
 
         logger.info("Micboard app initialized (configuration validated)")
@@ -81,6 +81,7 @@ class MicboardConfig(AppConfig):
         from micboard.tasks.monitoring.health import (
             check_manufacturer_api_health,
             check_realtime_connection_health,
+            check_selected_api_server_connections,
         )
         from micboard.tasks.monitoring.sse import start_sse_subscriptions
         from micboard.tasks.monitoring.websocket import start_shure_websocket_subscriptions
@@ -88,9 +89,9 @@ class MicboardConfig(AppConfig):
             cache_all_discovery_candidates,
             run_discovery_sync_task,
             run_manufacturer_discovery_task,
-            sync_receiver_discovery,
         )
         from micboard.tasks.sync.polling import (
+            poll_api_server_device,
             poll_manufacturer_devices,
             refresh_selected_chassis,
         )
@@ -99,20 +100,21 @@ class MicboardConfig(AppConfig):
             poll_charger_data,
             check_manufacturer_api_health,
             check_realtime_connection_health,
+            check_selected_api_server_connections,
             start_sse_subscriptions,
             start_shure_websocket_subscriptions,
             cache_all_discovery_candidates,
             run_discovery_sync_task,
             run_manufacturer_discovery_task,
-            sync_receiver_discovery,
+            poll_api_server_device,
             poll_manufacturer_devices,
             refresh_selected_chassis,
         )
         for task_function in task_functions:
             register_huey_task(task_function)
 
-    def _register_context_processors(self):
-        """Register context processors if not already present."""
+    def _recommend_context_processors(self) -> None:
+        """Report context processors the host has not configured."""
         from django.conf import settings
 
         context_processors = [
@@ -150,14 +152,11 @@ class MicboardConfig(AppConfig):
                 + "\n".join(f"    '{p}'," for p in missing_processors)
             )
 
-    def _register_security_middleware(self):
-        """Register security middleware if not already present."""
+    def _recommend_security_middleware(self) -> None:
+        """Report built-in security middleware the host has not configured."""
         from django.conf import settings
 
-        middleware_classes = [
-            "micboard.middleware.SecurityHeadersMiddleware",
-            "micboard.middleware.RequestLoggingMiddleware",
-        ]
+        middleware_classes = ["django.middleware.security.SecurityMiddleware"]
 
         if not hasattr(settings, "MIDDLEWARE"):
             logger.warning(

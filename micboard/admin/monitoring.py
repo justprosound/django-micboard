@@ -111,7 +111,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     )
     actions: ClassVar[list[str]] = [
         "promote_to_chassis_action",
-        "delete_and_remove_from_api",
+        "delete_and_reconcile_discovery",
         "refresh_from_api",
     ]
 
@@ -304,46 +304,22 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
 
     @admin.action(
         permissions=["delete"],
-        description="Delete and remove from manufacturer API discovery list",
+        description="Delete and reconcile manufacturer API discovery lists",
     )
-    def delete_and_remove_from_api(self, request, queryset):
-        """Delete discovered devices and remove from remote API discovery lists."""
-        from micboard.services.manufacturer.plugin_registry import PluginRegistry
+    def delete_and_reconcile_discovery(self, request, queryset):
+        """Delete staged devices and schedule claimed remote reconciliation."""
+        from micboard.services.sync.discovered_device_deletion_service import (
+            DiscoveredDeviceDeletionService,
+        )
 
-        removed_count = 0
-        failed_count = 0
-
-        for discovered in queryset:
-            # Try to remove from manufacturer's discovery list
-            if discovered.manufacturer:
-                try:
-                    plugin = PluginRegistry.get_plugin(
-                        discovered.manufacturer.code, discovered.manufacturer
-                    )
-
-                    if plugin and hasattr(plugin, "remove_discovery_ips"):
-                        plugin.remove_discovery_ips([discovered.ip])
-                except Exception as e:
-                    logger.exception(
-                        "Failed to remove IP %s from discovery list: %s",
-                        discovered.ip,
-                        e,
-                    )
-                    failed_count += 1
-
-            # Delete the discovered device record
-            discovered.delete()
-            removed_count += 1
+        result = DiscoveredDeviceDeletionService.delete(queryset)
 
         messages.success(
             request,
-            f"✅ Deleted {removed_count} discovered device(s) and removed from API discovery lists.",
+            f"✅ Deleted {result.deleted_count} discovered device(s); scheduled "
+            f"claimed discovery reconciliation for {result.scheduled_manufacturers} "
+            "manufacturer(s).",
         )
-        if failed_count > 0:
-            messages.warning(
-                request,
-                f"⚠️ {failed_count} device(s) could not be removed from API discovery lists.",
-            )
 
     def _promote_to_chassis(
         self, discovered: DiscoveredDevice

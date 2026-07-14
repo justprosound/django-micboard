@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from django.db import DEFAULT_DB_ALIAS, models
 
 from micboard.models.audit.activity_log import ActivityLog, ServiceSyncLog
+from micboard.utils.exception_logging import sanitized_exception_info
 
 # Get logger for this module
 logger = logging.getLogger("micboard.logging")
@@ -53,7 +54,7 @@ class StructuredLogger:
             using=using,
         )
 
-        log_data = extra or {}
+        log_data = dict(extra or {})
         log_data["model"] = obj.__class__.__name__
         log_data["id"] = obj.pk
         log_data["summary"] = str(obj)[:100]
@@ -97,7 +98,7 @@ class StructuredLogger:
             using=using,
         )
 
-        log_data = extra or {}
+        log_data = dict(extra or {})
         log_data["model"] = obj.__class__.__name__
         log_data["id"] = obj.pk
         log_data["changes"] = (
@@ -142,7 +143,7 @@ class StructuredLogger:
             using=using,
         )
 
-        log_data = extra or {}
+        log_data = dict(extra or {})
         log_data["model"] = obj.__class__.__name__
         log_data["id"] = obj.pk
         log_data["summary"] = str(obj)[:100]
@@ -168,7 +169,7 @@ class StructuredLogger:
             status="success",
         )
 
-        log_data = extra or {}
+        log_data = dict(extra or {})
         log_data["service"] = service_code
         logger.info(
             f"Service started: {service_code}",
@@ -191,7 +192,7 @@ class StructuredLogger:
             status="success",
         )
 
-        log_data = extra or {}
+        log_data = dict(extra or {})
         log_data["service"] = service_code
         logger.info(
             f"Service stopped: {service_code}",
@@ -208,22 +209,20 @@ class StructuredLogger:
         extra: dict[str, Any] | None = None,
     ) -> ActivityLog:
         """Log service error."""
+        safe_error = f"{type(error).__name__}: service error details redacted"
         log = ActivityLog.log_service(
             operation=ActivityLog.FAILURE,
             service_code=service_code,
             summary="Service error",
             status="failed",
-            error_message=str(error),
+            error_message=safe_error,
         )
 
-        log_data = extra or {}
-        log_data["service"] = service_code
-        log_data["error"] = str(error)
-
         logger.error(
-            f"Service error in {service_code}",
-            extra=log_data,
-            exc_info=True,
+            "Service error in %s",
+            service_code,
+            extra={"service": service_code, "error_type": type(error).__name__},
+            exc_info=sanitized_exception_info(error),
         )
 
         return log
@@ -252,7 +251,7 @@ class StructuredLogger:
             status="success",
         )
 
-        log_data = extra or {}
+        log_data = dict(extra or {})
         log_data["service"] = service_code
         log_data["sync_type"] = sync_type
 
@@ -292,16 +291,16 @@ class StructuredLogger:
         sync_log.online_count = online_count
         sync_log.offline_count = offline_count
         sync_log.updated_count = updated_count
+        sync_log.error_message = error_message
 
         if error_message:
             sync_log.status = "failed"
-            sync_log.error_message = error_message
         else:
             sync_log.status = "success"
 
         sync_log.save()
 
-        log_data = extra or {}
+        log_data = dict(extra or {})
         log_data["service"] = sync_log.service.code
         log_data["sync_type"] = sync_log.sync_type
         log_data["device_count"] = device_count

@@ -118,8 +118,9 @@ uv run --no-sync pytest \
 # Plugin loading and runtime polling paths
 uv run --no-sync pytest \
   tests/test_plugin_registry.py \
-  tests/test_polling_runtime.py \
-  tests/test_polling_api_service.py
+  tests/test_polling_api_service.py \
+  tests/tasks/sync/test_polling_tasks.py \
+  tests/services/sync/test_polling_service_contracts.py
 
 # Discovery synchronization
 uv run --no-sync pytest tests/test_shure_discovery_sync.py

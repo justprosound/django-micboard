@@ -5,6 +5,7 @@ from typing import Any, cast
 
 from micboard.services.common.base.client import BaseAPIClient
 from micboard.services.common.base.rate_limiter import rate_limit
+from micboard.utils.exception_logging import sanitized_exception_info
 
 from .exceptions import SennheiserAPIError
 from .transformers import SennheiserDataTransformer
@@ -65,7 +66,7 @@ class SennheiserDeviceClient:
                 self.api_client._make_request("GET", f"/api/devices/{device_id}/identify"),
             )
         except SennheiserAPIError:
-            logger.debug("Identity endpoint not available for device %s", device_id)
+            logger.debug("Sennheiser identity endpoint unavailable; device identifier redacted")
             return None
 
     def get_device_network(self, device_id: str) -> dict[str, Any] | None:
@@ -76,7 +77,7 @@ class SennheiserDeviceClient:
                 self.api_client._make_request("GET", f"/api/devices/{device_id}/network"),
             )
         except SennheiserAPIError:
-            logger.debug("Network endpoint not available for device %s", device_id)
+            logger.debug("Sennheiser network endpoint unavailable; device identifier redacted")
             return None
 
     def get_device_status(self, device_id: str) -> dict[str, Any] | None:
@@ -87,7 +88,7 @@ class SennheiserDeviceClient:
                 self.api_client._make_request("GET", f"/api/devices/{device_id}/status"),
             )
         except SennheiserAPIError:
-            logger.debug("Status endpoint not available for device %s", device_id)
+            logger.debug("Sennheiser status endpoint unavailable; device identifier redacted")
             return None
 
     def _enrich_device_data(self, device_id: str, device_data: dict[str, Any]) -> dict[str, Any]:
@@ -117,27 +118,39 @@ class SennheiserDeviceClient:
         try:
             devices = self.get_devices()
             logger.info("Polling %d devices from Sennheiser SSCv2 API", len(devices))
-        except SennheiserAPIError:
-            logger.exception("Failed to get device list")
+        except SennheiserAPIError as exc:
+            logger.exception(
+                "Failed to get Sennheiser device list",
+                exc_info=sanitized_exception_info(exc),
+            )
             return {}
 
         data: dict[str, dict[str, Any]] = {}
-        for device in devices:
+        for device_index, device in enumerate(devices, start=1):
             device_id = device.get("id")
             if not device_id:
-                logger.warning("Device missing 'id' field: %s", device)
+                logger.warning(
+                    "Sennheiser device payload %s is missing its identifier; payload redacted",
+                    device_index,
+                )
                 continue
 
             try:
                 device_data = self.get_device(device_id)
                 if not device_data:
-                    logger.warning("No data returned for device %s", device_id)
+                    logger.warning(
+                        "No data returned for Sennheiser device payload %s",
+                        device_index,
+                    )
                     continue
 
                 try:
                     device_data = self._enrich_device_data(device_id, device_data)
                 except Exception:
-                    logger.debug("Enrichment failed for device %s", device_id)
+                    logger.debug(
+                        "Sennheiser device enrichment failed for payload %s",
+                        device_index,
+                    )
 
                 channels = self.get_device_channels(device_id)
                 device_data["channels"] = channels
@@ -146,9 +159,16 @@ class SennheiserDeviceClient:
                 if transformed:
                     data[device_id] = transformed
                 else:
-                    logger.warning("Failed to transform data for device %s", device_id)
-            except SennheiserAPIError:
-                logger.exception("Error polling device %s", device_id)
+                    logger.warning(
+                        "Failed to transform Sennheiser device payload %s",
+                        device_index,
+                    )
+            except SennheiserAPIError as exc:
+                logger.exception(
+                    "Error polling Sennheiser device payload %s",
+                    device_index,
+                    exc_info=sanitized_exception_info(exc),
+                )
                 continue
 
         missing_fw = [d for d in data.values() if not d.get("firmware")]

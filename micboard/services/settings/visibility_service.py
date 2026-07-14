@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from django.apps import apps
 from django.conf import settings as django_settings
@@ -208,13 +208,16 @@ class SettingsVisibilityService:
         if resolved_scope is None:
             return False
 
-        if organization_id is not None:
-            return scope.organization_ids is None or organization_id in scope.organization_ids
-        if site_id is not None:
-            return scope.site_ids is None or site_id in scope.site_ids
-        if manufacturer_id is not None:
-            return scope.manufacturer_ids is None or manufacturer_id in scope.manufacturer_ids
-        return False  # pragma: no cover - exhaustive identifier guard
+        if resolved_scope == "organization":
+            return (
+                scope.organization_ids is None
+                or cast(int, organization_id) in scope.organization_ids
+            )
+        if resolved_scope == "site":
+            return scope.site_ids is None or cast(int, site_id) in scope.site_ids
+        return (
+            scope.manufacturer_ids is None or cast(int, manufacturer_id) in scope.manufacturer_ids
+        )
 
 
 settings_visibility = SettingsVisibilityService()

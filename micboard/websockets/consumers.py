@@ -33,10 +33,14 @@ logger = logging.getLogger(__name__)
 
 UNAUTHENTICATED_CLOSE_CODE = 4401
 UNAUTHORIZED_CLOSE_CODE = 4403
+MESSAGE_TOO_LARGE_CLOSE_CODE = 1009
+MAX_WEBSOCKET_COMMAND_BYTES = 4096
 
 
 class MicboardConsumer(AsyncWebsocketConsumer):
     """WebSocket consumer for real-time device updates."""
+
+    room_group_names: tuple[str, ...]
 
     @staticmethod
     def _membership_group_names(user_id: int) -> tuple[str, ...]:
@@ -46,6 +50,7 @@ class MicboardConsumer(AsyncWebsocketConsumer):
         memberships = (
             OrganizationMembership._default_manager.filter(
                 user_id=user_id,
+                user__is_active=True,
                 is_active=True,
                 organization__is_active=True,
             )
@@ -80,18 +85,84 @@ class MicboardConsumer(AsyncWebsocketConsumer):
         """Check explicit global-stream permission without blocking the event loop."""
         from channels.db import database_sync_to_async
 
-        return await database_sync_to_async(
-            RealtimeRoutingService.can_receive_global_updates,
-        )(user)
+        return await database_sync_to_async(RealtimeRoutingService.can_receive_global_updates)(user)
+
+    @classmethod
+    def _current_group_names(cls, user_id: int) -> tuple[str, ...]:
+        """Re-resolve an active user's authorized routes from persisted state."""
+        from django.contrib.auth import get_user_model
+
+        user = get_user_model()._default_manager.filter(pk=user_id, is_active=True).first()
+        if user is None or not user.is_authenticated:
+            return ()
+        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
+            return cls._membership_group_names(user_id)
+        if getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+            site_id = RealtimeRoutingService.normalize_identifier(
+                getattr(settings, "SITE_ID", None)
+            )
+            return (site_updates_group(site_id),) if site_id is not None else ()
+        if not RealtimeRoutingService.can_receive_global_updates(user):
+            return ()
+        return (GLOBAL_UPDATES_GROUP,)
+
+    async def _current_groups_for_user(self, user_id: int) -> tuple[str, ...]:
+        """Load current outbound authorization without blocking the event loop."""
+        from channels.db import database_sync_to_async
+
+        return await database_sync_to_async(self._current_group_names)(user_id)
+
+    async def _close_revoked_connection(self, *, code: int, user_id: int | None) -> None:
+        """Remove stale group memberships before closing a revoked connection."""
+        group_names = getattr(self, "room_group_names", ())
+        self.room_group_names = ()
+        for group_name in group_names:
+            await self.channel_layer.group_discard(group_name, self.channel_name)
+        logger.warning(
+            "Closed WebSocket after authorization revocation: user_id=%s group_count=%d",
+            user_id,
+            len(group_names),
+        )
+        await self.close(code=code)
+
+    async def _can_forward_event(self) -> bool:
+        """Fail closed when authentication or any joined route was revoked."""
+        user = self.scope.get("user")
+        user_id = getattr(user, "pk", None)
+        if user is None or not user.is_authenticated or user_id is None:
+            await self._close_revoked_connection(
+                code=UNAUTHENTICATED_CLOSE_CODE,
+                user_id=user_id,
+            )
+            return False
+
+        joined_groups = getattr(self, "room_group_names", ())
+        current_groups = await self._current_groups_for_user(user_id)
+        if not joined_groups or not set(joined_groups).issubset(current_groups):
+            await self._close_revoked_connection(
+                code=UNAUTHORIZED_CLOSE_CODE,
+                user_id=user_id,
+            )
+            return False
+        return True
+
+    async def _send_authorized(self, payload: dict[str, Any]) -> None:
+        """Revalidate access immediately before forwarding one event."""
+        if await self._can_forward_event():
+            await self.send(text_data=json.dumps(payload))
 
     async def connect(self) -> None:
         """Handle WebSocket connection."""
-        self.room_group_names: tuple[str, ...] = ()
+        self.room_group_names = ()
         user = self.scope.get("user")
 
         if user is None or not user.is_authenticated:
             logger.warning("Rejected unauthenticated WebSocket connection")
             await self.close(code=UNAUTHENTICATED_CLOSE_CODE)
+            return
+        if not getattr(user, "is_active", False):
+            logger.warning("Rejected inactive WebSocket connection: user_id=%s", user.pk)
+            await self.close(code=UNAUTHORIZED_CLOSE_CODE)
             return
 
         if getattr(settings, "MICBOARD_MSP_ENABLED", False):
@@ -125,16 +196,17 @@ class MicboardConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
         logger.info(
-            "WebSocket connected: channel=%s groups=%s",
-            self.channel_name,
-            self.room_group_names,
+            "WebSocket connected: user_id=%s group_count=%d",
+            user.pk,
+            len(self.room_group_names),
         )
 
     async def disconnect(self, code: int) -> None:
         """Handle WebSocket disconnection."""
         for group_name in getattr(self, "room_group_names", ()):
             await self.channel_layer.group_discard(group_name, self.channel_name)
-        logger.info("WebSocket disconnected: %s", self.channel_name)
+        user_id = getattr(self.scope.get("user"), "pk", None)
+        logger.info("WebSocket disconnected: user_id=%s code=%s", user_id, code)
 
     async def receive(
         self,
@@ -142,32 +214,66 @@ class MicboardConsumer(AsyncWebsocketConsumer):
         bytes_data: bytes | None = None,
     ) -> None:
         """Handle incoming messages from client."""
-        if text_data:
-            try:
-                data = json.loads(text_data)
-                # Handle client commands if needed
-                command = data.get("command")
-                if command == "ping":
-                    await self.send(text_data=json.dumps({"type": "pong"}))
-            except json.JSONDecodeError:
-                logger.exception("Invalid JSON received: %s", text_data)
+        if bytes_data is not None:
+            if len(bytes_data) > MAX_WEBSOCKET_COMMAND_BYTES:
+                logger.warning(
+                    "Rejected oversized binary WebSocket frame: channel=%s bytes=%d",
+                    self.channel_name,
+                    len(bytes_data),
+                )
+                await self.close(code=MESSAGE_TOO_LARGE_CLOSE_CODE)
+            return
+
+        if text_data is None:
+            return
+
+        command_size = len(text_data.encode("utf-8"))
+        if command_size > MAX_WEBSOCKET_COMMAND_BYTES:
+            logger.warning(
+                "Rejected oversized WebSocket command: channel=%s bytes=%d",
+                self.channel_name,
+                command_size,
+            )
+            await self.close(code=MESSAGE_TOO_LARGE_CLOSE_CODE)
+            return
+
+        try:
+            data = json.loads(text_data)
+        except json.JSONDecodeError:
+            logger.warning(
+                "Rejected malformed WebSocket JSON: channel=%s bytes=%d",
+                self.channel_name,
+                command_size,
+            )
+            return
+
+        if not isinstance(data, dict):
+            logger.warning(
+                "Rejected non-object WebSocket command: channel=%s bytes=%d",
+                self.channel_name,
+                command_size,
+            )
+            return
+
+        if data.get("command") == "ping":
+            await self._send_authorized({"type": "pong"})
 
     async def device_update(self, event: dict[str, Any]) -> None:
         """Send device update to WebSocket client."""
-        await self.send(text_data=json.dumps({"type": "device_update", "data": event["data"]}))
+        await self._send_authorized({"type": "device_update", "data": event["data"]})
 
     async def status_update(self, event: dict[str, Any]) -> None:
         """Send status update to WebSocket client."""
-        await self.send(text_data=json.dumps({"type": "status", "message": event["message"]}))
+        await self._send_authorized({"type": "status", "message": event["message"]})
 
     async def progress_update(self, event: dict[str, Any]) -> None:
         """Send progress update to WebSocket client."""
-        await self.send(text_data=json.dumps({"type": "progress", "status": event.get("status")}))
+        await self._send_authorized({"type": "progress", "status": event.get("status")})
 
     async def _forward_event(self, event: dict[str, Any]) -> None:
         """Forward a typed Channels event without its internal dispatch key."""
         payload = {key: value for key, value in event.items() if key != "type"}
-        await self.send(text_data=json.dumps({"type": event["type"], **payload}))
+        await self._send_authorized({"type": event["type"], **payload})
 
     async def api_health_update(self, event: dict[str, Any]) -> None:
         """Forward a manufacturer API health update."""
@@ -175,16 +281,4 @@ class MicboardConsumer(AsyncWebsocketConsumer):
 
     async def device_status_update(self, event: dict[str, Any]) -> None:
         """Forward a persisted hardware status update."""
-        await self._forward_event(event)
-
-    async def sync_completed(self, event: dict[str, Any]) -> None:
-        """Forward a service synchronization result."""
-        await self._forward_event(event)
-
-    async def discovery_approved(self, event: dict[str, Any]) -> None:
-        """Forward a discovery approval result."""
-        await self._forward_event(event)
-
-    async def error_notification(self, event: dict[str, Any]) -> None:
-        """Forward a bounded error notification."""
         await self._forward_event(event)

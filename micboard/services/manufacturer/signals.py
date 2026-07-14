@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 
 from micboard.models.audit import ActivityLog
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,12 @@ def handle_manufacturer_save(*, manufacturer, created: bool, old_active: bool | 
                     "is_active": manufacturer.is_active,
                 },
             )
-    except Exception:
-        logger.exception("Failed to write activity log for manufacturer %s", manufacturer.pk)
+    except Exception as exc:
+        logger.exception(
+            "Failed to write activity log for manufacturer %s",
+            manufacturer.pk,
+            exc_info=sanitized_exception_info(exc),
+        )
 
     return (not created) and manufacturer.is_active and not bool(old_active)
 
@@ -64,8 +69,9 @@ def handle_manufacturer_delete(*, manufacturer) -> None:
                 "model_name": manufacturer.__class__.__name__,
             },
         )
-    except Exception:
+    except Exception as exc:
         logger.exception(
             "Failed to write delete activity log for manufacturer %s",
             manufacturer.pk,
+            exc_info=sanitized_exception_info(exc),
         )

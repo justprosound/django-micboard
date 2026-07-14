@@ -19,19 +19,6 @@ class KioskService:
     """Business logic for kiosk and dashboard display aggregation."""
 
     @staticmethod
-    def get_dashboard_summary() -> dict[str, Any]:
-        """Get high-level summary stats for main dashboard."""
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
-        from micboard.models.hardware.wireless_unit import WirelessUnit
-        from micboard.models.monitoring.alert import Alert
-
-        return {
-            "online_chassis": WirelessChassis.objects.filter(is_online=True).count(),
-            "online_units": WirelessUnit.objects.filter(status="online").count(),
-            "active_alerts": Alert.objects.filter(status="pending").count(),
-        }
-
-    @staticmethod
     def get_charger_dashboard_data(*, user) -> dict[str, Any]:
         """Compose optimized data for the charger dashboard grid."""
         chargers = (

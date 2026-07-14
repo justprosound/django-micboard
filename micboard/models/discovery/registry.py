@@ -211,19 +211,3 @@ class DiscoveredDevice(models.Model):
         if self.manufacturer:
             return f"{self.device_type} at {self.ip} [{status}] ({self.manufacturer.name})"
         return f"{self.device_type} at {self.ip} [{status}]"
-
-    def get_status_display_with_icon(self) -> str:
-        """Get human-readable status with visual icon.
-
-        Deprecated: move to template layer or admin display methods.
-        """
-        status_icons = {
-            self.STATUS_READY: "✅",
-            self.STATUS_PENDING: "🔍",
-            self.STATUS_INCOMPATIBLE: "⚠️",
-            self.STATUS_ERROR: "❌",
-            self.STATUS_OFFLINE: "📴",
-            self.STATUS_UNKNOWN: "❓",
-        }
-        icon = status_icons.get(self.status, "")
-        return f"{icon} {self.get_status_display()}"

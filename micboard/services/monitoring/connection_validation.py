@@ -66,16 +66,17 @@ class ConnectionValidationService:
             result["issues"].append(f"Battery critically low: {slot.battery_percent}%")
 
         # Check network connectivity (basic)
-        now = timezone.now()
-        if slot.charger.last_seen:
-            time_delta = (now - slot.charger.last_seen).total_seconds()
-            if time_delta > ConnectionValidationService.HEARTBEAT_TIMEOUT_SECONDS:
-                result["connected"] = False
-                timeout_str = ConnectionValidationService.HEARTBEAT_TIMEOUT_SECONDS
-                result["issues"].append(
-                    f"Charger not seen for {time_delta:.0f}s (timeout: {timeout_str}s)"
-                )
-                return result
+        if not slot.charger.last_seen:
+            result["issues"].append("Charger has never reported a heartbeat")
+            return result
+
+        time_delta = (timezone.now() - slot.charger.last_seen).total_seconds()
+        if time_delta > ConnectionValidationService.HEARTBEAT_TIMEOUT_SECONDS:
+            timeout_str = ConnectionValidationService.HEARTBEAT_TIMEOUT_SECONDS
+            result["issues"].append(
+                f"Charger not seen for {time_delta:.0f}s (timeout: {timeout_str}s)"
+            )
+            return result
 
         # All checks passed
         result["connected"] = True
@@ -101,6 +102,12 @@ class ConnectionValidationService:
                 "found": False,
                 "health": "unknown",
             }
+
+        return ConnectionValidationService.build_charger_health(charger)
+
+    @staticmethod
+    def build_charger_health(charger: Charger) -> dict[str, Any]:
+        """Build health from a charger whose slots may already be prefetched."""
 
         now = timezone.now()
         heartbeat_age_seconds = (
@@ -164,21 +171,25 @@ class ConnectionValidationService:
         Returns:
             Dict with overall health and per-charger details
         """
-        chargers = Charger.objects.filter(location_id=location_id, is_active=True)
+        chargers = list(
+            Charger.objects.filter(location_id=location_id, is_active=True).prefetch_related(
+                "slots"
+            )
+        )
 
         health_data: dict[str, Any] = {
             "location_id": location_id,
-            "charger_count": chargers.count(),
+            "charger_count": len(chargers),
             "overall_health": "unknown",
             "chargers": [],
         }
 
-        if chargers.count() == 0:
+        if not chargers:
             return health_data
 
         charger_healths: list[str] = []
         for charger in chargers:
-            check = ConnectionValidationService.check_charger_health(charger.id)
+            check = ConnectionValidationService.build_charger_health(charger)
             health_data["chargers"].append(check)
             charger_healths.append(check["health"])
 
@@ -190,6 +201,47 @@ class ConnectionValidationService:
         health_data["overall_health"] = overall
 
         return health_data
+
+    @staticmethod
+    def get_display_wall_charger_health(
+        *,
+        wall_id: int,
+        user: Any,
+    ) -> tuple[Any, list[dict[str, Any]]]:
+        """Load one accessible wall and evaluate its chargers in bounded queries."""
+        from django.db.models import Prefetch
+
+        from micboard.models.hardware.display_wall import WallSection
+        from micboard.services.monitoring.monitoring_access import MonitoringService
+
+        chargers = (
+            MonitoringService.get_accessible_chargers(user)
+            .filter(is_active=True)
+            .prefetch_related("slots")
+            .order_by("pk")
+        )
+        sections = (
+            WallSection.objects.filter(is_active=True)
+            .prefetch_related(
+                Prefetch("chargers", queryset=chargers, to_attr="accessible_chargers")
+            )
+            .order_by("display_order", "pk")
+        )
+        wall = (
+            MonitoringService.get_accessible_display_walls(user)
+            .prefetch_related(Prefetch("sections", queryset=sections, to_attr="active_sections"))
+            .get(id=wall_id, is_active=True)
+        )
+
+        health: list[dict[str, Any]] = []
+        seen_charger_ids: set[int] = set()
+        for section in wall.active_sections:
+            for charger in section.accessible_chargers:
+                if charger.pk in seen_charger_ids:
+                    continue
+                seen_charger_ids.add(charger.pk)
+                health.append(ConnectionValidationService.build_charger_health(charger))
+        return wall, health
 
     @staticmethod
     def validate_device_on_slot(
@@ -233,6 +285,12 @@ class ConnectionValidationService:
         except Charger.DoesNotExist:
             return []
 
+        return ConnectionValidationService._get_unhealthy_slots_from_charger(charger)
+
+    @staticmethod
+    def _get_unhealthy_slots_from_charger(charger: Charger) -> list[dict[str, Any]]:
+        """Return unhealthy slots using an optionally prefetched charger relation."""
+
         unhealthy = []
         for slot in charger.slots.all():
             check = ConnectionValidationService.check_slot_connection(slot)
@@ -251,11 +309,14 @@ class ConnectionValidationService:
         Returns:
             List of slot check dicts with charger info
         """
-        chargers = Charger.objects.filter(location_id=location_id, is_active=True)
+        chargers = Charger.objects.filter(
+            location_id=location_id,
+            is_active=True,
+        ).prefetch_related("slots")
 
         all_unhealthy = []
         for charger in chargers:
-            unhealthy = ConnectionValidationService.get_unhealthy_slots(charger.id)
+            unhealthy = ConnectionValidationService._get_unhealthy_slots_from_charger(charger)
             for slot_check in unhealthy:
                 slot_check["charger_name"] = charger.name
                 all_unhealthy.append(slot_check)

@@ -15,6 +15,7 @@ from micboard.services.notification.realtime_routing_service import (
     RealtimeRoutingService,
     TenantScope,
 )
+from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:
     from channels.layers import BaseChannelLayer  # pragma: no cover
@@ -52,10 +53,17 @@ class BroadcastService:
             for group_name in unique_groups:
                 try:
                     send(group_name, event)
-                except Exception:
-                    logger.exception("Failed to broadcast realtime event to %s", group_name)
-        except Exception:
-            logger.exception("Failed to initialize realtime broadcast")
+                except Exception as exc:
+                    logger.exception(
+                        "Failed to broadcast realtime event to %s",
+                        group_name,
+                        exc_info=sanitized_exception_info(exc),
+                    )
+        except Exception as exc:
+            logger.exception(
+                "Failed to initialize realtime broadcast",
+                exc_info=sanitized_exception_info(exc),
+            )
 
     @classmethod
     def _send_for_scope(
@@ -332,103 +340,6 @@ class BroadcastService:
                 return
         cls._send_for_scope(
             event,
-            organization_id=scope[0] if scope else None,
-            campus_id=scope[1] if scope else None,
-            site_id=site_id,
-        )
-
-    @classmethod
-    def broadcast_sync_completion(
-        cls,
-        *,
-        service_code: str,
-        sync_result: dict[str, Any],
-        organization_id: int | None = None,
-        campus_id: int | None = None,
-        site_id: int | None = None,
-    ) -> None:
-        """Broadcast tenant-scoped sync completion."""
-        scope = (
-            (organization_id, campus_id)
-            if organization_id is not None
-            else RealtimeRoutingService.scope_from_mapping(sync_result)
-        )
-        cls._send_for_scope(
-            {
-                "type": "sync_completed",
-                "service_code": service_code,
-                "device_count": sync_result.get("device_count", 0),
-                "online_count": sync_result.get("online_count", 0),
-                "status": sync_result.get("status", "success"),
-            },
-            organization_id=scope[0] if scope else None,
-            campus_id=scope[1] if scope else None,
-            site_id=site_id
-            or RealtimeRoutingService.normalize_identifier(sync_result.get("site_id")),
-        )
-
-    @classmethod
-    def broadcast_discovery_approved(
-        cls,
-        *,
-        queue_item_id: int,
-        manufacturer_code: str,
-        device_count: int,
-        organization_id: int | None = None,
-        campus_id: int | None = None,
-        site_id: int | None = None,
-    ) -> None:
-        """Broadcast tenant-scoped discovery approval."""
-        cls._send_for_scope(
-            {
-                "type": "discovery_approved",
-                "queue_item_id": queue_item_id,
-                "manufacturer_code": manufacturer_code,
-                "device_count": device_count,
-            },
-            organization_id=organization_id,
-            campus_id=campus_id,
-            site_id=site_id,
-        )
-
-    @classmethod
-    def broadcast_error(
-        cls,
-        *,
-        error_type: str,
-        error_message: str,
-        manufacturer_code: str | None = None,
-        device_id: int | None = None,
-        organization_id: int | None = None,
-        campus_id: int | None = None,
-        site_id: int | None = None,
-    ) -> None:
-        """Broadcast an error notification within its tenant."""
-        from django.utils import timezone
-
-        scope = None
-        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
-            if organization_id is not None:
-                scope = (organization_id, campus_id)
-            elif device_id is not None:
-                scope = RealtimeRoutingService.hardware_tenant_scope(
-                    device_type="WirelessChassis",
-                    device_id=device_id,
-                )
-        elif getattr(settings, "MICBOARD_MULTI_SITE_MODE", False) and device_id is not None:
-            site_id = site_id or RealtimeRoutingService.chassis_site_id(device_id)
-            if site_id is None:
-                logger.warning("Skipped multi-site device error without a resolvable site")
-                return
-        cls._send_for_scope(
-            {
-                "type": "error_notification",
-                "error_type": error_type,
-                "message": error_message,
-                "manufacturer_code": manufacturer_code,
-                "device_id": device_id,
-                "timestamp": timezone.now().isoformat(),
-            },
             organization_id=scope[0] if scope else None,
             campus_id=scope[1] if scope else None,
             site_id=site_id,

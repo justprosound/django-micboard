@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77.0", "wheel"]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -362,7 +362,6 @@ ignore = [
 "example_project/*.py" = ["S105", "S106"]
 "tests/*.py" = ["S106"]  # Test credentials are intentionally non-production.
 # Existing hotspots are explicit debt; complexity rules remain blocking everywhere else.
-"micboard/management/commands/diagnose_api_structure.py" = ["C901", "PLR0912"]
 "micboard/management/commands/poll_devices.py" = ["C901", "PLR0912"]
 "micboard/management/commands/realtime_status.py" = ["C901"]
 "micboard/models/band_plans.py" = ["C901"]

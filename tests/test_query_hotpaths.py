@@ -9,6 +9,7 @@ from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.charger import Charger, ChargerSlot
@@ -236,6 +237,61 @@ class ChargerHealthRegressionTests(TestCase):
         self.assertFalse(health["connected"])
         self.assertIsNone(health["last_heartbeat_seconds_ago"])
         self.assertEqual([slot["slot_number"] for slot in health["slots"]], [1, 2, 3])
+
+
+class KioskHealthQueryTests(TestCase):
+    """The frequently refreshed kiosk-health endpoint must remain query-bounded."""
+
+    def setUp(self) -> None:
+        self.user = User.objects.create_superuser(username="kiosk-health-query-admin")
+        building = Building.objects.create(name="Kiosk Health Query Building")
+        self.location = Location.objects.create(
+            name="Kiosk Health Query Location",
+            building=building,
+        )
+        self.wall = DisplayWall.objects.create(
+            location=self.location,
+            name="Kiosk Health Query Wall",
+            kiosk_id="kiosk-health-query-wall",
+        )
+        self.client.force_login(self.user)
+
+    def _add_topology(self, index: int) -> None:
+        charger = Charger.objects.create(
+            location=self.location,
+            name=f"Kiosk Health Charger {index}",
+            serial_number=f"KIOSK-HEALTH-{index}",
+            last_seen=timezone.now(),
+        )
+        ChargerSlot.objects.create(
+            charger=charger,
+            slot_number=1,
+            occupied=True,
+            battery_percent=100,
+        )
+        section = WallSection.objects.create(
+            wall=self.wall,
+            name=f"Kiosk Health Section {index}",
+            display_order=index,
+        )
+        section.chargers.add(charger)
+
+    def test_query_count_is_constant_as_wall_topology_grows(self) -> None:
+        self._add_topology(1)
+        url = reverse("micboard:kiosk_health", args=[self.wall.pk])
+        with CaptureQueriesContext(connection) as small_context:
+            small_response = self.client.get(url)
+
+        self._add_topology(2)
+        self._add_topology(3)
+        with CaptureQueriesContext(connection) as large_context:
+            large_response = self.client.get(url)
+
+        self.assertEqual(small_response.status_code, 200)
+        self.assertEqual(large_response.status_code, 200)
+        self.assertEqual(len(large_context), len(small_context))
+        self.assertLessEqual(len(large_context), 6)
+        self.assertEqual(len(large_response.json()["chargers"]), 3)
 
 
 class DisplayWallDetailRegressionTests(TestCase):
