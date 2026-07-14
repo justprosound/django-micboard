@@ -29,21 +29,19 @@ class DeviceProbeService:
     Used for initial device discovery before manufacturer-specific sync.
     """
 
-    def __init__(self, *, timeout: int = 5, verify_ssl: bool = False):
+    def __init__(self, *, timeout: int = 5):
         """Initialize device probe service.
 
         Args:
             timeout: Request timeout in seconds
-            verify_ssl: Whether to verify SSL certificates
         """
         self.timeout = timeout
-        self.verify_ssl = verify_ssl
         self.discovered_devices: list[dict[str, Any]] = []
         # Use shared resilient session and a simple in-process circuit breaker
         from micboard.services.common.base.circuit_breaker import CircuitBreaker
         from micboard.services.common.base.resilience import create_resilient_session
 
-        self.session = create_resilient_session(max_retries=3, verify_ssl=verify_ssl)
+        self.session = create_resilient_session(max_retries=3)
         # Circuit named for metrics/observability
         self._circuit = CircuitBreaker(
             name="device_probe", failure_threshold=3, recovery_timeout=30
@@ -53,7 +51,7 @@ class DeviceProbeService:
         """Create HTTP session with retry strategy."""
         from micboard.services.common.base.resilience import create_resilient_session
 
-        return create_resilient_session(max_retries=3, verify_ssl=self.verify_ssl)
+        return create_resilient_session(max_retries=3)
 
     def probe_device(self, ip: str) -> dict[str, Any] | None:
         """Probe a single IP address for device API availability.
@@ -79,7 +77,7 @@ class DeviceProbeService:
 
         # Fast-fail if circuit is open to avoid hammering unreachable hosts
         if getattr(self, "_circuit", None) and not self._circuit.allow_request():
-            logger.warning("Skipping probe for %s: circuit open", ip)
+            logger.warning("Skipping device probe: circuit open")
             return None
 
         for endpoint in endpoints:
@@ -99,8 +97,8 @@ class DeviceProbeService:
                         "accessible": response.status_code == 200,
                         "needs_auth": response.status_code == 401,
                     }
-            except RequestError as e:
-                logger.debug("Failed to probe %s: %s", endpoint, e)
+            except RequestError:
+                logger.debug("Device probe request failed")
                 # Record failure in circuit breaker
                 if getattr(self, "_circuit", None):
                     self._circuit.record_failure()
@@ -122,9 +120,9 @@ class DeviceProbeService:
             device_info = self.probe_device(ip.strip())
             if device_info:
                 self.discovered_devices.append(device_info)
-                logger.info("Discovered device at %s", ip)
+                logger.info("Discovered device during network probe")
             else:
-                logger.debug("No device found at %s", ip)
+                logger.debug("No device found during network probe")
 
         return self.discovered_devices
 
@@ -279,18 +277,15 @@ class DeviceAPIHealthChecker:
 
 
 # Convenience function for quick probing
-def probe_device_ip(
-    ip: str, *, timeout: int = 5, verify_ssl: bool = False
-) -> dict[str, Any] | None:
+def probe_device_ip(ip: str, *, timeout: int = 5) -> dict[str, Any] | None:
     """Convenience function to probe a single device IP.
 
     Args:
         ip: IP address to probe
         timeout: Request timeout in seconds
-        verify_ssl: Whether to verify SSL certificates
 
     Returns:
         Device info dict if reachable, None otherwise
     """
-    service = DeviceProbeService(timeout=timeout, verify_ssl=verify_ssl)
+    service = DeviceProbeService(timeout=timeout)
     return service.probe_device(ip)

@@ -37,7 +37,7 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
         (
             "Connection",
             {
-                "fields": ("base_url", "shared_key", "verify_ssl"),
+                "fields": ("base_url", "shared_key"),
             },
         ),
         (
@@ -100,9 +100,7 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
         for server in queryset:
             try:
                 if server.manufacturer == "shure":
-                    client = ShureSystemAPIClient(
-                        base_url=server.base_url, verify_ssl=server.verify_ssl
-                    )
+                    client = ShureSystemAPIClient(base_url=server.base_url)
                     # Try a simple health check
                     devices = client.devices.get_devices()
                     server.status = ManufacturerAPIServer.Status.ACTIVE

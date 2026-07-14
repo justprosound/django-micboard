@@ -40,7 +40,6 @@ INSTALLED_APPS = [
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": "https://your-shure-system.local:10000",
     "SHURE_API_SHARED_KEY": "your-shared-secret",
-    "SHURE_API_VERIFY_SSL": True,
 }
 ```
 

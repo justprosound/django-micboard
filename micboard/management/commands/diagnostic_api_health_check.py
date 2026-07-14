@@ -15,20 +15,16 @@ class HealthChecker:
         """Initialize health checker and configure Shure System API client."""
         base_url = settings.get("SHURE_API_BASE_URL", "https://localhost:10000")
         shared_key = settings.get("SHURE_API_SHARED_KEY")
-        verify_ssl = settings.get("SHURE_API_VERIFY_SSL", False)
-        if isinstance(verify_ssl, str):
-            verify_ssl = verify_ssl.lower() in ("true", "1", "yes")
         if not shared_key:
             raise ValueError(
                 "SHURE_API_SHARED_KEY not configured. Set MICBOARD_SHURE_API_SHARED_KEY "
                 "environment variable or update MICBOARD_CONFIG in Django settings."
             )
         self.base_url = base_url
-        self.verify_ssl = verify_ssl
         self.client: ShureSystemAPIClient | None = None
         self.error = ""
         try:
-            self.client = ShureSystemAPIClient(base_url=base_url, verify_ssl=verify_ssl)
+            self.client = ShureSystemAPIClient(base_url=base_url)
         except Exception as e:
             self.client = None
             self.error = str(e)
@@ -131,7 +127,7 @@ class HealthChecker:
         logger.info("✓ Timeout: %ss", self.client.timeout)
         logger.info("✓ Max Retries: %s", self.client.max_retries)
         logger.info("✓ Retry Backoff: %ss", self.client.retry_backoff)
-        logger.info("✓ SSL Verification: %s", self.client.verify_ssl)
+        logger.info("✓ TLS certificate verification: enabled")
         logger.info("✓ Health Status: %s", "Healthy" if self.client.is_healthy() else "Degraded")
         return {
             "base_url": self.client.base_url,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -68,7 +69,7 @@ def test_shure_client_configures_httpx_digest_auth_and_request(monkeypatch) -> N
     }
     monkeypatch.setattr(app_settings, "get_config_dict", lambda: config)
 
-    with ShureSystemAPIClient(base_url="https://shure.test", verify_ssl=False) as client:
+    with ShureSystemAPIClient(base_url="https://shure.test") as client:
         assert client.client.headers["x-api-key"] == "test-secret"
         assert isinstance(client.client.auth, httpx.DigestAuth)
 
@@ -186,8 +187,9 @@ def test_sennheiser_client_configures_httpx_basic_auth(monkeypatch) -> None:
         assert isinstance(client.client.auth, httpx.BasicAuth)
 
 
-def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch) -> None:
+def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
     received: list[dict[str, str]] = []
+    client_options: list[dict[str, object]] = []
     password_value = "test-credential"
 
     class FakeStreamResponse:
@@ -206,6 +208,7 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch) -> None:
     class FakeAsyncClient:
         def __init__(self, **kwargs) -> None:
             self.kwargs = kwargs
+            client_options.append(kwargs)
 
         async def __aenter__(self):
             return self
@@ -222,23 +225,25 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch) -> None:
     client = SimpleNamespace(
         base_url="https://sennheiser.test",
         password=password_value,
-        verify_ssl=True,
         _make_request=Mock(side_effect=[{"sessionUUID": "session-123"}, None]),
     )
 
     async def callback(data: dict[str, str]) -> None:
         received.append(data)
 
-    asyncio.run(connect_and_subscribe(client, "device-1", callback))
+    with caplog.at_level(logging.DEBUG, logger="micboard.integrations.sennheiser.sse_client"):
+        asyncio.run(connect_and_subscribe(client, "device-1", callback))
 
     assert received == [{"state": "online"}]
+    assert len(client_options) == 1
+    assert "verify" not in client_options[0]
+    assert "session-123" not in caplog.text
+    assert password_value not in caplog.text
+    assert "not-json" not in caplog.text
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize(("insecure", "expected_verify"), [(False, True), (True, False)])
-def test_discovery_add_devices_command_uses_httpx(
-    monkeypatch, insecure: bool, expected_verify: bool
-) -> None:
+def test_discovery_add_devices_command_uses_verified_httpx(monkeypatch) -> None:
     manufacturer = Manufacturer.objects.create(name="Shure", code="shure")
     client_options: list[dict[str, object]] = []
 
@@ -262,7 +267,6 @@ def test_discovery_add_devices_command_uses_httpx(
         "discovery_add_devices",
         ips="192.0.2.10",
         manufacturer=manufacturer.code,
-        insecure=insecure,
         stdout=StringIO(),
         stderr=StringIO(),
     )
@@ -271,4 +275,4 @@ def test_discovery_add_devices_command_uses_httpx(
         ip="192.0.2.10",
         manufacturer=manufacturer,
     ).exists()
-    assert client_options == [{"timeout": 1, "verify": expected_verify}]
+    assert client_options == [{"timeout": 1}]

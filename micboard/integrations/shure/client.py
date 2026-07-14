@@ -19,16 +19,19 @@ logger = logging.getLogger(__name__)
 class ShureSystemAPIClient(BaseHTTPClient):
     """Client for interacting with Shure System API with connection pooling and retry logic."""
 
-    def __init__(self, base_url: str | None = None, verify_ssl: bool | None = None):
+    def __init__(self, base_url: str | None = None):
         """Initialize Shure API client, configure auth, and compose sub-clients."""
-        super().__init__(base_url, verify_ssl)
         from micboard.services.settings import settings
 
         config = settings.get_config_dict()
+        explicit_ws = config.get("SHURE_API_WEBSOCKET_URL") if config is not None else None
+        if explicit_ws is not None:
+            self._validate_websocket_url(explicit_ws)
+
+        super().__init__(base_url)
 
         # Respect an explicit websocket URL from config; store it on a
         # private attribute because `websocket_url` is a read-only property.
-        explicit_ws = config.get("SHURE_API_WEBSOCKET_URL") if config is not None else None
         # Track whether an explicit websocket URL was provided (even if None)
         if "SHURE_API_WEBSOCKET_URL" in config:
             self._explicit_websocket_set = True
@@ -114,8 +117,21 @@ class ShureSystemAPIClient(BaseHTTPClient):
         This writes to a private attribute which the property prefers when
         present.
         """
+        if value is not None:
+            self._validate_websocket_url(value)
         self._explicit_websocket_url = value
         self._explicit_websocket_set = True
+
+    @staticmethod
+    def _validate_websocket_url(value: str) -> None:
+        """Reject malformed or cleartext manufacturer WebSocket URLs."""
+        try:
+            parsed_url = httpx.URL(value)
+        except (TypeError, httpx.InvalidURL) as exc:
+            raise ValueError("SHURE_API_WEBSOCKET_URL must be an absolute WSS URL") from exc
+
+        if parsed_url.scheme != "wss" or not parsed_url.host:
+            raise ValueError("SHURE_API_WEBSOCKET_URL must be an absolute WSS URL")
 
     async def connect_and_subscribe(self, device_id: str, callback) -> None:
         """Establishes WebSocket connection and subscribes to device updates.

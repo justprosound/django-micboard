@@ -23,7 +23,7 @@ Django Micboard integrates with Shure's System API to provide comprehensive moni
 ### Software Requirements
 
 - Shure System API enabled and configured
-- HTTPS access (self-signed certificates acceptable)
+- HTTPS access with a certificate issued by a trusted public or internal CA
 - Network access from Django application server
 
 ## API Configuration
@@ -54,10 +54,12 @@ MICBOARD_SHURE_API = {
     'BASE_URL': 'https://your-shure-system.local:443',
     'USERNAME': 'api_user',
     'PASSWORD': 'your_secure_password',
-    'VERIFY_SSL': True,  # Set False for self-signed certificates
     'TIMEOUT': 30,       # Request timeout in seconds
 }
 ```
+
+TLS certificate verification is mandatory. Trust an internal CA through `SSL_CERT_FILE` or
+`SSL_CERT_DIR` in the service environment.
 
 ## Device Discovery
 
@@ -291,7 +293,6 @@ with httpx.Client(
     base_url="https://192.168.1.100:2420",
     headers={"x-api-key": "shared_key"},
     auth=httpx.DigestAuth("shure", "shared_key"),  # Optional
-    verify="/path/to/shure-ca-bundle.pem",
 ) as client:
     response = client.get("/api/v1/devices")
     response.raise_for_status()
@@ -469,7 +470,6 @@ MICBOARD = {
             'enabled': True,
             'api_base_url': 'https://192.168.1.100:2420',
             'shared_key': 'your_shared_key_from_system_settings',
-            'ssl_verify': False,  # Set to True for production with proper certs
             'poll_interval': 30,  # Seconds between polls
             'timeout': 10,  # Request timeout in seconds
             'websocket_url': None,  # Auto-derived from api_base_url, or override
@@ -485,7 +485,6 @@ For production deployments:
 ```bash
 export SHURE_API_BASE_URL="https://192.168.1.100:2420"
 export SHURE_SHARED_KEY="your_shared_key"
-export SHURE_SSL_VERIFY="false"
 export SHURE_POLL_INTERVAL="30"
 ```
 
@@ -513,11 +512,10 @@ export SHURE_POLL_INTERVAL="30"
 ### SSL Certificate Verification Failed
 
 **Error:** `SSL: CERTIFICATE_VERIFY_FAILED`
-**Cause:** System uses self-signed certificate
+**Cause:** The issuing CA is not trusted by the service environment
 **Solution:**
-- For development: Set `ssl_verify: False`
-- For production: Obtain proper SSL certificates
-- Or add certificate to trusted CA store
+- Install the issuing CA in the host trust store
+- Or set `SSL_CERT_FILE`/`SSL_CERT_DIR` for both Django and Huey
 
 ### Rate Limit Exceeded
 
@@ -551,7 +549,7 @@ export SHURE_POLL_INTERVAL="30"
 
 2. **SSL/TLS**
    - Use proper SSL certificates for production
-   - Enable certificate verification (`ssl_verify: True`)
+   - Trust the issuing CA through the host store, `SSL_CERT_FILE`, or `SSL_CERT_DIR`
    - Keep certificates updated
 
 3. **Network Access**

@@ -351,7 +351,7 @@ manufacturer = Manufacturer.objects.create(
     code='shure',
     name='Shure Incorporated',
     config={
-        'api_url': 'http://shure-api.example.com',
+        'api_url': 'https://shure-api.example.com',
         'api_key': 'your-api-key',
         'timeout': 30,
         'polling_interval': 10,

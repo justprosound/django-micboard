@@ -138,7 +138,6 @@ MICBOARD_SHURE_API = {
     'BASE_URL': 'https://your-shure-system.local',
     'USERNAME': 'api_user',
     'PASSWORD': 'secure_password',
-    'VERIFY_SSL': True,
     'TIMEOUT': 30,
 }
 

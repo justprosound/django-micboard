@@ -22,7 +22,7 @@ from micboard.models.hardware.wireless_unit import WirelessUnit
 class RFChannelQuerySet(TenantOptimizedQuerySet):
     """Enhanced queryset for RFChannel model with tenant and direction filtering."""
 
-    def for_user(self, user: User) -> RFChannelQuerySet:
+    def for_user(self, *, user: User) -> RFChannelQuerySet:
         """Filter RF channels accessible to user via monitoring groups."""
         tenant_scope = cast(RFChannelQuerySet, super().for_user(user=user))
         if not user.is_authenticated:
@@ -74,9 +74,9 @@ class RFChannelManager(TenantOptimizedManager):
     def get_queryset(self) -> RFChannelQuerySet:
         return RFChannelQuerySet(self.model, using=self._db)
 
-    def for_user(self, user: User) -> RFChannelQuerySet:
+    def for_user(self, *, user: User) -> RFChannelQuerySet:
         """Get RF channels accessible to user."""
-        return self.get_queryset().for_user(user)
+        return self.get_queryset().for_user(user=user)
 
     def by_direction(self, *, direction: str) -> RFChannelQuerySet:
         """Filter by direction."""

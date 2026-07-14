@@ -41,7 +41,6 @@ INSTALLED_APPS = [
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": "https://your-shure-system.local:10000",
     "SHURE_API_SHARED_KEY": "your-shared-secret",
-    "SHURE_API_VERIFY_SSL": True,
 }
 
 # Django Channels (for WebSocket support)
@@ -205,13 +204,8 @@ The system now supports real-time updates via WebSocket (Shure) and SSE (Sennhei
 - Verify WebSocket URL: `ws://localhost:8000/ws`
 
 **Problem**: SSL certificate errors
-- If using HTTPS with self-signed certificates, disable SSL verification:
-  ```python
-  MICBOARD_CONFIG = {
-      'SHURE_API_VERIFY_SSL': False,  # ⚠️ Only for self-signed certificates
-  }
-  ```
-- For production, use valid SSL certificates and keep verification enabled
+- Install the issuing CA in the host trust store, or set `SSL_CERT_FILE`/`SSL_CERT_DIR` for the
+  Django and Huey processes. Certificate verification cannot be disabled.
 
 **Problem**: Polling not updating
 - Check the Huey consumer and deployment scheduler are running

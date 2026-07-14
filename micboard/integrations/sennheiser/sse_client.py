@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 class SSEClient(Protocol):
     base_url: str
     password: str
-    verify_ssl: bool
 
     def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any: ...
 
@@ -44,7 +43,7 @@ async def connect_and_subscribe(
             logger.error("No sessionUUID in subscription response")
             return
 
-        logger.info("Started subscription with sessionUUID: %s", session_uuid)
+        logger.info("Started Sennheiser event subscription")
 
         # Subscribe to device resources
         resources = [f"/api/devices/{device_id}"]
@@ -59,7 +58,6 @@ async def connect_and_subscribe(
             httpx.AsyncClient(
                 headers=headers,
                 timeout=timeout,
-                verify=client.verify_ssl,
             ) as stream_client,
             stream_client.stream("GET", sse_url) as stream_response,
         ):
@@ -79,7 +77,7 @@ async def connect_and_subscribe(
                     data = json.loads(data_str)
                     await callback(data)
                 except json.JSONDecodeError:
-                    logger.debug("Invalid JSON in SSE data: %s", data_str)
+                    logger.debug("Invalid JSON in SSE event data")
 
-    except Exception as e:
-        logger.exception("Error in SSE subscription: %s", e)
+    except Exception:
+        logger.error("Sennheiser event subscription failed")

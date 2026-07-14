@@ -8,7 +8,6 @@ def create_resilient_session(
     max_retries: int = 3,
     pool_connections: int = 10,
     pool_maxsize: int = 20,
-    verify_ssl: bool = True,
     follow_redirects: bool = True,
 ) -> httpx.Client:
     """Create an HTTPX client with bounded connection retries and pooling.
@@ -22,7 +21,6 @@ def create_resilient_session(
     )
     transport = httpx.HTTPTransport(retries=max_retries)
     return httpx.Client(
-        verify=verify_ssl,
         follow_redirects=follow_redirects,
         limits=limits,
         transport=transport,

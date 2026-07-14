@@ -18,16 +18,18 @@ jobs:
       name: pypi
       url: https://pypi.org/p/django-micboard
     permissions:
+      contents: read
       id-token: write  # Required for trusted publishing
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
       with:
         ref: ${{ inputs.tag }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v8.1.0
+      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
       with:
+        version: "0.10.9"
         enable-cache: true
 
     - name: Set up Python
@@ -52,6 +54,6 @@ jobs:
       run: uvx --from twine twine check dist/*
 
     - name: Publish to PyPI using trusted publishing
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
       with:
         print-hash: true

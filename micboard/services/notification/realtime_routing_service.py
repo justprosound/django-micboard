@@ -8,15 +8,20 @@ from typing import Any
 
 from django.conf import settings
 
-from micboard.websockets.consumers import (
-    GLOBAL_UPDATES_GROUP,
-    campus_updates_group,
-    organization_updates_group,
-)
-
 logger = logging.getLogger(__name__)
 
+GLOBAL_UPDATES_GROUP = "micboard_updates"
 TenantScope = tuple[int, int | None]
+
+
+def organization_updates_group(organization_id: int) -> str:
+    """Return the realtime group for organization-wide updates."""
+    return f"{GLOBAL_UPDATES_GROUP}.organization.{organization_id}"
+
+
+def campus_updates_group(organization_id: int, campus_id: int) -> str:
+    """Return the realtime group for updates restricted to one campus."""
+    return f"{organization_updates_group(organization_id)}.campus.{campus_id}"
 
 
 class RealtimeRoutingService:

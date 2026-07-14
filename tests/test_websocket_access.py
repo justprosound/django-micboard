@@ -11,13 +11,15 @@ import pytest
 from asgiref.sync import async_to_sync
 
 from micboard.multitenancy.models import Campus, Organization, OrganizationMembership
-from micboard.websockets.consumers import (
+from micboard.services.notification.realtime_routing_service import (
     GLOBAL_UPDATES_GROUP,
+    campus_updates_group,
+    organization_updates_group,
+)
+from micboard.websockets.consumers import (
     UNAUTHENTICATED_CLOSE_CODE,
     UNAUTHORIZED_CLOSE_CODE,
     MicboardConsumer,
-    campus_updates_group,
-    organization_updates_group,
 )
 
 

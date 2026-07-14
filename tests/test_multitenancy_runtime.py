@@ -488,8 +488,12 @@ def test_specialized_managers_compose_monitoring_and_tenant_scope(django_user_mo
     )
 
     assert set(WirelessUnit.objects.for_user(user=user)) == {allowed_unit}
-    assert set(RFChannel.objects.for_user(user)) == set(allowed_unit.base_chassis.rf_channels.all())
-    assert not RFChannel.objects.for_user(user).filter(chassis=denied_unit.base_chassis).exists()
+    assert set(RFChannel.objects.for_user(user=user)) == set(
+        allowed_unit.base_chassis.rf_channels.all()
+    )
+    assert (
+        not RFChannel.objects.for_user(user=user).filter(chassis=denied_unit.base_chassis).exists()
+    )
     assert set(PerformerAssignment.objects.for_user(user=user)) == {allowed_assignment}
     assert set(Performer.objects.for_user(user=user)) == {allowed_performer}
     assert denied_assignment not in PerformerAssignment.objects.for_user(user=user)

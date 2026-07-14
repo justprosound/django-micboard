@@ -74,6 +74,8 @@ class EFISImportService:
             status="success",
         )
 
+        # Certificate verification is mandatory. Private CAs are supplied through
+        # SSL_CERT_FILE or SSL_CERT_DIR, both honored by httpx.
         session = create_resilient_session(max_retries=3)
         session.headers.update({"Accept": "application/json"})
 

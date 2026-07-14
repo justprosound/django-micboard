@@ -108,7 +108,7 @@ class PluginRegistryTests(TestCase):
 
             # Should return list with plugin instance
             self.assertIsInstance(plugins, list)
-            self.assertTrue(len(plugins) >= 0)
+            self.assertEqual(len(plugins), 1)
 
     @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_plugin_with_manufacturer_not_found(self, mock_get_plugin):
@@ -158,8 +158,7 @@ class PluginRegistryTests(TestCase):
 
             # Should skip plugins that fail to load
             self.assertIsInstance(plugins, list)
-            # Should have fewer plugins than manufacturers (one failed)
-            self.assertTrue(len(plugins) <= len(mock_manufacturers))
+            self.assertEqual(len(plugins), 1)
 
     @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_plugin_with_manufacturer_lookup_success(self, mock_get_plugin):

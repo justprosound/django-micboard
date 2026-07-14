@@ -32,7 +32,7 @@ class BaseAPIClient(ABC):
 
 
 class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
-    def __init__(self, base_url: str | None = None, verify_ssl: bool | None = None):
+    def __init__(self, base_url: str | None = None):
         from micboard.services.settings import settings
 
         config_dict = settings.get_config_dict()
@@ -43,11 +43,8 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
             if base_url is not None
             else config_dict.get(f"{prefix}_BASE_URL", self._get_default_base_url()).rstrip("/")
         )
+        self._validate_base_url(prefix)
         self.timeout = config_dict.get(f"{prefix}_TIMEOUT", 10)
-        self.verify_ssl = (
-            verify_ssl if verify_ssl is not None else config_dict.get(f"{prefix}_VERIFY_SSL", True)
-        )
-
         self.max_retries = config_dict.get(f"{prefix}_MAX_RETRIES", 3)
         self.retry_backoff = config_dict.get(f"{prefix}_RETRY_BACKOFF", 0.5)
         self.retry_status_codes = config_dict.get(
@@ -58,7 +55,9 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         self._consecutive_failures = 0
         self._is_healthy = True
 
-        self.client = httpx.Client(timeout=self.timeout, verify=self.verify_ssl)
+        # httpx verifies certificates by default and honors SSL_CERT_FILE / SSL_CERT_DIR
+        # for private certificate authorities. Certificate verification is mandatory.
+        self.client = httpx.Client(timeout=self.timeout)
 
         failure_threshold = config_dict.get(f"{prefix}_CIRCUIT_FAILURE_THRESHOLD", 5)
         recovery_timeout = config_dict.get(f"{prefix}_CIRCUIT_RECOVERY_TIMEOUT", 60)
@@ -67,6 +66,16 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         )
 
         self._configure_authentication(config_dict)
+
+    def _validate_base_url(self, prefix: str) -> None:
+        """Reject malformed or cleartext URLs before credentials are configured."""
+        try:
+            parsed_url = httpx.URL(self.base_url)
+        except (TypeError, httpx.InvalidURL) as exc:
+            raise ValueError(f"{prefix}_BASE_URL must be an absolute HTTPS URL") from exc
+
+        if parsed_url.scheme != "https" or not parsed_url.host:
+            raise ValueError(f"{prefix}_BASE_URL must be an absolute HTTPS URL")
 
     @abstractmethod
     def _get_config_prefix(self) -> str:

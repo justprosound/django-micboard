@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from django.utils import timezone
 
@@ -18,7 +19,7 @@ from micboard.services.monitoring.alerts import (
 logger = logging.getLogger(__name__)
 
 
-def poll_manufacturer_devices(manufacturer_id: int):
+def poll_manufacturer_devices(manufacturer_id: int) -> dict[str, Any] | None:
     """Poll one manufacturer through the service layer and run follow-up work."""
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
@@ -52,6 +53,7 @@ def poll_manufacturer_devices(manufacturer_id: int):
         )
     except Exception as e:
         logger.exception("Error polling devices for manufacturer ID %s: %s", manufacturer_id, e)
+    return None
 
 
 def _update_models_from_api_data(api_data, manufacturer, plugin):

@@ -13,7 +13,7 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
 
 concurrency:
@@ -29,7 +29,7 @@ jobs:
       changelog: ${{ steps.changelog.outputs.content }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           fetch-depth: 0
 
@@ -65,11 +65,12 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
+          version: "0.10.9"
           enable-cache: true
 
       - name: Set up Python
@@ -103,13 +104,14 @@ jobs:
       url: https://pypi.org/p/django-micboard/${{ needs.prepare-release.outputs.version }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
+          version: "0.10.9"
           enable-cache: true
 
       - name: Set up Python
@@ -163,19 +165,19 @@ jobs:
 
       - name: Publish to TestPyPI
         if: github.event.inputs.prerelease == 'true'
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
           print-hash: true
 
       - name: Publish to PyPI
         if: github.event.inputs.prerelease == 'false'
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
         with:
           print-hash: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
         with:
           tag_name: v${{ needs.prepare-release.outputs.version }}
           target_commitish: ${{ steps.release-commit.outputs.sha }}
@@ -187,7 +189,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: distribution-${{ needs.prepare-release.outputs.version }}
           path: dist/

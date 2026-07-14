@@ -152,8 +152,6 @@ MICBOARD_CONFIG: dict[str, t.Any] = {
     # Single server configuration (backward compatible)
     "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"),
     "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
-    "SHURE_API_VERIFY_SSL": os.environ.get("MICBOARD_SHURE_API_VERIFY_SSL", "false").lower()
-    in ("true", "1", "yes"),
     # Multi-location API servers configuration
     # Each server can be associated with a specific location
     "MANUFACTURER_API_SERVERS": {
@@ -161,7 +159,6 @@ MICBOARD_CONFIG: dict[str, t.Any] = {
         #     "manufacturer": "shure",
         #     "base_url": "https://shure-api-1.example.com:10000",
         #     "shared_key": os.environ.get("SHURE_API_KEY_MAIN"),
-        #     "verify_ssl": False,
         #     "location_id": 1,  # Optional: Django Location model ID
         #     "enabled": True,
         # },
@@ -169,7 +166,6 @@ MICBOARD_CONFIG: dict[str, t.Any] = {
         #     "manufacturer": "shure",
         #     "base_url": "https://shure-api-2.example.com:10000",
         #     "shared_key": os.environ.get("SHURE_API_KEY_SAT"),
-        #     "verify_ssl": False,
         #     "location_id": 2,
         #     "enabled": True,
         # },

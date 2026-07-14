@@ -80,8 +80,6 @@ class Command(BaseCommand):
                             )
                         )
                         fixed_count += 1
-                        # Re-check status
-                        status = get_band_plan_regulatory_status(chassis)
                     else:
                         self.stdout.write(
                             self.style.WARNING(

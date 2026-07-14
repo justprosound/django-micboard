@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 else:
 
     class _AdminActionHost:
-        pass
+        """Runtime base for the type-checking-only admin action contract."""
 
 
 class BaseHardwareAdmin(MicboardModelAdmin):

@@ -30,16 +30,10 @@ class Command(BaseCommand):
             default="shure",
             help="Manufacturer code (default: shure)",
         )
-        parser.add_argument(
-            "--insecure",
-            action="store_true",
-            help="Disable TLS certificate verification for self-signed device endpoints",
-        )
 
     def handle(self, *args, **options):
         manufacturer_code = options["manufacturer"]
         ips_str = options["ips"]
-        insecure = options["insecure"]
 
         try:
             manufacturer = Manufacturer.objects.get(code=manufacturer_code)
@@ -55,18 +49,10 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(f"Adding {len(ip_addresses)} devices for {manufacturer.name}...")
-        if insecure:
-            self.stdout.write(
-                self.style.WARNING("TLS certificate verification disabled for discovery probes")
-            )
-
         added_count = 0
         failed_count = 0
 
-        with httpx.Client(
-            timeout=1,
-            verify=not insecure,
-        ) as client:
+        with httpx.Client(timeout=1) as client:
             for ip in ip_addresses:
                 self.stdout.write(f"  Checking {ip}...", ending=" ")
 

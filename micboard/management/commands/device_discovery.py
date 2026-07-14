@@ -55,11 +55,6 @@ class Command(BaseCommand):
             default=5,
             help="Request timeout in seconds (default: 5)",
         )
-        discover_parser.add_argument(
-            "--verify-ssl",
-            action="store_true",
-            help="Verify SSL certificates (default: False)",
-        )
 
         # Test subcommand
         test_parser = subparsers.add_parser(
@@ -76,11 +71,6 @@ class Command(BaseCommand):
             type=int,
             default=5,
             help="Request timeout in seconds (default: 5)",
-        )
-        test_parser.add_argument(
-            "--verify-ssl",
-            action="store_true",
-            help="Verify SSL certificates (default: False)",
         )
 
         # Health check subcommand
@@ -115,10 +105,7 @@ class Command(BaseCommand):
     def _handle_discover(self, options):
         """Handle device discovery command."""
         # Initialize service
-        service = DeviceProbeService(
-            timeout=options["timeout"],
-            verify_ssl=options["verify_ssl"],
-        )
+        service = DeviceProbeService(timeout=options["timeout"])
 
         # Determine IP source
         if options.get("file"):
@@ -157,10 +144,7 @@ class Command(BaseCommand):
 
     def _handle_test(self, options):
         """Handle device connectivity test command."""
-        service = DeviceProbeService(
-            timeout=options["timeout"],
-            verify_ssl=options["verify_ssl"],
-        )
+        service = DeviceProbeService(timeout=options["timeout"])
 
         self.stdout.write(f"Testing device at {options['ip']}...")
         device = service.probe_device(options["ip"])

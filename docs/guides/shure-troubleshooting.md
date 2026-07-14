@@ -23,14 +23,14 @@ Common issues and solutions for django-micboard with Shure wireless microphone s
        'BASE_URL': 'https://your-shure-system.local',
        'USERNAME': 'admin',
        'PASSWORD': 'correct-password',
-       'VERIFY_SSL': False,  # For self-signed certificates
    }
    ```
 
 2. **Test API Access:**
    ```bash
    # Test with curl
-   curl -k -u admin:password https://your-shure-system.local/api/v1
+   curl --cacert /path/to/internal-ca.pem -u admin:password \
+     https://your-shure-system.local/api/v1
    ```
 
 3. **Check Network Connectivity:**
@@ -464,7 +464,7 @@ print('Channel layer:', layer)
 ### "SSL certificate verify failed"
 
 **Cause:** Invalid or self-signed SSL certificate
-**Solution:** Set `VERIFY_SSL = False` for development, or install proper certificate
+**Solution:** Install the issuing CA and set `SSL_CERT_FILE` or `SSL_CERT_DIR` for the service.
 
 ### "Device not found"
 

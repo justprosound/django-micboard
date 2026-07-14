@@ -345,7 +345,7 @@ Device.objects.bulk_update(updated_devices, ['status', 'battery'], batch_size=10
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| Certificate verification failed | Self-signed cert | Set ssl_verify=False (dev only) |
+| Certificate verification failed | Untrusted internal CA | Trust the CA with `SSL_CERT_FILE` or `SSL_CERT_DIR` |
 | Certificate expired | Old certificate | Renew certificate |
 
 ---
@@ -362,7 +362,6 @@ MICBOARD = {
             'enabled': True,
             'api_base_url': 'https://192.168.1.100:2420',
             'shared_key': 'your_shared_key',
-            'ssl_verify': False,
             'poll_interval': 30,
         }
     }
@@ -375,9 +374,8 @@ MICBOARD = {
     'MANUFACTURERS': {
         'sennheiser': {
             'enabled': True,
-            'api_base_url': 'http://192.168.1.101',
+            'api_base_url': 'https://192.168.1.101',
             'password': 'your_configured_password',
-            'ssl_verify': False,
             'poll_interval': 30,
         }
     }

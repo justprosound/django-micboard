@@ -88,15 +88,10 @@ async def _start_receiver_websocket_async(plugin, chassis):
         # Create API client for the WebSocket connection
         from micboard.integrations.shure.client import ShureSystemAPIClient
 
-        # Construct base_url
-        scheme = (
-            "https" if getattr(chassis, "port", 443) == 443 else "http"
-        )  # Assuming 443 is HTTPS, otherwise HTTP
-        base_url = f"{scheme}://{chassis.ip}:{getattr(chassis, 'port', 443)}"
+        # Manufacturer credentials must only cross authenticated TLS.
+        base_url = f"https://{chassis.ip}:{getattr(chassis, 'port', 443)}"
 
-        client = ShureSystemAPIClient(
-            base_url=base_url, verify_ssl=getattr(chassis, "verify_ssl", True)
-        )
+        client = ShureSystemAPIClient(base_url=base_url)
 
         # Set up callback for updates
         async def update_callback(data: dict[str, Any]) -> None:

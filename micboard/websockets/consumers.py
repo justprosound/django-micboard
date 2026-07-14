@@ -12,6 +12,11 @@ from typing import Any
 from django.conf import settings
 from django.db.models import F, Q
 
+from micboard.services.notification.realtime_routing_service import (
+    GLOBAL_UPDATES_GROUP,
+    campus_updates_group,
+    organization_updates_group,
+)
 from micboard.utils.dependencies import HAS_CHANNELS
 
 if HAS_CHANNELS:
@@ -24,19 +29,8 @@ else:
 
 logger = logging.getLogger(__name__)
 
-GLOBAL_UPDATES_GROUP = "micboard_updates"
 UNAUTHENTICATED_CLOSE_CODE = 4401
 UNAUTHORIZED_CLOSE_CODE = 4403
-
-
-def organization_updates_group(organization_id: int) -> str:
-    """Return the realtime group for organization-wide updates."""
-    return f"{GLOBAL_UPDATES_GROUP}.organization.{organization_id}"
-
-
-def campus_updates_group(organization_id: int, campus_id: int) -> str:
-    """Return the realtime group for updates restricted to one campus."""
-    return f"{organization_updates_group(organization_id)}.campus.{campus_id}"
 
 
 class MicboardConsumer(AsyncWebsocketConsumer):

@@ -26,7 +26,6 @@ Allows you to add and manage multiple manufacturer API servers (e.g., Shure Syst
    - **Manufacturer**: Select "Shure System API"
    - **Base URL**: Your API endpoint (e.g., `https://api.venue.local:10000`)
    - **Shared Key**: Your API authentication key
-   - **Verify SSL**: Check/uncheck based on your setup
    - **Location**: Physical location name (optional, for reference)
    - **Enabled**: Toggle to enable/disable
 3. Click **Save**
@@ -210,7 +209,6 @@ MANUFACTURER_API_SERVERS = {
         "manufacturer": "shure",
         "base_url": "https://api.main.local:10000",
         "shared_key": "YOUR_SHARED_KEY_HERE",
-        "verify_ssl": False,
         "location_name": "Main Venue - Stage",
         "enabled": True,
     },
@@ -218,7 +216,6 @@ MANUFACTURER_API_SERVERS = {
         "manufacturer": "shure",
         "base_url": "https://api.backup.local:10000",
         "shared_key": "YOUR_BACKUP_KEY_HERE",
-        "verify_ssl": False,
         "location_name": "Backup Venue - Archive",
         "enabled": False,
     },
@@ -296,7 +293,7 @@ uv run --no-sync python manage.py import_devices --server-id main_venue --dry-ru
 ## Troubleshooting
 
 **Server Connection Test Fails:**
-- Verify SSL certificate if `verify_ssl=True`
+- Install the issuing CA in the host trust store or configure `SSL_CERT_FILE`/`SSL_CERT_DIR`
 - Check shared key matches what API expects
 - Confirm API endpoint is accessible from server
 - Check firewall rules

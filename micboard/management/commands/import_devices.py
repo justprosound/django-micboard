@@ -40,8 +40,6 @@ class Command(BaseCommand):
         if not api_servers:
             base_url = settings.get("SHURE_API_BASE_URL", "https://localhost:10000")
             shared_key = settings.get("SHURE_API_SHARED_KEY")
-            verify_ssl = settings.get("SHURE_API_VERIFY_SSL", False)
-
             if not shared_key:
                 self.stdout.write(
                     self.style.ERROR(
@@ -56,7 +54,6 @@ class Command(BaseCommand):
                     "manufacturer": "shure",
                     "base_url": base_url,
                     "shared_key": shared_key,
-                    "verify_ssl": verify_ssl,
                     "location_id": None,
                 }
             }

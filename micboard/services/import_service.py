@@ -96,10 +96,7 @@ class ImportService:
 
         for server_id, server_config in api_servers.items():
             try:
-                client = ShureSystemAPIClient(
-                    base_url=server_config["base_url"],
-                    verify_ssl=server_config.get("verify_ssl", False),
-                )
+                client = ShureSystemAPIClient(base_url=server_config["base_url"])
 
                 devices = client.devices.get_devices()
                 total_discovered += len(devices) if devices else 0

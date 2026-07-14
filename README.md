@@ -64,7 +64,6 @@ HUEY = {
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": os.environ.get("SHURE_API_BASE_URL", "https://localhost:10000"),
     "SHURE_API_SHARED_KEY": os.environ.get("SHURE_API_SHARED_KEY"),
-    "SHURE_API_VERIFY_SSL": False,
     "POLL_INTERVAL": 5,  # seconds
 }
 
@@ -147,7 +146,6 @@ Key environment variables (see `.env.example` for complete list):
 # Shure API
 MICBOARD_SHURE_API_BASE_URL=https://shure-api.example.com:10000
 MICBOARD_SHURE_API_SHARED_KEY=your-secret-key
-MICBOARD_SHURE_API_VERIFY_SSL=False
 MICBOARD_SHURE_API_TIMEOUT=10
 
 # Multi-tenancy
@@ -157,6 +155,10 @@ MICBOARD_MSP_ENABLED=False
 # Audit & retention
 MICBOARD_ACTIVITY_LOG_RETENTION_DAYS=90
 ```
+
+Authenticated manufacturer connections require HTTPS or WSS, and certificate verification is
+mandatory. For an internal certificate authority, set `SSL_CERT_FILE` or `SSL_CERT_DIR` to the
+trusted CA bundle before starting Django or Huey.
 
 ### Using the Configuration API
 

@@ -92,8 +92,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Enforce monitoring-group scope on charger, kiosk, alert, performer-assignment, and HTMX lookup
   surfaces
 - Require authenticated POST requests for kiosk heartbeat mutation and admin user promotion
-- Verify discovery-probe TLS certificates by default; insecure probing now requires an explicit
-  command flag
+- Require HTTPS and certificate verification for authenticated manufacturer clients; private
+  certificate authorities use the standard `SSL_CERT_FILE` or `SSL_CERT_DIR` trust configuration
+- Redact API keys and subscription handshake identifiers from integration logs, and hardware
+  identities and private network addresses from deduplication and probe logs
+- Pin GitHub Actions to immutable commits and isolate Codecov OIDC permission from project tests
 - Fail closed for unsupported or tenantless resources in MSP mode and prevent cross-tenant
   WebSocket subscription or broadcast leakage
 

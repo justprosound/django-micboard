@@ -15,9 +15,9 @@ from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.locations.structure import Building, Location
 from micboard.multitenancy.models import Campus, Organization
 from micboard.services.notification.broadcast_service import BroadcastService
-from micboard.services.notification.realtime_routing_service import RealtimeRoutingService
-from micboard.websockets.consumers import (
+from micboard.services.notification.realtime_routing_service import (
     GLOBAL_UPDATES_GROUP,
+    RealtimeRoutingService,
     campus_updates_group,
     organization_updates_group,
 )

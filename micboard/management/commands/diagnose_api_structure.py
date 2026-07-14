@@ -85,14 +85,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         base_url = settings.get("SHURE_API_BASE_URL", "https://localhost:10000")
         shared_key = settings.get("SHURE_API_SHARED_KEY")
-        verify_ssl = settings.get("SHURE_API_VERIFY_SSL", False)
-        if isinstance(verify_ssl, str):
-            verify_ssl = verify_ssl.lower() in ("true", "1", "yes")
         if not shared_key:
             logger.error("SHURE_API_SHARED_KEY not configured")
             self.stderr.write(self.style.ERROR("SHURE_API_SHARED_KEY not configured"))
             return
-        client = ShureSystemAPIClient(base_url=base_url, verify_ssl=verify_ssl)
+        client = ShureSystemAPIClient(base_url=base_url)
         logger.info("%s\nSHURE API STRUCTURE DIAGNOSTIC\n%s", "=" * 80, "=" * 80)
         try:
             _run_diagnostic(client, self.stderr, self.style)

@@ -13,20 +13,17 @@ logger = logging.getLogger(__name__)
 class ShureAPITester:
     """Test suite for Shure System API integration."""
 
-    def __init__(self, shared_key=None, verify_ssl=True):
-        """Initialize Shure API tester with shared key and SSL verification flag."""
+    def __init__(self, shared_key=None):
+        """Initialize Shure API tester with a shared key."""
         self.shared_key = shared_key or app_settings.get("SHURE_API_SHARED_KEY")
-        self.verify_ssl = verify_ssl
         self.client = None
         self.test_results = []
 
     def initialize_client(self):
         logger.info("Initializing Shure System API Client...")
         logger.info("  Base URL: https://localhost:10000")
-        logger.info("  SSL Verification: %s", self.verify_ssl)
-        logger.info(
-            f"  Shared Key: {'*' * (len(self.shared_key) - 4) if self.shared_key else 'NOT SET'}{self.shared_key[-4:] if self.shared_key else ''}"
-        )
+        logger.info("  TLS certificate verification: enabled")
+        logger.info("  Shared Key: %s", "configured" if self.shared_key else "not configured")
         if not self.shared_key:
             logger.error("ERROR: SHURE_API_SHARED_KEY not set!")
             return False
@@ -34,12 +31,9 @@ class ShureAPITester:
             django_settings.MICBOARD_CONFIG = {
                 "SHURE_API_BASE_URL": "https://localhost:10000",
                 "SHURE_API_SHARED_KEY": self.shared_key,
-                "SHURE_API_VERIFY_SSL": self.verify_ssl,
                 "SHURE_API_TIMEOUT": 10,
             }
-            self.client = ShureSystemAPIClient(
-                base_url="https://localhost:10000", verify_ssl=self.verify_ssl
-            )
+            self.client = ShureSystemAPIClient(base_url="https://localhost:10000")
             logger.info("✓ Client initialized successfully")
             return True
         except Exception as e:
@@ -216,17 +210,9 @@ class Command(BaseCommand):
             "--shared-key",
             help="Shure API shared key (can also use MICBOARD_SHURE_API_SHARED_KEY env var)",
         )
-        parser.add_argument(
-            "--no-ssl-verify",
-            action="store_true",
-            help="Disable SSL verification (for self-signed certificates)",
-        )
 
     def handle(self, *args, **options):
-        tester = ShureAPITester(
-            shared_key=options.get("shared_key"),
-            verify_ssl=not options.get("no_ssl_verify", False),
-        )
+        tester = ShureAPITester(shared_key=options.get("shared_key"))
         success = tester.run_all_tests()
         if not success:
             self.stderr.write(self.style.ERROR("Some tests failed."))

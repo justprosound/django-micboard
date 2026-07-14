@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, call
@@ -33,7 +34,7 @@ def probe_service(
     session = MagicMock(spec=httpx.Client)
     session_factory = MagicMock(return_value=session)
     monkeypatch.setattr(resilience, "create_resilient_session", session_factory)
-    service = DeviceProbeService(timeout=7, verify_ssl=True)
+    service = DeviceProbeService(timeout=7)
     return service, session, session_factory
 
 
@@ -54,21 +55,20 @@ def test_probe_service_configures_resilient_session_and_circuit(
     service, session, session_factory = probe_service
 
     assert service.timeout == 7
-    assert service.verify_ssl is True
     assert service.session is session
     assert service.discovered_devices == []
     assert service._circuit.state == "closed"
-    session_factory.assert_called_once_with(max_retries=3, verify_ssl=True)
+    session_factory.assert_called_once_with(max_retries=3)
 
 
-def test_create_session_uses_current_ssl_setting(
+def test_create_session_preserves_mandatory_certificate_verification(
     probe_service: tuple[DeviceProbeService, MagicMock, MagicMock],
 ) -> None:
     service, session, session_factory = probe_service
     session_factory.reset_mock()
 
     assert service._create_session() is session
-    session_factory.assert_called_once_with(max_retries=3, verify_ssl=True)
+    session_factory.assert_called_once_with(max_retries=3)
 
 
 def test_probe_device_fast_fails_when_circuit_is_open(
@@ -120,13 +120,17 @@ def test_probe_device_accepts_auth_challenge_after_nonmatching_response(
 
 def test_probe_device_records_request_failures_and_opens_circuit(
     probe_service: tuple[DeviceProbeService, MagicMock, MagicMock],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     service, session, _session_factory = probe_service
     session.get.side_effect = _request_error()
 
-    assert service.probe_device("192.0.2.10") is None
+    with caplog.at_level(logging.DEBUG, logger=probe_module.__name__):
+        assert service.probe_device("192.0.2.10") is None
+
     assert session.get.call_count == 4
     assert service._circuit.state == "open"
+    assert "192.0.2.10" not in caplog.text
 
 
 def test_probe_device_returns_none_when_endpoints_are_not_device_apis(
@@ -317,8 +321,6 @@ def test_probe_device_ip_delegates_configuration(
     service_factory = MagicMock(return_value=service)
     monkeypatch.setattr(probe_module, "DeviceProbeService", service_factory)
 
-    assert probe_module.probe_device_ip("192.0.2.10", timeout=11, verify_ssl=True) == {
-        "ip": "192.0.2.10"
-    }
-    service_factory.assert_called_once_with(timeout=11, verify_ssl=True)
+    assert probe_module.probe_device_ip("192.0.2.10", timeout=11) == {"ip": "192.0.2.10"}
+    service_factory.assert_called_once_with(timeout=11)
     service.probe_device.assert_called_once_with("192.0.2.10")
