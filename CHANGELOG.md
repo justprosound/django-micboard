@@ -96,7 +96,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   certificate authorities use the standard `SSL_CERT_FILE` or `SSL_CERT_DIR` trust configuration
 - Redact API keys and subscription handshake identifiers from integration logs, and hardware
   identities and private network addresses from deduplication and probe logs
-- Pin GitHub Actions to immutable commits and isolate Codecov OIDC permission from project tests
+- Pin GitHub Actions to immutable commits and keep coverage enforcement and reports self-contained
 - Fail closed for unsupported or tenantless resources in MSP mode and prevent cross-tenant
   WebSocket subscription or broadcast leakage
 

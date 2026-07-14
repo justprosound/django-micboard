@@ -68,14 +68,20 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 - **Async Real-Time** - Server-sent events (SSE) and WebSocket connections for live monitoring.
 - **Multi-Tenancy** - Row-level tenant isolation via `TenantOptimizedQuerySet` / `TenantOptimizedManager`.
 - **Settings Resolution** - Scoped settings cascade: global -> site -> organization -> manufacturer.
+- **Self-Contained Verification** - CI enforces coverage locally and publishes HTML/XML artifacts.
+  External reporting services are optional and must not become required until the repository is
+  explicitly onboarded.
 
 ## Known Architectural Debt
 
-1. **Service layer monoliths** - `discovery_service.py` (898 lines), `hardware_lifecycle.py` (640 lines) mix multiple concerns.
+1. ~~**Service layer monoliths** - Oversized discovery and lifecycle services were split into
+   domain-focused modules.~~
 2. **Model embedded logic** - `WirelessChassis.save()`, `ManufacturerConfiguration.validate()` contain business logic that belongs in services.
-3. **Admin dashboard monolith** - `admin/dashboard.py` (2,431 lines) mixes ~50+ HTMX views with no separation.
+3. ~~**Admin dashboard monolith** - The former dashboard module was split into focused admin and
+   view modules.~~
 4. **Manufacturer plugin duplication** - Shure + Sennheiser plugin stacks are 80-90% structurally identical; no shared base reduces maintenance.
-5. **Thin test coverage** - 33 of 38 service files untested; no test factories; no integration or E2E tests.
+5. **Thin test coverage** - Branch coverage is 44.56% against a 60% target; factory, integration,
+   and end-to-end coverage remain incomplete.
 6. ~~**Compat shim** - `micboard/manufacturers/` was a backward-compat shim. Now removed (ADR-008).~~
 
 ## Key File Locations

@@ -114,34 +114,6 @@ jobs:
             htmlcov/
           retention-days: 30
 
-  coverage-upload:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.13"]
-        django-version: ["5.1", "5.2", "6.0"]
-
-    steps:
-      - name: Download coverage report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
-        with:
-          name: coverage-report-py${{ matrix.python-version }}-dj${{ matrix.django-version }}
-          path: coverage-report
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7
-        with:
-          use_oidc: true
-          files: coverage-report/coverage.xml
-          flags: unittests
-          name: codecov-umbrella-py${{ matrix.python-version }}-dj${{ matrix.django-version }}
-          fail_ci_if_error: true
-
   security:
     runs-on: ubuntu-latest
     steps:
