@@ -20,7 +20,13 @@ from micboard.admin.forms import WirelessChassisAdminForm
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.admin.receiver_inlines import AccessoryInline, RFChannelInline
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.hardware.chassis_admin_service import ChassisAdminService
+from micboard.services.hardware.chassis_admin_service import (
+    ChassisAdminDTOMapper,
+    ChassisAdminService,
+)
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
 
 logger = logging.getLogger(__name__)
 MAX_SYNCHRONOUS_REFRESH = 25
@@ -51,6 +57,33 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     readonly_fields = ("last_seen", "get_hardware_summary")
     date_hierarchy = "last_seen"
     actions: ClassVar[list[str]] = ["mark_online", "mark_offline", "sync_from_api"]
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Bind the requesting actor to candidate ownership validation."""
+        form_class = super().get_form(request, obj, **kwargs)
+        return type(
+            "RequestScopedWirelessChassisAdminForm",
+            (form_class,),
+            {"scope_user": request.user},
+        )
+
+    def save_model(self, request, obj, form, change) -> None:
+        """Persist the final authorized candidate through the quota-safe service seam."""
+        ChassisAdminService.ensure_location_write_allowed(
+            user=getattr(request, "user", None),
+            location=obj.location,
+        )
+        write = ChassisAdminDTOMapper.write(obj)
+        if change:
+            WirelessChassisPersistenceService.update(
+                chassis=obj,
+                write=write,
+                save_all_fields=True,
+            )
+            return
+
+        persisted = WirelessChassisPersistenceService.create(write=write)
+        obj.__dict__.update(persisted.__dict__)
 
     def delete_queryset(self, request, queryset) -> None:
         """Register one post-commit discovery cleanup for bulk deletion."""

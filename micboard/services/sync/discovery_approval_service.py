@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import Exists, OuterRef, QuerySet
+from django.db.models.functions import Trim
 from django.utils import timezone
 
+from micboard.discovery.limits import MAX_DISCOVERY_APPROVAL_BATCH
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.models.hardware.charger import Charger
@@ -19,11 +21,10 @@ from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
 from micboard.services.shared.base_dto import PydanticBaseDTO
-from micboard.services.sync.discovery_approval_policy import DiscoveryApprovalBatchPolicy
+from micboard.services.sync.discovery_approval_plan import DiscoveryApprovalPlan
 from micboard.services.sync.discovery_approval_resolution import (
     ChassisApprovalTarget,
     DiscoveryApprovalResolver,
-    LockedApprovalInventory,
 )
 
 
@@ -33,13 +34,6 @@ class DiscoveryApprovalResult(PydanticBaseDTO):
     imported_count: int
     created_count: int
     updated_count: int
-
-
-class DiscoveryApprovalTargets(PydanticBaseDTO):
-    """Validated inventory targets keyed by queue row."""
-
-    chargers: dict[int, Charger]
-    chassis: dict[int, ChassisApprovalTarget]
 
 
 class DiscoveryApprovalPersistence(PydanticBaseDTO):
@@ -55,6 +49,74 @@ class DiscoveryApprovalService:
     """Validate and atomically promote pending discovery queue entries."""
 
     @staticmethod
+    def _preflight_target_permissions(
+        queryset: QuerySet[DiscoveryQueue],
+        *,
+        reviewer: Any,
+    ) -> None:
+        """Reject missing target permissions before validation or row locks."""
+        chassis = WirelessChassis.objects.using(queryset.db)
+        selected_targets = cast(
+            list[tuple[str, int | None, str, str, bool, bool]],
+            list(
+                queryset.filter(status="pending")
+                .order_by("pk")
+                .annotate(
+                    approval_api_device_id=Trim("api_device_id"),
+                    approval_serial_number=Trim("serial_number"),
+                )
+                .annotate(
+                    approval_api_target_exists=Exists(
+                        chassis.filter(
+                            manufacturer_id=OuterRef("manufacturer_id"),
+                            api_device_id=OuterRef("approval_api_device_id"),
+                        )
+                    ),
+                    approval_serial_target_exists=Exists(
+                        chassis.filter(
+                            manufacturer_id=OuterRef("manufacturer_id"),
+                            serial_number=OuterRef("approval_serial_number"),
+                        )
+                    ),
+                )
+                .values_list(
+                    "device_type",
+                    "existing_device_id",
+                    "approval_api_device_id",
+                    "approval_serial_number",
+                    "approval_api_target_exists",
+                    "approval_serial_target_exists",
+                )[: MAX_DISCOVERY_APPROVAL_BATCH + 1]
+            ),
+        )
+        required_permissions: set[str] = set()
+        for (
+            device_type,
+            existing_device_id,
+            api_device_id,
+            serial_number,
+            api_target_exists,
+            serial_target_exists,
+        ) in selected_targets:
+            if str(device_type).lower() == "charger":
+                required_permissions.add("micboard.change_charger")
+                continue
+            target_exists = bool(
+                existing_device_id is not None
+                or (api_device_id and api_target_exists)
+                or (serial_number and serial_target_exists)
+            )
+            permission = (
+                "micboard.change_wirelesschassis"
+                if target_exists
+                else "micboard.add_wirelesschassis"
+            )
+            required_permissions.add(permission)
+
+        if required_permissions and not reviewer.has_perms(required_permissions):
+            raise PermissionDenied
+
+    @staticmethod
     def _lock_items(
         queryset: QuerySet[DiscoveryQueue],
         *,
@@ -65,8 +127,12 @@ class DiscoveryApprovalService:
             queryset.select_related(None)
             .filter(status="pending")
             .order_by("pk")
-            .values_list("pk", "ip")
+            .values_list("pk", "ip")[: MAX_DISCOVERY_APPROVAL_BATCH + 1]
         )
+        if len(requested_rows) > MAX_DISCOVERY_APPROVAL_BATCH:
+            raise ValidationError(
+                f"Discovery approval batch exceeds hard limit of {MAX_DISCOVERY_APPROVAL_BATCH}."
+            )
         if not requested_rows:
             return []
 
@@ -76,8 +142,13 @@ class DiscoveryApprovalService:
             DiscoveryQueue.objects.using(using)
             .select_for_update()
             .filter(status="pending", ip__in=requested_ips)
-            .order_by("pk")
+            .order_by("pk")[: MAX_DISCOVERY_APPROVAL_BATCH + 1]
         )
+        if len(locked_rows) > MAX_DISCOVERY_APPROVAL_BATCH:
+            raise ValidationError(
+                "Discovery approval conflict scope exceeds hard limit of "
+                f"{MAX_DISCOVERY_APPROVAL_BATCH}."
+            )
         selected_ids = [row.pk for row in locked_rows if row.pk in requested_ids]
         if not selected_ids:
             return []
@@ -95,22 +166,6 @@ class DiscoveryApprovalService:
             .select_related("manufacturer")
             .order_by("pk")
         )
-
-    @staticmethod
-    def _required_permissions(
-        items: list[DiscoveryQueue],
-        chassis_targets: dict[int, ChassisApprovalTarget],
-    ) -> set[str]:
-        """Return the least-privilege target permissions needed by this batch."""
-        permissions = {"micboard.change_discoveryqueue"}
-        for item in items:
-            if item.device_type.lower() == "charger":
-                permissions.add("micboard.change_charger")
-            elif chassis_targets[item.pk].chassis is None:
-                permissions.add("micboard.add_wirelesschassis")
-            else:
-                permissions.add("micboard.change_wirelesschassis")
-        return permissions
 
     @staticmethod
     def _adopt_wireless_chassis(
@@ -187,31 +242,10 @@ class DiscoveryApprovalService:
             raise ValueError("A persisted chassis target is required.")
         return ("chassis", target.chassis.pk, "")
 
-    @staticmethod
-    def _resolve_targets(
-        items: list[DiscoveryQueue],
-        batch_policy: DiscoveryApprovalBatchPolicy,
-        inventory: LockedApprovalInventory,
-    ) -> DiscoveryApprovalTargets:
-        """Resolve and validate one locked inventory target per queue row."""
-        charger_targets: dict[int, Charger] = {}
-        chassis_targets: dict[int, ChassisApprovalTarget] = {}
-        for item in items:
-            DiscoveryApprovalResolver.validate_role(item)
-            if item.device_type.lower() == "charger":
-                charger = DiscoveryApprovalResolver.resolve_charger(item, inventory=inventory)
-                batch_policy.validate_charger(item=item, charger=charger)
-                charger_targets[item.pk] = charger
-            else:
-                target = DiscoveryApprovalResolver.resolve_chassis(item, inventory=inventory)
-                batch_policy.validate_chassis(item=item, target=target)
-                chassis_targets[item.pk] = target
-        return DiscoveryApprovalTargets(chargers=charger_targets, chassis=chassis_targets)
-
     def _persist_targets(
         self,
         items: list[DiscoveryQueue],
-        targets: DiscoveryApprovalTargets,
+        plan: DiscoveryApprovalPlan,
         *,
         using: str,
     ) -> DiscoveryApprovalPersistence:
@@ -223,12 +257,12 @@ class DiscoveryApprovalService:
         ] = {}
         for item in items:
             if item.device_type.lower() == "charger":
-                charger = targets.chargers[item.pk]
+                charger = plan.chargers[item.pk]
                 if charger.pk is None:  # pragma: no cover - locked model contract guard
                     raise ValueError("A persisted charger target is required.")
                 charger_groups.setdefault(charger.pk, []).append(item)
             else:
-                target = targets.chassis[item.pk]
+                target = plan.chassis[item.pk]
                 key = self._chassis_group_key(item, target)
                 chassis_groups.setdefault(key, []).append((item, target))
 
@@ -237,7 +271,7 @@ class DiscoveryApprovalService:
             first_item = grouped_items[0]
             charger = self._adopt_charger(
                 grouped_items,
-                targets.chargers[first_item.pk],
+                plan.chargers[first_item.pk],
                 using=using,
             )
             approved_chargers.update({item.pk: charger for item in grouped_items})
@@ -294,6 +328,10 @@ class DiscoveryApprovalService:
         reviewer: Any,
     ) -> DiscoveryApprovalResult:
         """Import pending entries once and record their reviewer atomically."""
+        if not reviewer.has_perms({"micboard.change_discoveryqueue"}):
+            raise PermissionDenied
+        self._preflight_target_permissions(queryset, reviewer=reviewer)
+
         using = queryset.db
         with transaction.atomic(using=using):
             items = self._lock_items(queryset, using=using)
@@ -301,14 +339,12 @@ class DiscoveryApprovalService:
                 (item.ip for item in items),
                 using=using,
             )
-            inventory = DiscoveryApprovalResolver.lock_inventory(items, using=using)
-            batch_policy = DiscoveryApprovalBatchPolicy(owners=inventory.owners)
-            targets = self._resolve_targets(items, batch_policy, inventory)
+            plan = DiscoveryApprovalPlan.build(items, using=using)
 
-            if not reviewer.has_perms(self._required_permissions(items, targets.chassis)):
+            if not reviewer.has_perms(plan.required_permissions):
                 raise PermissionDenied
 
-            persistence = self._persist_targets(items, targets, using=using)
+            persistence = self._persist_targets(items, plan, using=using)
             self._mark_imported(
                 items=items,
                 persistence=persistence,

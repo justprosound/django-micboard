@@ -15,6 +15,7 @@ permissions:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       WARDEN_MODEL: ${{ secrets.WARDEN_MODEL }}
       WARDEN_SENTRY_DSN: ${{ secrets.WARDEN_SENTRY_DSN }}

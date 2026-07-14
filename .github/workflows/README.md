@@ -12,6 +12,18 @@ and `tests/test_release_workflow_security.py`.
 | `publish-release.yml` | Build the exact merged commit, publish through an environment-bound OIDC token, and create the GitHub release | Dispatch from the preparation workflow on `main` |
 | `warden.yml` | Review pull-request changes | Pull-request activity |
 
+## Shared setup action
+
+Repository-controlled Python jobs use `.github/actions/setup-uv-python/action.yml` as the single
+toolchain bootstrap. The action pins the uv installer and uv release, verifies that uv is
+available, and provisions the requested Python version. Dependency synchronization remains in
+each job because the required extras and trust boundary differ by responsibility.
+
+Externally triggered or credential-isolated jobs deliberately do not execute repository-local
+actions. CodeQL retains its direct pinned setup while holding `security-events: write`; Warden
+runs only its pinned review action; and the isolated publishing jobs retain direct pinned setup
+while holding `id-token: write` and never check out the repository.
+
 ## Release sequence
 
 The release lifecycle is **prepare -> validate -> merge -> publish**:

@@ -20,6 +20,8 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 - **DiscoveryCIDR / DiscoveryFQDN** - Network ranges and hosts where the system scans for devices.
 - **DiscoveredDevice** - A device found during network discovery but not yet adopted.
 - **DiscoveryQueue** - Pending adoption items: devices found during discovery awaiting user review.
+- **DiscoveryApprovalPlan** - A bounded, locked mapping from selected DiscoveryQueue rows to
+  validated inventory targets, conflict decisions, and least-privilege write permissions.
 - **DiscoveryJob** - Tracks a scan run: manufacturer, action, status, item counts.
 - **DeviceMovementLog** - Records when a device's IP or location changes.
 

@@ -55,6 +55,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- **Organized GitHub Actions bootstrap**: Reuse one pinned uv/Python setup action across
+  repository-controlled jobs, retain direct immutable setup in privileged jobs, enforce explicit
+  job timeouts, and document the workflow trust boundaries
+- **Tenant-safe chassis admin writes**: Validate final location ownership in request-bound forms,
+  reject tenant-to-platform inventory escapes, and route admin creates and updates through the
+  canonical organization-quota persistence seam
+- **Bounded discovery approval plans**: Reject missing queue and hardware permissions before row
+  locks, cap selected and same-address conflict scopes at 100 rows and per-type inventory locks at
+  400 rows, and isolate inventory, target resolution, and conflict validation behind one plan
+  interface
 - **Canonical service exceptions**: Move settings, admin-audit setup, and realtime lease failures
   under `MicboardError`, reject future service-local exception roots, and translate unexpected API
   polling failures to a fixed secret-safe public error without flattening known transport metadata

@@ -1,6 +1,6 @@
 ---
 name: CI Quality Gates
-run-name: "CI · ${{ github.event.pull_request.number && format('PR #{0}', github.event.pull_request.number) || github.ref_name }}"
+run-name: "CI · ${{ github.head_ref || github.ref_name }}"
 
 on:
   push:
@@ -19,19 +19,14 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
-        with:
-          version: "0.11.28"
-          enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.13
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
 
       - name: Install dependencies
         run: uv sync --locked --all-extras
@@ -44,16 +39,14 @@ jobs:
 
   package:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
         with:
-          version: "0.11.28"
-
-      - name: Set up Python
-        run: uv python install 3.13
+          enable-cache: "false"
 
       - name: Build wheel
         run: |
@@ -69,6 +62,7 @@ jobs:
   test:
     needs: lint
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -82,14 +76,10 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
         with:
-          version: "0.11.28"
-          enable-cache: true
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: uv sync --locked --all-extras
@@ -117,17 +107,12 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
-        with:
-          version: "0.11.28"
-          enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.13
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
 
       - name: Run Bandit security check
         run: |
@@ -136,6 +121,7 @@ jobs:
 
   codeql:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write

@@ -7,7 +7,9 @@ from django.core.exceptions import PermissionDenied, ValidationError
 
 import pytest
 
+from micboard.discovery.limits import MAX_DISCOVERY_APPROVAL_INVENTORY_LOCKS
 from micboard.models.discovery.queue import DiscoveryQueue
+from micboard.models.hardware.charger import Charger
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.sync.discovery_approval_service import DiscoveryApprovalService
 from tests.factories.base import UserFactory
@@ -102,6 +104,246 @@ def test_approval_requires_queue_change_permission() -> None:
     )
 
     with pytest.raises(PermissionDenied):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
+            reviewer=reviewer,
+        )
+
+    queue_item.refresh_from_db()
+    assert queue_item.status == "pending"
+
+
+def test_queue_permission_denial_precedes_selected_row_validation() -> None:
+    """Unauthorized reviewers cannot inspect validation results for selected rows."""
+    reviewer = UserFactory()
+    queue_item = DiscoveryQueueFactory(device_type="unsupported")
+
+    with pytest.raises(PermissionDenied):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
+            reviewer=reviewer,
+        )
+
+    queue_item.refresh_from_db()
+    assert queue_item.status == "pending"
+
+
+def test_target_permission_denial_precedes_selected_row_validation() -> None:
+    """Queue reviewers without hardware access cannot inspect target validation."""
+    reviewer = UserFactory()
+    reviewer.user_permissions.add(
+        Permission.objects.get(
+            content_type__app_label="micboard",
+            codename="change_discoveryqueue",
+        )
+    )
+    queue_item = DiscoveryQueueFactory(device_type="unsupported")
+
+    with pytest.raises(PermissionDenied):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
+            reviewer=reviewer,
+        )
+
+    queue_item.refresh_from_db()
+    assert queue_item.status == "pending"
+
+
+def test_charger_permission_denial_precedes_selected_row_validation() -> None:
+    """Queue reviewers without charger access cannot inspect charger validation."""
+    reviewer = UserFactory()
+    reviewer.user_permissions.add(
+        Permission.objects.get(
+            content_type__app_label="micboard",
+            codename="change_discoveryqueue",
+        )
+    )
+    queue_item = DiscoveryQueueFactory(
+        device_type="charger",
+        serial_number="",
+        existing_charger=None,
+    )
+
+    with pytest.raises(PermissionDenied):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
+            reviewer=reviewer,
+        )
+
+    queue_item.refresh_from_db()
+    assert queue_item.status == "pending"
+
+
+def test_add_only_permission_cannot_validate_existing_chassis_target() -> None:
+    """An add-only reviewer cannot inspect validation for an update target."""
+    reviewer = UserFactory()
+    _grant(reviewer, "add_wirelesschassis")
+    chassis = WirelessChassisFactory(serial_number="existing-target-serial")
+    queue_item = DiscoveryQueueFactory(
+        manufacturer=chassis.manufacturer,
+        existing_device=chassis,
+        api_device_id=chassis.api_device_id,
+        serial_number="conflicting-target-serial",
+        ip=chassis.ip,
+    )
+
+    with pytest.raises(PermissionDenied):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
+            reviewer=reviewer,
+        )
+
+    queue_item.refresh_from_db()
+    chassis.refresh_from_db()
+    assert queue_item.status == "pending"
+    assert chassis.serial_number == "existing-target-serial"
+
+
+def test_change_only_permission_cannot_validate_new_chassis_target() -> None:
+    """A change-only reviewer cannot inspect validation for an add target."""
+    reviewer = UserFactory()
+    _grant(reviewer, "change_wirelesschassis")
+    queue_item = DiscoveryQueueFactory(
+        api_device_id="new-target-api",
+        serial_number="new-target-serial",
+        device_type="unsupported",
+    )
+
+    with pytest.raises(PermissionDenied):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
+            reviewer=reviewer,
+        )
+
+    queue_item.refresh_from_db()
+    assert queue_item.status == "pending"
+
+
+def test_authorized_add_rejects_unsupported_chassis_role() -> None:
+    """A permitted add still rejects queue roles outside managed inventory."""
+    reviewer = UserFactory()
+    _grant(reviewer, "add_wirelesschassis")
+    queue_item = DiscoveryQueueFactory(device_type="unsupported")
+
+    with pytest.raises(ValidationError, match="Unsupported wireless chassis role"):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
+            reviewer=reviewer,
+        )
+
+    queue_item.refresh_from_db()
+    assert queue_item.status == "pending"
+
+
+def test_approval_rejects_selection_above_hard_batch_limit() -> None:
+    """One approval transaction cannot materialize an unbounded admin selection."""
+    reviewer = UserFactory(is_staff=True, is_superuser=True)
+    queue_items = DiscoveryQueueFactory.create_batch(101)
+    chassis_count = WirelessChassis.objects.count()
+
+    with pytest.raises(ValidationError, match="hard limit of 100"):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk__in=[item.pk for item in queue_items]),
+            reviewer=reviewer,
+        )
+
+    assert DiscoveryQueue.objects.filter(
+        pk__in=[item.pk for item in queue_items],
+        status="pending",
+    ).count() == len(queue_items)
+    assert WirelessChassis.objects.count() == chassis_count
+
+
+def test_approval_rejects_unbounded_same_ip_lock_scope() -> None:
+    """One selected row cannot expand into an unbounded conflict lock set."""
+    reviewer = UserFactory(is_staff=True, is_superuser=True)
+    selected_item = DiscoveryQueueFactory(ip="192.0.2.199")
+    related_items = DiscoveryQueueFactory.create_batch(
+        100,
+        manufacturer=selected_item.manufacturer,
+        ip=selected_item.ip,
+    )
+    queue_items = [selected_item, *related_items]
+    chassis_count = WirelessChassis.objects.count()
+
+    with pytest.raises(ValidationError, match="hard limit of 100"):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=selected_item.pk),
+            reviewer=reviewer,
+        )
+
+    assert DiscoveryQueue.objects.filter(
+        pk__in=[item.pk for item in queue_items],
+        status="pending",
+    ).count() == len(queue_items)
+    assert WirelessChassis.objects.count() == chassis_count
+
+
+def test_approval_rejects_unbounded_chassis_identity_lock_scope() -> None:
+    """One ambiguous serial cannot lock an unbounded managed chassis set."""
+    reviewer = UserFactory(is_staff=True, is_superuser=True)
+    queue_item = DiscoveryQueueFactory(
+        api_device_id="",
+        serial_number="unbounded-shared-serial",
+        ip="2001:db8:5::1",
+    )
+    WirelessChassis.objects.bulk_create(
+        [
+            WirelessChassis(
+                manufacturer=queue_item.manufacturer,
+                api_device_id=f"ambiguous-api-{index}",
+                serial_number=queue_item.serial_number,
+                ip=f"2001:db8:4::{index + 1:x}",
+                role="receiver",
+                max_channels=0,
+            )
+            for index in range(MAX_DISCOVERY_APPROVAL_INVENTORY_LOCKS + 1)
+        ]
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match=f"hard limit of {MAX_DISCOVERY_APPROVAL_INVENTORY_LOCKS}",
+    ):
+        DiscoveryApprovalService().approve(
+            queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
+            reviewer=reviewer,
+        )
+
+    queue_item.refresh_from_db()
+    assert queue_item.status == "pending"
+
+
+def test_approval_rejects_unbounded_charger_identity_lock_scope() -> None:
+    """One ambiguous serial cannot lock an unbounded managed charger set."""
+    reviewer = UserFactory(is_staff=True, is_superuser=True)
+    first_charger = ChargerFactory(
+        serial_number="unbounded-charger-serial",
+        ip="2001:db8:6::1",
+    )
+    queue_item = DiscoveryQueueFactory(
+        manufacturer=first_charger.manufacturer,
+        api_device_id="",
+        serial_number=first_charger.serial_number,
+        device_type="charger",
+        ip="2001:db8:7::1",
+    )
+    Charger.objects.bulk_create(
+        [
+            Charger(
+                location=first_charger.location,
+                manufacturer=first_charger.manufacturer,
+                serial_number=first_charger.serial_number,
+                ip=f"2001:db8:6::{index + 2:x}",
+            )
+            for index in range(MAX_DISCOVERY_APPROVAL_INVENTORY_LOCKS)
+        ]
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match=f"hard limit of {MAX_DISCOVERY_APPROVAL_INVENTORY_LOCKS}",
+    ):
         DiscoveryApprovalService().approve(
             queryset=DiscoveryQueue.objects.filter(pk=queue_item.pk),
             reviewer=reviewer,

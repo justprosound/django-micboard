@@ -133,6 +133,27 @@ class WirelessChassisPersistenceService:
         return int(organization_id) if organization_id is not None else None
 
     @classmethod
+    def validate_location_quota(
+        cls,
+        *,
+        chassis_id: int | None,
+        location: Any | None,
+        using: str | None = None,
+    ) -> None:
+        """Validate a candidate location against the canonical organization quota."""
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
+
+        database = using or router.db_for_write(WirelessChassis)
+        values = {"location": location}
+        with cls._locked_organization(values, using=database) as organization:
+            current_organization_id = cls._persisted_organization_id(
+                chassis_id=chassis_id,
+                using=database,
+            )
+            if organization is not None and current_organization_id != organization.pk:
+                cls._enforce_create_quota(organization, using=database)
+
+    @classmethod
     def create(
         cls,
         *,

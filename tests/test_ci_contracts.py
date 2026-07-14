@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
+ACTIONS = ROOT / ".github" / "actions"
 
 
 def _workflow_job(workflow: str, job_name: str) -> str:
@@ -126,8 +127,10 @@ def test_release_writers_have_narrow_responsibilities() -> None:
     assert "contents: write" in metadata_job
     assert "pull-requests: write" in metadata_job
     assert "id-token: write" not in metadata_job
-    assert metadata_actions == ["astral-sh/setup-uv", "actions/checkout"]
-    assert metadata_job.index("astral-sh/setup-uv@") < metadata_job.index("actions/checkout@")
+    assert metadata_actions == ["actions/checkout"]
+    assert metadata_job.index("actions/checkout@") < metadata_job.index(
+        "uses: ./.github/actions/setup-uv-python"
+    )
     assert "persist-credentials: true" in metadata_job
     assert "uv lock" in metadata_job
     assert "uv build" not in metadata_job
@@ -185,11 +188,17 @@ def test_build_backend_dependencies_are_exactly_pinned() -> None:
 def test_workflow_actions_are_pinned_to_commits() -> None:
     """Every remote GitHub Action must use an immutable 40-character commit SHA."""
     unpinned: list[str] = []
-    for workflow_path in sorted(WORKFLOWS.glob("*.yml")):
-        for line_number, line in enumerate(workflow_path.read_text().splitlines(), start=1):
+    action_sources = [
+        *WORKFLOWS.glob("*.yml"),
+        *ACTIONS.glob("**/*.yml"),
+        *ACTIONS.glob("**/*.yaml"),
+    ]
+    for action_source in sorted(action_sources):
+        for line_number, line in enumerate(action_source.read_text().splitlines(), start=1):
             match = re.search(r"\buses:\s+[^\s@]+@([^\s#]+)", line)
             if match and re.fullmatch(r"[0-9a-f]{40}", match.group(1)) is None:
-                unpinned.append(f"{workflow_path.name}:{line_number}:{match.group(1)}")
+                relative_path = action_source.relative_to(ROOT)
+                unpinned.append(f"{relative_path}:{line_number}:{match.group(1)}")
 
     assert unpinned == []
 

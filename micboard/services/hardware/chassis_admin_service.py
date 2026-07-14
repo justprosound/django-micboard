@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Any, Final
 
+from django.core.exceptions import PermissionDenied
 from django.db.models import Prefetch, QuerySet
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
@@ -15,6 +17,46 @@ from micboard.services.hardware.chassis_admin_dtos import (
     HardwareLayoutManufacturer,
     HardwareLayoutPage,
     HardwareSummaryChannel,
+)
+from micboard.services.hardware.dtos import WirelessChassisWrite
+from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.access_policy import tenant_role_access
+
+CHASSIS_ADMIN_WRITE_FIELDS: Final[tuple[str, ...]] = (
+    "role",
+    "manufacturer",
+    "api_device_id",
+    "serial_number",
+    "mac_address",
+    "model",
+    "name",
+    "fqdn",
+    "description",
+    "protocol_family",
+    "wmas_capable",
+    "licensed_resource_count",
+    "ip",
+    "subnet_mask",
+    "gateway",
+    "network_mode",
+    "interface_id",
+    "mac_address_secondary",
+    "ip_address_secondary",
+    "firmware_version",
+    "hosted_firmware_version",
+    "location",
+    "order",
+    "status",
+    "last_seen",
+    "is_online",
+    "last_online_at",
+    "last_offline_at",
+    "total_uptime_minutes",
+    "max_channels",
+    "dante_capable",
+    "band_plan_min_mhz",
+    "band_plan_max_mhz",
+    "band_plan_name",
 )
 
 
@@ -49,9 +91,31 @@ class ChassisAdminDTOMapper:
             unit_type=unit.device_type.upper() if unit is not None else None,
         )
 
+    @staticmethod
+    def write(chassis: WirelessChassis) -> WirelessChassisWrite:
+        """Map a complete admin form candidate to the canonical write DTO."""
+        return WirelessChassisWrite(
+            **{
+                field_name: getattr(chassis, field_name)
+                for field_name in CHASSIS_ADMIN_WRITE_FIELDS
+            }
+        )
+
 
 class ChassisAdminService:
-    """Own query planning and grouping for wireless-chassis admin displays."""
+    """Own wireless-chassis admin authorization and read projections."""
+
+    @staticmethod
+    def ensure_location_write_allowed(*, user: Any, location: Any | None) -> None:
+        """Require tenant operators to keep chassis inside a manageable location."""
+        if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
+            return
+        if location is None:
+            if getattr(user, "is_superuser", False):
+                return
+            raise PermissionDenied("A managed location is required for tenant administrators.")
+        if not tenant_role_access.can_manage_object(user=user, obj=location):
+            raise PermissionDenied("Select a location you administer.")
 
     @classmethod
     def get_hardware_layout(

@@ -37,7 +37,8 @@ related objects.
 
 Discovery candidates live at `/admin/micboard/discovereddevice/`. Approval actions delegate to
 the discovery approval service, which validates permissions and identity conflicts before
-promoting candidates into inventory.
+promoting candidates into inventory. Approve at most 100 pending rows in one action; larger
+selections or same-address conflict sets are rejected without changing queue or inventory state.
 
 Configuration/status models include:
 
