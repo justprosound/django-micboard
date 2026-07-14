@@ -94,7 +94,8 @@ Alert behavior is represented by four independent fields:
 - `alert_on_hardware_offline`.
 
 There is no aggregate `alert_enabled` service argument. Callers update only the conditions they want
-to change. `assignment.get_alert_preferences()` returns the four flags with concise output keys.
+to change. Read the four explicit model fields when evaluating alert policy; there is no parallel
+dictionary representation to keep synchronized.
 
 ## Integration guidance
 

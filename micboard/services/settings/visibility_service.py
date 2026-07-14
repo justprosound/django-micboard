@@ -9,6 +9,10 @@ from django.conf import settings as django_settings
 from django.db.models import F, Q
 
 from micboard.services.settings.dtos import SettingsVisibilityScope
+from micboard.settings.scope_policy import (
+    matches_definition_scope,
+    resolve_scope,
+)
 
 
 class SettingsVisibilityService:
@@ -161,17 +165,11 @@ class SettingsVisibilityService:
         manufacturer_id: int | None,
     ) -> str | None:
         """Return the one exact settings scope, or ``None`` for mixed scopes."""
-        identifiers = {
-            "organization": organization_id,
-            "site": site_id,
-            "manufacturer": manufacturer_id,
-        }
-        populated = [name for name, identifier in identifiers.items() if identifier is not None]
-        if not populated:
-            return "global"
-        if len(populated) == 1:
-            return populated[0]
-        return None
+        return resolve_scope(
+            organization_id=organization_id,
+            site_id=site_id,
+            manufacturer_id=manufacturer_id,
+        )
 
     @classmethod
     def matches_definition_scope(
@@ -183,7 +181,8 @@ class SettingsVisibilityService:
         manufacturer_id: int | None,
     ) -> bool:
         """Return whether identifiers match a setting definition's declared scope."""
-        return definition_scope == cls.resolve_scope(
+        return matches_definition_scope(
+            definition_scope=definition_scope,
             organization_id=organization_id,
             site_id=site_id,
             manufacturer_id=manufacturer_id,
@@ -199,7 +198,7 @@ class SettingsVisibilityService:
         manufacturer_id: int | None,
     ) -> bool:
         """Authorize one exact setting scope against a user's visibility."""
-        resolved_scope = cls.resolve_scope(
+        resolved_scope = resolve_scope(
             organization_id=organization_id,
             site_id=site_id,
             manufacturer_id=manufacturer_id,

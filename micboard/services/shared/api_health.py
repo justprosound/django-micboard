@@ -20,7 +20,9 @@ def get_api_health():
     for manufacturer in manufacturers:
         total_count += 1
         try:
-            plugin_class = manufacturer.get_plugin_class()
+            from micboard.services.manufacturer.plugin_registry import PluginRegistry
+
+            plugin_class = PluginRegistry.get_plugin_class(manufacturer.code)
             plugin = plugin_class(manufacturer)
             health_info = plugin.check_health()
             health_details.append(

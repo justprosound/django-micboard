@@ -189,7 +189,7 @@ def test_maintenance_transition_syncs_status_when_service_is_configured() -> Non
     unit = WirelessUnitFactory(status="online")
     manager = HardwareLifecycleManager(service_code="vendor", structured_logger=Mock())
 
-    with patch("micboard.services.core.device_api_sync_service._sync_status_to_api") as sync_status:
+    with patch("micboard.services.core.device_api_status_sync.sync_status_to_api") as sync_status:
         assert manager.mark_maintenance(unit, reason="Planned work") is True
 
     unit.refresh_from_db()

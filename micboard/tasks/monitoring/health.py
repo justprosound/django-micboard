@@ -14,6 +14,7 @@ from micboard.models.realtime import RealTimeConnection
 from micboard.models.telemetry import APIHealthLog
 from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.services.notification.broadcast_service import BroadcastService
+from micboard.services.realtime.connection_service import mark_disconnected
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def check_realtime_connection_health():
                 connection.chassis,
                 connection.last_message_at,
             )
-            connection.mark_disconnected("Connection appears stale - no messages received")
+            mark_disconnected(connection, "Connection appears stale - no messages received")
 
         # Check for connections that have been in error state too long
         error_threshold = timezone.now() - timedelta(hours=1)

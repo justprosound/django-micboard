@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 from django.core.exceptions import ValidationError
 from django.db import models
 
-if TYPE_CHECKING:
-    pass
+from micboard.settings.scope_policy import matches_definition_scope
 
 logger = logging.getLogger(__name__)
 
@@ -118,8 +117,6 @@ class SettingDefinition(models.Model):
 
     def _validate_existing_overrides(self, errors: dict[str, str]) -> None:
         """Reject definition changes that would strand existing overrides."""
-        from micboard.services.settings.visibility_service import settings_visibility
-
         using = self._state.db or "default"
         overrides = (
             Setting.objects.using(using)
@@ -134,7 +131,7 @@ class SettingDefinition(models.Model):
         scope_mismatch = False
         invalid_value = False
         for override in overrides.iterator():
-            if not settings_visibility.matches_definition_scope(
+            if not matches_definition_scope(
                 definition_scope=self.scope,
                 organization_id=override.organization_id,
                 site_id=override.site_id,
@@ -306,9 +303,7 @@ class Setting(models.Model):
     def clean(self) -> None:
         """Require one target matching the definition's declared scope."""
         super().clean()
-        from micboard.services.settings.visibility_service import settings_visibility
-
-        if not settings_visibility.matches_definition_scope(
+        if not matches_definition_scope(
             definition_scope=self.definition.scope,
             organization_id=self.organization_id,
             site_id=self.site_id,

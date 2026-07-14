@@ -17,6 +17,7 @@ from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.services.shared.access_policy import has_unrestricted_tenant_access
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class PerformerAssignmentService:
         """Require an MSP role that permits assignment changes for the unit."""
         if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
             return
-        if user.is_superuser and getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True):
+        if has_unrestricted_tenant_access(user):
             return
         if not apps.is_installed("micboard.multitenancy"):
             raise PermissionDenied("Multi-tenant assignment access is unavailable")
@@ -97,7 +98,7 @@ class PerformerAssignmentService:
             try:
                 monitoring_group = (
                     MonitoringGroup.objects.get(pk=group_id, is_active=True)
-                    if user.is_superuser
+                    if has_unrestricted_tenant_access(user)
                     else user.monitoring_groups.get(pk=group_id, is_active=True)
                 )
                 performer = Performer.objects.for_user(user=user).get(pk=performer_id)

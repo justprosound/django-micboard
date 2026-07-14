@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import logging
 import secrets
-from typing import TYPE_CHECKING, Any
+from typing import Any, Protocol
 
 from django.core.cache import cache
 
-if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models.discovery.manufacturer import Manufacturer
-    from micboard.multitenancy.models import Organization
-
-from django.contrib.sites.models import Site
+from micboard.settings.scope_policy import resolve_scope
 
 logger = logging.getLogger(__name__)
+
+
+class SettingsScopeReference(Protocol):
+    """Minimal model contract required to identify one settings scope."""
+
+    pk: Any
 
 
 class SettingNotFoundError(Exception):
@@ -36,9 +38,9 @@ class SettingsRegistry:
         key: str,
         default: Any = None,
         *,
-        organization: Organization | None = None,
-        site: Site | None = None,
-        manufacturer: Manufacturer | None = None,
+        organization: SettingsScopeReference | None = None,
+        site: SettingsScopeReference | None = None,
+        manufacturer: SettingsScopeReference | None = None,
         required: bool = False,
         include_definition_default: bool = True,
     ) -> Any:
@@ -116,9 +118,9 @@ class SettingsRegistry:
         key: str,
         value: Any,
         *,
-        organization: Organization | None = None,
-        site: Site | None = None,
-        manufacturer: Manufacturer | None = None,
+        organization: SettingsScopeReference | None = None,
+        site: SettingsScopeReference | None = None,
+        manufacturer: SettingsScopeReference | None = None,
     ) -> None:
         """Set a setting value at a specific scope.
 
@@ -140,14 +142,12 @@ class SettingsRegistry:
             },
         )
 
-        from micboard.services.settings.visibility_service import settings_visibility
-
         target = {
             "organization_id": organization.pk if organization else None,
             "site_id": site.pk if site else None,
             "manufacturer_id": manufacturer.pk if manufacturer else None,
         }
-        target_scope = settings_visibility.resolve_scope(**target)
+        target_scope = resolve_scope(**target)
         if target_scope is None:
             raise ValueError("A setting value must target exactly one scope")
         if created and definition.scope != target_scope:
@@ -161,9 +161,7 @@ class SettingsRegistry:
         # Get or create setting value
         setting, created = Setting.objects.get_or_create(
             definition=definition,
-            organization_id=organization.pk if organization else None,
-            site=site,
-            manufacturer_id=manufacturer.id if manufacturer else None,
+            **target,
             defaults={"value": definition.serialize_value(value)},
         )
 
@@ -177,9 +175,9 @@ class SettingsRegistry:
     @staticmethod
     def get_all_for_scope(
         *,
-        organization: Organization | None = None,
-        site: Site | None = None,
-        manufacturer: Manufacturer | None = None,
+        organization: SettingsScopeReference | None = None,
+        site: SettingsScopeReference | None = None,
+        manufacturer: SettingsScopeReference | None = None,
     ) -> dict[str, Any]:
         """Get all settings for a specific scope.
 
@@ -193,11 +191,12 @@ class SettingsRegistry:
         """
         from micboard.models.settings import Setting
 
-        settings_qs = Setting.objects.filter(
-            organization_id=organization.pk if organization else None,
-            site=site,
-            manufacturer_id=manufacturer.id if manufacturer else None,
-        ).select_related("definition")
+        target = {
+            "organization_id": organization.pk if organization else None,
+            "site_id": site.pk if site else None,
+            "manufacturer_id": manufacturer.pk if manufacturer else None,
+        }
+        settings_qs = Setting.objects.filter(**target).select_related("definition")
 
         result = {}
         for setting in settings_qs:
@@ -249,9 +248,9 @@ class SettingsRegistry:
     @staticmethod
     def _resolve_scoped_value(
         key: str,
-        organization: Organization | None,
-        site: Site | None,
-        manufacturer: Manufacturer | None,
+        organization: SettingsScopeReference | None,
+        site: SettingsScopeReference | None,
+        manufacturer: SettingsScopeReference | None,
     ) -> Any | None:
         """Resolve only the value matching the definition's declared scope."""
         from micboard.models.settings.registry import Setting, SettingDefinition
@@ -307,9 +306,9 @@ class SettingsRegistry:
     @staticmethod
     def _build_cache_key(
         key: str,
-        organization: Organization | None,
-        site: Site | None,
-        manufacturer: Manufacturer | None,
+        organization: SettingsScopeReference | None,
+        site: SettingsScopeReference | None,
+        manufacturer: SettingsScopeReference | None,
         *,
         include_definition_default: bool = True,
     ) -> str:
@@ -324,8 +323,8 @@ class SettingsRegistry:
             cache.add(version_key, "0", timeout=None)
             version = cache.get(version_key, "0")
         org_id = organization.pk if organization else "g"
-        site_id = site.id if site else "g"
-        mfg_id = manufacturer.id if manufacturer else "g"
+        site_id = site.pk if site else "g"
+        mfg_id = manufacturer.pk if manufacturer else "g"
         default_mode = "definition" if include_definition_default else "stored"
         return (
             f"settings:{global_version}:{key}:{version}:{default_mode}:{org_id}:{site_id}:{mfg_id}"

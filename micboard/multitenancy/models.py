@@ -6,14 +6,9 @@ They provide organization and campus hierarchy for multi-tenant scenarios.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from django.conf import settings
 from django.contrib.sites.models import Site
 from django.db import models
-
-if TYPE_CHECKING:
-    pass
 
 
 class Organization(models.Model):
@@ -104,20 +99,6 @@ class Organization(models.Model):
     def __str__(self) -> str:
         """Return the organization name for admin listings."""
         return self.name
-
-    def get_device_count(self) -> int:
-        """Get total number of devices for this organization."""
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-        return WirelessChassis.objects.filter(
-            location__building__organization_id=self.pk,
-        ).count()
-
-    def is_at_device_limit(self) -> bool:
-        """Check if organization has reached device limit."""
-        if self.max_devices is None:
-            return False
-        return self.get_device_count() >= self.max_devices
 
 
 class Campus(models.Model):

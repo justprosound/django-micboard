@@ -23,8 +23,8 @@ from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.maintenance.audit import AuditService
 from micboard.services.maintenance.logging_mode import LoggingModeService
 from micboard.services.sync.device_promotion_service import DevicePromotionService
+from micboard.services.sync.device_update_service import DeviceUpdateService
 from micboard.tasks.monitoring.websocket import start_shure_websocket_subscriptions
-from micboard.tasks.sync.polling import _mark_offline_receivers
 
 
 def test_websocket_dispatch_awaits_async_callback() -> None:
@@ -108,9 +108,14 @@ def test_offline_chassis_checks_attached_wireless_units() -> None:
             "micboard.services.core.hardware_lifecycle.get_lifecycle_manager",
             return_value=lifecycle,
         ),
-        patch("micboard.tasks.sync.polling.check_hardware_offline_alerts") as check_alerts,
+        patch(
+            "micboard.services.sync.device_update_service.check_hardware_offline_alerts"
+        ) as check_alerts,
     ):
-        _mark_offline_receivers(manufacturer, active_receiver_ids=[])
+        DeviceUpdateService.mark_offline_receivers(
+            manufacturer=manufacturer,
+            active_chassis_ids=[],
+        )
 
     check_alerts.assert_called_once()
     assert check_alerts.call_args.args[0] == unit

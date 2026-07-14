@@ -11,6 +11,7 @@ import pytest
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.hardware.chassis_refresh_service import ChassisRefreshService
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
 from tests.factories.hardware import WirelessChassisFactory
 
 pytestmark = pytest.mark.django_db
@@ -37,7 +38,7 @@ class _Plugin:
 def test_refresh_persists_details_and_online_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
     """A responding selected chassis persists details and a valid online transition."""
     chassis = WirelessChassisFactory(status="offline")
-    monkeypatch.setattr(type(chassis.manufacturer), "get_plugin_class", lambda _self: _Plugin)
+    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
 
@@ -56,7 +57,7 @@ def test_refresh_does_not_hold_database_transaction_during_network_call(
 ) -> None:
     """Slow manufacturer I/O happens before the short persistence transaction."""
     chassis = WirelessChassisFactory(status="offline")
-    monkeypatch.setattr(type(chassis.manufacturer), "get_plugin_class", lambda _self: _Plugin)
+    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
     _Plugin.observed_atomic_blocks = []
 
     ChassisRefreshService.refresh_ids(chassis_ids=[chassis.pk])
@@ -68,7 +69,7 @@ def test_refresh_never_widens_selected_queryset(monkeypatch: pytest.MonkeyPatch)
     """A shared manufacturer must not turn one selected row into a global poll."""
     selected = WirelessChassisFactory(status="online")
     unselected = WirelessChassisFactory(manufacturer=selected.manufacturer, status="online")
-    monkeypatch.setattr(type(selected.manufacturer), "get_plugin_class", lambda _self: _Plugin)
+    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
     _Plugin.requested_ids = []
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=selected.pk))
@@ -83,7 +84,7 @@ def test_refresh_reports_missing_device_without_mutation(monkeypatch: pytest.Mon
     """A missing API device is reported and leaves the selected row unchanged."""
     chassis = WirelessChassisFactory(api_device_id="missing-device", status="offline")
     original_name = chassis.name
-    monkeypatch.setattr(type(chassis.manufacturer), "get_plugin_class", lambda _self: _Plugin)
+    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
 

@@ -156,6 +156,14 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
     list_fullwidth = HAS_UNFOLD
     warn_unsaved_form = HAS_UNFOLD
 
+    def has_import_permission(self, request: Any) -> bool:
+        """Deny bulk imports until resources enforce request tenant scope."""
+        return False
+
+    def has_export_permission(self, request: Any) -> bool:
+        """Deny bulk exports until resources enforce request tenant scope."""
+        return False
+
     @staticmethod
     def _scope_queryset_for_user(queryset: Any, *, user: Any) -> Any:
         """Intersect a queryset with the user's active tenant memberships.

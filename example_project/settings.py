@@ -54,17 +54,10 @@ INSTALLED_APPS = [
 
 # Optional admin enhancements (only if installed)
 _has_unfold = _is_package_installed("unfold")
-_has_import_export = _is_package_installed("import_export")
 
 if _has_unfold:
     INSTALLED_APPS.insert(0, "unfold")
     INSTALLED_APPS.insert(1, "unfold.contrib.filters")
-
-if _has_unfold and _has_import_export:
-    INSTALLED_APPS.insert(2, "unfold.contrib.import_export")
-
-if _has_import_export:
-    INSTALLED_APPS.append("import_export")
 
 if _is_package_installed("adminsortable2"):
     INSTALLED_APPS.append("adminsortable2")

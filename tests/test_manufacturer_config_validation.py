@@ -73,14 +73,14 @@ class ValidateManufacturerConfigTests(TestCase):
         self.assertIn("Plugin not found or not enabled: unknown", errors)
 
     @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_plugin_import_error_silently_skipped(self, mock_get_plugin):
+    def test_plugin_import_error_fails_validation(self, mock_get_plugin):
         mock_get_plugin.side_effect = ImportError("No module named 'x'")
         cfg = self._make_config()
 
         result = validate_manufacturer_config(config=cfg)
 
-        self.assertTrue(result["is_valid"])
-        self.assertEqual(result["errors"], [])
+        self.assertFalse(result["is_valid"])
+        self.assertEqual(result["errors"], ["Plugin import failed for test_mfr"])
 
     @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
     def test_plugin_init_other_error_caught(self, mock_get_plugin):

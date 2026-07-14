@@ -369,44 +369,17 @@ class WirelessChassis(models.Model):
         )
 
     def save(self, *args, **kwargs) -> None:
-        """Persist the chassis through the service-backed lifecycle hooks."""
-        from micboard.services.hardware.ip_ownership_service import (
-            HardwareIPOwnershipService,
-        )
-        from micboard.services.hardware.wireless_chassis_service import (
-            finalize_chassis_save,
-            prepare_chassis_for_save,
-        )
-
+        """Keep the IP-ownership check and row write in one transaction."""
         using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
         kwargs["using"] = using
         with transaction.atomic(using=using):
-            HardwareIPOwnershipService.validate_for_instance(instance=self, using=using)
-            prep_result = prepare_chassis_for_save(chassis=self, using=using)
-
-            if update_fields := kwargs.get("update_fields"):
-                kwargs["update_fields"] = set(update_fields) | prep_result["update_fields"]
-
             super().save(*args, **kwargs)
 
-            finalize_chassis_save(chassis=self, context=prep_result, using=using)
-
-            from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
-
-            HardwarePostSaveHooks.handle_chassis_save(
-                chassis=self,
-                created=prep_result["created"],
-                using=using,
-            )
-
     def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
-        """Persist deletion after service-layer lifecycle handling."""
-        from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
-
+        """Keep delete receivers and the row deletion in one transaction."""
         using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
         kwargs["using"] = using
         with transaction.atomic(using=using):
-            HardwarePostSaveHooks.handle_chassis_delete(chassis=self, using=using)
             return super().delete(*args, **kwargs)
 
     def get_expected_channel_count(self) -> int:

@@ -155,14 +155,10 @@ class Charger(models.Model):
         return f"Charger {self.model} ({self.serial_number}) at {self.location.name}"
 
     def save(self, *args, **kwargs) -> None:
-        """Persist a charger while enforcing cross-model IP ownership."""
-        from micboard.services.hardware.ip_ownership_service import (
-            HardwareIPOwnershipService,
-        )
-
+        """Keep the IP-ownership check and row write in one transaction."""
         using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+        kwargs["using"] = using
         with transaction.atomic(using=using):
-            HardwareIPOwnershipService.validate_for_instance(instance=self, using=using)
             super().save(*args, **kwargs)
 
 

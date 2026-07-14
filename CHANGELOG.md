@@ -32,6 +32,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Service-layer regression coverage**: Direct Factory Boy-backed tests for discovery,
   deduplication, hardware lifecycle, locations, performers, alerts, connections, and uptime, with
   every targeted module at 90% coverage or higher
+- **Import architecture gate**: Detect internal strongly connected components and reject
+  model-to-service, model-to-task, service-to-task, and service-to-app dependency reversals
 - **Performance contracts**: Query budgets for discovery batching, alert fanout, connection health,
   and manufacturer statistics
 - **Admin workflow coverage**: Request-level smoke tests for tenant-scoped chassis, discovery
@@ -72,6 +74,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   connection ownership, and aggregate connection statistics in two fixed queries
 - **Settings access**: Route app startup and callers through `SettingsService`; raw
   `MICBOARD_CONFIG` reads are isolated to the settings service
+- **Settings dependency boundaries**: Move package defaults and exact-scope policy into
+  dependency-free modules so startup, models, and services share invariants without import cycles
+- **Lifecycle boundaries**: Route model persistence events through explicit Django signal adapters
+  while services own validation, derived state, audit, discovery, and post-commit behavior
+- **Realtime update persistence**: Share one service between SSE, WebSocket, and command entry
+  points, treating event payloads as partial snapshots that cannot mark unrelated devices offline
 - **Dependency automation**: Consolidate updates under Renovate; refresh locked Click, filelock,
   certifi, idna, Pillow, and platformdirs versions; ignore generated requirements exports; enforce
   lock/export consistency; and run documentation checks on dependency branches
@@ -120,6 +128,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Prevent discovery approval from reading nonexistent queue fields or creating chargers without
   the required location
 - Keep core admin changelists usable when optional admin packages are installed but not configured
+- Preserve stable poll result keys and deterministic wireless-unit slot assignment across process
+  restarts
+- Fail manufacturer configuration validation when its plugin cannot be imported, and never run
+  discovery network work inline when native Huey is unavailable or rejects a task
+- Accept built-in vendor transformer identifiers, transition responding discovered hardware through
+  valid lifecycle states, and skip offline reconciliation for incomplete authoritative snapshots
+- Group queryset deletion callbacks and suppress obsolete discovery work during manufacturer
+  cascades
 - Require change permission for every mutating admin action and for discovery queue transitions
 - Keep test factories isolated from manufacturer discovery APIs while retaining explicit lifecycle
   coverage for production task submission
@@ -151,6 +167,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   and discovery-sync aliases
 - **Model convenience shims**: Use typed wireless-unit, chassis, and RF-channel domain services and
   template filters instead of deprecated model delegation methods
+- **Cross-layer model delegates**: Call realtime, monitoring, organization, discovery, and plugin
+  services directly from their owning application adapters
 
 ### Security
 
@@ -170,6 +188,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   WebSocket subscription or broadcast leakage
 - Scope stored settings overrides to active, internally consistent organization/campus memberships
   and visible managed manufacturers
+- Honor restricted-superuser tenant memberships across monitoring topology, alert mutations, and
+  performer-assignment choices when cross-organization access is disabled
+- Disable generic admin import and export routes until request-aware resources can prove tenant
+  scoping for every transferred row
 
 ### Documentation
 

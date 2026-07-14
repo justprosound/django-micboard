@@ -6,12 +6,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-def test_unfold_does_not_enable_import_export_without_its_package() -> None:
-    """Each optional admin integration must be usable independently."""
+def test_example_does_not_auto_enable_import_export() -> None:
+    """The example host never auto-enables unscoped bulk data transfer."""
     settings_path = Path(__file__).parents[1] / "example_project" / "settings.py"
 
     def optional_package(package_name: str) -> ModuleSpec | None:
-        if package_name == "unfold":
+        if package_name in {"unfold", "import_export"}:
             return ModuleSpec(package_name, loader=None)
         return None
 

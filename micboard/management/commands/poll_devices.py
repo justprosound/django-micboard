@@ -114,7 +114,7 @@ class Command(BaseCommand):
             summary = (
                 f"Success: {result.get('devices_created', 0)} created, "
                 f"{result.get('devices_updated', 0)} updated, "
-                f"{result.get('transmitters_synced', 0)} transmitters"
+                f"{result.get('units_synced', 0)} wireless units"
             )
             self.stdout.write(self.style.SUCCESS(f"[{manufacturer.code}] {summary}"))
         except Exception as exc:
