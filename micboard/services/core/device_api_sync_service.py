@@ -42,38 +42,6 @@ def build_api_payload(
     return payload
 
 
-def _sync_status_to_api(
-    service_code: str,
-    device: WirelessChassis | WirelessUnit,
-    status: str,
-    metadata: dict[str, Any] | None,
-) -> None:
-    """Push status change to manufacturer API.
-
-    Args:
-        service_code: Manufacturer service code
-        device: Device whose status changed
-        status: New status value
-        metadata: Additional context for the sync
-    """
-    try:
-        from micboard.services.manufacturer.plugin_registry import PluginRegistry
-
-        plugin = PluginRegistry.get_plugin(service_code)
-        if plugin:
-            logger.info(
-                f"Plugin available for {service_code}, "
-                f"status sync may require manufacturer-specific implementation",
-                extra={"device_id": device.pk, "status": status},
-            )
-    except Exception as e:
-        logger.warning(
-            f"Failed to sync status to API: {e}",
-            exc_info=True,
-            extra={"device_id": device.pk, "status": status},
-        )
-
-
 class DeviceAPISyncService:
     """Service for bi-directional sync between device models and manufacturer APIs.
 
@@ -126,7 +94,12 @@ class DeviceAPISyncService:
         if new_status != device.status:
             device.status = new_status
 
-        device.save(update_fields=["name", "firmware_version", "status", "last_seen", "updated_at"])
+        update_fields = ["name", "firmware_version", "status", "last_seen"]
+        if any(
+            field.name == "updated_at" and field.concrete for field in device._meta.get_fields()
+        ):
+            update_fields.append("updated_at")
+        device.save(update_fields=update_fields)
 
         logger.debug(
             f"Updated device from API: {device.__class__.__name__} {device.pk}",
@@ -164,7 +137,7 @@ class DeviceAPISyncService:
 
             payload = build_api_payload(device, fields)
 
-            device_id = device.api_device_id if isinstance(device, WirelessChassis) else device.pk
+            device_id = getattr(device, "api_device_id", None) or device.pk
             success = client.update_device(device_id, payload)
 
             if success:

@@ -6,6 +6,10 @@ from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.realtime.connection import RealTimeConnection
+from micboard.services.realtime.connection_service import (
+    connection_duration,
+    time_since_last_message,
+)
 
 
 @admin.register(RealTimeConnection)
@@ -85,8 +89,9 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
     @admin.display(description="Duration")
     def connection_duration(self, obj):
         """Display connection duration."""
-        if obj.connection_duration:
-            total_seconds = int(obj.connection_duration.total_seconds())
+        duration = connection_duration(obj)
+        if duration:
+            total_seconds = int(duration.total_seconds())
             hours, remainder = divmod(total_seconds, 3600)
             minutes, seconds = divmod(remainder, 60)
             return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
@@ -95,8 +100,9 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
     @admin.display(description="Since Last Message")
     def time_since_last_message(self, obj):
         """Display time since last message."""
-        if obj.time_since_last_message:
-            total_seconds = int(obj.time_since_last_message.total_seconds())
+        elapsed = time_since_last_message(obj)
+        if elapsed:
+            total_seconds = int(elapsed.total_seconds())
             hours, remainder = divmod(total_seconds, 3600)
             minutes, seconds = divmod(remainder, 60)
             return f"{hours:02d}:{minutes:02d}:{seconds:02d}"

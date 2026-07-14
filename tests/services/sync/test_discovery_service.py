@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from micboard.services.sync.discovery_service import DiscoveryService
+from micboard.tasks.sync.discovery import dispatch_manufacturer_discovery
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
 
@@ -303,7 +304,7 @@ def test_trigger_discovery_ignores_empty_manufacturer_pk() -> None:
         patch("micboard.utils.dependencies.huey_is_configured") as configured,
         patch("micboard.utils.dependencies.enqueue_huey_task") as enqueue,
     ):
-        DiscoveryService.trigger_manufacturer_discovery(0)
+        dispatch_manufacturer_discovery(0)
 
     configured.assert_not_called()
     enqueue.assert_not_called()
@@ -317,7 +318,7 @@ def test_trigger_discovery_enqueues_native_huey_task() -> None:
         patch("micboard.utils.dependencies.enqueue_huey_task") as enqueue,
         patch("micboard.tasks.sync.discovery.run_manufacturer_discovery_task") as discovery_task,
     ):
-        DiscoveryService.trigger_manufacturer_discovery(
+        dispatch_manufacturer_discovery(
             manufacturer.pk,
             scan_cidrs=False,
             scan_fqdns=True,
@@ -326,43 +327,46 @@ def test_trigger_discovery_enqueues_native_huey_task() -> None:
     enqueue.assert_called_once_with(discovery_task, manufacturer.pk, False, True)
 
 
-@pytest.mark.parametrize("enqueue_fails", [False, True])
-def test_trigger_discovery_runs_synchronously_when_queue_is_unavailable(
-    enqueue_fails: bool,
-) -> None:
+def test_trigger_discovery_skips_when_queue_is_unconfigured() -> None:
     manufacturer = ManufacturerFactory()
-    plugin = MagicMock()
-    plugin.get_discovery_ips.return_value = []
-    configured = enqueue_fails
-    enqueue_side_effect = RuntimeError("queue unavailable") if enqueue_fails else None
+
+    with (
+        patch("micboard.utils.dependencies.huey_is_configured", return_value=False),
+        patch("micboard.utils.dependencies.enqueue_huey_task") as enqueue,
+        patch("micboard.tasks.sync.discovery.run_manufacturer_discovery_task") as discovery_task,
+    ):
+        dispatch_manufacturer_discovery(manufacturer.pk)
+
+    enqueue.assert_not_called()
+    discovery_task.assert_not_called()
+
+
+def test_trigger_discovery_does_not_run_inline_after_enqueue_failure() -> None:
+    manufacturer = ManufacturerFactory()
 
     with (
         patch(
             "micboard.utils.dependencies.huey_is_configured",
-            return_value=configured,
+            return_value=True,
         ),
         patch(
             "micboard.utils.dependencies.enqueue_huey_task",
-            side_effect=enqueue_side_effect,
+            side_effect=RuntimeError("queue unavailable"),
         ),
-        patch("micboard.tasks.sync.discovery.run_manufacturer_discovery_task"),
-        patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
-            return_value=plugin,
-        ),
+        patch("micboard.tasks.sync.discovery.run_manufacturer_discovery_task") as discovery_task,
     ):
-        DiscoveryService.trigger_manufacturer_discovery(
+        dispatch_manufacturer_discovery(
             manufacturer.pk,
             scan_cidrs=False,
             scan_fqdns=False,
         )
 
-    plugin.get_discovery_ips.assert_called_once_with()
+    discovery_task.assert_not_called()
 
 
 def test_trigger_discovery_contains_missing_manufacturer() -> None:
     with patch("micboard.utils.dependencies.huey_is_configured", return_value=False):
-        DiscoveryService.trigger_manufacturer_discovery(999_999)
+        dispatch_manufacturer_discovery(999_999)
 
 
 def test_managed_ip_queries_use_persisted_chassis() -> None:

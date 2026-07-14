@@ -11,6 +11,8 @@ from django.test import RequestFactory
 import pytest
 
 from micboard.admin.receivers import WirelessChassisAdmin
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.discovery.registry import DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
 from tests.factories.hardware import WirelessChassisFactory
@@ -92,6 +94,70 @@ def test_admin_bulk_delete_registers_one_grouped_cleanup() -> None:
     cleanup_targets = handle_bulk_delete.call_args.kwargs["chassis_list"]
     assert {chassis.pk for chassis in cleanup_targets} == chassis_ids
     assert not WirelessChassis.objects.filter(pk__in=chassis_ids).exists()
+
+
+@pytest.mark.django_db
+def test_queryset_delete_groups_chassis_cleanup(django_capture_on_commit_callbacks) -> None:
+    """Queryset deletion submits one cleanup batch instead of one callback per row."""
+    first = WirelessChassisFactory()
+    second = WirelessChassisFactory(manufacturer=first.manufacturer)
+
+    with (
+        patch.object(HardwarePostSaveHooks, "_remove_ips_from_discovery") as cleanup,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        WirelessChassis.objects.filter(pk__in=[first.pk, second.pk]).delete()
+
+    cleanup.assert_called_once()
+    assert {target.ip for target in cleanup.call_args.kwargs["targets"]} == {
+        str(first.ip),
+        str(second.ip),
+    }
+
+
+@pytest.mark.django_db
+def test_manufacturer_cascade_skips_obsolete_discovery_cleanup() -> None:
+    """Deleting a vendor cannot enqueue scans or cleanups for its deleted children."""
+    first = WirelessChassisFactory()
+    WirelessChassisFactory(manufacturer=first.manufacturer)
+    DiscoveryFQDN.objects.create(
+        manufacturer=first.manufacturer,
+        fqdn="cascade.invalid",
+    )
+
+    with (
+        patch.object(HardwarePostSaveHooks, "handle_chassis_delete") as chassis_cleanup,
+        patch("micboard.model_lifecycle._schedule_manufacturer_discovery") as schedule_discovery,
+    ):
+        Manufacturer.objects.filter(pk=first.manufacturer_id).delete()
+
+    chassis_cleanup.assert_not_called()
+    schedule_discovery.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_queryset_fqdn_delete_deduplicates_discovery(
+    django_capture_on_commit_callbacks,
+) -> None:
+    manufacturer = WirelessChassisFactory().manufacturer
+    DiscoveryFQDN.objects.bulk_create(
+        [
+            DiscoveryFQDN(manufacturer=manufacturer, fqdn="one.invalid"),
+            DiscoveryFQDN(manufacturer=manufacturer, fqdn="two.invalid"),
+        ]
+    )
+
+    with (
+        patch("micboard.model_lifecycle._dispatch_manufacturer_discovery") as dispatch,
+        django_capture_on_commit_callbacks(execute=True),
+    ):
+        DiscoveryFQDN.objects.filter(manufacturer=manufacturer).delete()
+
+    dispatch.assert_called_once_with(
+        manufacturer_id=manufacturer.pk,
+        scan_cidrs=True,
+        scan_fqdns=True,
+    )
 
 
 @pytest.mark.django_db(transaction=True)

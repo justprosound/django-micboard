@@ -192,42 +192,6 @@ class DiscoveryService:
             logger.info("Starting discovery for manufacturer: %s", manufacturer.name)
             self.run_manufacturer_discovery(manufacturer, scan_cidrs, scan_fqdns, max_hosts)
 
-    @staticmethod
-    def trigger_manufacturer_discovery(
-        manufacturer_pk: int, scan_cidrs: bool = True, scan_fqdns: bool = True
-    ) -> None:
-        from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
-
-        if not manufacturer_pk:
-            return
-
-        if huey_is_configured():
-            try:
-                from micboard.tasks.sync.discovery import run_manufacturer_discovery_task
-
-                enqueue_huey_task(
-                    run_manufacturer_discovery_task,
-                    manufacturer_pk,
-                    scan_cidrs,
-                    scan_fqdns,
-                )
-                return
-            except Exception:
-                logger.exception(
-                    "Failed to enqueue discovery task for manufacturer %s",
-                    manufacturer_pk,
-                )
-
-        try:
-            ds = DiscoveryService()
-            manufacturer = Manufacturer.objects.get(pk=manufacturer_pk)
-            ds.run_manufacturer_discovery(manufacturer, scan_cidrs, scan_fqdns, max_hosts=1024)
-        except Exception:
-            logger.exception(
-                "Failed to run discovery synchronously for manufacturer %s",
-                manufacturer_pk,
-            )
-
     def run_manufacturer_discovery(
         self,
         manufacturer: Manufacturer,

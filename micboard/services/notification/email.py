@@ -128,9 +128,9 @@ class EmailService:
 
     def _get_default_recipients(self) -> list[str]:
         """Get default email recipients from settings."""
-        from micboard.apps import MicboardConfig
+        from micboard.services.settings.settings_service import settings as micboard_settings
 
-        config = MicboardConfig.get_config()
+        config = micboard_settings.get_config_dict()
         recipients = config.get("EMAIL_RECIPIENTS", [])
 
         # Ensure it's a list
@@ -143,9 +143,9 @@ class EmailService:
 
     def _get_from_email(self) -> str:
         """Get from email address from settings."""
-        from micboard.apps import MicboardConfig
+        from micboard.services.settings.settings_service import settings as micboard_settings
 
-        config = MicboardConfig.get_config()
+        config = micboard_settings.get_config_dict()
         return str(
             config.get("EMAIL_FROM", getattr(settings, "DEFAULT_FROM_EMAIL", "micboard@localhost"))
         )

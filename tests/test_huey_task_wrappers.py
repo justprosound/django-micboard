@@ -139,6 +139,7 @@ def test_realtime_health_check_disconnects_stale_and_resets_old_errors() -> None
                 current_errors,
             ],
         ) as filter_connections,
+        patch.object(health_tasks, "mark_disconnected") as mark_disconnected,
     ):
         health_tasks.check_realtime_connection_health()
 
@@ -148,8 +149,8 @@ def test_realtime_health_check_disconnects_stale_and_resets_old_errors() -> None
         call(status="connected"),
         call(status="error"),
     ]
-    stale_connection.mark_disconnected.assert_called_once_with(
-        "Connection appears stale - no messages received"
+    mark_disconnected.assert_called_once_with(
+        stale_connection, "Connection appears stale - no messages received"
     )
     assert old_error_connection.status == "disconnected"
     assert old_error_connection.error_count == 0

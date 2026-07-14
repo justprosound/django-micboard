@@ -179,9 +179,3 @@ class PerformerAssignment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.performer.name} -> {self.wireless_unit.name} ({self.priority})"
-
-    def get_alert_preferences(self) -> dict[str, bool]:
-        """Get alert preferences for this assignment (delegates to service)."""
-        from micboard.services.monitoring.performer_assignment_service import get_alert_preferences
-
-        return get_alert_preferences(self)

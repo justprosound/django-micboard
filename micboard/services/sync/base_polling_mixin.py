@@ -152,7 +152,7 @@ class PollingMixin:
 
                     BroadcastService.broadcast_device_update(manufacturer=manufacturer, data=result)
             except ImportError:
-                pass
+                logger.exception("Channels is unavailable; skipping the polling-complete broadcast")
             logger.debug("Broadcasted device update for %s", manufacturer.name)
 
         except Exception:
@@ -173,7 +173,7 @@ class PollingMixin:
                         manufacturer=manufacturer, health_data=health_status
                     )
             except ImportError:
-                pass
+                logger.exception("Channels is unavailable; skipping the API-health broadcast")
             logger.debug("Broadcasted API health change for %s", manufacturer.name)
 
         except Exception:

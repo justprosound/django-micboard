@@ -15,6 +15,7 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
+from micboard.models.base_managers import TenantOptimizedQuerySet
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
@@ -25,12 +26,17 @@ logger = logging.getLogger(__name__)
 
 
 def get_alerts_for_user(user: User | AnonymousUser) -> QuerySet[Alert]:
-    """Return alerts visible to a user, preserving superuser oversight."""
+    """Return recipient-private alerts within the user's tenant boundary."""
     if not user.is_authenticated:
         return Alert.objects.none()
+
+    tenant_alerts: QuerySet[Alert] = TenantOptimizedQuerySet(
+        Alert,
+        using=Alert.objects.db,
+    ).for_user(user=user)
     if user.is_superuser:
-        return Alert.objects.all()
-    return Alert.objects.filter(user_id=user.pk)
+        return tenant_alerts
+    return tenant_alerts.filter(user_id=user.pk)
 
 
 class AlertManager:

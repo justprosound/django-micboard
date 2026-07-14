@@ -32,7 +32,8 @@ if TYPE_CHECKING:
             request: HttpRequest,
             message: str,
             level: int,
-        ) -> None: ...
+        ) -> None:
+            raise NotImplementedError
 else:
 
     class _AdminActionHost:

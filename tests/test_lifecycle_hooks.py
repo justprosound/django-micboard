@@ -17,10 +17,52 @@ from django.utils import timezone
 
 import pytest
 
+from micboard import model_lifecycle
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
 from micboard.services.hardware.dtos import ChassisDiscoveryCleanup
+
+
+class _FixtureInstance:
+    """Fail if a raw-save adapter tries to inspect fixture data."""
+
+    def __getattribute__(self, name: str):
+        raise AssertionError(f"Raw-save adapter unexpectedly read {name}")
+
+
+@pytest.mark.parametrize(
+    ("receiver", "kwargs"),
+    [
+        (model_lifecycle._prepare_chassis, {"using": "default"}),
+        (
+            model_lifecycle._finish_chassis,
+            {"created": True, "using": "default", "update_fields": None},
+        ),
+        (model_lifecycle._prepare_charger, {"using": "default"}),
+        (model_lifecycle._prepare_unit, {}),
+        (
+            model_lifecycle._finish_unit,
+            {"using": "default", "update_fields": None},
+        ),
+        (model_lifecycle._prepare_channel, {}),
+        (
+            model_lifecycle._finish_channel,
+            {"using": "default", "update_fields": None},
+        ),
+        (model_lifecycle._prepare_building, {}),
+        (model_lifecycle._prepare_manufacturer, {"using": "default"}),
+        (
+            model_lifecycle._finish_manufacturer,
+            {"created": True, "using": "default"},
+        ),
+        (model_lifecycle._config_saved, {"using": "default"}),
+        (model_lifecycle._registry_entry_changed, {"using": "default"}),
+    ],
+)
+def test_save_lifecycle_adapters_ignore_raw_fixture_rows(receiver, kwargs) -> None:
+    """Fixture deserialization must not validate, audit, or dispatch side effects."""
+    receiver(sender=object, instance=_FixtureInstance(), raw=True, **kwargs)
 
 
 @pytest.fixture
@@ -250,8 +292,8 @@ class TestDiscoveryScheduling:
         mock_get_plugin.assert_not_called()
 
     @override_settings(TESTING=False)
-    @patch("micboard.services.core.hardware_post_save_hooks.enqueue_huey_task")
-    @patch("micboard.services.core.hardware_post_save_hooks.huey_is_configured", return_value=True)
+    @patch("micboard.utils.dependencies.enqueue_huey_task")
+    @patch("micboard.utils.dependencies.huey_is_configured", return_value=True)
     @patch("micboard.tasks.sync.discovery.sync_receiver_discovery")
     def test_huey_discovery_is_enqueued_once(
         self,
@@ -260,13 +302,33 @@ class TestDiscoveryScheduling:
         mock_enqueue_huey_task,
         chassis,
     ):
-        HardwarePostSaveHooks._schedule_discovery(chassis, using="default")
+        from micboard.model_lifecycle import _dispatch_chassis_discovery
+
+        _dispatch_chassis_discovery(chassis_id=chassis.pk, using="default")
 
         mock_enqueue_huey_task.assert_called_once_with(
             mock_sync_receiver_discovery,
             chassis.pk,
             using="default",
         )
+        mock_sync_receiver_discovery.assert_not_called()
+
+    @override_settings(TESTING=False)
+    @patch("micboard.utils.dependencies.enqueue_huey_task")
+    @patch("micboard.utils.dependencies.huey_is_configured", return_value=False)
+    @patch("micboard.tasks.sync.discovery.sync_receiver_discovery")
+    def test_unconfigured_huey_never_runs_discovery_inline(
+        self,
+        mock_sync_receiver_discovery,
+        _mock_huey_is_configured,
+        mock_enqueue_huey_task,
+        chassis,
+    ):
+        from micboard.model_lifecycle import _dispatch_chassis_discovery
+
+        _dispatch_chassis_discovery(chassis_id=chassis.pk, using="default")
+
+        mock_enqueue_huey_task.assert_not_called()
         mock_sync_receiver_discovery.assert_not_called()
 
     @patch("micboard.services.sync.discovery_service.DiscoveryService.add_discovery_candidate")

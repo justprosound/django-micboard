@@ -102,7 +102,12 @@ Both return `False` when the scoped assignment does not exist.
 Alert preferences are independent flags on each assignment:
 
 ```python
-preferences = assignment.get_alert_preferences()
+preferences = {
+    "battery_low": assignment.alert_on_battery_low,
+    "signal_loss": assignment.alert_on_signal_loss,
+    "audio_low": assignment.alert_on_audio_low,
+    "hardware_offline": assignment.alert_on_hardware_offline,
+}
 # {
 #     "battery_low": True,
 #     "signal_loss": True,

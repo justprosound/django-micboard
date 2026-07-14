@@ -6,9 +6,12 @@ from unittest.mock import patch
 from django.apps import apps
 from django.conf import settings
 from django.contrib import admin
+from django.contrib.admin.sites import AdminSite
+from django.test import RequestFactory
 
 from micboard.admin.integrations import AccessoryAdmin
-from micboard.admin.mixins import HAS_IMPORT_EXPORT
+from micboard.admin.mixins import HAS_IMPORT_EXPORT, MicboardModelAdmin
+from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.charger import Charger
 from micboard.models.integrations import Accessory
 from micboard.utils.dependencies import (
@@ -36,6 +39,15 @@ def test_django_app_detection_requires_host_configuration() -> None:
     """Package availability must not substitute for host app registration."""
     assert is_django_app_configured("micboard") is True
     assert is_django_app_configured("import_export") is False
+
+
+def test_base_admin_disables_unscoped_bulk_data_transfer() -> None:
+    """Optional import-export routes stay closed without request-aware resources."""
+    model_admin = MicboardModelAdmin(Manufacturer, AdminSite())
+    request = RequestFactory().get("/admin/micboard/manufacturer/")
+
+    assert model_admin.has_import_permission(request) is False
+    assert model_admin.has_export_permission(request) is False
 
 
 def test_pre_setup_app_detection_does_not_confuse_nested_apps() -> None:

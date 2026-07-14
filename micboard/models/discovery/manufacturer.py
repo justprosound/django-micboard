@@ -36,25 +36,3 @@ class Manufacturer(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.code})"
-
-    def save(self, *args, **kwargs):
-        """Persist manufacturer data and delegate side effects to the service layer."""
-        from micboard.services.manufacturer.signals import (
-            save_manufacturer as _save,
-        )
-
-        _save(self, *args, **kwargs)
-
-    def delete(self, *args, **kwargs):
-        """Persist deletion and delegate side effects to the service layer."""
-        from micboard.services.manufacturer.signals import (
-            delete_manufacturer as _delete,
-        )
-
-        return _delete(self, *args, **kwargs)
-
-    def get_plugin_class(self):
-        """Get the plugin class for this manufacturer."""
-        from micboard.services.manufacturer.plugin_registry import PluginRegistry
-
-        return PluginRegistry.get_plugin_class(self.code)

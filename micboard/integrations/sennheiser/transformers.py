@@ -44,7 +44,7 @@ class SennheiserDataTransformer:
             )
 
             result = {
-                "id": device_id,
+                "api_device_id": device_id,
                 "ip": api_data.get("ip")
                 or api_data.get("ip_address")
                 or api_data.get("ipAddress")

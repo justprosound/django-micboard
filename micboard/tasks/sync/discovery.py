@@ -10,6 +10,7 @@ import socket
 from typing import Any
 
 from django.core.cache import cache
+from django.dispatch import receiver
 from django.utils import timezone
 
 from micboard.models.discovery.manufacturer import Manufacturer
@@ -23,6 +24,7 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.common.base.plugin import ManufacturerPlugin
 from micboard.services.common.base.utils import validate_hostname
 from micboard.services.sync.discovery_service import DiscoveryService
+from micboard.services.sync.discovery_trigger_service import discovery_requested
 from micboard.services.sync.discovery_utils import get_manufacturer_plugin_instance
 
 logger = logging.getLogger(__name__)
@@ -85,7 +87,11 @@ def sync_receiver_discovery(chassis_id: int, *, using: str = "default") -> None:
         logger.exception("Error in sync_receiver_discovery task for chassis ID %s", chassis_id)
 
 
-def run_manufacturer_discovery_task(manufacturer_id: int, scan_cidrs: bool, scan_fqdns: bool):
+def run_manufacturer_discovery_task(
+    manufacturer_id: int,
+    scan_cidrs: bool,
+    scan_fqdns: bool,
+) -> None:
     """Task to run discovery for a specific manufacturer."""
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
@@ -103,6 +109,56 @@ def run_manufacturer_discovery_task(manufacturer_id: int, scan_cidrs: bool, scan
         logger.warning("Manufacturer with ID %s not found for discovery task.", manufacturer_id)
     except Exception:
         logger.exception("Error running discovery scan for manufacturer ID %s", manufacturer_id)
+
+
+def dispatch_manufacturer_discovery(
+    manufacturer_id: int,
+    *,
+    scan_cidrs: bool = True,
+    scan_fqdns: bool = True,
+) -> None:
+    """Enqueue discovery without blocking request paths when Huey is disabled."""
+    from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
+
+    if not manufacturer_id:
+        logger.warning("No manufacturer_id available for discovery dispatch")
+        return
+
+    if not huey_is_configured():
+        logger.debug("Native Huey is unavailable or unconfigured; skipping discovery dispatch")
+        return
+
+    try:
+        enqueue_huey_task(
+            run_manufacturer_discovery_task,
+            manufacturer_id,
+            scan_cidrs,
+            scan_fqdns,
+        )
+        return
+    except Exception:
+        logger.exception(
+            "Failed to enqueue discovery task for manufacturer %s",
+            manufacturer_id,
+        )
+
+
+@receiver(discovery_requested, dispatch_uid="micboard.dispatch_manufacturer_discovery")
+def _dispatch_discovery_request(
+    sender: object,
+    *,
+    manufacturer_id: int,
+    scan_cidrs: bool,
+    scan_fqdns: bool,
+    **kwargs: Any,
+) -> None:
+    """Bridge service-layer discovery events to the task dispatcher."""
+    del sender, kwargs
+    dispatch_manufacturer_discovery(
+        manufacturer_id,
+        scan_cidrs=scan_cidrs,
+        scan_fqdns=scan_fqdns,
+    )
 
 
 def cache_all_discovery_candidates(scan_cidrs: bool = False, scan_fqdns: bool = False):
@@ -276,9 +332,7 @@ def _persist_supported_models(manufacturer: Manufacturer, device_client: Any) ->
             )
             if not created:
                 cfg_obj.value = json.dumps(models)
-                from micboard.services.discovery.registry_service import save_micboard_config
-
-                save_micboard_config(cfg_obj)
+                cfg_obj.save(update_fields=["value"])
             logger.info("Persisted %d supported models for %s", len(models), manufacturer.code)
     except Exception as exc:
         logger.exception("Error persisting supported device models: %s", exc)

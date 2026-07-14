@@ -15,8 +15,6 @@ from django.db import models
 from django.db.models import Q
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
-from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.hardware.wireless_unit import WirelessUnit
 
 
 class RFChannelQuerySet(TenantOptimizedQuerySet):
@@ -126,7 +124,7 @@ class RFChannel(models.Model):
     ]
 
     chassis = models.ForeignKey(
-        WirelessChassis,
+        "micboard.WirelessChassis",
         on_delete=models.CASCADE,
         related_name="rf_channels",
         help_text="The wireless chassis this RF channel belongs to",
@@ -194,7 +192,7 @@ class RFChannel(models.Model):
     )
 
     active_wireless_unit = models.ForeignKey(
-        WirelessUnit,
+        "micboard.WirelessUnit",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -215,7 +213,7 @@ class RFChannel(models.Model):
     )
 
     active_iem_receiver = models.ForeignKey(
-        WirelessUnit,
+        "micboard.WirelessUnit",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -238,11 +236,3 @@ class RFChannel(models.Model):
     def __str__(self) -> str:
         direction_label = dict(self.LINK_DIRECTIONS).get(self.link_direction, self.link_direction)
         return f"{self.chassis.name} - RF Ch {self.channel_number} ({direction_label})"
-
-    def save(self, *args, **kwargs) -> None:
-        """Persist the channel after service-layer numbering validation."""
-        from micboard.services.hardware.rf_channel_service import (
-            validate_and_save_channel as _save,
-        )
-
-        _save(self, *args, **kwargs)

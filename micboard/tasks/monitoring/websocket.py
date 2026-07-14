@@ -12,7 +12,12 @@ from asgiref.sync import sync_to_async
 
 from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.services.common.base.plugin import get_manufacturer_plugin
-from micboard.tasks.sync.polling import _update_models_from_api_data
+from micboard.services.realtime.connection_service import (
+    mark_connecting,
+    mark_error,
+    received_message,
+)
+from micboard.services.sync.device_update_service import DeviceUpdateService
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +86,7 @@ def _get_or_create_websocket_connection(chassis: Any) -> Any:
     if not created:
         connection.connection_type = "websocket"
         connection.save(update_fields=["connection_type", "updated_at"])
-    connection.mark_connecting()
+    mark_connecting(connection)
     return connection
 
 
@@ -110,7 +115,7 @@ async def _start_receiver_websocket_async(plugin: Any, chassis: Any) -> None:
 
         # Set up callback for updates
         async def update_callback(data: dict[str, Any]) -> None:
-            await sync_to_async(connection.received_message, thread_sensitive=True)()
+            await sync_to_async(received_message, thread_sensitive=True)(connection)
             await _process_websocket_update_async(plugin, chassis.api_device_id, data)
 
         # Connect and subscribe using the WebSocket function
@@ -120,7 +125,7 @@ async def _start_receiver_websocket_async(plugin: Any, chassis: Any) -> None:
         logger.exception("Error in WebSocket subscription for chassis %s", chassis.name)
         if connection is not None:
             error_status = f"WebSocket subscription failed: {type(exc).__name__}"[:160]
-            await sync_to_async(connection.mark_error, thread_sensitive=True)(error_status)
+            await sync_to_async(mark_error, thread_sensitive=True)(connection, error_status)
     finally:
         if client is not None:
             try:
@@ -150,9 +155,13 @@ async def _process_websocket_update_async(
                 # Create a single-device API data list for the update function
                 api_data = [data]  # Raw API data
                 updated_count = await sync_to_async(
-                    _update_models_from_api_data,
+                    DeviceUpdateService.update_models_from_api_data,
                     thread_sensitive=True,
-                )(api_data, manufacturer, plugin)
+                )(
+                    api_data=api_data,
+                    manufacturer=manufacturer,
+                    plugin=plugin,
+                )
                 if updated_count > 0:
                     logger.info(
                         "Updated %d device(s) from WebSocket for %s", updated_count, device_id

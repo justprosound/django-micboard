@@ -6,7 +6,7 @@ from importlib.util import find_spec
 import micboard
 import micboard.models as model_api
 import micboard.models.telemetry.sessions as telemetry_sessions
-from micboard import services
+import micboard.services as services
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 from micboard.services.core.location import LocationService
 from micboard.services.monitoring.connection import ConnectionHealthService

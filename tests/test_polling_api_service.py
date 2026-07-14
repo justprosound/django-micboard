@@ -213,37 +213,45 @@ def test_get_all_server_statuses_aggregates_counts_and_details(all_servers: Magi
 
 @pytest.mark.parametrize("manufacturer_id", [None, 0])
 @patch("micboard.services.sync.discovery_trigger_service.huey_is_configured", return_value=True)
-@patch("micboard.services.sync.discovery_service.DiscoveryService.trigger_manufacturer_discovery")
+@patch("micboard.services.sync.discovery_trigger_service.discovery_requested.send_robust")
 def test_trigger_discovery_rejects_missing_manufacturer_ids(
-    trigger: MagicMock,
+    send_request: MagicMock,
     _huey_configured: MagicMock,
     manufacturer_id: int | None,
 ) -> None:
     """Discovery dispatch must never enqueue an unscoped scan."""
     trigger_discovery(manufacturer_id)
 
-    trigger.assert_not_called()
+    send_request.assert_not_called()
 
 
 @patch("micboard.services.sync.discovery_trigger_service.huey_is_configured", return_value=False)
-@patch("micboard.services.sync.discovery_service.DiscoveryService.trigger_manufacturer_discovery")
+@patch("micboard.services.sync.discovery_trigger_service.discovery_requested.send_robust")
 def test_trigger_discovery_skips_dispatch_without_huey(
-    trigger: MagicMock,
+    send_request: MagicMock,
     _huey_configured: MagicMock,
 ) -> None:
     """Unconfigured native Huey is a safe no-op."""
     trigger_discovery(42)
 
-    trigger.assert_not_called()
+    send_request.assert_not_called()
 
 
 @patch("micboard.services.sync.discovery_trigger_service.huey_is_configured", return_value=True)
-@patch("micboard.services.sync.discovery_service.DiscoveryService.trigger_manufacturer_discovery")
+@patch(
+    "micboard.services.sync.discovery_trigger_service.discovery_requested.send_robust",
+    return_value=[(object(), None)],
+)
 def test_trigger_discovery_dispatches_full_scan(
-    trigger: MagicMock,
+    send_request: MagicMock,
     _huey_configured: MagicMock,
 ) -> None:
     """Configured discovery requests both CIDR and FQDN scans."""
     trigger_discovery(42)
 
-    trigger.assert_called_once_with(42, scan_cidrs=True, scan_fqdns=True)
+    send_request.assert_called_once_with(
+        sender=trigger_discovery,
+        manufacturer_id=42,
+        scan_cidrs=True,
+        scan_fqdns=True,
+    )

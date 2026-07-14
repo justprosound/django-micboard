@@ -16,7 +16,7 @@ from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.common.base.plugin import get_manufacturer_plugin
-from micboard.tasks.sync.polling import _update_models_from_api_data
+from micboard.services.sync.device_update_service import DeviceUpdateService
 
 logger = logging.getLogger(__name__)
 
@@ -160,9 +160,13 @@ class Command(BaseCommand):
                 # Update the specific device
                 api_data = [data]  # Wrap in list for the update function
                 updated_count = await sync_to_async(
-                    _update_models_from_api_data,
+                    DeviceUpdateService.update_models_from_api_data,
                     thread_sensitive=True,
-                )(api_data, manufacturer, plugin)
+                )(
+                    api_data=api_data,
+                    manufacturer=manufacturer,
+                    plugin=plugin,
+                )
                 if updated_count > 0:
                     self.stdout.write(
                         f"Updated {updated_count} device(s) from WebSocket for {device_id}"

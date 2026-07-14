@@ -24,7 +24,9 @@ class ChassisRefreshService:
     @classmethod
     def _refresh_chassis(cls, chassis: WirelessChassis) -> bool:
         """Fetch one chassis outside a transaction, then persist atomically."""
-        plugin_class = chassis.manufacturer.get_plugin_class()
+        from micboard.services.manufacturer.plugin_registry import PluginRegistry
+
+        plugin_class = PluginRegistry.get_plugin_class(chassis.manufacturer.code)
         plugin = plugin_class(chassis.manufacturer)
         device_data = plugin.get_device(chassis.api_device_id)
         if not device_data:

@@ -226,9 +226,9 @@ class HardwareLifecycleManager:
         )
 
         if sync_to_api and self.service_code:
-            from .device_api_sync_service import _sync_status_to_api as _do_api_sync
+            from .device_api_status_sync import sync_status_to_api
 
-            _do_api_sync(self.service_code, device, to_status, metadata)
+            sync_status_to_api(self.service_code, device, to_status, metadata)
 
         return True
 

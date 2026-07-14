@@ -137,17 +137,3 @@ class ShureSystemAPIClient(BaseHTTPClient):
 
         if parsed_url.scheme != "wss" or not parsed_url.host:
             raise ValueError("SHURE_API_WEBSOCKET_URL must be an absolute WSS URL")
-
-    async def connect_and_subscribe(self, device_id: str, callback) -> None:
-        """Establishes WebSocket connection and subscribes to device updates.
-
-        Args:
-            device_id: The Shure API device ID to subscribe to
-            callback: Function to call with received WebSocket messages
-
-        Raises:
-            ShureAPIError: If connection or subscription fails
-        """
-        from .websocket import connect_and_subscribe
-
-        return await connect_and_subscribe(self, device_id, callback)

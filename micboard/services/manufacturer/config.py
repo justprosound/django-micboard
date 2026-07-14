@@ -45,7 +45,8 @@ def validate_manufacturer_config(
             except Exception as health_err:
                 errors.append(f"Plugin health check failed: {health_err!s}")
     except ImportError:
-        pass
+        logger.exception("Manufacturer plugin import failed for %s", config.code)
+        errors.append(f"Plugin import failed for {config.code}")
     except Exception as e:
         errors.append(f"Plugin initialization failed: {e!s}")
 

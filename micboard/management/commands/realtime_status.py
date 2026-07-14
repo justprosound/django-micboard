@@ -5,6 +5,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from micboard.models.realtime.connection import RealTimeConnection
+from micboard.services.realtime.connection_service import connection_duration
 from micboard.tasks.monitoring.health import get_realtime_connection_status
 
 
@@ -83,7 +84,7 @@ class Command(BaseCommand):
             ("Connected", connection.connected_at),
             ("Last message", connection.last_message_at),
             ("Error", connection.error_message),
-            ("Duration", connection.connection_duration),
+            ("Duration", connection_duration(connection)),
         )
         for label, value in details:
             if value:

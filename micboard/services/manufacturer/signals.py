@@ -7,14 +7,13 @@ when manufacturers are created, updated, or deleted.
 from __future__ import annotations
 
 import logging
-from contextlib import suppress
 
 from micboard.models.audit import ActivityLog
 
 logger = logging.getLogger(__name__)
 
 
-def handle_manufacturer_save(*, manufacturer, created: bool, old_active: bool | None) -> None:
+def handle_manufacturer_save(*, manufacturer, created: bool, old_active: bool | None) -> bool:
     """Perform side-effects after a Manufacturer is saved.
 
     - Emits audit ActivityLog entries
@@ -48,57 +47,7 @@ def handle_manufacturer_save(*, manufacturer, created: bool, old_active: bool | 
     except Exception:
         logger.exception("Failed to write activity log for manufacturer %s", manufacturer.pk)
 
-    if (not created) and manufacturer.is_active and not old_active:
-        from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
-
-        if huey_is_configured():
-            try:
-                from micboard.tasks.sync.discovery import (
-                    run_manufacturer_discovery_task,
-                )
-
-                enqueue_huey_task(
-                    run_manufacturer_discovery_task,
-                    manufacturer.pk,
-                    False,
-                    False,
-                )
-            except Exception:
-                logger.exception("Failed to trigger discovery on manufacturer activation")
-        else:
-            logger.debug(
-                "Native Huey is unavailable or unconfigured; skipping discovery task trigger"
-            )
-
-
-def save_manufacturer(manufacturer, *args, **kwargs) -> None:
-    """Persist Manufacturer and perform side-effects.
-
-    Handles the full save lifecycle: computes created/old_active state,
-    calls the base save, then performs audit logging and discovery triggers.
-    """
-    from micboard.models.discovery.manufacturer import Manufacturer as _Manufacturer
-
-    created = manufacturer.pk is None
-    old_active = False
-    if not created:
-        with suppress(_Manufacturer.DoesNotExist):
-            old_active = _Manufacturer.objects.get(pk=manufacturer.pk).is_active
-
-    super(_Manufacturer, manufacturer).save(*args, **kwargs)
-    handle_manufacturer_save(manufacturer=manufacturer, created=created, old_active=old_active)
-
-
-def delete_manufacturer(manufacturer, *args, **kwargs):
-    """Delete Manufacturer and perform side-effects.
-
-    Calls the base delete, then performs audit logging.
-    """
-    from micboard.models.discovery.manufacturer import Manufacturer as _Manufacturer
-
-    result = super(_Manufacturer, manufacturer).delete(*args, **kwargs)
-    handle_manufacturer_delete(manufacturer=manufacturer)
-    return result
+    return (not created) and manufacturer.is_active and not bool(old_active)
 
 
 def handle_manufacturer_delete(*, manufacturer) -> None:
