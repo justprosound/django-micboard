@@ -18,7 +18,6 @@ import micboard.integrations.sennheiser.sse_client as sennheiser_sse_module
 from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
 from micboard.integrations.sennheiser.exceptions import SennheiserAPIError
 from micboard.integrations.sennheiser.plugin import SennheiserPlugin
-from micboard.integrations.sennheiser.sse_client import connect_and_subscribe
 from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.integrations.shure.exceptions import ShureAPIError, ShureAPIRateLimitError
 from micboard.integrations.shure.plugin import ShurePlugin
@@ -258,7 +257,7 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
         received.append(data)
 
     with caplog.at_level(logging.DEBUG, logger="micboard.integrations.sennheiser.sse_client"):
-        asyncio.run(connect_and_subscribe(client, "device-1", callback))
+        asyncio.run(sennheiser_sse_module.connect_and_subscribe(client, "device-1", callback))
 
     assert received == [{"state": "online"}]
     assert adapted_calls == [(client._make_request, True), (client._make_request, True)]
@@ -284,7 +283,7 @@ def test_sennheiser_sse_missing_session_propagates_connection_failure(monkeypatc
     )
 
     with pytest.raises(SennheiserAPIError, match="did not return a session"):
-        asyncio.run(connect_and_subscribe(client, "device-1", AsyncMock()))
+        asyncio.run(sennheiser_sse_module.connect_and_subscribe(client, "device-1", AsyncMock()))
 
     assert adapted_calls == [(client._make_request, True)]
 
