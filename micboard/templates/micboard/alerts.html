@@ -109,7 +109,7 @@
                             </td>
                             <td>
                                 <a href="#">{{ alert.channel }}</a>
-                                {% if alert.assignment %}<br><span class="text-muted">{{ alert.assignment.location }}</span>{% endif %}
+                                {% if alert.assignment %}<br><span class="text-muted">{{ alert.assignment.performer.name }}</span>{% endif %}
                             </td>
                             <td>{{ alert.user.get_full_name|default:alert.user.username }}</td>
                             <td>
@@ -139,7 +139,7 @@
                                         <button type="submit" class="btn btn-outline-info btn-sm">Acknowledge</button>
                                     </form>
                                     {% endif %}
-                                    {% if alert.status in "pending,acknowledged" %}
+                                    {% if alert.status == "pending" or alert.status == "acknowledged" %}
                                     <form method="post" action="{% url 'micboard:resolve_alert' alert.id %}" style="display: inline;">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-outline-success btn-sm">Resolve</button>

@@ -80,8 +80,8 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 3. ~~**Admin dashboard monolith** - The former dashboard module was split into focused admin and
    view modules.~~
 4. **Manufacturer plugin duplication** - Shure + Sennheiser plugin stacks are 80-90% structurally identical; no shared base reduces maintenance.
-5. **Thin test coverage** - Branch coverage is 44.56% against a 60% target; factory, integration,
-   and end-to-end coverage remain incomplete.
+5. **Thin test coverage** - Branch coverage is 50.13% against a 60% target. Model factories and
+   targeted service coverage are complete; integration and end-to-end coverage remain incomplete.
 6. ~~**Compat shim** - `micboard/manufacturers/` was a backward-compat shim. Now removed (ADR-008).~~
 
 ## Key File Locations

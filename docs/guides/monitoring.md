@@ -109,15 +109,18 @@ Track devices by location:
 
 ```python
 from micboard.services.core.location import LocationService
+from micboard.models.locations.structure import Building
 
 # Create location
+building = Building.objects.get(name="Venue")
 location = LocationService.create_location(
+    building=building,
     name="Main Stage",
-    description="Primary performance area"
+    description="Primary performance area",
 )
 
 # Assign device to location
-LocationService.assign_device_to_location(device, location)
+LocationService.assign_device_to_location(device=device, location=location)
 ```
 
 ## Troubleshooting

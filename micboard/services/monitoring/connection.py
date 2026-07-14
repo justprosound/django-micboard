@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
-from django.db.models import QuerySet
+from django.db.models import Avg, Count, Q, QuerySet
 from django.utils.timezone import now
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
@@ -132,7 +132,11 @@ class ConnectionHealthService:
             QuerySet of unhealthy RealTimeConnection objects.
         """
         timeout = now() - timedelta(seconds=heartbeat_timeout_seconds)
-        return RealTimeConnection.objects.filter(status="connected", last_message_at__lt=timeout)
+        return (
+            RealTimeConnection.objects.filter(status="connected")
+            .filter(Q(last_message_at__lt=timeout) | Q(last_message_at__isnull=True))
+            .select_related("chassis__manufacturer")
+        )
 
     @staticmethod
     def get_connections_by_manufacturer(*, manufacturer_code: str) -> QuerySet:
@@ -199,31 +203,23 @@ class ConnectionHealthService:
                 'by_manufacturer': dict[str, int]
             }
         """
-        total = RealTimeConnection.objects.count()
-        active = RealTimeConnection.objects.filter(status="connected").count()
-        errors = RealTimeConnection.objects.filter(status="error").count()
-
-        connections = RealTimeConnection.objects.all()
-        avg_errors = None
-        if connections.exists():
-            total_errors = sum(c.error_count or 0 for c in connections)
-            avg_errors = total_errors / total if total > 0 else 0
-
-        by_manufacturer = {}
-        for mfg in RealTimeConnection.objects.values_list(
-            "chassis__manufacturer__code", flat=True
-        ).distinct():
-            if mfg:
-                by_manufacturer[mfg] = RealTimeConnection.objects.filter(
-                    chassis__manufacturer__code=mfg
-                ).count()
+        summary = RealTimeConnection.objects.aggregate(
+            total_connections=Count("pk"),
+            active_connections=Count("pk", filter=Q(status="connected")),
+            error_connections=Count("pk", filter=Q(status="error")),
+            avg_error_count=Avg("error_count"),
+        )
+        manufacturer_counts = (
+            RealTimeConnection.objects.exclude(chassis__manufacturer__code__isnull=True)
+            .exclude(chassis__manufacturer__code="")
+            .values("chassis__manufacturer__code")
+            .annotate(connection_count=Count("pk"))
+            .values_list("chassis__manufacturer__code", "connection_count")
+        )
 
         return {
-            "total_connections": total,
-            "active_connections": active,
-            "error_connections": errors,
-            "avg_error_count": avg_errors,
-            "by_manufacturer": by_manufacturer,
+            **summary,
+            "by_manufacturer": dict(manufacturer_counts),
         }
 
     @staticmethod

@@ -12,10 +12,15 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 def test_ci_coverage_gate_is_self_contained() -> None:
     """Coverage must fail locally and remain inspectable without an external service."""
     workflow = (WORKFLOWS / "ci.yml").read_text()
-    thresholds = [int(value) for value in re.findall(r"--cov-fail-under=(\d+)", workflow)]
+    release_workflow = (WORKFLOWS / "release.yml").read_text()
+    justfile = (ROOT / "Justfile").read_text()
+    thresholds = {
+        int(value)
+        for source in (workflow, release_workflow, justfile)
+        for value in re.findall(r"--cov-fail-under=(\d+)", source)
+    }
 
-    assert thresholds
-    assert min(thresholds) >= 42
+    assert thresholds == {49}
     assert "coverage.xml" in workflow
     assert "htmlcov/" in workflow
     assert "actions/upload-artifact@" in workflow

@@ -102,7 +102,7 @@ def test_scanning_data_limits_cidrs_and_filters_resolutions(
 ) -> None:
     cidr_filter.return_value = [SimpleNamespace(cidr="192.0.2.0/29")]
     fqdn_filter.return_value = [SimpleNamespace(fqdn="receiver.example.test")]
-    resolve.return_value = {"receiver.example.test": ["198.51.100.3", None]}
+    resolve.return_value = ({"receiver.example.test": ["198.51.100.3", None]}, True)
     cidrs, fqdns, total = DiscoveryCandidateService()._prepare_scanning_data(
         _manufacturer(), True, True, 2
     )

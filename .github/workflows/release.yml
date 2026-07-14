@@ -84,7 +84,7 @@ jobs:
           uv run --no-sync pytest tests/ \
             --cov=micboard \
             --cov-report=term-missing \
-            --cov-fail-under=42 \
+            --cov-fail-under=49 \
             -v
 
       - name: Check code quality

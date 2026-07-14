@@ -5,9 +5,9 @@ Alert: {{ alert.get_alert_type_display }}
 Message: {{ alert.message }}
 
 Device Details:
-- Device: {{ alert.channel.receiver.name }} ({{ alert.channel.receiver.ip }})
+- Device: {{ alert.channel.chassis.name }} ({{ alert.channel.chassis.ip }})
 - Channel: Channel {{ alert.channel.channel_number }}
-{% if alert.channel.transmitter.name %}- Transmitter: {{ alert.channel.transmitter.name }}{% endif %}
+{% if alert.assignment %}- Wireless Unit: {{ alert.assignment.wireless_unit.name }}{% endif %}
 - Alert Type: {{ alert.get_alert_type_display }}
 - Status: {{ alert.get_status_display }}
 - Time: {{ alert.created_at|date:"M j, Y g:i A" }}

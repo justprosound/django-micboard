@@ -11,6 +11,7 @@ from datetime import timedelta
 from typing import Any
 
 from django.contrib.auth.models import AnonymousUser, User
+from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
@@ -42,11 +43,13 @@ class AlertManager:
             unit: WirelessUnit instance to check
         """
         # Get active performer assignments for this unit
-        assignments = PerformerAssignment.objects.filter(
-            wireless_unit=unit, is_active=True
-        ).select_related("performer", "monitoring_group")
+        assignments = list(
+            PerformerAssignment.objects.filter(wireless_unit=unit, is_active=True)
+            .select_related("performer", "monitoring_group")
+            .prefetch_related("monitoring_group__users__alert_preferences")
+        )
 
-        if not assignments.exists():
+        if not assignments:
             return
 
         # Battery alerts
@@ -72,7 +75,7 @@ class AlertManager:
         Args:
             unit: WirelessUnit to check
             assignments: QuerySet of PerformerAssignments
-            alert_attr: Name of alert toggle attribute (e.g., 'alert_battery_low')
+            alert_attr: Name of alert toggle attribute (e.g., ``alert_on_battery_low``)
             condition_func: Function to check if alert condition is met
             alert_type: Type of alert to create
             message_func: Function to generate alert message
@@ -101,26 +104,28 @@ class AlertManager:
         Args:
             unit: WirelessUnit instance to check
         """
-        # Get active performer assignments with offline alerts enabled
-        assignments = PerformerAssignment.objects.filter(
-            wireless_unit=unit, is_active=True, alert_on_hardware_offline=True
-        ).select_related("performer", "monitoring_group")
+        if unit.status == "online":
+            return
 
-        # Check if unit is offline
-        if unit.status != "online":
-            for assignment in assignments:
-                # Get users in the monitoring group
-                group_users = assignment.monitoring_group.users.all()
-
-                for user in group_users:
-                    self._create_alert(
-                        unit=unit,
-                        user=user,
-                        performer_assignment=assignment,
-                        alert_type="hardware_offline",
-                        message=f"Device offline: {unit.name}",
-                        unit_data=self._get_unit_snapshot(unit),
-                    )
+        assignments = list(
+            PerformerAssignment.objects.filter(
+                wireless_unit=unit,
+                is_active=True,
+                alert_on_hardware_offline=True,
+            )
+            .select_related("performer", "monitoring_group")
+            .prefetch_related("monitoring_group__users")
+        )
+        for assignment in assignments:
+            for user in assignment.monitoring_group.users.all():
+                self._create_alert(
+                    unit=unit,
+                    user=user,
+                    performer_assignment=assignment,
+                    alert_type="hardware_offline",
+                    message=f"Device offline: {unit.name}",
+                    unit_data=self._get_unit_snapshot(unit),
+                )
 
     def _check_battery_alerts(self, unit: WirelessUnit, assignments) -> None:
         """Check battery levels and create alerts.
@@ -134,7 +139,7 @@ class AlertManager:
             return
 
         for assignment in assignments:
-            if not assignment.alert_battery_low:
+            if not assignment.alert_on_battery_low:
                 continue
 
             # Get users in the monitoring group to notify
@@ -184,7 +189,7 @@ class AlertManager:
         self._check_assignments_alerts(
             unit,
             assignments,
-            "alert_signal_loss",
+            "alert_on_signal_loss",
             signal_condition,
             "signal_loss",
             signal_message,
@@ -207,7 +212,7 @@ class AlertManager:
         self._check_assignments_alerts(
             unit,
             assignments,
-            "alert_audio_low",
+            "alert_on_audio_low",
             audio_condition,
             "audio_low",
             audio_message,
@@ -323,17 +328,23 @@ def check_hardware_offline_alerts(unit: WirelessUnit):
     alert_manager.check_hardware_offline_alerts(unit)
 
 
-def acknowledge_alert(alert_id: int, user=None):
+@transaction.atomic
+def acknowledge_alert(alert_id: int, *, user: User | AnonymousUser) -> Alert:
     """Acknowledge an alert (service API).
 
     Args:
         alert_id: Alert PK
-        user: Optional user performing the acknowledgement (for audit)
+        user: User performing the acknowledgement.
 
     Returns:
         Updated Alert instance
     """
-    alert = Alert.objects.get(id=alert_id)
+    alert = get_alerts_for_user(user).select_for_update().get(id=alert_id)
+    if alert.status == "acknowledged":
+        return alert
+    if alert.status != "pending":
+        raise ValueError("Only pending alerts can be acknowledged")
+
     alert.status = "acknowledged"
     alert.acknowledged_at = timezone.now()
     alert.save(update_fields=["status", "acknowledged_at"])
@@ -341,18 +352,25 @@ def acknowledge_alert(alert_id: int, user=None):
     return alert
 
 
-def resolve_alert(alert_id: int):
+@transaction.atomic
+def resolve_alert(alert_id: int, *, user: User | AnonymousUser) -> Alert:
     """Resolve an alert (service API).
 
     Args:
         alert_id: Alert PK
+        user: User performing the resolution.
 
     Returns:
         Updated Alert instance
     """
-    alert = Alert.objects.get(id=alert_id)
+    alert = get_alerts_for_user(user).select_for_update().get(id=alert_id)
+    if alert.status == "resolved":
+        return alert
+    if alert.status not in {"pending", "acknowledged"}:
+        raise ValueError("Only pending or acknowledged alerts can be resolved")
+
     alert.status = "resolved"
     alert.resolved_at = timezone.now()
     alert.save(update_fields=["status", "resolved_at"])
-    logger.info("Alert %s resolved", alert.id)
+    logger.info("Alert %s resolved by %s", alert.id, getattr(user, "username", None))
     return alert

@@ -36,7 +36,7 @@
                         <div class="col-md-6">
                             <strong>Channel:</strong><br>
                             {{ alert.channel }}
-                            {% if alert.assignment %}<br><span class="text-muted">{{ alert.assignment.location }}</span>{% endif %}
+                            {% if alert.assignment %}<br><span class="text-muted">{{ alert.assignment.performer.name }}</span>{% endif %}
                         </div>
                         <div class="col-md-6">
                             <strong>User:</strong><br>
@@ -83,7 +83,7 @@
                     {% if alert.channel_data %}
                     <div class="mb-3">
                         <strong>Channel Data at Alert Time:</strong>
-                        <pre class="bg-light p-3 rounded mt-2" aria-label="Channel data"><code>{{ alert.channel_data|safe }}</code></pre>
+                        <pre class="bg-light p-3 rounded mt-2" aria-label="Channel data"><code>{{ alert.channel_data }}</code></pre>
                     </div>
                     {% endif %}
                     <div class="d-flex gap-2" role="group" aria-label="Alert actions">
@@ -94,7 +94,7 @@
                             <button type="submit" class="btn btn-info">Acknowledge Alert</button>
                         </form>
                         {% endif %}
-                        {% if alert.status in "pending,acknowledged" %}
+                        {% if alert.status == "pending" or alert.status == "acknowledged" %}
                         <form method="post" action="{% url 'micboard:resolve_alert' alert.id %}" style="display: inline;">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-success">Mark as Resolved</button>
@@ -154,7 +154,7 @@
             <div class="card">
                 <div class="card-header"><h2 class="card-title h5 mb-0">Related Assignment</h2></div>
                 <div class="card-body">
-                    <p><strong>Location:</strong> {{ alert.assignment.location }}</p>
+                    <p><strong>Location:</strong> {{ alert.assignment.wireless_unit.base_chassis.location|default:"Unassigned" }}</p>
                     <p><strong>Priority:</strong> {{ alert.assignment.get_priority_display }}</p>
                     {% if alert.assignment.notes %}<p><strong>Notes:</strong> {{ alert.assignment.notes }}</p>{% endif %}
                 </div>

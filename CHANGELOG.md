@@ -28,6 +28,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Complete model factory catalog**: Domain-grouped Factory Boy adapters for every installed
   project model, with registry completeness, persistence, validation, optional-app, and
   swappable-user coverage
+- **Service-layer regression coverage**: Direct Factory Boy-backed tests for discovery,
+  deduplication, hardware lifecycle, locations, performers, alerts, connections, and uptime, with
+  every targeted module at 90% coverage or higher
+- **Performance contracts**: Query budgets for discovery batching, alert fanout, connection health,
+  and manufacturer statistics
 
 ### Changed
 
@@ -53,8 +58,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   handling
 - **Public project cleanup**: Remove private-host branding, obsolete queue guidance, and stale
   live-integration scripts
-- **Quality floor**: Raise enforced coverage from 40% to 42% while retaining the documented 60%
+- **Quality floor**: Raise enforced coverage from 40% to 49% while retaining the documented 60%
   target
+- **Discovery reconciliation**: Batch exclusivity checks and manufacturer API updates, preserve
+  remote state while configured sources are incomplete, and still remove database-proven
+  cross-vendor ownership conflicts
+- **Monitoring queries**: Prefetch alert recipients and preferences, eager-load unhealthy
+  connection ownership, and aggregate connection statistics in two fixed queries
 - **Settings access**: Route app startup and callers through `SettingsService`; raw
   `MICBOARD_CONFIG` reads are isolated to the settings service
 - **Dependency automation**: Consolidate updates under Renovate and refresh locked Click and
@@ -80,6 +90,15 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Replace stale performer-assignment examples with the current scoped service API
 - Stop normal Django ORM writes from emitting false deprecation warnings for required model
   lifecycle hooks, and fail tests on future deprecation warnings
+- Correct alert preference field lookups so battery, signal, and audio notifications are emitted
+- Treat connected rows without a heartbeat as unhealthy and remove manufacturer-dependent query
+  growth from connection statistics
+- Validate hardware transitions from the locked database row and support chassis without an
+  `updated_at` field
+- Require a building hierarchy when creating locations, reject cross-building rooms, serialize
+  duplicate checks for building-level locations, and prevent stale callers from restoring old data
+- Preserve managed IPv4 and IPv6 chassis addresses when reconciling discovery candidates
+- Restore pending-alert action routes, current hardware labels, and owner-scoped state transitions
 
 ### Removed
 
@@ -97,6 +116,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Enforce monitoring-group scope on charger, kiosk, alert, performer-assignment, and HTMX lookup
   surfaces
 - Require authenticated POST requests for kiosk heartbeat mutation and admin user promotion
+- Require owner or superuser scope plus CSRF-protected POST requests for alert acknowledgement and
+  resolution, and escape vendor channel snapshots in alert details
 - Require HTTPS and certificate verification for authenticated manufacturer clients; private
   certificate authorities use the standard `SSL_CERT_FILE` or `SSL_CERT_DIR` trust configuration
 - Redact API keys and subscription handshake identifiers from integration logs, and hardware

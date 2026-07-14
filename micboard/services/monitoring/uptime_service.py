@@ -104,10 +104,14 @@ class UptimeService:
         Returns:
             Uptime percentage (0-100)
         """
+        if days <= 0:
+            return 100.0
+
         from micboard.models.discovery.queue import DeviceMovementLog
 
-        cutoff = timezone.now() - timedelta(days=days)
-        total_time = timezone.now() - cutoff
+        current_time = timezone.now()
+        cutoff = current_time - timedelta(days=days)
+        total_time = current_time - cutoff
 
         # Get movements in period
         movements = DeviceMovementLog.objects.filter(
@@ -121,7 +125,7 @@ class UptimeService:
         for movement in movements:
             if movement.old_ip and movement.new_ip:
                 # IP movement = downtime until acknowledged or next detection
-                detection_time = timezone.now() - movement.detected_at
+                detection_time = current_time - movement.detected_at
                 # Conservative estimate: time until acknowledged or 1 hour
                 offline_duration = (
                     movement.acknowledged_at - movement.detected_at
@@ -229,10 +233,14 @@ class BulkUptimeCalculator:
         Returns:
             Dict mapping device_id -> uptime_percentage
         """
+        if days <= 0:
+            return {device.id: 100.0 for device in devices}
+
         from micboard.models.discovery.queue import DeviceMovementLog
 
-        cutoff = timezone.now() - timedelta(days=days)
-        total_time = timezone.now() - cutoff
+        current_time = timezone.now()
+        cutoff = current_time - timedelta(days=days)
+        total_time = current_time - cutoff
 
         # Batch query movements
         device_ids = [d.id for d in devices]
@@ -252,7 +260,7 @@ class BulkUptimeCalculator:
                 offline_duration = (
                     movement["acknowledged_at"] - movement["detected_at"]
                     if movement["acknowledged_at"]
-                    else timedelta(hours=1)
+                    else min(current_time - movement["detected_at"], timedelta(hours=1))
                 )
                 offline_by_device[device_id] += offline_duration
 
@@ -276,8 +284,8 @@ class BulkUptimeCalculator:
         Returns:
             Dict with aggregate stats and per-device breakdown
         """
-        receivers = WirelessChassis.objects.filter(manufacturer=manufacturer)
-        uptime_dict = BulkUptimeCalculator.get_uptime_summary_batch(list(receivers), days=days)
+        receivers = list(WirelessChassis.objects.filter(manufacturer=manufacturer))
+        uptime_dict = BulkUptimeCalculator.get_uptime_summary_batch(receivers, days=days)
 
         if not uptime_dict:
             return {
@@ -289,10 +297,11 @@ class BulkUptimeCalculator:
             }
 
         uptimes = list(uptime_dict.values())
+        online_devices = sum(device.is_online for device in receivers)
         return {
             "total_devices": len(receivers),
-            "online_devices": receivers.filter(is_online=True).count(),
-            "offline_devices": receivers.filter(is_online=False).count(),
+            "online_devices": online_devices,
+            "offline_devices": len(receivers) - online_devices,
             "average_uptime_percent": sum(uptimes) / len(uptimes),
             "min_uptime_percent": min(uptimes),
             "max_uptime_percent": max(uptimes),
