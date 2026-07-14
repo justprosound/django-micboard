@@ -1,5 +1,6 @@
 ---
-name: CI/CD Tests & Coverage
+name: CI Quality Gates
+run-name: "CI · ${{ github.event.pull_request.number && format('PR #{0}', github.event.pull_request.number) || github.ref_name }}"
 
 on:
   push:

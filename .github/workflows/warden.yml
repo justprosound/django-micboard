@@ -1,5 +1,6 @@
 ---
 name: Warden
+run-name: "Warden · PR #${{ github.event.pull_request.number }}"
 
 on:
   pull_request:

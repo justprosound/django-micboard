@@ -24,11 +24,11 @@ def _workflow_job(workflow: str, job_name: str) -> str:
 def test_ci_coverage_gate_is_self_contained() -> None:
     """Coverage must fail locally and remain inspectable without an external service."""
     workflow = (WORKFLOWS / "ci.yml").read_text()
-    release_workflow = (WORKFLOWS / "release.yml").read_text()
+    release_workflow = (WORKFLOWS / "prepare-release.yml").read_text()
     justfile = (ROOT / "Justfile").read_text()
     thresholds = {
         int(value)
-        for source in (workflow, release_workflow, justfile)
+        for source in (workflow, justfile)
         for value in re.findall(r"--cov-fail-under=(\d+)", source)
     }
 
@@ -36,7 +36,7 @@ def test_ci_coverage_gate_is_self_contained() -> None:
     assert "coverage.xml" in workflow
     assert "htmlcov/" in workflow
     assert "scripts/check_coverage_inventory.py" in workflow
-    assert "scripts/check_coverage_inventory.py" in release_workflow
+    assert "gh workflow run ci.yml" in release_workflow
     assert "actions/upload-artifact@" in workflow
     assert "codecov" not in workflow.lower()
     assert "id-token: write" not in workflow
@@ -51,30 +51,41 @@ def test_every_trusted_publisher_uses_the_hardened_release_gate() -> None:
         or "pypa/gh-action-pypi-publish@" in path.read_text()
     }
 
-    assert set(publishers) == {"release.yml"}
-    release = publishers["release.yml"]
+    assert set(publishers) == {"publish-release.yml"}
+    release = publishers["publish-release.yml"]
+    preparation = (WORKFLOWS / "prepare-release.yml").read_text()
+    ci_workflow = (WORKFLOWS / "ci.yml").read_text()
+    pre_commit_config = (ROOT / ".pre-commit-config.yaml").read_text()
     for required_gate in (
         "--cov-fail-under=95",
         "scripts/check_coverage_inventory.py",
-        "ruff format --check .",
-        "ruff check .",
         "python -m mypy micboard",
         "bandit -r micboard -ll",
+        "pre-commit run --all-files",
+    ):
+        assert required_gate in ci_workflow
+    assert "ruff-check" in pre_commit_config
+    assert "ruff-format" in pre_commit_config
+    for required_gate in (
         "scripts/validate_wheel.py",
         "scripts/smoke_test_installed_wheel.py",
     ):
         assert required_gate in release
+    assert preparation.index("gh workflow run ci.yml") < preparation.index("gh pr merge")
+    assert preparation.index("gh pr merge") < preparation.index(
+        "gh workflow run publish-release.yml"
+    )
 
 
 def test_release_artifacts_are_built_once_and_digest_sealed() -> None:
     """The package must be built from the committed release source in a read-only job."""
-    release = (WORKFLOWS / "release.yml").read_text()
+    release = (WORKFLOWS / "publish-release.yml").read_text()
     build_job = _workflow_job(release, "build-release")
 
     assert "contents: read" in build_job
     assert "contents: write" not in build_job
     assert "id-token: write" not in build_job
-    assert "ref: ${{ needs.update-release-metadata.outputs.release-sha }}" in build_job
+    assert "ref: ${{ needs.validate-release.outputs.sha }}" in build_job
     assert "persist-credentials: false" in build_job
     assert "uv build --sdist --clear" in build_job
     assert "uv build --wheel dist/*.tar.gz" in build_job
@@ -85,7 +96,7 @@ def test_release_artifacts_are_built_once_and_digest_sealed() -> None:
 
 def test_release_publishers_only_verify_and_publish_sealed_artifacts() -> None:
     """OIDC jobs must not check out source or install mutable Python dependencies."""
-    release = (WORKFLOWS / "release.yml").read_text()
+    release = (WORKFLOWS / "publish-release.yml").read_text()
 
     assert "pypa/gh-action-pypi-publish@" not in release
     for job_name in ("publish-testpypi", "publish-pypi"):
@@ -105,19 +116,28 @@ def test_release_publishers_only_verify_and_publish_sealed_artifacts() -> None:
 
 def test_release_writers_have_narrow_responsibilities() -> None:
     """Repository-write jobs must not build or publish distributions."""
-    release = (WORKFLOWS / "release.yml").read_text()
-    metadata_job = _workflow_job(release, "update-release-metadata")
-    github_release_job = _workflow_job(release, "create-github-release")
+    preparation = (WORKFLOWS / "prepare-release.yml").read_text()
+    publication = (WORKFLOWS / "publish-release.yml").read_text()
+    metadata_job = _workflow_job(preparation, "open-release-pr")
+    merge_job = _workflow_job(preparation, "merge-release-pr")
+    github_release_job = _workflow_job(publication, "create-github-release")
     metadata_actions = re.findall(r"uses:\s+([^@\s]+)@", metadata_job)
 
     assert "contents: write" in metadata_job
+    assert "pull-requests: write" in metadata_job
     assert "id-token: write" not in metadata_job
     assert metadata_actions == ["astral-sh/setup-uv", "actions/checkout"]
     assert metadata_job.index("astral-sh/setup-uv@") < metadata_job.index("actions/checkout@")
     assert "persist-credentials: true" in metadata_job
-    assert "run: uv lock" in metadata_job
+    assert "uv lock" in metadata_job
     assert "uv build" not in metadata_job
     assert "uv publish" not in metadata_job
+
+    assert "actions: write" in merge_job
+    assert "pull-requests: write" in merge_job
+    assert "id-token: write" not in merge_job
+    assert "uv build" not in merge_job
+    assert "uv publish" not in merge_job
 
     assert "contents: write" in github_release_job
     assert "id-token: write" not in github_release_job
@@ -130,7 +150,7 @@ def test_release_writers_have_narrow_responsibilities() -> None:
 
 def test_release_changelog_uses_a_collision_resistant_output_delimiter() -> None:
     """A commit subject must not be able to terminate the multiline job output."""
-    release = (WORKFLOWS / "release.yml").read_text()
+    release = (WORKFLOWS / "prepare-release.yml").read_text()
     prepare_job = _workflow_job(release, "prepare-release")
 
     assert 'DELIMITER="release-changelog-$(git rev-parse HEAD)"' in prepare_job
@@ -139,22 +159,17 @@ def test_release_changelog_uses_a_collision_resistant_output_delimiter() -> None
     assert "content<<EOF" not in prepare_job
 
 
-def test_failed_release_can_retry_existing_metadata() -> None:
-    """A retry reuses only the exact metadata commit and its committed release body."""
-    release = (WORKFLOWS / "release.yml").read_text()
-    prepare_job = _workflow_job(release, "prepare-release")
-    metadata_job = _workflow_job(release, "update-release-metadata")
+def test_failed_publication_can_retry_exact_merged_metadata() -> None:
+    """A retry must rebuild only the selected metadata commit already merged into main."""
+    release = (WORKFLOWS / "publish-release.yml").read_text()
+    validate_job = _workflow_job(release, "validate-release")
 
-    assert 'awk -v heading="## [$RELEASE_VERSION]"' in prepare_job
-    assert "Version $RELEASE_VERSION is already current; reusing release metadata" in metadata_job
-    assert "CHANGELOG already contains version $RELEASE_VERSION; reusing it" in metadata_job
-    assert "if git diff --cached --quiet; then" in metadata_job
-    assert 'git diff "$GITHUB_SHA^" "$GITHUB_SHA" -- pyproject.toml' in metadata_job
-    assert 'git diff "$GITHUB_SHA^" "$GITHUB_SHA" -- CHANGELOG.md' in metadata_job
-    assert "main advanced beyond the original release metadata commit" in metadata_job
-    assert (
-        "Release metadata is already committed; continuing the failed release retry" in metadata_job
-    )
+    assert "expected_sha:" in release
+    assert "ref: ${{ inputs.expected_sha }}" in validate_job
+    assert '"$(git rev-parse HEAD)" != "$EXPECTED_SHA"' in validate_job
+    assert 'git merge-base --is-ancestor "$EXPECTED_SHA" origin/main' in validate_job
+    assert 'grep -Fqx "version = \\"$RELEASE_VERSION\\"" pyproject.toml' in validate_job
+    assert 'awk -v heading="## [$RELEASE_VERSION]"' in validate_job
 
 
 def test_build_backend_dependencies_are_exactly_pinned() -> None:
@@ -182,7 +197,7 @@ def test_workflow_actions_are_pinned_to_commits() -> None:
 def test_local_wheel_recipe_runs_the_ci_smoke_contract_in_development_mode() -> None:
     """Local package validation must catch the same installed-wheel failures as CI."""
     justfile = (ROOT / "Justfile").read_text()
-    release_workflow = (WORKFLOWS / "release.yml").read_text()
+    release_workflow = (WORKFLOWS / "publish-release.yml").read_text()
     smoke_script = (ROOT / "scripts" / "smoke_test_installed_wheel.py").read_text()
 
     assert "scripts/smoke_test_installed_wheel.py" in justfile

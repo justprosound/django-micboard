@@ -301,8 +301,10 @@ uv run --no-sync pre-commit run --all-files
 ## Release Notes
 
 - Update CHANGELOG.md under [Unreleased] with notable changes.
-- Build the package and publish to PyPI or your internal index.
-- Tag releases with a calendar version (e.g., v26.01.29).
+- Run the **Prepare Release PR** workflow from `main` with a calendar version (e.g., `26.01.29`).
+- Release metadata reaches `main` through a protected pull request and required checks.
+- The publication workflow builds the protected merge commit, publishes through trusted
+  publishing, and creates the matching GitHub tag and release.
 
 ## Development Workflow
 
