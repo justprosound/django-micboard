@@ -32,6 +32,8 @@ from collections.abc import Awaitable, Callable
 from inspect import isawaitable
 from typing import TYPE_CHECKING, Any
 
+from asgiref.sync import sync_to_async
+
 websockets: Any
 WebsocketClosedOKError: type[BaseException]
 WebsocketConnectionClosedError: type[BaseException]
@@ -157,7 +159,10 @@ async def connect_and_subscribe(
             logger.info("Received Shure WebSocket transport ID")
 
             # Subscribe via REST
-            _subscribe_client_to_transport(client, device_id, transport_id)
+            await sync_to_async(
+                _subscribe_client_to_transport,
+                thread_sensitive=True,
+            )(client, device_id, transport_id)
 
             # Continuously receive messages and dispatch to callback
             await _read_and_dispatch_messages(websocket, device_id, callback)

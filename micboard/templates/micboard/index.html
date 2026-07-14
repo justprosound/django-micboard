@@ -15,6 +15,20 @@
                         </div>
                     </div>
                     <p class="lead">Monitor battery, audio, and RF levels for supported wireless microphones in real time. Integrates with Shure, Sennheiser, and more.</p>
+                    <div class="row g-3 mb-4" aria-label="Monitoring summary">
+                        <div class="col-sm-6">
+                            <div class="border rounded p-3">
+                                <strong class="fs-4">{{ device_count }}</strong>
+                                <span>managed device{{ device_count|pluralize }}</span>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="border rounded p-3">
+                                <strong class="fs-4">{{ group_count }}</strong>
+                                <span>monitoring group{{ group_count|pluralize }}</span>
+                            </div>
+                        </div>
+                    </div>
                     <hr aria-hidden="true">
                     <div class="row">
                         <div class="col-md-6">

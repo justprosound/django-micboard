@@ -31,7 +31,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        from micboard.services.settings import settings
+        from micboard.services.settings.settings_service import settings
 
         # Get API servers configuration
         api_servers = settings.get("MANUFACTURER_API_SERVERS", {})
@@ -90,16 +90,6 @@ class Command(BaseCommand):
         )
 
         # Summary from service
-        self.stdout.write(f"\n{'=' * 70}")
-        self.stdout.write(self.style.SUCCESS("IMPORT SUMMARY"))
-        self.stdout.write(f"{'=' * 70}")
-        self.stdout.write(f"Total discovered: {total_discovered}")
-        self.stdout.write(f"Newly imported: {total_imported}")
-        self.stdout.write(f"Updated: {total_updated}")
-        if options["dry_run"]:
-            self.stdout.write(self.style.WARNING("\n(DRY RUN - No changes made)"))
-
-        # Summary
         self.stdout.write(f"\n{'=' * 70}")
         self.stdout.write(self.style.SUCCESS("IMPORT SUMMARY"))
         self.stdout.write(f"{'=' * 70}")

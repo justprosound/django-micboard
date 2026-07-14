@@ -195,7 +195,7 @@ The Shure API supports WebSocket subscriptions for battery updates:
 
 ### Battery Health Alerts
 
-Extend `micboard/services/alerts.py` to include battery health alerts:
+Extend `micboard/services/monitoring/alerts.py` to include battery health alerts:
 
 ```python
 # Alert when battery health degrades
@@ -308,4 +308,4 @@ def test_shure_battery_health_persistence(mock_shure_api):
 - [Shure Integration Guide](docs/shure-integration.md)
 - [Admin Interface Documentation](docs/admin-interface.md)
 - [Polling Tasks](micboard/tasks/polling_tasks.py)
-- [Alert System](micboard/services/alerts.py)
+- [Alert System](micboard/services/monitoring/alerts.py)

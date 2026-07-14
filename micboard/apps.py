@@ -52,7 +52,7 @@ class MicboardConfig(AppConfig):
 
     def ready(self) -> None:
         """Initialize app when Django starts."""
-        from micboard.services.settings import settings as micboard_settings
+        from micboard.services.settings.settings_service import settings as micboard_settings
 
         # Resolve configuration through the app's single settings seam.
         resolved_config = micboard_settings.get_config_dict()
@@ -95,7 +95,10 @@ class MicboardConfig(AppConfig):
             run_manufacturer_discovery_task,
             sync_receiver_discovery,
         )
-        from micboard.tasks.sync.polling import poll_manufacturer_devices
+        from micboard.tasks.sync.polling import (
+            poll_manufacturer_devices,
+            refresh_selected_chassis,
+        )
 
         task_functions = (
             poll_charger_data,
@@ -108,6 +111,7 @@ class MicboardConfig(AppConfig):
             run_manufacturer_discovery_task,
             sync_receiver_discovery,
             poll_manufacturer_devices,
+            refresh_selected_chassis,
         )
         for task_function in task_functions:
             register_huey_task(task_function)

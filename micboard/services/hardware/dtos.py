@@ -79,3 +79,17 @@ class ChassisBandPlanUpdate(PydanticBaseDTO):
     band_plan_name: str | None = None
     band_plan_min_mhz: float | None = None
     band_plan_max_mhz: float | None = None
+
+
+class ChassisDiscoveryCleanup(PydanticBaseDTO):
+    """Manufacturer discovery cleanup snapshot requested by chassis deletion."""
+
+    manufacturer_id: int
+    ip: str
+
+
+class ChassisRefreshResult(PydanticBaseDTO):
+    """Summary of one tenant-scoped chassis refresh operation."""
+
+    synced_count: int
+    failed_count: int

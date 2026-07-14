@@ -3,10 +3,18 @@
 from importlib import import_module
 from unittest.mock import patch
 
+from django.contrib.sites.models import Site
 from django.test import TestCase, override_settings
 
 from micboard.apps import MicboardConfig
-from micboard.services.settings import settings
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.settings.registry import Setting, SettingDefinition
+from micboard.multitenancy.models import Campus, Organization, OrganizationMembership
+from micboard.services.settings.presentation_service import settings_presentation
+from micboard.services.settings.settings_service import settings
+from micboard.services.settings.visibility_service import settings_visibility
+from micboard.services.shared.settings_registry import SettingsRegistry
+from tests.factories.base import UserFactory
 
 
 class SettingsServiceTests(TestCase):
@@ -38,6 +46,19 @@ class SettingsServiceTests(TestCase):
     def test_get_from_config_dict(self) -> None:
         """Resolve generic keys from the host's MICBOARD_CONFIG dictionary."""
         self.assertEqual(settings.get("SHURE_API_TIMEOUT"), 30)
+
+    @override_settings(MICBOARD_CONFIG={"HOST_PRECEDENCE": "host-value"})
+    def test_host_config_precedes_definition_default(self) -> None:
+        """A registered definition must not suppress explicit host configuration."""
+        SettingDefinition.objects.create(
+            key="HOST_PRECEDENCE",
+            label="Host precedence",
+            setting_type=SettingDefinition.TYPE_STRING,
+            default_value="definition-value",
+        )
+
+        self.assertEqual(SettingsRegistry.get("HOST_PRECEDENCE"), "definition-value")
+        self.assertEqual(settings.get("HOST_PRECEDENCE"), "host-value")
 
     @override_settings(MICBOARD_CONFIG={"CUSTOM_KEY": "custom_value"})
     def test_get_with_default(self) -> None:
@@ -138,3 +159,231 @@ class MicboardAppConfigTests(TestCase):
             self.assertEqual(MicboardConfig.get_config(), resolved_config)
 
         get_config.assert_called_once_with()
+
+
+class SettingsPresentationServiceTests(TestCase):
+    """Settings presentation must stay scoped and query-efficient."""
+
+    @override_settings(
+        MICBOARD_MSP_ENABLED=False,
+        MICBOARD_MULTI_SITE_MODE=True,
+        SITE_ID=7,
+    )
+    def test_superuser_remains_scoped_to_current_site_in_multi_site_mode(self) -> None:
+        """Platform permissions must not bypass non-MSP site isolation."""
+        admin = UserFactory(is_superuser=True)
+
+        scope = settings_visibility.for_user(user=admin)
+
+        self.assertEqual(scope.organization_ids, frozenset())
+        self.assertEqual(scope.site_ids, frozenset({7}))
+        self.assertEqual(scope.manufacturer_ids, frozenset())
+        self.assertFalse(settings_visibility.is_unrestricted(scope))
+
+    @override_settings(
+        MICBOARD_MSP_ENABLED=True,
+        MICBOARD_MULTI_SITE_MODE=True,
+        MICBOARD_ALLOW_CROSS_ORG_VIEW=True,
+        SITE_ID=7,
+    )
+    def test_cross_org_superuser_is_intersected_with_current_site(self) -> None:
+        """Cross-organization access must not become cross-site access."""
+        current_site = Site.objects.create(pk=7, domain="settings-current.test", name="Current")
+        foreign_site = Site.objects.create(pk=8, domain="settings-foreign.test", name="Foreign")
+        current_organization = Organization.objects.create(
+            name="Current Site Settings Organization",
+            slug="current-site-settings-organization",
+            site=current_site,
+        )
+        Organization.objects.create(
+            name="Foreign Site Settings Organization",
+            slug="foreign-site-settings-organization",
+            site=foreign_site,
+        )
+        admin = UserFactory(is_superuser=True)
+
+        scope = settings_visibility.for_user(user=admin)
+
+        self.assertEqual(scope.organization_ids, frozenset({current_organization.pk}))
+        self.assertEqual(scope.site_ids, frozenset({current_site.pk}))
+        self.assertEqual(scope.manufacturer_ids, frozenset())
+        self.assertFalse(settings_visibility.is_unrestricted(scope))
+
+    @override_settings(
+        MICBOARD_MSP_ENABLED=True,
+        MICBOARD_MULTI_SITE_MODE=True,
+        MICBOARD_ALLOW_CROSS_ORG_VIEW=False,
+        SITE_ID=7,
+    )
+    def test_memberships_are_intersected_with_current_site(self) -> None:
+        """An active membership on another site must not expose its settings."""
+        current_site = Site.objects.create(pk=7, domain="member-current.test", name="Current")
+        foreign_site = Site.objects.create(pk=8, domain="member-foreign.test", name="Foreign")
+        current_organization = Organization.objects.create(
+            name="Current Member Settings Organization",
+            slug="current-member-settings-organization",
+            site=current_site,
+        )
+        foreign_organization = Organization.objects.create(
+            name="Foreign Member Settings Organization",
+            slug="foreign-member-settings-organization",
+            site=foreign_site,
+        )
+        user = UserFactory(username="combined-mode-settings-user")
+        OrganizationMembership.objects.create(user=user, organization=current_organization)
+        OrganizationMembership.objects.create(user=user, organization=foreign_organization)
+
+        scope = settings_visibility.for_user(user=user)
+
+        self.assertEqual(scope.organization_ids, frozenset({current_organization.pk}))
+        self.assertEqual(scope.site_ids, frozenset())
+        self.assertEqual(scope.manufacturer_ids, frozenset())
+
+    def test_unrestricted_diff_uses_a_fixed_query_budget(self) -> None:
+        """Definitions must not trigger per-setting override queries."""
+        admin = UserFactory(
+            username="settings-query-admin",
+            is_staff=True,
+            is_superuser=True,
+        )
+        organization = Organization.objects.create(
+            name="Settings Query Organization",
+            slug="settings-query-organization",
+        )
+        manufacturer = Manufacturer.objects.create(
+            name="Settings Query Manufacturer",
+            code="settings-query-manufacturer",
+        )
+        organization_definition = SettingDefinition.objects.create(
+            key="organization_label",
+            label="Organization Label",
+            setting_type=SettingDefinition.TYPE_STRING,
+            default_value="default",
+        )
+        manufacturer_definition = SettingDefinition.objects.create(
+            key="manufacturer_label",
+            label="Manufacturer Label",
+            setting_type=SettingDefinition.TYPE_STRING,
+            default_value="default",
+        )
+        Setting.objects.create(
+            definition=organization_definition,
+            organization_id=organization.pk,
+            value="organization-value",
+        )
+        Setting.objects.create(
+            definition=manufacturer_definition,
+            manufacturer_id=manufacturer.pk,
+            value="manufacturer-value",
+        )
+
+        with self.assertNumQueries(4):
+            context = settings_presentation.get_diff(user=admin)
+
+        self.assertEqual(len(context["overrides"]), 2)
+
+    @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
+    def test_restricted_superuser_without_membership_fails_closed(self) -> None:
+        """Superuser status must not bypass an explicitly disabled tenant boundary."""
+        admin = UserFactory(
+            username="restricted-settings-admin",
+            is_staff=True,
+            is_superuser=True,
+        )
+        organization = Organization.objects.create(
+            name="Foreign Settings Organization",
+            slug="foreign-settings-organization",
+        )
+        definition = SettingDefinition.objects.create(
+            key="foreign_setting",
+            label="Foreign Setting",
+            setting_type=SettingDefinition.TYPE_STRING,
+            default_value="default",
+        )
+        Setting.objects.create(
+            definition=definition,
+            organization_id=organization.pk,
+            value="foreign-value",
+        )
+
+        context = settings_presentation.get_diff(user=admin)
+        overview = settings_presentation.get_overview(user=admin)
+
+        self.assertEqual(context["overrides"], [])
+        self.assertFalse(overview["org_settings"].exists())
+
+    @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
+    def test_visibility_ignores_revoked_and_inconsistent_memberships(self) -> None:
+        """Only active, internally consistent memberships may expose settings."""
+        user = UserFactory(username="settings-tenant-viewer")
+        broad_org = Organization.objects.create(
+            name="Broad Settings Organization",
+            slug="broad-settings-organization",
+        )
+        scoped_org = Organization.objects.create(
+            name="Scoped Settings Organization",
+            slug="scoped-settings-organization",
+        )
+        scoped_campus = Campus.objects.create(
+            organization=scoped_org,
+            name="Scoped Settings Campus",
+            slug="scoped-settings-campus",
+        )
+        inactive_org = Organization.objects.create(
+            name="Inactive Settings Organization",
+            slug="inactive-settings-organization",
+            is_active=False,
+        )
+        inactive_campus_org = Organization.objects.create(
+            name="Inactive Campus Settings Organization",
+            slug="inactive-campus-settings-organization",
+        )
+        inactive_campus = Campus.objects.create(
+            organization=inactive_campus_org,
+            name="Inactive Settings Campus",
+            slug="inactive-settings-campus",
+            is_active=False,
+        )
+        inconsistent_org = Organization.objects.create(
+            name="Inconsistent Settings Organization",
+            slug="inconsistent-settings-organization",
+        )
+        foreign_org = Organization.objects.create(
+            name="Foreign Settings Campus Organization",
+            slug="foreign-settings-campus-organization",
+        )
+        foreign_campus = Campus.objects.create(
+            organization=foreign_org,
+            name="Foreign Settings Campus",
+            slug="foreign-settings-campus",
+        )
+
+        OrganizationMembership.objects.create(user=user, organization=broad_org)
+        OrganizationMembership.objects.create(
+            user=user,
+            organization=scoped_org,
+            campus=scoped_campus,
+        )
+        OrganizationMembership.objects.create(user=user, organization=inactive_org)
+        OrganizationMembership.objects.create(
+            user=user,
+            organization=inactive_campus_org,
+            campus=inactive_campus,
+        )
+        OrganizationMembership.objects.create(
+            user=user,
+            organization=inconsistent_org,
+            campus=foreign_campus,
+        )
+
+        scope = settings_visibility.for_user(user=user)
+
+        self.assertEqual(scope.organization_ids, frozenset({broad_org.pk}))
+        self.assertFalse(
+            settings_visibility.can_manage_scope(
+                scope,
+                organization_id=scoped_org.pk,
+                site_id=None,
+                manufacturer_id=None,
+            )
+        )

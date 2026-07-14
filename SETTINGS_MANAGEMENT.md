@@ -30,7 +30,7 @@ The combination of (definition, organization, site, manufacturer) must be unique
 The `SettingsRegistry` service provides unified access to configured settings with intelligent fallback:
 
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 # Get battery low threshold, resolving through scope hierarchy
 threshold = SettingsRegistry.get(
@@ -59,7 +59,9 @@ The registry includes:
 Quick access to manufacturer configurations with database overrides:
 
 ```python
-from micboard.services.manufacturer_config_registry import ManufacturerConfigRegistry
+from micboard.services.manufacturer.manufacturer_config_registry import (
+    ManufacturerConfigRegistry,
+)
 
 config = ManufacturerConfigRegistry.get('shure', manufacturer=shure_mfg)
 # Returns: ManufacturerConfig with:
@@ -103,7 +105,7 @@ uv run --no-sync python manage.py init_settings --reset  # Clear and reinitializ
 
 For rapid configuration of multiple settings:
 
-1. **Go to**: `/admin/settings/bulk/`
+1. **Go to**: `/settings/bulk/`
 2. **Select scope** where settings apply
 3. **Fill in values** for any settings you want to configure
 4. **Save** - all will be updated at once
@@ -112,7 +114,7 @@ For rapid configuration of multiple settings:
 
 Quick setup for manufacturer-specific settings:
 
-1. **Go to**: `/admin/settings/manufacturer/`
+1. **Go to**: `/settings/manufacturer/`
 2. **Select manufacturer** to configure
 3. **Enter values** for battery thresholds, API timeouts, etc.
 4. **Save** - all updates applied to that manufacturer
@@ -121,16 +123,16 @@ Quick setup for manufacturer-specific settings:
 
 View all configured settings:
 
-1. **Go to**: `/admin/settings/`
+1. **Go to**: `/settings/`
 2. **See settings** grouped by scope
-3. **Click to edit** any specific setting
+3. **Use Django admin** to edit a listed setting
 
 ### In Code
 
 Access settings in your services and views:
 
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 class DevicePollingService:
     def poll(self, device):
@@ -225,7 +227,7 @@ uv run --no-sync python manage.py init_settings --reset
 ### 3. Use in Code
 
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 value = SettingsRegistry.get('my_setting_key', default=False, organization=org)
 ```

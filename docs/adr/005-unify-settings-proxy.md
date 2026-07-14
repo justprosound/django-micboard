@@ -50,7 +50,8 @@ The duplicate APIs caused:
    `SettingsService.get()` or `SettingsService.get_config_dict()`.
 
 4. **Remove the obsolete settings proxy without a compatibility layer.** All callers import the
-   public singleton or service class from `micboard.services.settings`.
+   public singleton or service class from its defining module,
+   `micboard.services.settings.settings_service`.
 
 5. **Enforcement:** Add a lint rule forbidding raw host configuration reads outside the unified
    service.

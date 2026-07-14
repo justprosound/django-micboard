@@ -19,6 +19,18 @@ from micboard.services.monitoring.alerts import (
 logger = logging.getLogger(__name__)
 
 
+def refresh_selected_chassis(
+    chassis_ids: list[int],
+    *,
+    using: str = "default",
+) -> dict[str, int]:
+    """Refresh an explicit admin selection in a native Huey worker."""
+    from micboard.services.hardware.chassis_refresh_service import ChassisRefreshService
+
+    result = ChassisRefreshService.refresh_ids(chassis_ids=chassis_ids, using=using)
+    return result.model_dump()
+
+
 def poll_manufacturer_devices(manufacturer_id: int) -> dict[str, Any] | None:
     """Poll one manufacturer through the service layer and run follow-up work."""
     try:

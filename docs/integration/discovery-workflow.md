@@ -534,7 +534,9 @@ existing = Receiver.objects.filter(
 Run the deduplication test suite:
 
 ```bash
-uv run python scripts/test_deduplication.py
+uv run --no-sync pytest \
+  tests/test_deduplication_log_redaction.py \
+  tests/services/sync/test_discovery_approval_conflicts.py
 ```
 
 **Tests**:

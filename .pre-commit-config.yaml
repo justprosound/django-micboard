@@ -92,6 +92,13 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: docs-requirements-lock
+        name: docs requirements lock consistency
+        entry: uv run --no-sync python scripts/check_docs_requirements.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
 ci:
   autoupdate_schedule: weekly
   skip: []

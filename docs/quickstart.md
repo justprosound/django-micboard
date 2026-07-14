@@ -16,7 +16,7 @@ Get django-micboard up and running with your Shure wireless microphone system in
 Add django-micboard and the optional real-time dependencies to your uv-managed host project:
 
 ```bash
-uv add "django-micboard[realtime]"
+uv add "django-micboard[standard,realtime,shure]"
 ```
 
 Or for development:
@@ -32,15 +32,29 @@ uv sync --locked --all-extras
 Add to your `settings.py`:
 
 ```python
+import os
+
+DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
+
 INSTALLED_APPS = [
     # ... your other apps
     "channels",
+    "huey.contrib.djhuey",
     "micboard",
 ]
 
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": "https://your-shure-system.local:10000",
-    "SHURE_API_SHARED_KEY": "your-shared-secret",
+    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
+}
+
+MICBOARD_API_SERVER_ALLOWED_HOSTS = ["your-shure-system.local"]
+
+HUEY = {
+    "huey_class": "huey.RedisHuey",
+    "name": "micboard",
+    "connection": {"url": os.environ.get("REDIS_URL", "redis://localhost:6379/1")},
+    "immediate": DEBUG,
 }
 
 # Django Channels (for WebSocket support)
@@ -90,7 +104,7 @@ uv run --no-sync python manage.py migrate
 1. Access your Shure System API management interface
 2. Navigate to **Network → API Settings**
 3. Enable the **System API**
-4. Note the API URL and credentials
+4. Note the API URL and shared key
 
 ### Configure Device Discovery
 
@@ -100,7 +114,7 @@ Add your Shure device IPs to the discovery list:
 # Add discovery IPs
 uv run --no-sync python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
 
-# Or configure via admin interface at /admin/micboard/discovery/
+# Or configure candidates at /admin/micboard/discovereddevice/
 ```
 
 ## Start Monitoring
@@ -113,6 +127,9 @@ uv run --no-sync python manage.py poll_devices --manufacturer shure
 
 # Enqueue one poll through native Huey
 uv run --no-sync python manage.py poll_devices --manufacturer shure --async
+
+# Run the native Huey consumer outside immediate/development mode
+uv run --no-sync python manage.py run_huey
 ```
 
 ### Start Django Server
@@ -125,7 +142,7 @@ Visit `http://localhost:8000/admin/` to see your devices!
 
 ## Real-time Updates
 
-Django Micboard automatically establishes WebSocket connections for real-time updates:
+Polling and subscription tasks feed real-time updates for:
 
 - Battery levels
 - RF signal strength
@@ -199,7 +216,7 @@ The system now supports real-time updates via WebSocket (Shure) and SSE (Sennhei
 - Check network connectivity
 
 **Problem**: WebSocket not connecting
-- Ensure Daphne is running (not standard Django server)
+- Ensure an ASGI server is running in production
 - Check browser console for errors
 - Verify WebSocket URL: `ws://localhost:8000/ws`
 
@@ -223,6 +240,7 @@ The system now supports real-time updates via WebSocket (Shure) and SSE (Sennhei
 ## Production Checklist
 
 - [ ] Redis configured for Channels
+- [ ] PostgreSQL database configured (`DEBUG=False` rejects other engines)
 - [ ] Huey consumer and scheduled polling trigger
 - [ ] systemd service for Daphne
 - [ ] Nginx/Apache reverse proxy

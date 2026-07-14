@@ -5,18 +5,27 @@ Tracks all CRUD operations, service syncs, and system events.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.conf import settings
+from django.core.serializers.json import DjangoJSONEncoder
 
 if TYPE_CHECKING:
     from django.http import HttpRequest  # pragma: no cover - typing only
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import DEFAULT_DB_ALIAS, models
 
 logger = logging.getLogger(__name__)
+
+
+def _json_safe(value: dict[str, Any] | None) -> dict[str, Any]:
+    """Normalize Django-native values before assigning them to a JSONField."""
+    if not value:
+        return {}
+    return json.loads(json.dumps(value, cls=DjangoJSONEncoder))
 
 
 class ActivityLog(models.Model):
@@ -207,6 +216,7 @@ class ActivityLog(models.Model):
         old_values: dict[str, Any] | None = None,
         new_values: dict[str, Any] | None = None,
         request=None,
+        using: str = DEFAULT_DB_ALIAS,
     ) -> ActivityLog:
         """Log a CRUD operation.
 
@@ -217,16 +227,17 @@ class ActivityLog(models.Model):
             old_values: Previous values for UPDATE operations
             new_values: New values for CREATE/UPDATE operations
             request: Optional HTTP request for IP/user agent
+            using: Database alias for content-type lookup and audit persistence
         """
         log = cls(
             activity_type=cls.ACTIVITY_CRUD,
             operation=operation,
             user=user,
-            content_type=ContentType.objects.get_for_model(obj),
+            content_type=ContentType.objects.db_manager(using).get_for_model(obj),
             object_id=obj.pk if obj.pk else None,
             summary=f"{operation} {obj.__class__.__name__}: {str(obj)[:100]}",
-            old_values=old_values or {},
-            new_values=new_values or {},
+            old_values=_json_safe(old_values),
+            new_values=_json_safe(new_values),
             status="success",
         )
 
@@ -234,7 +245,7 @@ class ActivityLog(models.Model):
             log.ip_address = cls._get_client_ip(request)
             log.user_agent = request.headers.get("user-agent", "")[:255]
 
-        log.save()
+        log.save(using=using)
         logger.info(
             log.summary,
             extra={
@@ -272,7 +283,7 @@ class ActivityLog(models.Model):
             operation=operation,
             service_code=service_code,
             summary=f"{service_code} - {summary}",
-            details=details or {},
+            details=_json_safe(details),
             status=status,
             error_message=error_message,
         )
@@ -317,11 +328,13 @@ class ActivityLog(models.Model):
             operation=cls.SUCCESS if status == "success" else cls.FAILURE,
             service_code=service_code,
             summary=f"{service_code} sync - {summary}",
-            details={
-                "device_count": device_count,
-                "online_count": online_count,
-                **(details or {}),
-            },
+            details=_json_safe(
+                {
+                    "device_count": device_count,
+                    "online_count": online_count,
+                    **(details or {}),
+                }
+            ),
             status=status,
             error_message=error_message,
         )
@@ -360,7 +373,7 @@ class ActivityLog(models.Model):
             activity_type=cls.ACTIVITY_DISCOVERY,
             operation=cls.SUCCESS if status == "success" else cls.FAILURE,
             summary=summary,
-            details=details or {},
+            details=_json_safe(details),
             status=status,
             error_message=error_message,
         )

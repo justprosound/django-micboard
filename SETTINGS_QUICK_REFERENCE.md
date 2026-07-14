@@ -252,9 +252,9 @@ For mobile: Use laptop/desktop for admin tasks.
 |------|-------|
 | Add new setting | `/admin/micboard/setting/add/` |
 | View all settings | `/admin/micboard/setting/` |
-| Configure manufacturer | `/admin/settings/manufacturer/` |
-| Settings overview | `/admin/settings/` |
-| Bulk configure | `/admin/settings/bulk/` |
+| Configure manufacturer | `/settings/manufacturer/` |
+| Settings overview | `/settings/` |
+| Bulk configure | `/settings/bulk/` |
 
 ---
 

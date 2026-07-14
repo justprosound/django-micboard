@@ -6,15 +6,19 @@ from django.contrib import admin, messages
 from django.db.models import QuerySet
 from django.urls import reverse
 from django.utils.html import format_html
-from django.utils.timezone import now
 
 from micboard.admin.mixins import MicboardModelAdmin
+from micboard.admin.secret_fields import replace_field
+from micboard.forms.integrations import ManufacturerAPIServerForm
 from micboard.models.integrations import Accessory, ManufacturerAPIServer
+from micboard.services.integrations.api_server_service import APIServerConnectionService
 
 
 @admin.register(ManufacturerAPIServer)
 class ManufacturerAPIServerAdmin(MicboardModelAdmin):
     """Admin interface for managing manufacturer API servers."""
+
+    form = ManufacturerAPIServerForm
 
     list_display = (
         "name",
@@ -25,7 +29,13 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
     )
     list_filter = ("manufacturer", "enabled", "status")
     search_fields = ("name", "base_url", "location_name")
-    readonly_fields = ("created_at", "updated_at", "last_health_check", "status_message")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "last_health_check",
+        "status_message",
+        "shared_key_masked",
+    )
 
     fieldsets = (
         (
@@ -57,6 +67,21 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
     )
 
     actions = ["test_connection", "enable_servers", "disable_servers"]
+
+    def get_fieldsets(self, request: Any, obj: ManufacturerAPIServer | None = None) -> Any:
+        """Keep the stored key out of Django's readonly model-field renderer."""
+        if obj is not None and not self.has_change_permission(request, obj):
+            return replace_field(
+                self.fieldsets,
+                raw_field="shared_key",
+                display_field="shared_key_masked",
+            )
+        return super().get_fieldsets(request, obj)
+
+    @admin.display(description="Shared Key")
+    def shared_key_masked(self, obj: ManufacturerAPIServer) -> str:
+        """Confirm credential presence without disclosing any fragment."""
+        return "••••••" if obj.shared_key else "Not configured"
 
     @admin.display(description="Status")
     def status_indicator(self, obj: ManufacturerAPIServer) -> str:
@@ -92,50 +117,38 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
         """Show enabled/disabled status."""
         return obj.enabled
 
-    @admin.action(description="🔍 Test connection to API servers")
+    @admin.action(permissions=["change"], description="🔍 Test connection to API servers")
     def test_connection(self, request: Any, queryset: QuerySet) -> None:
         """Test connection to selected API servers."""
-        from micboard.integrations.shure.client import ShureSystemAPIClient
-
         for server in queryset:
-            try:
-                if server.manufacturer == "shure":
-                    client = ShureSystemAPIClient(base_url=server.base_url)
-                    # Try a simple health check
-                    devices = client.devices.get_devices()
-                    server.status = ManufacturerAPIServer.Status.ACTIVE
-                    server.status_message = (
-                        f"✓ Connection successful ({len(devices)} devices found)"
-                    )
-                    server.last_health_check = now()
-                else:
-                    server.status = ManufacturerAPIServer.Status.UNKNOWN
-                    server.status_message = (
-                        f"Health check not implemented for {server.manufacturer}"
-                    )
-            except Exception as e:
-                server.status = ManufacturerAPIServer.Status.ERROR
-                server.status_message = f"✗ Connection failed: {str(e)[:200]}"
-                server.last_health_check = now()
-            server.save()
+            APIServerConnectionService.test_connection_and_record(server)
 
         self.message_user(
             request, f"Health check completed for {queryset.count()} server(s)", messages.SUCCESS
         )
 
-    @admin.action(description="✓ Enable selected servers")
+    def has_import_permission(self, request: Any) -> bool:
+        """Prevent credential-bearing server rows from bulk import."""
+        return False
+
+    def has_export_permission(self, request: Any) -> bool:
+        """Prevent credential-bearing server rows from bulk export."""
+        return False
+
+    @admin.action(permissions=["change"], description="✓ Enable selected servers")
     def enable_servers(self, request: Any, queryset: QuerySet) -> None:
         """Enable selected servers."""
         count = queryset.update(enabled=True)
         self.message_user(request, f"{count} server(s) enabled", messages.SUCCESS)
 
-    @admin.action(description="✗ Disable selected servers")
+    @admin.action(permissions=["change"], description="✗ Disable selected servers")
     def disable_servers(self, request: Any, queryset: QuerySet) -> None:
         """Disable selected servers."""
         count = queryset.update(enabled=False)
         self.message_user(request, f"{count} server(s) disabled", messages.WARNING)
 
 
+@admin.register(Accessory)
 class AccessoryAdmin(MicboardModelAdmin):
     """Admin interface for managing accessories."""
 
@@ -210,13 +223,13 @@ class AccessoryAdmin(MicboardModelAdmin):
         """Show condition as badge."""
         return obj.get_condition_display()
 
-    @admin.action(description="✓ Mark as available")
+    @admin.action(permissions=["change"], description="✓ Mark as available")
     def mark_available(self, request: Any, queryset: QuerySet) -> None:
         """Mark accessories as available."""
         count = queryset.update(is_available=True)
         self.message_user(request, f"{count} accessory(ies) marked as available", messages.SUCCESS)
 
-    @admin.action(description="✗ Mark as unavailable")
+    @admin.action(permissions=["change"], description="✗ Mark as unavailable")
     def mark_unavailable(self, request: Any, queryset: QuerySet) -> None:
         """Mark accessories as unavailable."""
         count = queryset.update(is_available=False)
@@ -224,7 +237,7 @@ class AccessoryAdmin(MicboardModelAdmin):
             request, f"{count} accessory(ies) marked as unavailable", messages.WARNING
         )
 
-    @admin.action(description="⚠️ Mark as needs repair")
+    @admin.action(permissions=["change"], description="⚠️ Mark as needs repair")
     def mark_needs_repair(self, request: Any, queryset: QuerySet) -> None:
         """Mark accessories as needing repair."""
         count = queryset.update(condition="needs_repair", is_available=False)
@@ -232,7 +245,7 @@ class AccessoryAdmin(MicboardModelAdmin):
             request, f"{count} accessory(ies) marked as needing repair", messages.WARNING
         )
 
-    @admin.action(description="📅 Update checkout dates")
+    @admin.action(permissions=["change"], description="📅 Update checkout dates")
     def update_checkout_status(self, request: Any, queryset: QuerySet) -> None:
         """Update checkout/checkin timestamps."""
         # This would open a form to bulk update dates

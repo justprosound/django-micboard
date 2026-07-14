@@ -11,6 +11,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 GLOBAL_UPDATES_GROUP = "micboard_updates"
+GLOBAL_UPDATES_PERMISSION = "micboard.view_realtimeconnection"
 TenantScope = tuple[int, int | None]
 
 
@@ -24,8 +25,18 @@ def campus_updates_group(organization_id: int, campus_id: int) -> str:
     return f"{organization_updates_group(organization_id)}.campus.{campus_id}"
 
 
+def site_updates_group(site_id: int) -> str:
+    """Return the realtime group for one Django Site."""
+    return f"{GLOBAL_UPDATES_GROUP}.site.{site_id}"
+
+
 class RealtimeRoutingService:
     """Resolve tenant-safe group names and model ownership."""
+
+    @staticmethod
+    def can_receive_global_updates(user: Any) -> bool:
+        """Return whether a user may subscribe to the unpartitioned event stream."""
+        return bool(getattr(user, "is_active", False) and user.has_perm(GLOBAL_UPDATES_PERMISSION))
 
     @staticmethod
     def normalize_identifier(value: Any) -> int | None:
@@ -44,9 +55,13 @@ class RealtimeRoutingService:
             return None
         return organization_id, cls.normalize_identifier(data.get("campus_id"))
 
-    @staticmethod
+    @classmethod
     def groups_for_scope(
-        *, organization_id: int | None = None, campus_id: int | None = None
+        cls,
+        *,
+        organization_id: int | None = None,
+        campus_id: int | None = None,
+        site_id: int | None = None,
     ) -> tuple[str, ...]:
         """Return global or tenant groups for one event scope.
 
@@ -54,7 +69,12 @@ class RealtimeRoutingService:
         members retain visibility into their complete estate.
         """
         if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
-            return (GLOBAL_UPDATES_GROUP,)
+            if not getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+                return (GLOBAL_UPDATES_GROUP,)
+            resolved_site_id = site_id or cls.normalize_identifier(
+                getattr(settings, "SITE_ID", None)
+            )
+            return (site_updates_group(resolved_site_id),) if resolved_site_id else ()
         if organization_id is None:
             return ()
 
@@ -62,6 +82,26 @@ class RealtimeRoutingService:
         if campus_id is not None:
             groups.append(campus_updates_group(organization_id, campus_id))
         return tuple(groups)
+
+    @staticmethod
+    def chassis_site_ids(chassis_ids: Iterable[int]) -> dict[int, int]:
+        """Resolve chassis IDs to Django Site IDs in one query."""
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
+
+        try:
+            rows = WirelessChassis._default_manager.filter(pk__in=set(chassis_ids)).values_list(
+                "pk",
+                "location__building__site_id",
+            )
+            return {device_id: site_id for device_id, site_id in rows if site_id is not None}
+        except Exception:
+            logger.exception("Failed to resolve chassis site routes")
+            return {}
+
+    @classmethod
+    def chassis_site_id(cls, chassis_id: int) -> int | None:
+        """Resolve one chassis ID to its Django Site ID."""
+        return cls.chassis_site_ids((chassis_id,)).get(chassis_id)
 
     @staticmethod
     def chassis_tenant_scopes(chassis_ids: Iterable[int]) -> dict[int, TenantScope]:
@@ -121,6 +161,27 @@ class RealtimeRoutingService:
             return None
         return row[0], row[1]
 
+    @classmethod
+    def hardware_site_id(cls, *, device_type: str, device_id: int) -> int | None:
+        """Resolve a supported hardware model ID to its Django Site."""
+        if device_type == "WirelessChassis":
+            return cls.chassis_site_id(device_id)
+        if device_type != "WirelessUnit":
+            logger.warning("Skipped realtime route for unknown device type: %s", device_type)
+            return None
+
+        from micboard.models.hardware.wireless_unit import WirelessUnit
+
+        try:
+            return (
+                WirelessUnit._default_manager.filter(pk=device_id)
+                .values_list("base_chassis__location__building__site_id", flat=True)
+                .first()
+            )
+        except Exception:
+            logger.exception("Failed to resolve wireless unit site route")
+            return None
+
     @staticmethod
     def manufacturer_tenant_scopes(manufacturer: Any) -> tuple[TenantScope, ...]:
         """Resolve tenants that own chassis for a manufacturer."""
@@ -149,4 +210,26 @@ class RealtimeRoutingService:
             )
         except Exception:
             logger.exception("Failed to resolve manufacturer tenant routes")
+            return ()
+
+    @staticmethod
+    def manufacturer_site_ids(manufacturer: Any) -> tuple[int, ...]:
+        """Resolve sites that own chassis for a manufacturer."""
+        manufacturer_id = getattr(manufacturer, "pk", None)
+        if manufacturer_id is None:
+            return ()
+
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
+
+        try:
+            return tuple(
+                WirelessChassis._default_manager.filter(
+                    manufacturer_id=manufacturer_id,
+                    location__building__site_id__isnull=False,
+                )
+                .values_list("location__building__site_id", flat=True)
+                .distinct()
+            )
+        except Exception:
+            logger.exception("Failed to resolve manufacturer site routes")
             return ()

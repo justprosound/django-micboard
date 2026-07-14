@@ -1,434 +1,184 @@
-# Modern Python Tooling Guide
+# Development tooling
 
-This document describes the modern development tools integrated into django-micboard.
+django-micboard uses one reproducible toolchain: `uv` for dependency/environment management,
+`just` for repository recipes, and local pre-commit hooks that execute inside the uv-managed
+environment.
 
-## Overview
+## Bootstrap
 
-We've adopted industry-standard tooling from the django-gt-template to improve developer experience and code quality:
-
-1. **just** - Modern command runner (replaces Make)
-2. **django-lifecycle** - Declarative model lifecycle hooks
-3. **pre-commit hooks** - Automated code quality checks
-4. **commitlint** - Conventional commit enforcement
-5. **editorconfig** - Consistent code formatting across editors
-
----
-
-## 1. Justfile - Task Automation
-
-`just` is a modern alternative to `make` with better syntax and cross-platform support.
-
-### Installation
+From the repository root:
 
 ```bash
-# macOS
-brew install just
-
-# Linux
-curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
-
-# Or use cargo
-cargo install just
+uv sync --locked --all-extras
+uv run --no-sync pre-commit install --hook-type pre-commit
 ```
 
-### Common Commands
+The equivalent recipe is:
 
 ```bash
-# List all available commands
-just
-
-# Install all dependencies
 just install
+```
 
-# Run linters and formatters
+Every Justfile recipe depends on `uv-check`, which fails before running when `uv` is unavailable.
+Do not create environments or install project dependencies with other Python package managers.
+
+## Justfile recipes
+
+Run `just` to display the canonical list.
+
+| Recipe | Purpose |
+| --- | --- |
+| `just install` | Sync the locked environment with all extras and install the pre-commit hook |
+| `just lint` | Check Ruff formatting, Ruff rules, and mypy |
+| `just pre-commit` | Run every configured hook against the repository |
+| `just test` | Run the pytest suite |
+| `just coverage` | Run tests with the CI floor and validate the coverage inventory |
+| `just migrate` | Apply checked-in migrations to the example database |
+| `just docs` | Build the MkDocs documentation site |
+| `just example` | Start the root `manage.py` example project |
+| `just wheel` | Build source/wheel artifacts and validate the installed package contents |
+| `just type-check` | Run mypy for `micboard` |
+
+Examples:
+
+```bash
 just lint
-
-# Run tests
 just test
-
-# Run tests with coverage report
-just test-coverage
-
-# Quick validation before commit
-just quick-check
-
-# Run Django development server
-just run
-
-# Run device discovery
-just discover shure
-
-# Build documentation
-just docs
-just serve-docs
-
-# Clean build artifacts
-just clean
-
-# Run full CI pipeline locally
-just ci
-```
-
-### Key Features
-
-- **Parallel execution**: Commands run efficiently
-- **Environment variables**: Automatic `.env` loading with `set dotenv-load`
-- **Cross-platform**: Works on macOS, Linux, and Windows
-- **Tab completion**: Available for most shells
-- **Clear syntax**: No tab/space issues like Make
-
----
-
-## 2. django-lifecycle - Model Lifecycle Hooks
-
-**Status**: ✅ Integrated into `WirelessChassis` model
-
-### What It Does
-
-Replaces manual lifecycle management (`HardwareLifecycleManager`) with declarative hooks that:
-- **Cannot be bypassed** - Hooks fire automatically on save
-- **Enforce state machine** - Invalid transitions raise `ValueError`
-- **Auto-manage timestamps** - `last_online_at`, `last_offline_at`, `total_uptime_minutes`
-- **Audit logging** - Every status change logged automatically
-- **Broadcast events** - Real-time updates via `BroadcastService`
-
-### Example Usage
-
-```python
-# OLD WAY (manual lifecycle manager)
-from micboard.services.hardware_lifecycle import get_lifecycle_manager
-
-lifecycle = get_lifecycle_manager("shure")
-lifecycle.mark_online(chassis)
-
-# NEW WAY (automatic hooks)
-chassis.status = "online"
-chassis.save()  # Hooks fire automatically:
-                # - Validates transition
-                # - Updates timestamps
-                # - Logs to audit
-                # - Broadcasts event
-```
-
-### Hooks Implemented
-
-1. **`validate_status_transition`** (`BEFORE_SAVE`)
-   - Validates state machine transitions
-   - Raises `ValueError` for invalid transitions
-   - Enforces business rules
-
-2. **`on_status_online`** (`AFTER_UPDATE`)
-   - Sets `last_online_at` timestamp
-   - Sets `is_online = True`
-
-3. **`on_status_offline`** (`AFTER_UPDATE`)
-   - Sets `last_offline_at` timestamp
-   - Sets `is_online = False`
-   - Calculates `total_uptime_minutes`
-
-4. **`log_status_change_to_audit`** (`AFTER_UPDATE`)
-   - Creates audit log entry
-   - Tracks old→new status
-
-5. **`broadcast_status_change`** (`AFTER_UPDATE`)
-   - Broadcasts to real-time subscribers
-   - Enables live dashboard updates
-
-### State Machine
-
-```
-discovered → provisioning → online ⟺ degraded
-                 ↓            ↓         ↓
-            offline ← - - - - ┘         ↓
-                 ↓                      ↓
-            maintenance ← - - - - - - -┘
-                 ↓
-             retired (terminal)
-```
-
-### Testing
-
-Run lifecycle hook tests:
-
-```bash
-uv run --no-sync pytest tests/test_lifecycle_hooks.py -vv
-```
-
----
-
-## 3. Pre-commit Hooks
-
-Automated code quality checks that run before each commit.
-
-### Installation
-
-```bash
-# Install hooks
-just install
-
-# Or manually
-uv run --no-sync pre-commit install --hook-type pre-commit --hook-type commit-msg
-```
-
-### What Gets Checked
-
-1. **Ruff format** - Auto-format Python code
-2. **Ruff check** - Lint and auto-fix issues
-3. **django-upgrade** - Upgrade to Django 5.1+ patterns
-4. **Bandit** - Security vulnerability scanning
-5. **mypy** - Type checking
-6. **yamllint** - YAML validation
-7. **commitlint** - Conventional commit messages
-8. **Common checks** - Trailing whitespace, EOF, large files, etc.
-
-### Running Manually
-
-```bash
-# Run all hooks on all files
-just pre-commit
-
-# Run specific hook
-uv run --no-sync pre-commit run ruff-format --all-files
-
-# Skip hooks for emergency commits (not recommended)
-git commit --no-verify -m "..."
-```
-
----
-
-## 4. Commitlint - Conventional Commits
-
-Enforces structured commit messages for better changelog generation and semantic versioning.
-
-### Format
-
-```
-type(scope): subject
-
-body (optional)
-
-footer (optional)
-```
-
-### Valid Types
-
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code refactoring
-- `perf`: Performance improvements
-- `test`: Adding or updating tests
-- `build`: Build system or external dependencies
-- `ci`: CI configuration changes
-- `chore`: Other changes (e.g., dependency updates)
-- `revert`: Revert previous commit
-
-### Valid Scopes (Optional)
-
-- `services` - Service layer changes
-- `models` - Model changes
-- `views` - View changes
-- `admin` - Admin interface changes
-- `tasks` - Background task changes
-- `api` - API changes
-- `integrations` - Manufacturer integrations
-- `discovery` - Discovery system
-- `monitoring` - Monitoring features
-- `lifecycle` - Lifecycle management
-- `multitenancy` - Multi-tenant features
-- `websockets` - WebSocket functionality
-- `deps` - Dependency updates
-- `config` - Configuration changes
-
-### Examples
-
-```bash
-# Good commits
-git commit -m "feat(lifecycle): add django-lifecycle hooks to WirelessChassis"
-git commit -m "fix(discovery): handle timeout errors in API polling"
-git commit -m "docs: update README with Justfile usage"
-git commit -m "refactor(services): remove HardwareLifecycleManager shim"
-
-# Bad commits (will be rejected)
-git commit -m "updated stuff"              # No type
-git commit -m "FEAT: new feature"          # Uppercase type
-git commit -m "feat(unknown): thing"       # Invalid scope
-git commit -m "feat: this is a very long subject line that exceeds the 72 character limit"
-```
-
----
-
-## 5. EditorConfig
-
-Ensures consistent code formatting across all editors and IDEs.
-
-### Supported Editors
-
-- VS Code
-- PyCharm / IntelliJ
-- Vim / Neovim
-- Emacs
-- Sublime Text
-- Atom
-
-### Settings
-
-```ini
-# Python files
-indent_style = space
-indent_size = 4
-max_line_length = 100
-
-# YAML/JSON
-indent_size = 2
-
-# Markdown
-trim_trailing_whitespace = false
-```
-
-Most editors auto-detect and apply these settings.
-
----
-
-## Benefits
-
-### For Developers
-
-- **Faster onboarding** - `just install` sets up everything
-- **Consistent workflow** - Same commands across all platforms
-- **Fewer mistakes** - Pre-commit catches issues before CI
-- **Better commits** - Commitlint ensures quality messages
-- **Auto-formatting** - No debates about style
-
-### For Maintainers
-
-- **Better git history** - Conventional commits enable auto-changelog
-- **Semantic versioning** - Types drive version bumps
-- **Fewer review comments** - Linting catches common issues
-- **Safer refactoring** - Type checking catches errors
-
-### For CI/CD
-
-- **Faster builds** - Fewer lint/test failures
-- **Cleaner logs** - Consistent formatting
-- **Automated releases** - Conventional commits enable auto-release
-
----
-
-## Migration from Old Patterns
-
-### Required just/uv commands
-
-```bash
-# New way - just commands (with uv for environment & install)
-just install
-just test
-just lint
+just coverage
 just example
 ```
 
-> **Note:** All environment and dependency management must use `uv` (see top of README, AGENTS.md, and CONTRIBUTING.md for enforcement policy). Any reference to pip, venv, poetry, or pipx should be escalated to maintainers and corrected immediately.
+`manage.py` lives at repository root and points to `example_project.settings`; do not change into
+`example_project/` before invoking it.
 
-### Code Changes
+## Local setup script
 
-```python
-# OLD: Manual lifecycle management
-from micboard.services.hardware_lifecycle import get_lifecycle_manager
+`start-dev.sh` provides an end-to-end local bootstrap:
 
-lifecycle = get_lifecycle_manager(manufacturer.code)
-lifecycle.mark_online(chassis, health_data=health_data)
-
-# NEW: Declarative hooks (django-lifecycle)
-chassis.status = "online"
-chassis.save()  # Hooks fire automatically
+```bash
+./start-dev.sh
 ```
 
----
+It syncs the locked environment, installs the hook, runs Django checks, verifies migration drift
+without writing migration files, applies checked-in migrations, and starts the example server.
+Docker is optional. Use check-only mode when a server should not remain running:
+
+```bash
+./start-dev.sh --check-only
+```
+
+## Pre-commit hooks
+
+The checked-in configuration is the source of truth. Current hooks cover:
+
+- trailing whitespace and final newlines
+- YAML, JSON, and TOML syntax
+- merge-conflict markers and Python debug statements
+- Ruff lint/format checks
+- mypy
+- Django migration drift
+- generated migration integrity
+
+Run all hooks:
+
+```bash
+just pre-commit
+```
+
+Run one hook:
+
+```bash
+uv run --no-sync pre-commit run ruff-check --all-files
+```
+
+The repository does not configure a commit-message hook. Commit messages still follow the
+Conventional Commits format documented in `CONTRIBUTING.md`.
+
+## Direct commands
+
+Recipes are preferred, but direct commands remain useful for focused work:
+
+```bash
+uv run --no-sync pytest tests/test_lifecycle_hooks.py -vv
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+uv run --no-sync python -m mypy micboard
+uv run --no-sync bandit -r micboard -ll
+uv run --no-sync mkdocs build
+```
+
+After `uv sync`, use `--no-sync` for repeatable commands that must not alter the environment.
+
+## Migration policy
+
+Never edit existing files under `micboard/migrations/`. Schema changes must be represented by a
+migration generated through Django's `makemigrations` command and reviewed before commit.
+
+Check for drift without creating files:
+
+```bash
+uv run --no-sync python manage.py makemigrations \
+  micboard micboard_multitenancy --check --dry-run
+```
+
+Apply checked-in migrations:
+
+```bash
+uv run --no-sync python manage.py migrate
+```
+
+## Dependency changes
+
+Edit `pyproject.toml` through uv commands and commit the resulting `uv.lock` update:
+
+```bash
+uv add package-name
+uv add --dev package-name
+uv lock --upgrade-package package-name
+```
+
+Then run:
+
+```bash
+just lint
+just test
+just pre-commit
+```
 
 ## Troubleshooting
 
-### Just command not found
+### `uv` is missing
+
+Install `uv` through an approved platform package or the official installer, then confirm:
 
 ```bash
-# Install just
-brew install just  # macOS
-# or see: https://just.systems/man/en/chapter_4.html
+uv --version
 ```
 
-### Pre-commit hooks failing
+### Environment is stale
 
 ```bash
-# Update hooks
-uv run --no-sync pre-commit autoupdate
-
-# Clear cache
-uv run --no-sync pre-commit clean
-
-# Reinstall
-uv run --no-sync pre-commit uninstall
-uv run --no-sync pre-commit install --hook-type pre-commit --hook-type commit-msg
+uv sync --locked --all-extras
 ```
 
-### Commitlint errors
+### One pre-commit hook fails
+
+Run that exact hook with verbose output, fix the reported file, then run all hooks:
 
 ```bash
-# Check commit message format
-echo "feat(services): add new feature" | npx commitlint
-
-# View allowed types/scopes
-cat .commitlintrc.yaml
+uv run --no-sync pre-commit run HOOK_ID --all-files --verbose
+just pre-commit
 ```
 
-### django-lifecycle not working
+### Migration drift fails
 
-```bash
-# Ensure dependency installed
-uv sync --extra standard
-
-# Check model has LifecycleModelMixin
-```
-
----
-
-## Next Steps
-
-### Agent & Research Workflow Policy
-
-- When you need to search programming or package documentation as a developer or agent, always use the `context7` tools (see AGENTS.md Quick Reference).
-- If you are unsure how to implement something or use a third-party library, use `gh_grep` to search public GitHub for up-to-date code examples.
-- All new automation, documentation, and onboarding must propagate the `uv`-only setup and explicit agent research tooling guidance.
-
-1. **Test the tooling**:
-   ```bash
-   just install
-   just test
-   just lint
-   ```
-
-2. **Try lifecycle hooks**:
-   ```bash
-   just test-file tests/test_lifecycle_hooks.py
-   ```
-
-3. **Make a commit**:
-   ```bash
-   git add .
-   git commit -m "feat(tooling): add modern Python tooling"
-   # Pre-commit hooks will run automatically
-   ```
-
-4. **Run the dev server**:
-   ```bash
-   just run
-   ```
-
----
+Do not hand-edit a migration to silence the check. Confirm whether a model change is intentional,
+then generate a new migration with Django and review its operations and SQL.
 
 ## References
 
+- [uv documentation](https://docs.astral.sh/uv/)
 - [just manual](https://just.systems/man/en/)
-- [django-lifecycle docs](https://rsinger86.github.io/django-lifecycle/)
-- [pre-commit docs](https://pre-commit.com/)
-- [Conventional Commits](https://www.conventionalcommits.org/)
-- [EditorConfig](https://editorconfig.org/)
+- [pre-commit documentation](https://pre-commit.com/)
+- [Ruff documentation](https://docs.astral.sh/ruff/)
+- [pytest documentation](https://docs.pytest.org/)

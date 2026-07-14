@@ -1,0 +1,92 @@
+{% extends "micboard/base.html" %}
+
+{% block title %}Settings Overview - micboard{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-3">{{ title }}</h1>
+    <p class="text-muted">
+        Configured settings are listed by scope. Values are hidden to avoid exposing secrets.
+    </p>
+
+    <section class="card mb-4" aria-labelledby="global-settings-heading">
+        <div class="card-body">
+            <h2 id="global-settings-heading" class="h4">Global settings</h2>
+            {% if global_settings %}
+                <ul class="list-group list-group-flush">
+                    {% for setting in global_settings %}
+                        <li class="list-group-item">
+                            <strong>{{ setting.definition.label }}</strong>
+                            <span class="text-muted">({{ setting.definition.key }})</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted mb-0">No global settings are configured.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="card mb-4" aria-labelledby="organization-settings-heading">
+        <div class="card-body">
+            <h2 id="organization-settings-heading" class="h4">Organization settings</h2>
+            {% if org_settings %}
+                <ul class="list-group list-group-flush">
+                    {% for setting in org_settings %}
+                        <li class="list-group-item">
+                            <strong>{{ setting.definition.label }}</strong>
+                            <span class="text-muted">
+                                ({{ setting.definition.key }}) &mdash;
+                                Organization {{ setting.organization_id }}
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted mb-0">No organization settings are configured.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="card mb-4" aria-labelledby="site-settings-heading">
+        <div class="card-body">
+            <h2 id="site-settings-heading" class="h4">Site settings</h2>
+            {% if site_settings %}
+                <ul class="list-group list-group-flush">
+                    {% for setting in site_settings %}
+                        <li class="list-group-item">
+                            <strong>{{ setting.definition.label }}</strong>
+                            <span class="text-muted">
+                                ({{ setting.definition.key }}) &mdash; Site {{ setting.site.name }}
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted mb-0">No site settings are configured.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="manufacturer-settings-heading">
+        <div class="card-body">
+            <h2 id="manufacturer-settings-heading" class="h4">Manufacturer settings</h2>
+            {% if mfg_settings %}
+                <ul class="list-group list-group-flush">
+                    {% for setting in mfg_settings %}
+                        <li class="list-group-item">
+                            <strong>{{ setting.definition.label }}</strong>
+                            <span class="text-muted">
+                                ({{ setting.definition.key }}) &mdash;
+                                Manufacturer {{ setting.manufacturer_id }}
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted mb-0">No manufacturer settings are configured.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -44,10 +44,10 @@ Run a one-shot poll directly or enqueue it through native Huey:
 
 ```bash
 # Poll Shure devices now
-uv run python manage.py poll_devices --manufacturer shure
+uv run --no-sync python manage.py poll_devices --manufacturer shure
 
 # Enqueue one poll through native Huey
-uv run python manage.py poll_devices --manufacturer shure --async
+uv run --no-sync python manage.py poll_devices --manufacturer shure --async
 ```
 
 Use your deployment scheduler to enqueue the one-shot command at the required interval.
@@ -58,10 +58,10 @@ Monitor connection health and detect issues:
 
 ```bash
 # Check all connections
-uv run python manage.py realtime_status
+uv run --no-sync python manage.py realtime_status
 
 # Check specific manufacturer
-uv run python manage.py realtime_status --manufacturer shure
+uv run --no-sync python manage.py realtime_status --manufacturer shure
 ```
 
 ## Alerts and Notifications
@@ -129,12 +129,12 @@ LocationService.assign_device_to_location(device=device, location=location)
 
 **Check connection status:**
 ```bash
-uv run python manage.py realtime_status --manufacturer shure
+uv run --no-sync python manage.py realtime_status --manufacturer shure
 ```
 
 **Verify API access:**
 ```bash
-uv run python manage.py diagnostic_api_health_check
+uv run --no-sync python manage.py diagnostic_api_health_check
 ```
 
 **Check device logs:**
@@ -152,7 +152,7 @@ uv run python manage.py diagnostic_api_health_check
 **Redis connection:**
 ```bash
 # Test Redis connectivity
-uv run python manage.py shell -c "from channels.layers import get_channel_layer; print(get_channel_layer())"
+uv run --no-sync python manage.py shell -c "from channels.layers import get_channel_layer; print(get_channel_layer())"
 ```
 
 ### Performance Issues
@@ -160,7 +160,7 @@ uv run python manage.py shell -c "from channels.layers import get_channel_layer;
 **Monitor polling performance:**
 ```bash
 # Run one poll and inspect its completion summary
-uv run python manage.py poll_devices --manufacturer shure
+uv run --no-sync python manage.py poll_devices --manufacturer shure
 ```
 
 **Database optimization:**

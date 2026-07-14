@@ -13,9 +13,13 @@ import pytest
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
 from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.discovery.queue import DeviceMovementLog
+from micboard.models.hardware.charger import ChargerSlot
+from micboard.models.hardware.display_wall import WallSection
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.locations import Building, Location
+from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
@@ -54,20 +58,79 @@ def test_site_filter_is_noop_when_disabled() -> None:
         ("site_id", {"site_id": 7}),
         ("building", {"building__site_id": 7}),
         ("location", {"location__building__site_id": 7}),
+        ("base_chassis", {"base_chassis__location__building__site_id": 7}),
+        ("chassis", {"chassis__location__building__site_id": 7}),
+        (
+            "wireless_unit",
+            {"wireless_unit__base_chassis__location__building__site_id": 7},
+        ),
+        ("organization", {"organization__site_id": 7}),
     ],
 )
 @override_settings(MICBOARD_MULTI_SITE_MODE=True, SITE_ID=7)
 def test_site_filter_uses_available_tenant_path(attribute: str, expected: dict[str, int]) -> None:
     queryset = _queryset_with_model(**{attribute: object()})
     result = TenantOptimizedQuerySet.for_site(queryset)
-    assert result is queryset.filter.return_value
+    assert result is queryset.filter.return_value.distinct.return_value
     queryset.filter.assert_called_once_with(**expected)
 
 
 @override_settings(MICBOARD_MULTI_SITE_MODE=True)
-def test_site_filter_leaves_unscoped_model_unchanged() -> None:
+def test_site_filter_fails_closed_for_unscoped_model() -> None:
     queryset = _queryset_with_model()
-    assert TenantOptimizedQuerySet.for_site(queryset, site_id=3) is queryset
+    assert TenantOptimizedQuerySet.for_site(queryset, site_id=3) is queryset.none.return_value
+
+
+@pytest.mark.parametrize(
+    ("model", "tenant_lookups", "site_lookup"),
+    [
+        (
+            ChargerSlot,
+            (
+                "charger__location__building__organization_id",
+                "charger__location__building__campus_id",
+            ),
+            "charger__location__building__site_id",
+        ),
+        (
+            WallSection,
+            (
+                "wall__location__building__organization_id",
+                "wall__location__building__campus_id",
+            ),
+            "wall__location__building__site_id",
+        ),
+        (
+            DeviceMovementLog,
+            (
+                "device__location__building__organization_id",
+                "device__location__building__campus_id",
+            ),
+            "device__location__building__site_id",
+        ),
+        (
+            Alert,
+            (
+                "channel__chassis__location__building__organization_id",
+                "channel__chassis__location__building__campus_id",
+            ),
+            "channel__chassis__location__building__site_id",
+        ),
+    ],
+)
+@override_settings(MICBOARD_MULTI_SITE_MODE=True)
+def test_nested_tenant_models_use_explicit_reviewed_ownership_paths(
+    model: type,
+    tenant_lookups: tuple[str, str],
+    site_lookup: str,
+) -> None:
+    """Nested operational records must remain usable without widening tenant scope."""
+    queryset = TenantOptimizedQuerySet(model, using="default")
+
+    assert queryset._tenant_lookups() == tenant_lookups
+    assert queryset._site_lookup() == site_lookup
+    assert "SELECT" in str(queryset.for_site(site_id=1).query)
+    assert "SELECT" in str(queryset.for_memberships([(1, 2)]).query)
 
 
 @pytest.mark.parametrize(
@@ -137,18 +200,30 @@ def test_msp_user_filter_denies_users_without_memberships(mock_filter: MagicMock
 @patch.object(OrganizationMembership._default_manager, "filter")
 def test_msp_user_filter_applies_every_membership(mock_filter: MagicMock) -> None:
     queryset = _queryset_with_model(organization_id=None)
-    queryset._for_memberships.return_value = queryset
+    queryset.for_memberships.return_value = queryset
     memberships = [(2, None), (3, 5)]
     mock_filter.return_value.values_list.return_value = memberships
     user = SimpleNamespace(is_superuser=False)
     assert _for_user(queryset, user=user) is queryset
-    queryset._for_memberships.assert_called_once_with(memberships)
+    queryset.for_memberships.assert_called_once_with(memberships)
 
 
 @override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True)
 def test_multisite_user_filter_delegates_to_site_filter() -> None:
     queryset = _queryset_with_model()
     user = SimpleNamespace(is_superuser=False)
+    assert _for_user(queryset, user=user) is queryset.for_site.return_value
+
+
+@override_settings(
+    MICBOARD_MSP_ENABLED=False,
+    MICBOARD_MULTI_SITE_MODE=True,
+    MICBOARD_ALLOW_CROSS_ORG_VIEW=True,
+)
+def test_multisite_superuser_remains_site_scoped() -> None:
+    queryset = _queryset_with_model()
+    user = SimpleNamespace(is_superuser=True)
+
     assert _for_user(queryset, user=user) is queryset.for_site.return_value
 
 
@@ -379,6 +454,97 @@ def test_real_manager_unions_organizations_and_honors_campus_scope(django_user_m
     visible_ids = set(WirelessChassis.objects.for_user(user=user).values_list("pk", flat=True))
     assert visible_ids == {first.pk, allowed.pk}
     assert denied.pk not in visible_ids
+
+
+@pytest.mark.django_db
+@override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
+def test_real_manager_rejects_revoked_and_inconsistent_memberships(django_user_model) -> None:
+    """Inactive or cross-tenant membership context must never grant visibility."""
+    user = django_user_model.objects.create_user(username="revoked-tenant-operator")
+    broad_org = Organization.objects.create(name="Broad tenant", slug="broad-tenant")
+    scoped_org = Organization.objects.create(name="Scoped tenant", slug="scoped-tenant")
+    scoped_campus = Campus.objects.create(
+        organization=scoped_org,
+        name="Scoped campus",
+        slug="scoped-campus",
+    )
+    inactive_org = Organization.objects.create(
+        name="Inactive tenant",
+        slug="inactive-tenant",
+        is_active=False,
+    )
+    inactive_campus_org = Organization.objects.create(
+        name="Inactive campus tenant",
+        slug="inactive-campus-tenant",
+    )
+    inactive_campus = Campus.objects.create(
+        organization=inactive_campus_org,
+        name="Inactive campus",
+        slug="inactive-campus",
+        is_active=False,
+    )
+    inconsistent_org = Organization.objects.create(
+        name="Inconsistent tenant",
+        slug="inconsistent-tenant",
+    )
+    foreign_org = Organization.objects.create(name="Foreign tenant", slug="foreign-tenant")
+    foreign_campus = Campus.objects.create(
+        organization=foreign_org,
+        name="Foreign campus",
+        slug="foreign-campus",
+    )
+
+    OrganizationMembership.objects.create(user=user, organization=broad_org)
+    OrganizationMembership.objects.create(
+        user=user,
+        organization=scoped_org,
+        campus=scoped_campus,
+    )
+    OrganizationMembership.objects.create(user=user, organization=inactive_org)
+    OrganizationMembership.objects.create(
+        user=user,
+        organization=inactive_campus_org,
+        campus=inactive_campus,
+    )
+    OrganizationMembership.objects.create(
+        user=user,
+        organization=inconsistent_org,
+        campus=foreign_campus,
+    )
+
+    manufacturer = Manufacturer.objects.create(
+        name="Revocation hardware",
+        code="revocation-hardware",
+    )
+
+    def create_chassis(
+        name: str,
+        organization: Organization,
+        campus: Campus | None = None,
+    ) -> WirelessChassis:
+        building = Building.objects.create(
+            name=f"{name} building",
+            organization_id=organization.pk,
+            campus_id=campus.pk if campus else None,
+        )
+        location = Location.objects.create(building=building, name=f"{name} location")
+        return WirelessChassis.objects.create(
+            name=name,
+            manufacturer=manufacturer,
+            api_device_id=name.lower().replace(" ", "-"),
+            role="receiver",
+            ip=f"198.51.100.{10 + WirelessChassis.objects.count()}",
+            location=location,
+        )
+
+    broad = create_chassis("Broad", broad_org)
+    scoped = create_chassis("Scoped", scoped_org, scoped_campus)
+    create_chassis("Inactive organization", inactive_org)
+    create_chassis("Inactive campus", inactive_campus_org, inactive_campus)
+    create_chassis("Inconsistent", inconsistent_org)
+
+    visible_ids = set(WirelessChassis.objects.for_user(user=user).values_list("pk", flat=True))
+    assert visible_ids == {broad.pk, scoped.pk}
 
 
 @pytest.mark.django_db

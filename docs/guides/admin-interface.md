@@ -1,255 +1,139 @@
-# Admin Interface
+# Admin interface
 
-The django-micboard admin interface provides comprehensive management and monitoring of your Shure wireless microphone system.
+django-micboard registers its operational models with Django admin. Available modules depend on
+installed optional packages and enabled multitenancy settings.
 
-## Accessing the Admin
+## Access and tenant scope
 
-Navigate to `/admin/` in your Django application after logging in with admin credentials.
+Open `/admin/` in the host project. Users need Django staff status plus the model permission for
+each operation. Object lists, object lookups, related-field choices, and bulk actions use the same
+tenant/site scope; knowing another tenant's primary key does not grant access.
 
-## Device Management
+Organization, Campus, and Organization Membership administration is restricted to superusers.
+Use narrow permissions for operational staff and verify custom admin extensions preserve
+`MicboardModelAdmin` scoping.
 
-### Device List
+## Inventory
 
-The main device list (`/admin/micboard/device/`) shows all discovered devices:
+Key model changelists use Django's normal app/model path pattern:
 
-- **Device Information**: Name, model, manufacturer, device ID
-- **Status Indicators**:
-  - 🔋 Battery level (color-coded: green > 50%, yellow 20-50%, red < 20%)
-  - 📶 RF signal strength
-  - 🌐 Online/offline status
-  - 📍 Location and user assignment
-- **Timestamps**: Last update, created date
-- **Actions**: Edit, delete, assign user/location
+- `/admin/micboard/wirelesschassis/`: stationary receiver/transmitter/transceiver chassis
+- `/admin/micboard/wirelessunit/`: handheld/bodypack/IEM field units
+- `/admin/micboard/rfchannel/`: chassis RF channels
+- `/admin/micboard/charger/` and `/admin/micboard/chargerslot/`: charger inventory
+- `/admin/micboard/location/`: physical locations
+- `/admin/micboard/monitoringgroup/`: monitoring groups
 
-### Adding Devices
+Prefer Django's `reverse("admin:micboard_wirelesschassis_changelist")` form in code instead of
+hard-coding these paths.
 
-**Automatic Discovery:**
-```bash
-uv run python manage.py sync_discovery --manufacturer shure --scan-cidrs
-```
+## Location management
 
-Configure CIDR ranges in the admin discovery settings before running the sync.
+Locations and monitoring groups define inventory placement and tenant/site scope. Configure
+locations before assigning chassis or chargers, and preserve the active scope when selecting
+related objects.
 
-**Manual Addition:**
-1. Click "Add Device" in admin
-2. Select Manufacturer: Shure
-3. Enter Device ID and IP address
-4. Optionally assign location and user
+## Discovery and approval
 
-### Device Details
+Discovery candidates live at `/admin/micboard/discovereddevice/`. Approval actions delegate to
+the discovery approval service, which validates permissions and identity conflicts before
+promoting candidates into inventory.
 
-Click on any device to view detailed information:
+Configuration/status models include:
 
-- **Real-time Metrics**: Live battery, RF, audio levels
-- **Device Configuration**: Model, firmware, serial number
-- **Network Information**: IP address, MAC address
-- **Assignment History**: Previous users/locations
-- **Status Log**: Recent status changes
+- `/admin/micboard/discoverycidr/`
+- `/admin/micboard/discoveryfqdn/`
+- `/admin/micboard/discoveryjob/`
+- `/admin/micboard/discoveryqueue/`
+- `/admin/micboard/devicemovementlog/`
 
-## User Assignments
-
-### Managing Assignments
-
-Navigate to `/admin/micboard/assignment/` to manage device assignments:
-
-- **Create Assignment**: Assign device to user with alert preferences
-- **Bulk Assignment**: Assign multiple devices at once
-- **Assignment History**: Track assignment changes over time
-
-### Assignment Features
-
-```python
-from micboard.services.core.performer_assignment import PerformerAssignmentService
-
-# Create a performer-to-wireless-unit assignment
-assignment = PerformerAssignmentService.create_assignment(
-    performer_id=performer.id,
-    unit_id=wireless_unit.id,
-    group_id=monitoring_group.id,
-    user=user,
-    alert_on_battery_low=True,
-)
-```
-
-## Location Management
-
-### Location Setup
-
-Create and manage locations at `/admin/micboard/location/`:
-
-- **Location Hierarchy**: Building → Room → Zone
-- **Device Assignment**: Assign devices to locations
-- **Capacity Tracking**: Monitor device density per location
-
-### Location Analytics
-
-View location-based analytics:
-
-- Device count per location
-- Battery health by area
-- Signal strength mapping
-- Usage patterns
-
-## Connection Monitoring
-
-### Real-time Connection Status
-
-Monitor WebSocket and API connections at `/admin/micboard/realtimeconnection/`:
-
-- **Connection State**: Connected, disconnected, error
-- **Health Metrics**: Latency, error rate, uptime
-- **Automatic Recovery**: Failed connection retry logic
-
-### Connection Health Checks
+Run discovery synchronization from the host environment:
 
 ```bash
-# Check all connections
-uv run python manage.py realtime_status
-
-# Show detailed connection records
-uv run python manage.py realtime_status --verbose
+uv run --no-sync python manage.py sync_discovery --manufacturer shure
 ```
 
-## Manufacturer Management
+Only use `--scan-cidrs` after reviewing configured ranges and bounding `--max-hosts`.
 
-### Manufacturer Configuration
+## Manufacturers and API servers
 
-Configure manufacturer settings at `/admin/micboard/manufacturer/`:
+- `/admin/micboard/manufacturer/`: enable manufacturers and inspect plugin identity
+- `/admin/micboard/manufacturerapiserver/`: location-specific API endpoints and credentials
+- `/admin/micboard/manufacturerconfiguration/`: structured manufacturer configuration
+- `/admin/micboard/configurationauditlog/`: redacted configuration history
 
-- **Shure Settings**: API endpoints, credentials, timeouts
-- **Plugin Configuration**: Enable/disable manufacturers
-- **API Rate Limits**: Configure request limits
+Shared keys are write-only/masked in admin. Connection tests send each row's own credential, not a
+global fallback. The endpoint hostname must appear exactly in
+`MICBOARD_API_SERVER_ALLOWED_HOSTS`; entries do not accept schemes, ports, paths, or wildcards.
 
-## Discovery Management
+## Settings
 
-### Discovery IP Ranges
+Setting definitions and scoped values are available at:
 
-Manage device discovery at `/admin/micboard/discovery/`:
+- `/admin/micboard/settingdefinition/`
+- `/admin/micboard/setting/`
 
-- **IP Range Configuration**: Add CIDR ranges for scanning
-- **Discovery Scheduling**: Automated discovery intervals
-- **Manual Discovery**: On-demand device scanning
+The app also mounts authenticated settings overview/edit routes under its configured URL prefix.
+Definitions declare their allowed scope, and forms reject a value targeted at another scope.
+Sensitive values render masked.
 
-## System Health Dashboard
+## Assignments and alerts
 
-### Overview Dashboard
+- `/admin/micboard/performer/`
+- `/admin/micboard/performerassignment/`
+- `/admin/micboard/useralertpreference/`
+- `/admin/micboard/alert/`
 
-The main admin index provides system health overview:
+Assignment logic belongs in the performer-assignment service; admin remains a thin request
+adapter.
 
-- **Device Summary**: Total devices, online/offline counts
-- **Battery Status**: Devices by battery level ranges
-- **Alert Summary**: Active alerts and notifications
-- **Connection Status**: API and WebSocket health
+## Real-time and audit status
 
-### Health Metrics
+Real-time connection records are at `/admin/micboard/realtimeconnection/`. Inspect the same state
+from the command line:
 
-Monitor system performance:
-
-- Polling success rates
-- API response times
-- WebSocket connection counts
-- Error rates and trends
-
-## Custom Admin Features
-
-### Custom Actions
-
-Bulk operations available in admin lists:
-
-- **Bulk Status Update**: Mark multiple devices online/offline
-- **Bulk Assignment**: Assign multiple devices to user/location
-- **Bulk Delete**: Remove multiple devices
-- **Export Data**: CSV export of device information
-
-### Custom Admin Extensions
-
-To extend the admin interface with custom fields:
-
-```python
-# custom_admin.py
-from django.contrib import admin
-from micboard.admin.receivers import WirelessChassisAdmin
-from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-admin.site.unregister(WirelessChassis)
-
-
-@admin.register(WirelessChassis)
-class CustomWirelessChassisAdmin(WirelessChassisAdmin):
-    list_display = ("name", "api_device_id", "ip", "status")
-    search_fields = ("name", "api_device_id", "serial_number")
-    list_filter = ("manufacturer", "status", "location")
+```bash
+uv run --no-sync python manage.py realtime_status --verbose
 ```
 
-## Security and Permissions
+Operational history is available through Activity Log, Service Sync Log, Device Movement Log, and
+Configuration Audit Log admins. Secret-bearing configuration is redacted in audit displays.
 
-### Admin Permissions
+## Bulk actions
 
-Configure admin access controls:
+Admin actions run only against the already-scoped queryset. Chassis refresh carries the exact
+selected IDs to the service/task rather than widening selection in background work. Lifecycle
+side effects and real-time broadcasts are scheduled after successful transaction commit.
 
-- **User Permissions**: Read-only vs. full access
-- **Object Permissions**: Location-based access control
-- **Audit Logging**: Track all admin actions
-
-### API Access Control
-
-Secure API endpoints:
-
-```python
-# settings.py
-MICBOARD_API_PERMISSIONS = {
-    'require_authentication': True,
-    'allow_cors_origins': ['https://your-domain.com'],
-}
-```
+Review action confirmation pages before applying status, approval, or delete operations.
 
 ## Troubleshooting
 
-### Common Admin Issues
+### An object is missing
 
-**Devices not appearing:**
-- Check discovery IP ranges
-- Verify API credentials
-- Review Django logs for errors
+- Confirm the user has the model's view permission.
+- Confirm the object belongs to the active site/organization scope.
+- Confirm the model's optional dependency is installed when applicable.
+- Use a superuser only to diagnose policy, not as the permanent workaround.
 
-**Real-time updates not working:**
-- Confirm WebSocket configuration
-- Check Redis connectivity
-- Verify ASGI setup
+### Connection test is denied
 
-**Permission errors:**
-- Review user group permissions
-- Check object-level permissions
-- Verify authentication settings
+- Add the exact endpoint hostname to `MICBOARD_API_SERVER_ALLOWED_HOSTS`.
+- Keep the URL on HTTPS and install its issuing CA.
+- Confirm the row has its own shared key.
 
-### Performance Optimization
+### Admin pages are slow
 
-**Large device counts:**
-- Implement pagination in admin lists
-- Use select_related for foreign keys
-- Configure database indexes
+- Capture query counts for the concrete changelist.
+- Preserve existing `select_related`/`prefetch_related` behavior in overrides.
+- Avoid per-row service/API calls in `list_display` methods.
 
-**Slow page loads:**
-- Enable admin caching
-- Optimize queryset filtering
-- Use admin list_select_related
+### Real-time state is stale
 
-## Advanced Features
-
-### Service Integration
-
-Use the public service layer in host-project views and admin extensions:
-
-```python
-from micboard.services.core.hardware_query import HardwareQueryService
-
-active_chassis = HardwareQueryService.get_active_chassis()
+```bash
+uv run --no-sync python manage.py realtime_status --verbose
+uv run --no-sync python manage.py poll_devices --manufacturer shure
 ```
 
-### Export and Reporting
-
-Generate reports from admin data:
-
-- **CSV Export**: Device inventories
-- **PDF Reports**: System health summaries
-- **Scheduled Reports**: Automated report generation
+If synchronous polling succeeds but queued work does not, inspect the native Huey consumer and
+backend connectivity.

@@ -6,6 +6,7 @@ SECRET_KEY = "django-insecure-test-key"
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 SITE_ID = 1
+TESTING = True
 
 HUEY = {
     "huey_class": "huey.MemoryHuey",

@@ -9,12 +9,17 @@ from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
+from django.utils.html import format_html
 
 import micboard.integrations
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.forms.settings import ManufacturerSettingsForm
+from micboard.admin.secret_fields import replace_field
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.services.common.base.plugin import get_manufacturer_plugin
+from micboard.services.manufacturer.secret_redaction import (
+    redact_secrets,
+    restore_redacted_secrets,
+)
 from micboard.services.sync.discovery_candidates_service import DiscoveryCandidateService
 from micboard.services.sync.discovery_service import DiscoveryService
 
@@ -31,6 +36,8 @@ class ManufacturerAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         """Initialize the manufacturer admin form and populate plugin choices."""
         super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.initial["config"] = redact_secrets(self.instance.config)
         # Dynamically populate manufacturer code choices from available plugins
         plugin_codes = []
         try:
@@ -48,96 +55,51 @@ class ManufacturerAdminForm(forms.ModelForm):
             self.fields["code"].widget = forms.Select(choices=plugin_codes)
             self.fields["code"].help_text += " (auto-discovered from available plugins)"
 
+    def clean_config(self) -> dict[str, Any]:
+        """Preserve unchanged redacted credentials in manufacturer JSON."""
+        config = self.cleaned_data.get("config") or {}
+        original = self.instance.config if self.instance.pk else {}
+        return restore_redacted_secrets(config, original)
+
 
 @admin.register(Manufacturer)
 class ManufacturerAdmin(MicboardModelAdmin):
-    def get_fieldsets(self, request, obj=None):
-        fieldsets = super().get_fieldsets(request, obj)
-        # Add a dedicated fieldset for manufacturer settings
-        # Split settings into common and advanced (example: first 4 are common, rest advanced)
-        all_fields = [
-            name for name in ManufacturerSettingsForm.base_fields if name != "manufacturer"
-        ]
-        common_fields = all_fields[:4]
-        advanced_fields = all_fields[4:]
-        if all_fields:
-            # Attempt to provide a plugin documentation link if available
-            doc_url = None
-            if obj:
-                try:
-                    plugin_class = obj.get_plugin_class()
-                    doc_url = getattr(plugin_class, "doc_url", None)
-                except Exception:
-                    doc_url = None
-            help_text = "Configure manufacturer-specific thresholds, timeouts, and feature flags."
-            if doc_url:
-                help_text += f" <a href='{doc_url}' target='_blank' style='margin-left:1em;'>Plugin Documentation</a>"
-            fieldsets = list(fieldsets)
-            if common_fields:
-                fieldsets.append(
-                    (
-                        "Manufacturer Settings",
-                        {
-                            "fields": common_fields,
-                            "description": help_text,
-                        },
-                    )
-                )
-            if advanced_fields:
-                fieldsets.append(
-                    (
-                        "Advanced Settings",
-                        {
-                            "fields": advanced_fields,
-                            "classes": ("collapse",),
-                            "description": "Advanced or rarely-changed options. Edit with care.",
-                        },
-                    )
-                )
-        return fieldsets
-
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-
-        class AdminWithSettingsForm(form):  # type: ignore[misc,valid-type]
-            def __init__(self, *args, **kw):
-                """Wrap the admin form and inject manufacturer settings fields when editing."""
-                super().__init__(*args, **kw)
-                if obj:
-                    settings_form = ManufacturerSettingsForm(initial={"manufacturer": obj.pk})
-                    for name, field in settings_form.fields.items():
-                        if name != "manufacturer":
-                            self.fields[name] = field
-                            self.initial[name] = settings_form.initial.get(name, None)
-
-        return AdminWithSettingsForm
-
     """Admin for Manufacturer with a view to manage discovery IPs and plugin selection."""
 
     form = ManufacturerAdminForm
     list_display = ("name", "code", "is_active")
     search_fields = ("name", "code")
+    readonly_fields = ("settings_link", "config_redacted")
+    fieldsets = (
+        ("Manufacturer", {"fields": ("name", "code", "is_active")}),
+        ("Plugin Configuration", {"fields": ("config",)}),
+        ("Scoped Settings", {"fields": ("settings_link",)}),
+    )
 
-    def save_model(self, request, obj, form, change):
-        """Delegate side-effects to manufacturer signal handlers."""
-        from micboard.services.manufacturer.signals import handle_manufacturer_save
+    @admin.display(description="Manufacturer Settings")
+    def settings_link(self, obj: Manufacturer) -> str:
+        """Link to the dedicated, persisted manufacturer settings workflow."""
+        if not obj.pk:
+            return "Save the manufacturer before configuring scoped settings."
+        url = f"{reverse('micboard:settings_manufacturer_config')}?manufacturer={obj.pk}"
+        return format_html('<a href="{}">Configure scoped settings</a>', url)
 
-        super().save_model(request, obj, form, change)
-        # Delegate audit and side-effects to service
-        handle_manufacturer_save(manufacturer=obj, created=not change, old_active=None)
-        # Log admin action
-        if change:
-            self.log_change(request, obj, "Manufacturer modified via admin.")
-        else:
-            self.log_addition(request, obj, "Manufacturer created via admin.")
+    def get_fieldsets(self, request, obj=None):
+        """Keep raw plugin JSON out of readonly change pages."""
+        if obj is not None and not self.has_change_permission(request, obj):
+            return replace_field(
+                self.fieldsets,
+                raw_field="config",
+                display_field="config_redacted",
+            )
+        return super().get_fieldsets(request, obj)
 
-    def delete_model(self, request, obj):
-        """Delegate side-effects to manufacturer signal handlers."""
-        from micboard.services.manufacturer.signals import handle_manufacturer_delete
+    @admin.display(description="Plugin Configuration")
+    def config_redacted(self, obj: Manufacturer) -> str:
+        """Display plugin configuration with credential values masked."""
+        import json
 
-        handle_manufacturer_delete(manufacturer=obj)
-        self.log_deletion(request, obj, "Manufacturer deleted via admin.")
-        super().delete_model(request, obj)
+        return json.dumps(redact_secrets(obj.config), indent=2, sort_keys=True)
 
     def get_urls(self):
         urls = super().get_urls()

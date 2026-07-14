@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
+from django.db import transaction
 from django.utils import timezone
 
 if TYPE_CHECKING:
@@ -174,7 +176,10 @@ def apply_detected_band_plan(
 
 
 def _prepare_lifecycle_fields(
-    chassis: WirelessChassis, *, created: bool
+    chassis: WirelessChassis,
+    *,
+    created: bool,
+    using: str,
 ) -> tuple[str | None, set[str]]:
     """Validate a status transition and update lifecycle fields."""
     old_status: str | None = None
@@ -189,7 +194,8 @@ def _prepare_lifecycle_fields(
 
     previous = (
         type(chassis)
-        .objects.only(
+        .objects.using(using)
+        .only(
             "status",
             "is_online",
             "last_online_at",
@@ -279,10 +285,18 @@ def _prepare_specs_and_band_plan(chassis: WirelessChassis) -> None:
         _apply_band_plan_fields(chassis, band_plan)
 
 
-def prepare_chassis_for_save(chassis: WirelessChassis) -> dict[str, Any]:
+def prepare_chassis_for_save(
+    chassis: WirelessChassis,
+    *,
+    using: str = "default",
+) -> dict[str, Any]:
     """Prepare chassis for save by syncing lifecycle, specs, and band plan."""
     created = chassis._state.adding
-    old_status, lifecycle_update_fields = _prepare_lifecycle_fields(chassis, created=created)
+    old_status, lifecycle_update_fields = _prepare_lifecycle_fields(
+        chassis,
+        created=created,
+        using=using,
+    )
     _prepare_specs_and_band_plan(chassis)
 
     return {
@@ -293,7 +307,62 @@ def prepare_chassis_for_save(chassis: WirelessChassis) -> dict[str, Any]:
     }
 
 
-def finalize_chassis_save(chassis: WirelessChassis, context: dict[str, Any]) -> None:
+def _broadcast_persisted_chassis_status(
+    *,
+    chassis_id: int,
+    using: str,
+) -> None:
+    """Broadcast the final committed state, or no-op if the chassis was deleted."""
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
+
+    try:
+        chassis = (
+            WirelessChassis._default_manager.using(using)
+            .select_related("manufacturer")
+            .get(pk=chassis_id)
+        )
+    except WirelessChassis.DoesNotExist:
+        return
+
+    from micboard.services.notification.broadcast_service import BroadcastService
+
+    BroadcastService.broadcast_device_status(
+        service_code=chassis.manufacturer.code,
+        device_id=chassis.pk,
+        device_type=type(chassis).__name__,
+        status=chassis.status,
+        is_active=chassis.is_online,
+    )
+
+
+def _schedule_status_broadcast(chassis: WirelessChassis, *, using: str) -> None:
+    """Register at most one final-state broadcast per chassis and transaction."""
+    connection = transaction.get_connection(using)
+    marker = chassis.pk
+    if any(
+        getattr(callback, "_micboard_chassis_status_id", None) == marker
+        for _savepoints, callback, _robust in connection.run_on_commit
+    ):
+        return
+    callback = partial(
+        _broadcast_persisted_chassis_status,
+        chassis_id=chassis.pk,
+        using=using,
+    )
+    callback._micboard_chassis_status_id = marker  # type: ignore[attr-defined]
+    transaction.on_commit(
+        callback,
+        using=using,
+        robust=True,
+    )
+
+
+def finalize_chassis_save(
+    chassis: WirelessChassis,
+    context: dict[str, Any],
+    *,
+    using: str = "default",
+) -> None:
     """Emit audit and realtime side effects after a persisted status change."""
     if not context["status_changed"]:
         return
@@ -309,14 +378,7 @@ def finalize_chassis_save(chassis: WirelessChassis, context: dict[str, Any]) -> 
         obj=chassis,
         old_values={"status": old_status},
         new_values={"status": chassis.status},
+        using=using,
     )
 
-    from micboard.services.notification.broadcast_service import BroadcastService
-
-    BroadcastService.broadcast_device_status(
-        service_code=chassis.manufacturer.code,
-        device_id=chassis.pk,
-        device_type=type(chassis).__name__,
-        status=chassis.status,
-        is_active=chassis.is_online,
-    )
+    _schedule_status_broadcast(chassis, using=using)

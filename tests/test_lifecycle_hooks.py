@@ -20,6 +20,7 @@ import pytest
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
+from micboard.services.hardware.dtos import ChassisDiscoveryCleanup
 
 
 @pytest.fixture
@@ -183,6 +184,7 @@ class TestAuditLogging:
         assert call_kwargs["obj"] == chassis
         assert call_kwargs["old_values"]["status"] == "discovered"
         assert call_kwargs["new_values"]["status"] == "provisioning"
+        assert call_kwargs["using"] == "default"
 
     @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_no_log_when_status_unchanged(self, mock_log_activity, chassis):
@@ -202,11 +204,17 @@ class TestBroadcastEvents:
     @patch(
         "micboard.services.notification.broadcast_service.BroadcastService.broadcast_device_status"
     )
-    def test_status_change_broadcasted(self, mock_broadcast, chassis):
+    def test_status_change_broadcasted(
+        self,
+        mock_broadcast,
+        chassis,
+        django_capture_on_commit_callbacks,
+    ):
         """Status changes should be broadcasted for real-time updates."""
         # Transition status
-        chassis.status = "provisioning"
-        chassis.save()
+        with django_capture_on_commit_callbacks(execute=True):
+            chassis.status = "provisioning"
+            chassis.save()
 
         # Verify broadcast was called
         mock_broadcast.assert_called_once()
@@ -233,6 +241,14 @@ class TestBroadcastEvents:
 class TestDiscoveryScheduling:
     """Test that post-save discovery is submitted exactly once."""
 
+    @override_settings(TESTING=True)
+    @patch("micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin")
+    def test_testing_mode_skips_remote_discovery_registration(self, mock_get_plugin, chassis):
+        """Model factories must not write to manufacturer APIs during tests."""
+        HardwarePostSaveHooks._add_ip_to_discovery(chassis)
+
+        mock_get_plugin.assert_not_called()
+
     @override_settings(TESTING=False)
     @patch("micboard.services.core.hardware_post_save_hooks.enqueue_huey_task")
     @patch("micboard.services.core.hardware_post_save_hooks.huey_is_configured", return_value=True)
@@ -244,13 +260,55 @@ class TestDiscoveryScheduling:
         mock_enqueue_huey_task,
         chassis,
     ):
-        HardwarePostSaveHooks._schedule_discovery(chassis)
+        HardwarePostSaveHooks._schedule_discovery(chassis, using="default")
 
         mock_enqueue_huey_task.assert_called_once_with(
             mock_sync_receiver_discovery,
             chassis.pk,
+            using="default",
         )
         mock_sync_receiver_discovery.assert_not_called()
+
+    @patch("micboard.services.sync.discovery_service.DiscoveryService.add_discovery_candidate")
+    def test_discovery_task_preserves_database_alias(
+        self,
+        add_discovery_candidate,
+        chassis,
+    ):
+        """Deferred discovery reads and checks inventory on the originating database."""
+        from micboard.tasks.sync.discovery import sync_receiver_discovery
+
+        sync_receiver_discovery(chassis.pk, using="default")
+
+        add_discovery_candidate.assert_called_once_with(
+            str(chassis.ip),
+            chassis.manufacturer,
+            source="chassis_save",
+            using="default",
+        )
+
+    @override_settings(TESTING=False)
+    @patch("micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin")
+    def test_delete_cleanup_resolves_current_manufacturer_metadata(
+        self,
+        mock_get_plugin,
+        manufacturer,
+    ):
+        """Cleanup snapshots retain IDs and resolve current vendor metadata after commit."""
+        plugin = mock_get_plugin.return_value
+        plugin.remove_discovery_ips.return_value = True
+        target = ChassisDiscoveryCleanup(
+            manufacturer_id=manufacturer.pk,
+            ip="192.0.2.10",
+        )
+
+        HardwarePostSaveHooks._remove_ips_from_discovery(
+            targets=(target,),
+            using="default",
+        )
+
+        mock_get_plugin.assert_called_once_with(manufacturer.code, manufacturer)
+        plugin.remove_discovery_ips.assert_called_once_with(["192.0.2.10"])
 
 
 @pytest.mark.django_db

@@ -20,8 +20,7 @@ A complete, admin-configurable settings management system has been implemented f
 
 ### 2. Services
 
-#### SettingsRegistry (`/micboard/services/settings_registry.py`)
-- 245 lines of core configuration service
+#### SettingsRegistry (`/micboard/services/shared/settings_registry.py`)
 - Features:
   - Scope-aware resolution with intelligent fallback
   - 5-minute TTL on values, LRU cache on definitions
@@ -33,8 +32,7 @@ A complete, admin-configurable settings management system has been implemented f
   - `get_all_for_scope(**scopes)`
   - `invalidate_cache(key)`
 
-#### ManufacturerConfigRegistry (`/micboard/services/manufacturer_config_registry.py`)
-- 195 lines of manufacturer-specific configuration
+#### ManufacturerConfigRegistry (`/micboard/services/manufacturer/manufacturer_config_registry.py`)
 - Features:
   - Default configurations for Shure and Sennheiser
   - Database override support via SettingDefinition
@@ -45,7 +43,6 @@ A complete, admin-configurable settings management system has been implemented f
   - `initialize_defaults()`
 
 ### 3. Admin Interface (`/micboard/admin/settings.py`)
-- 249 lines of Django admin integration
 - SettingDefinitionAdmin:
   - List view with filters (scope, type, active status)
   - Search by key and label
@@ -59,13 +56,11 @@ A complete, admin-configurable settings management system has been implemented f
   - Cache invalidation on save
 
 ### 4. Forms (`/micboard/forms/settings.py`)
-- 242 lines of form classes
 - BulkSettingConfigForm: Configure multiple settings at once
 - ManufacturerSettingsForm: Quick setup for manufacturer-specific config
 - Both include scope validation and error handling
 
 ### 5. Views (`/micboard/views/settings.py`)
-- 106 lines of web interface
 - BulkSettingConfigView: Form view for bulk configuration
 - ManufacturerSettingsView: Quick manufacturer setup
 - settings_overview: Dashboard showing all configured settings
@@ -77,7 +72,7 @@ A complete, admin-configurable settings management system has been implemented f
   - `--manufacturer-defaults`: Initialize manufacturer defaults
 - Creates 17 standard setting definitions across all scopes
 
-### 7. URL Configuration (`/micboard/urls/settings.py`)
+### 7. URL Configuration (`/micboard/urls.py`)
 - Routes for admin interface
 - Endpoints:
   - `/settings/` - settings overview
@@ -85,12 +80,14 @@ A complete, admin-configurable settings management system has been implemented f
   - `/settings/manufacturer/` - manufacturer quick setup
 
 ### 8. Database Migration
-- `0002_settings_initial.py`: Creates Setting and SettingDefinition tables
+- `0002_settingdefinition_setting.py`: Creates Setting and SettingDefinition tables
 - Includes indexes for common queries
 - Unique together constraint for scope isolation
 
-### 9. Tests (`/tests/test_settings.py`)
-- 460 lines of comprehensive test coverage
+### 9. Tests
+- Model and registry coverage in `/tests/test_settings.py`
+- Resolution and presentation coverage in `/tests/test_settings_service.py`
+- Request-level route and redaction coverage in `/tests/test_settings_diff_admin.py`
 - SettingDefinitionTests: 8 tests for model parsing/serialization
 - SettingTests: 4 tests for model behavior
 - SettingsRegistryTests: 8 tests for service functionality
@@ -119,48 +116,37 @@ A complete, admin-configurable settings management system has been implemented f
 ```
 micboard/
 ├── admin/
-│   └── settings.py                    (249 lines) ✅ NEW
+│   └── settings.py
 ├── forms/
-│   └── settings.py                    (242 lines) ✅ NEW
+│   └── settings.py
 ├── models/
 │   └── settings/
-│       ├── __init__.py               (11 lines) ✅ NEW
-│       └── registry.py               (211 lines) ✅ NEW
+│       ├── __init__.py
+│       └── registry.py
 ├── services/
-│   ├── settings_registry.py           (245 lines) ✅ NEW
-│   └── manufacturer_config_registry.py (195 lines) ✅ NEW
+│   ├── settings/
+│   │   └── settings_service.py
+│   ├── shared/
+│   │   └── settings_registry.py
+│   └── manufacturer/
+│       └── manufacturer_config_registry.py
 ├── management/commands/
-│   └── init_settings.py               (142 lines) ✅ NEW
+│   └── init_settings.py
 ├── views/
-│   └── settings.py                    (106 lines) ✅ NEW
-├── urls/
-│   └── settings.py                    (16 lines) ✅ NEW
+│   └── settings.py
+├── urls.py
 ├── migrations/
-│   └── 0002_settings_initial.py       (68 lines) ✅ NEW
+│   └── 0002_settingdefinition_setting.py
 
 tests/
-└── test_settings.py                   (460 lines) ✅ NEW
+├── test_settings.py
+├── test_settings_service.py
+└── test_settings_diff_admin.py
 
 Documentation:
-├── SETTINGS_MANAGEMENT.md             (323 lines) ✅ NEW
-└── SETTINGS_INTEGRATION.md            (540 lines) ✅ NEW
+├── SETTINGS_MANAGEMENT.md
+└── SETTINGS_INTEGRATION.md
 ```
-
-## Total Lines of Code
-
-| Component | Lines | Status |
-|-----------|-------|--------|
-| Models | 222 | ✅ Complete |
-| Services | 440 | ✅ Complete |
-| Admin | 249 | ✅ Complete |
-| Forms | 242 | ✅ Complete |
-| Views | 106 | ✅ Complete |
-| Management | 142 | ✅ Complete |
-| URLs | 16 | ✅ Complete |
-| Migrations | 68 | ✅ Complete |
-| Tests | 460 | ✅ Complete |
-| Documentation | 863 | ✅ Complete |
-| **TOTAL** | **2,808** | ✅ **COMPLETE** |
 
 ## Dependencies
 
@@ -181,42 +167,43 @@ The settings system uses only Django and Python standard library:
 
 ## Setup Instructions
 
-### 1. Install Files
-All files are already created in the workspace.
+### 1. Install the Project Environment
 
-### 2. Create Migration
 ```bash
-uv run --no-sync python manage.py makemigrations micboard --name "add_settings"
+uv sync --locked --all-extras
 ```
 
-### 3. Apply Migration
+### 2. Apply Existing Migrations
 ```bash
 uv run --no-sync python manage.py migrate
 ```
 
-### 4. Initialize Settings
+### 3. Initialize Settings
 ```bash
 uv run --no-sync python manage.py init_settings --manufacturer-defaults
 ```
 
-### 5. Run Tests
+### 4. Run Tests
 ```bash
-uv run --no-sync python manage.py test tests.test_settings
+uv run --no-sync pytest tests/test_settings.py tests/test_settings_service.py
 ```
 
-### 6. Access Admin
+### 5. Access Settings
 ```
 Django Admin → Micboard → Setting Definitions
 Django Admin → Micboard → Settings
+/settings/
+/settings/bulk/
+/settings/manufacturer/
 ```
 
 ## Quick Start
 
 ### For End Users (Admins)
 
-1. **Go to Django Admin**
-2. **Navigate to**: Micboard → Settings
-3. **Click "Configure Manufacturer Settings"**
+1. **Go to** `/settings/manufacturer/`
+2. **Select a manufacturer**
+3. **Configure its settings**
 4. **Select a manufacturer** and fill in values:
    - Battery thresholds
    - API timeouts
@@ -226,7 +213,7 @@ Django Admin → Micboard → Settings
 ### For Developers
 
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 # Get a configuration value
 interval = SettingsRegistry.get(
@@ -334,17 +321,15 @@ uv run --no-sync coverage report
 - **Neutral**: Minimal database overhead (cached 5 minutes)
 - **Notes**: First request slower (cache miss), subsequent requests < 1ms
 
-## Backward Compatibility
+## Import Compatibility
 
-✅ **Fully Compatible**
-- All existing code continues to work
-- Can migrate gradually (keep hardcoded constants and settings in parallel)
-- No database schema conflicts
-- No API breaking changes
+Import settings classes and singletons from their defining modules. Obsolete package-level
+convenience exports are intentionally unsupported.
 
 ## Support
 
 See:
 - **SETTINGS_MANAGEMENT.md** - Admin usage guide
 - **SETTINGS_INTEGRATION.md** - Developer integration examples
-- **tests/test_settings.py** - 25+ examples of working code
+- **tests/test_settings.py** - Model and registry examples
+- **tests/test_settings_service.py** - Settings resolution and presentation examples

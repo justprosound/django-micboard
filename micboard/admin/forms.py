@@ -63,9 +63,10 @@ class WirelessChassisAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Populate band plan choices based on manufacturer
-        if self.instance and self.instance.manufacturer:
-            if hasattr(self.instance.manufacturer, "code"):
-                mfg_code = self.instance.manufacturer.code.lower()
+        if self.instance.manufacturer_id:
+            manufacturer = self.instance.manufacturer
+            if hasattr(manufacturer, "code"):
+                mfg_code = manufacturer.code.lower()
                 band_plans = get_available_band_plans(manufacturer=mfg_code)
                 choices = [("", "--- Select band plan ---")] + [
                     (key, name) for key, name in band_plans

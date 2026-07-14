@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 from django.conf import settings
 
@@ -11,19 +11,59 @@ from micboard.utils.dependencies import (
     HAS_RANGE_FILTER,
     HAS_SIMPLE_HISTORY,
     HAS_UNFOLD,
+    HAS_UNFOLD_FILTERS,
+    HAS_UNFOLD_IMPORT_EXPORT,
 )
 
 logger = logging.getLogger(__name__)
 _UNSET = object()
 
+# Host-wide catalogs allowed in tenant-owned admin relationship widgets. Keep
+# this list model-based and deliberately small: adding a label requires proving
+# that its rows carry no organization, campus, or site ownership boundary.
+SHARED_ADMIN_REFERENCE_MODEL_LABELS: Final[frozenset[str]] = frozenset(
+    {
+        "micboard.manufacturer",  # Host-wide hardware vendor catalog.
+        "micboard.settingdefinition",  # Host-wide schema selected by Setting forms.
+    }
+)
+
+# Explicit host-wide administration surfaces. These models do not carry a
+# tenant key, so tenant-aware query construction must fail closed for ordinary
+# users. A platform superuser still needs to manage them when multi-site mode
+# is enabled. Do not infer this policy from a missing tenant field: every new
+# entry requires an ownership review.
+PLATFORM_GLOBAL_ADMIN_MODEL_LABELS: Final[frozenset[str]] = frozenset(
+    {
+        "micboard.activitylog",  # Host-wide audit trail has no tenant ownership key.
+        "micboard.configurationauditlog",
+        "micboard.discovereddevice",  # Pre-import inventory is not assigned to a site.
+        "micboard.discoverycidr",  # Host-wide manufacturer discovery configuration.
+        "micboard.discoveryfqdn",  # Host-wide manufacturer discovery configuration.
+        "micboard.discoveryjob",  # Host-wide discovery execution history.
+        "micboard.discoveryqueue",  # Pre-import inventory is not assigned to a site.
+        "micboard.manufacturer",
+        "micboard.manufacturerapiserver",
+        "micboard.manufacturerconfiguration",
+        "micboard.micboardconfig",
+        "micboard.servicesynclog",  # Host-wide manufacturer synchronization history.
+        "micboard.settingdefinition",
+        "micboard.useralertpreference",  # Host-wide user preference record.
+    }
+)
+
 # Base ModelAdmin - Use Unfold if available
 if HAS_UNFOLD:
     from unfold.admin import ModelAdmin as BaseAdmin
-    from unfold.contrib.filters.admin import FieldTextFilter, RangeDateFilter, RangeDateTimeFilter
+
+    if HAS_UNFOLD_FILTERS:
+        from unfold.contrib.filters.admin import RangeDateFilter, RangeDateTimeFilter
+    else:
+        RangeDateFilter = None
+        RangeDateTimeFilter = None
 else:
     from django.contrib.admin import ModelAdmin as BaseAdmin
 
-    FieldTextFilter = None
     RangeDateFilter = None
     RangeDateTimeFilter = None
 
@@ -42,7 +82,7 @@ class BaseImportExportAdmin(_ImportExportBase):
     export_form_class: Any = None
 
 
-if HAS_IMPORT_EXPORT and HAS_UNFOLD:
+if HAS_IMPORT_EXPORT and HAS_UNFOLD_IMPORT_EXPORT:
     try:
         from unfold.contrib.import_export.forms import ExportForm, ImportForm
 
@@ -78,7 +118,7 @@ class EnhancedAdminMixin:
         filters = list(super().get_list_filter(request))  # type: ignore
 
         # If using Unfold, we want to use Unfold's optimized filters
-        if HAS_UNFOLD:
+        if HAS_UNFOLD_FILTERS:
             new_filters: list[Any] = []
             for f in filters:
                 if isinstance(f, str):
@@ -124,9 +164,24 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
         managers use the same tenant lookup contract; models without a safe
         tenant path fail closed while MSP mode is enabled.
         """
-        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+        msp_enabled = getattr(settings, "MICBOARD_MSP_ENABLED", False)
+        multi_site_enabled = getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
+        if not (msp_enabled or multi_site_enabled):
             return queryset
-        if user.is_superuser and getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True):
+        if (
+            msp_enabled
+            and not multi_site_enabled
+            and user.is_superuser
+            and getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True)
+        ):
+            return queryset
+
+        model_label = getattr(getattr(queryset.model, "_meta", None), "label_lower", "")
+        if (
+            multi_site_enabled
+            and user.is_superuser
+            and model_label in PLATFORM_GLOBAL_ADMIN_MODEL_LABELS
+        ):
             return queryset
 
         manager = getattr(queryset.model, "objects", queryset.model._default_manager)
@@ -152,12 +207,19 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
 
     def _scope_related_queryset(self, db_field: Any, request: Any, kwargs: dict[str, Any]) -> None:
         """Limit a relationship widget to tenant-visible target objects."""
-        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+        if not (
+            getattr(settings, "MICBOARD_MSP_ENABLED", False)
+            or getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
+        ):
+            return
+
+        related_model = db_field.remote_field.model
+        related_label = getattr(getattr(related_model, "_meta", None), "label_lower", "")
+        if related_label in SHARED_ADMIN_REFERENCE_MODEL_LABELS:
             return
 
         queryset = kwargs.get("queryset")
         if queryset is None:
-            related_model = db_field.remote_field.model
             manager = related_model._default_manager
             database = kwargs.get("using")
             if database is not None:

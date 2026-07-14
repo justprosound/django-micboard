@@ -117,29 +117,37 @@ class HardwareQueryService:
         *,
         organization_id: int | None = None,
         site_id: int | None = None,
-    ) -> QuerySet[WirelessChassis]:
-        """Async: Get all active chassis."""
+    ) -> list[WirelessChassis]:
+        """Return active chassis materialized safely for async callers."""
         from asgiref.sync import sync_to_async
 
-        return await sync_to_async(HardwareQueryService.get_active_chassis)(
-            organization_id=organization_id,
-            site_id=site_id,
-        )
+        return await sync_to_async(
+            lambda: list(
+                HardwareQueryService.get_active_chassis(
+                    organization_id=organization_id,
+                    site_id=site_id,
+                )
+            ),
+            thread_sensitive=True,
+        )()
 
     @staticmethod
     async def aget_online_chassis(
         *,
         organization_id: int | None = None,
         site_id: int | None = None,
-    ) -> QuerySet[WirelessChassis]:
-        """Async: Get all online chassis."""
+    ) -> list[WirelessChassis]:
+        """Return online chassis materialized safely for async callers."""
         from asgiref.sync import sync_to_async
 
         return await sync_to_async(
-            lambda: HardwareQueryService.get_active_chassis(
-                organization_id=organization_id,
-                site_id=site_id,
-            ).filter(is_online=True)
+            lambda: list(
+                HardwareQueryService.get_active_chassis(
+                    organization_id=organization_id,
+                    site_id=site_id,
+                ).filter(is_online=True)
+            ),
+            thread_sensitive=True,
         )()
 
     @staticmethod
@@ -154,14 +162,19 @@ class HardwareQueryService:
         *,
         organization_id: int | None = None,
         site_id: int | None = None,
-    ) -> QuerySet[WirelessUnit]:
-        """Async: Get all active wireless units."""
+    ) -> list[WirelessUnit]:
+        """Return active wireless units materialized safely for async callers."""
         from asgiref.sync import sync_to_async
 
-        return await sync_to_async(HardwareQueryService.get_active_units)(
-            organization_id=organization_id,
-            site_id=site_id,
-        )
+        return await sync_to_async(
+            lambda: list(
+                HardwareQueryService.get_active_units(
+                    organization_id=organization_id,
+                    site_id=site_id,
+                )
+            ),
+            thread_sensitive=True,
+        )()
 
     @staticmethod
     async def aget_unit_by_id(*, unit_id: int) -> WirelessUnit:
@@ -171,8 +184,11 @@ class HardwareQueryService:
         return await sync_to_async(HardwareQueryService.get_unit_by_id)(unit_id=unit_id)
 
     @staticmethod
-    async def aget_low_battery_units(*, threshold: int = 20) -> QuerySet[WirelessUnit]:
-        """Async: Get wireless units with low battery."""
+    async def aget_low_battery_units(*, threshold: int = 20) -> list[WirelessUnit]:
+        """Return low-battery units materialized safely for async callers."""
         from asgiref.sync import sync_to_async
 
-        return await sync_to_async(lambda: WirelessUnit.objects.low_battery(threshold=threshold))()
+        return await sync_to_async(
+            lambda: list(WirelessUnit.objects.low_battery(threshold=threshold)),
+            thread_sensitive=True,
+        )()

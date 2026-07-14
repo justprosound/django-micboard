@@ -55,6 +55,7 @@ nav:
       - Views: api/views.md
   - Development:
       - Developer Guide: development.md
+      - Plugin Development: plugin-development.md
       - Architecture: development/architecture.md
       - Python API: development/api-reference.md
       - Dependencies: development/dependency-management.md

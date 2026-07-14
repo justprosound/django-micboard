@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import patch
 
 from django.test import override_settings
@@ -11,6 +10,7 @@ import pytest
 
 from micboard.models.locations.structure import Location
 from micboard.services.core.location import LocationService
+from tests.async_utils import run_async_with_heartbeat
 from tests.factories.hardware import WirelessChassisFactory
 from tests.factories.locations import BuildingFactory, LocationFactory, RoomFactory
 
@@ -70,7 +70,7 @@ def test_async_create_location_preserves_required_hierarchy() -> None:
     expected = LocationFactory.build(building=building, room=room)
 
     with patch.object(LocationService, "create_location", return_value=expected) as create:
-        location = asyncio.run(
+        location = run_async_with_heartbeat(
             LocationService.acreate_location(
                 building=building,
                 room=room,
@@ -168,6 +168,23 @@ def test_location_queries_order_results_and_filter_online_hardware() -> None:
 
     assert list(LocationService.get_all_locations()) == [alpha, zulu]
     assert list(LocationService.get_hardware_in_location(location=alpha)) == [online]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_async_location_query_materializes_results_before_returning() -> None:
+    """Location iteration remains safe inside a running event loop."""
+    zulu = LocationFactory(name="Zulu")
+    alpha = LocationFactory(name="Alpha")
+
+    async def evaluate_results() -> tuple[list[Location], list[str]]:
+        locations = await LocationService.aget_all_locations()
+        assert isinstance(locations, list)
+        return locations, [location.name for location in locations]
+
+    locations, names = run_async_with_heartbeat(evaluate_results())
+
+    assert locations == [alpha, zulu]
+    assert names == ["Alpha", "Zulu"]
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
