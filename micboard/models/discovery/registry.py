@@ -6,10 +6,8 @@ from typing import ClassVar
 
 from django.db import models
 
-from micboard.models.mixins import DiscoveryTriggerMixin
 
-
-class MicboardConfig(models.Model, DiscoveryTriggerMixin):
+class MicboardConfig(models.Model):
     """Global configuration settings."""
 
     key = models.CharField(max_length=100, help_text="Configuration key")
@@ -32,16 +30,8 @@ class MicboardConfig(models.Model, DiscoveryTriggerMixin):
         manufacturer_name = self.manufacturer.name if self.manufacturer else "Global"
         return f"{manufacturer_name}: {self.key}: {self.value}"
 
-    def save(self, *args, **kwargs):
-        """Persist configuration through the discovery registry service."""
-        from micboard.services.discovery.registry_service import (
-            save_micboard_config as _save,
-        )
 
-        _save(self, *args, **kwargs)
-
-
-class DiscoveryCIDR(models.Model, DiscoveryTriggerMixin):
+class DiscoveryCIDR(models.Model):
     """CIDR ranges to be used for discovery scans."""
 
     manufacturer = models.ForeignKey(
@@ -60,16 +50,8 @@ class DiscoveryCIDR(models.Model, DiscoveryTriggerMixin):
     def __str__(self) -> str:
         return f"{self.manufacturer.name} {self.cidr}"
 
-    def save(self, *args, **kwargs):
-        """Persist the CIDR through the discovery registry service."""
-        from micboard.services.discovery.registry_service import (
-            save_discovery_cidr as _save,
-        )
 
-        _save(self, *args, **kwargs)
-
-
-class DiscoveryFQDN(models.Model, DiscoveryTriggerMixin):
+class DiscoveryFQDN(models.Model):
     """FQDN patterns or hostnames to resolve for discovery."""
 
     manufacturer = models.ForeignKey(
@@ -87,22 +69,6 @@ class DiscoveryFQDN(models.Model, DiscoveryTriggerMixin):
 
     def __str__(self) -> str:
         return f"{self.manufacturer.name} {self.fqdn}"
-
-    def save(self, *args, **kwargs):
-        """Persist the FQDN through the discovery registry service."""
-        from micboard.services.discovery.registry_service import (
-            save_discovery_fqdn as _save,
-        )
-
-        _save(self, *args, **kwargs)
-
-    def delete(self, *args, **kwargs):
-        """Delete the FQDN through the discovery registry service."""
-        from micboard.services.discovery.registry_service import (
-            delete_discovery_fqdn as _delete,
-        )
-
-        return _delete(self, *args, **kwargs)
 
 
 class DiscoveryJob(models.Model):

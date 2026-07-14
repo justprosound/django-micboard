@@ -32,13 +32,14 @@ class WirelessUnitQuerySet(TenantOptimizedQuerySet):
         if user.is_superuser:
             return tenant_scope
 
-        from micboard.services.monitoring.monitoring_access import MonitoringService
-
-        locations = MonitoringService.get_accessible_locations(user)
-        channels = MonitoringService.get_accessible_channels(user)
+        groups = user.monitoring_groups.filter(is_active=True)
+        all_room_buildings = groups.filter(
+            monitoringgrouplocation__include_all_rooms=True
+        ).values_list("monitoringgrouplocation__location__building_id", flat=True)
         return tenant_scope.filter(
-            models.Q(base_chassis__location__in=locations)
-            | models.Q(assigned_resource__in=channels)
+            models.Q(base_chassis__location__monitoring_groups__in=groups)
+            | models.Q(base_chassis__location__building_id__in=all_room_buildings)
+            | models.Q(assigned_resource__monitoring_groups__in=groups)
         ).distinct()
 
     def active(self) -> WirelessUnitQuerySet:
@@ -323,17 +324,3 @@ class WirelessUnit(models.Model):
         if self.name:
             return f"{self.name} ({device_type_label}) - Slot {self.slot}"
         return f"Unit {self.serial_number} - {device_type_label} (Slot {self.slot})"
-
-    def save(self, *args, **kwargs) -> None:
-        """Persist the unit after service-layer lifecycle validation."""
-        from micboard.services.hardware.wireless_unit_service import (
-            finalize_unit_save,
-            prepare_unit_for_save,
-        )
-
-        context = prepare_unit_for_save(self)
-        if update_fields := kwargs.get("update_fields"):
-            kwargs["update_fields"] = set(update_fields) | context["update_fields"]
-
-        super().save(*args, **kwargs)
-        finalize_unit_save(self, context)

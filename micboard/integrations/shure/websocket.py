@@ -30,7 +30,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from inspect import isawaitable
-from typing import TYPE_CHECKING, Any
+from typing import Any, Protocol
 
 from asgiref.sync import sync_to_async
 
@@ -55,10 +55,18 @@ except ImportError:  # pragma: no cover - optional dependency
     WebsocketConnectionClosedError = type("WebsocketConnectionClosedError", (Exception,), {})
 
 
-if TYPE_CHECKING:
-    from .client import ShureSystemAPIClient
-
 logger = logging.getLogger(__name__)
+
+
+class ShureWebSocketClient(Protocol):
+    """Minimum authenticated client interface needed by the WebSocket adapter."""
+
+    @property
+    def websocket_url(self) -> str | None:
+        raise NotImplementedError
+
+    def _make_request(self, method: str, endpoint: str) -> Any | None:
+        raise NotImplementedError
 
 
 class ShureWebSocketError(Exception):
@@ -115,7 +123,7 @@ async def _read_and_dispatch_messages(
 
 
 async def connect_and_subscribe(
-    client: ShureSystemAPIClient,
+    client: ShureWebSocketClient,
     device_id: str,
     callback: Callable[[dict[str, Any]], Awaitable[None] | None],
 ) -> None:

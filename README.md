@@ -30,10 +30,10 @@ django-micboard is a community-driven, pre-production Django reusable app for mo
 Add to your Django project:
 
 ```bash
-uv add "django-micboard[standard,audit,import-export]"
+uv add "django-micboard[standard,audit]"
 ```
 
-Use `uv add "django-micboard[standard]"` without the optional history/import-export apps, or
+Use `uv add "django-micboard[standard]"` without the optional history app, or
 `uv add django-micboard` when only the core reusable app is needed.
 
 In `settings.py`:
@@ -55,13 +55,6 @@ INSTALLED_APPS += [
     "unfold.contrib.filters",  # Unfold date and datetime range filters
     "simple_history",  # Model change tracking
     "huey.contrib.djhuey",  # Native Huey Django integration
-]
-
-# Import/export support requires both apps and the import-export package extra.
-# Add "unfold.contrib.import_export" only when "import_export" is also enabled.
-INSTALLED_APPS += [
-    "unfold.contrib.import_export",
-    "import_export",
 ]
 
 HUEY = {
@@ -95,6 +88,10 @@ MICBOARD_MULTI_SITE_MODE = True
 MICBOARD_MSP_ENABLED = False  # or True for full MSP mode
 MICBOARD_SITE_ISOLATION = "site"  # or "organization", "campus"
 ```
+
+Micboard intentionally disables generic admin import and export. A host may install the
+`import-export` extra only after defining request-aware resources that validate tenant ownership
+for every transferred row and explicitly opting its own admin classes into those resources.
 
 Add to your `urls.py`:
 

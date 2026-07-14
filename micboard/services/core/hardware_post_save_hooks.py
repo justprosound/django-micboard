@@ -9,6 +9,7 @@ Handles side effects that must occur after a chassis is saved or deleted:
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from functools import partial
 
 from django.conf import settings
@@ -16,7 +17,6 @@ from django.db import DEFAULT_DB_ALIAS, transaction
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.hardware.dtos import ChassisDiscoveryCleanup
-from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class HardwarePostSaveHooks:
         created: bool,
         using: str = "default",
     ) -> None:
-        """Run manufacturer and task effects after durable persistence."""
+        """Run manufacturer effects after durable persistence."""
         if getattr(settings, "TESTING", False):
             return
         chassis = (
@@ -70,7 +70,6 @@ class HardwarePostSaveHooks:
             return
         if created:
             HardwarePostSaveHooks._add_ip_to_discovery(chassis)
-        HardwarePostSaveHooks._schedule_discovery(chassis, using=using)
 
     @staticmethod
     def _ensure_channel_count(
@@ -133,21 +132,6 @@ class HardwarePostSaveHooks:
             )
 
     @staticmethod
-    def _schedule_discovery(chassis: WirelessChassis, *, using: str = "default") -> None:
-        if getattr(settings, "TESTING", False) or not chassis.ip:
-            return
-
-        try:
-            from micboard.tasks.sync.discovery import sync_receiver_discovery
-
-            if huey_is_configured():
-                enqueue_huey_task(sync_receiver_discovery, chassis.pk, using=using)
-            else:
-                sync_receiver_discovery(chassis.pk, using=using)
-        except Exception:
-            logger.exception("Failed to schedule discovery task")
-
-    @staticmethod
     def handle_chassis_delete(
         *,
         chassis: WirelessChassis,
@@ -176,20 +160,31 @@ class HardwarePostSaveHooks:
             if chassis.ip and chassis.manufacturer_id is not None
         )
         if targets:
-            transaction.on_commit(
-                partial(
-                    HardwarePostSaveHooks._remove_ips_from_discovery,
-                    targets=targets,
-                    using=using,
-                ),
+            connection = transaction.get_connection(using)
+            savepoints = set(connection.savepoint_ids)
+            for callback_savepoints, callback, _robust in connection.run_on_commit:
+                pending_targets = getattr(
+                    callback,
+                    "_micboard_chassis_cleanup_targets",
+                    None,
+                )
+                if callback_savepoints == savepoints and pending_targets is not None:
+                    pending_targets.extend(targets)
+                    return
+
+            pending_targets = list(targets)
+            callback = partial(
+                HardwarePostSaveHooks._remove_ips_from_discovery,
+                targets=pending_targets,
                 using=using,
-                robust=True,
             )
+            callback.__dict__["_micboard_chassis_cleanup_targets"] = pending_targets
+            transaction.on_commit(callback, using=using, robust=True)
 
     @staticmethod
     def _remove_ips_from_discovery(
         *,
-        targets: tuple[ChassisDiscoveryCleanup, ...],
+        targets: Sequence[ChassisDiscoveryCleanup],
         using: str = "default",
     ) -> None:
         """Remove committed chassis IPs from each manufacturer's discovery list."""

@@ -11,20 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class DiscoveryTriggerMixin:
-    """Mixin for models that should trigger discovery scans when saved/deleted.
-
-    Used by MicboardConfiguration, DiscoveryCIDR, DiscoveryFQDN, and Manufacturer
-    to trigger async discovery tasks.
-    """
-
-    manufacturer_id: int | None  # Should be implemented by subclass
-
-    def _trigger_discovery(self, manufacturer_pk: int | None = None) -> None:
-        """Trigger async discovery scan for a manufacturer (delegates to service)."""
-        pk = manufacturer_pk or self.manufacturer_id
-        from micboard.services.sync.discovery_trigger_service import trigger_discovery
-
-        trigger_discovery(pk)
+    """Migration-stable marker retained for historical model state loading."""
 
 
 class TenantFilterableMixin(models.QuerySet):

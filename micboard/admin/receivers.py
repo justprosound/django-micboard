@@ -109,6 +109,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
 
     def delete_queryset(self, request, queryset) -> None:
         """Register one post-commit discovery cleanup for bulk deletion."""
+        from micboard.model_lifecycle import suppress_chassis_delete_hooks
         from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
 
         using = queryset.db
@@ -127,7 +128,8 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             deletion_queryset = WirelessChassis._default_manager.using(using).filter(
                 pk__in=chassis_ids
             )
-            super().delete_queryset(request, deletion_queryset)
+            with suppress_chassis_delete_hooks():
+                super().delete_queryset(request, deletion_queryset)
 
     def get_queryset(self, request):
         return (

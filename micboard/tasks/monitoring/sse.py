@@ -11,7 +11,12 @@ from asgiref.sync import sync_to_async
 from micboard.models.discovery import Manufacturer
 from micboard.models.hardware import WirelessChassis
 from micboard.services.common.base.plugin import get_manufacturer_plugin
-from micboard.tasks.sync.polling import _update_models_from_api_data
+from micboard.services.realtime.connection_service import (
+    mark_connecting,
+    mark_error,
+    received_message,
+)
+from micboard.services.sync.device_update_service import DeviceUpdateService
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +86,7 @@ def _get_or_create_sse_connection(plugin: Any, device_id: str) -> Any:
     if not created:
         connection.connection_type = "sse"
         connection.save(update_fields=["connection_type", "updated_at"])
-    connection.mark_connecting()
+    mark_connecting(connection)
     return connection
 
 
@@ -105,7 +110,7 @@ async def _subscribe_device_async(plugin: Any, device_id: str) -> None:
     async def update_callback(data: dict[str, Any]) -> None:
         """Handle SSE update data."""
         if connection:
-            await sync_to_async(connection.received_message, thread_sensitive=True)()
+            await sync_to_async(received_message, thread_sensitive=True)(connection)
         logger.info("SSE update for %s: %s", device_id, data)
         await _process_sse_update_async(plugin, device_id, data)
 
@@ -115,7 +120,7 @@ async def _subscribe_device_async(plugin: Any, device_id: str) -> None:
         logger.exception("Error subscribing to device %s", device_id)
         if connection:
             error_status = f"SSE subscription failed: {type(exc).__name__}"[:160]
-            await sync_to_async(connection.mark_error, thread_sensitive=True)(error_status)
+            await sync_to_async(mark_error, thread_sensitive=True)(connection, error_status)
 
 
 async def _process_sse_update_async(
@@ -137,9 +142,13 @@ async def _process_sse_update_async(
                 # Create a single-device API data list for the update function
                 api_data = [data]  # Raw API data
                 updated_count = await sync_to_async(
-                    _update_models_from_api_data,
+                    DeviceUpdateService.update_models_from_api_data,
                     thread_sensitive=True,
-                )(api_data, manufacturer, plugin)
+                )(
+                    api_data=api_data,
+                    manufacturer=manufacturer,
+                    plugin=plugin,
+                )
                 if updated_count > 0:
                     logger.info("Updated %d device(s) from SSE for %s", updated_count, device_id)
 

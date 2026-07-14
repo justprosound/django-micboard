@@ -7,6 +7,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock, Mock, patch
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import Q
 from django.test import override_settings
 
 import pytest
@@ -187,25 +188,25 @@ def test_campus_filter_uses_available_tenant_path(attribute: str, expected: dict
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
-@patch.object(OrganizationMembership._default_manager, "filter")
-def test_msp_user_filter_denies_users_without_memberships(mock_filter: MagicMock) -> None:
+def test_msp_user_filter_denies_users_without_memberships() -> None:
     queryset = _queryset_with_model(organization_id=None)
     queryset.none.return_value = "none"
-    mock_filter.return_value.values_list.return_value = []
-    user = SimpleNamespace(is_superuser=False)
+    memberships = MagicMock()
+    memberships.filter.return_value.values_list.return_value = []
+    user = SimpleNamespace(is_superuser=False, org_memberships=memberships)
     assert _for_user(queryset, user=user) == "none"
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
-@patch.object(OrganizationMembership._default_manager, "filter")
-def test_msp_user_filter_applies_every_membership(mock_filter: MagicMock) -> None:
+def test_msp_user_filter_applies_every_membership() -> None:
     queryset = _queryset_with_model(organization_id=None)
     queryset.for_memberships.return_value = queryset
-    memberships = [(2, None), (3, 5)]
-    mock_filter.return_value.values_list.return_value = memberships
-    user = SimpleNamespace(is_superuser=False)
+    membership_rows = [(2, None), (3, 5)]
+    memberships = MagicMock()
+    memberships.filter.return_value.values_list.return_value = membership_rows
+    user = SimpleNamespace(is_superuser=False, org_memberships=memberships)
     assert _for_user(queryset, user=user) is queryset
-    queryset.for_memberships.assert_called_once_with(memberships)
+    queryset.for_memberships.assert_called_once_with(membership_rows)
 
 
 @override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True)
@@ -238,21 +239,23 @@ def test_superuser_and_original_user_filters_are_preserved() -> None:
 
 
 @override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=False)
-@patch("micboard.services.monitoring.monitoring_access.MonitoringService.get_accessible_locations")
-def test_monitoring_group_fallback_is_scoped(mock_locations: MagicMock) -> None:
+def test_monitoring_group_fallback_is_scoped() -> None:
     queryset = SimpleNamespace(
         model=type("LocatedModel", (), {"location": object()}),
         filter=Mock(),
     )
-    locations = MagicMock()
-    mock_locations.return_value = locations
+    groups = MagicMock()
+    active_groups = groups.filter.return_value
+    buildings = active_groups.filter.return_value.values_list.return_value
     user = SimpleNamespace(
         is_superuser=False,
-        monitoring_groups=MagicMock(),
+        monitoring_groups=groups,
     )
 
-    assert _for_user(queryset, user=user) is queryset.filter.return_value
-    queryset.filter.assert_called_once_with(location__in=locations)
+    assert _for_user(queryset, user=user) is queryset.filter.return_value.distinct.return_value
+    queryset.filter.assert_called_once_with(
+        Q(location__monitoring_groups__in=active_groups) | Q(location__building_id__in=buildings)
+    )
 
 
 def test_manager_methods_delegate_to_tenant_queryset() -> None:

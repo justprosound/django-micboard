@@ -19,7 +19,8 @@ class SSEClient(Protocol):
     base_url: str
     password: str
 
-    def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any: ...
+    def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any:
+        raise NotImplementedError
 
 
 async def connect_and_subscribe(

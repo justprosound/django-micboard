@@ -17,7 +17,6 @@ from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
 from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.services.common.base import client as base_client_module
 from micboard.services.common.base import resilience
-from micboard.services.maintenance.efis_import import EFISImportService
 from micboard.services.settings.settings_service import settings as app_settings
 
 
@@ -139,10 +138,18 @@ def test_efis_import_uses_verified_shared_session(monkeypatch) -> None:
     session_factory = MagicMock(return_value=session)
     monkeypatch.setattr(efis_import_module, "create_resilient_session", session_factory)
     monkeypatch.setattr(efis_import_module.ActivityLog.objects, "create", MagicMock())
-    monkeypatch.setattr(EFISImportService, "_fetch_wireless_term_ids", MagicMock(return_value={1}))
-    monkeypatch.setattr(EFISImportService, "_fetch_regions", MagicMock(return_value=[]))
+    monkeypatch.setattr(
+        efis_import_module.EFISImportService,
+        "_fetch_wireless_term_ids",
+        MagicMock(return_value={1}),
+    )
+    monkeypatch.setattr(
+        efis_import_module.EFISImportService,
+        "_fetch_regions",
+        MagicMock(return_value=[]),
+    )
 
-    result = EFISImportService.run_import()
+    result = efis_import_module.EFISImportService.run_import()
 
     assert result["success"] is True
     session_factory.assert_called_once_with(max_retries=3)

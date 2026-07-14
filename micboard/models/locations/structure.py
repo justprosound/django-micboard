@@ -97,14 +97,6 @@ class Building(models.Model):
         ).exists():
             raise ValidationError({"campus_id": "Campus must belong to the selected organization."})
 
-    def save(self, *args, **kwargs) -> None:
-        """Persist the building after service-layer regulatory-domain preparation."""
-        from micboard.services.locations.structure_service import (
-            save_building as _save,
-        )
-
-        _save(self, *args, **kwargs)
-
 
 class Room(models.Model):
     """Represents a room within a building."""

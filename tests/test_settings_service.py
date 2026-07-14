@@ -138,18 +138,30 @@ class SettingsServiceTests(TestCase):
 class MicboardAppConfigTests(TestCase):
     """Test settings resolution during Django app startup."""
 
-    def test_ready_resolves_configuration_through_settings_service(self) -> None:
-        """Keep direct MICBOARD_CONFIG reads behind SettingsService."""
+    def test_ready_resolves_configuration_and_registers_model_lifecycle(self) -> None:
+        """Initialize settings before connecting model lifecycle adapters."""
         app_config = MicboardConfig("micboard", import_module("micboard"))
         resolved_config = {
             "POLL_INTERVAL": 17,
             "CACHE_TIMEOUT": 31,
             "TRANSMITTER_INACTIVITY_SECONDS": 11,
         }
+        startup_events: list[str] = []
+
+        def resolve_config() -> dict[str, int]:
+            startup_events.append("settings")
+            return resolved_config
+
+        def register_lifecycle() -> None:
+            startup_events.append("lifecycle")
 
         with (
             patch.object(MicboardConfig, "_resolved_config", MicboardConfig._resolved_config),
-            patch.object(settings, "get_config_dict", return_value=resolved_config) as get_config,
+            patch.object(settings, "get_config_dict", side_effect=resolve_config) as get_config,
+            patch(
+                "micboard.model_lifecycle.register_model_lifecycle",
+                side_effect=register_lifecycle,
+            ) as register_lifecycle_mock,
             patch("django.core.checks.register"),
             patch.object(app_config, "_register_security_middleware"),
             patch.object(app_config, "_register_context_processors"),
@@ -159,6 +171,8 @@ class MicboardAppConfigTests(TestCase):
             self.assertEqual(MicboardConfig.get_config(), resolved_config)
 
         get_config.assert_called_once_with()
+        register_lifecycle_mock.assert_called_once_with()
+        self.assertEqual(startup_events, ["settings", "lifecycle"])
 
 
 class SettingsPresentationServiceTests(TestCase):

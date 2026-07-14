@@ -1,6 +1,6 @@
 """Unified settings resolution service.
 
-Composes Django settings, feature flags, AppConfig defaults, and the
+Composes Django settings, feature flags, package defaults, and the
 DB-backed SettingsRegistry into a single resolution chain.
 """
 
@@ -10,8 +10,8 @@ from typing import Any
 
 from django.conf import settings as django_settings
 
-from micboard.apps import MicboardConfig
 from micboard.services.shared.settings_registry import SettingsRegistry as _SettingsRegistry
+from micboard.settings.defaults import DEFAULT_CONFIG
 
 _NOT_FOUND = object()
 
@@ -24,7 +24,7 @@ class SettingsService:
     1. DB Setting with scope (org/site/manufacturer) via ``SettingsRegistry``
     2. ``settings.MICBOARD_CONFIG`` dict key
     3. Feature flag Django setting (``MICBOARD_*``) via key mapping
-    4. ``MicboardConfig.default_config`` (``POLL_INTERVAL``, etc.)
+    4. Package defaults (``POLL_INTERVAL``, etc.)
     5. Registered ``SettingDefinition`` default
     6. Provided *default*
     """
@@ -94,8 +94,8 @@ class SettingsService:
         if flag_name is not None and hasattr(django_settings, flag_name):
             return getattr(django_settings, flag_name)
 
-        if key in MicboardConfig.default_config:
-            return MicboardConfig.default_config[key]
+        if key in DEFAULT_CONFIG:
+            return DEFAULT_CONFIG[key]
 
         definition_default = self._registry.get_definition_default(key, default=_NOT_FOUND)
         if definition_default is not _NOT_FOUND:
@@ -104,9 +104,9 @@ class SettingsService:
         return default
 
     def get_config_dict(self) -> dict[str, Any]:
-        """Return MICBOARD_CONFIG merged with AppConfig defaults."""
+        """Return ``MICBOARD_CONFIG`` merged with package defaults."""
         micboard_config = getattr(django_settings, "MICBOARD_CONFIG", {})
-        return {**MicboardConfig.default_config, **micboard_config}
+        return {**DEFAULT_CONFIG, **micboard_config}
 
     @property
     def testing(self) -> bool:

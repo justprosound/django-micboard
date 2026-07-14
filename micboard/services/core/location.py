@@ -5,19 +5,12 @@ Manages locations and provides location-based device queries.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeVar
-
-from django.db import models, transaction
+from django.db import transaction
 from django.db.models import Count, QuerySet
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.locations.structure import Building, Location, Room
 from micboard.services.shared.tenant_filters import apply_tenant_filters
-
-if TYPE_CHECKING:  # pragma: no cover
-    pass
-
-_ModelT = TypeVar("_ModelT", bound=models.Model)
 
 
 class LocationService:

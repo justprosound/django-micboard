@@ -139,11 +139,8 @@ def is_send_channel(channel: RFChannel) -> bool:
     return channel.link_direction in ("send", "bidirectional")
 
 
-def validate_and_save_channel(channel: RFChannel, *args: Any, **kwargs: Any) -> None:
-    """Validate channel numbering and save.
-
-    Allows WMAS-capable chassis to exceed static channel counts.
-    """
+def prepare_channel_for_save(channel: RFChannel) -> dict[str, Any]:
+    """Validate a channel and prepare derived lifecycle fields for persistence."""
     from django.core.exceptions import ValidationError
 
     context: dict[str, Any] = {
@@ -179,13 +176,11 @@ def validate_and_save_channel(channel: RFChannel, *args: Any, **kwargs: Any) -> 
     if channel.channel_number < 1:
         raise ValidationError("Channel number must be at least 1")
 
-    if update_fields := kwargs.get("update_fields"):
-        kwargs["update_fields"] = set(update_fields) | context["update_fields"]
+    return context
 
-    from micboard.models.rf_coordination.rf_channel import RFChannel as _RFChannel
 
-    super(_RFChannel, channel).save(*args, **kwargs)
-
+def finalize_channel_save(channel: RFChannel, context: dict[str, Any]) -> None:
+    """Write the audit event for a persisted channel state transition."""
     if context["state_changed"]:
         from micboard.services.maintenance.audit import AuditService
 

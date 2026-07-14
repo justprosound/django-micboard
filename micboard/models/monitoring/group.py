@@ -56,18 +56,6 @@ class MonitoringGroup(models.Model):
     def __str__(self) -> str:
         return str(self.name)
 
-    def get_active_users(self):
-        """Get all active users in this group (delegates to service)."""
-        from micboard.services.monitoring.group_service import get_active_users
-
-        return get_active_users(self)
-
-    def get_active_channels(self):
-        """Get all active RF channels in this group (delegates to service)."""
-        from micboard.services.monitoring.group_service import get_active_channels
-
-        return get_active_channels(self)
-
 
 class MonitoringGroupLocation(models.Model):
     """Intermediary model for MonitoringGroup and Location, specifying access scope."""

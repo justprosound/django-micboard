@@ -23,15 +23,6 @@ class MicboardConfig(AppConfig):
     # Store resolved configuration (merged defaults + user settings)
     _resolved_config: ClassVar[dict[str, Any] | None] = None
 
-    # Default configuration (generic app settings, not manufacturer-specific)
-    # NOTE: Manufacturer configuration (SHURE_API_*, etc.) is now managed via SettingsRegistry.
-    #       Do not add vendor-specific keys here.
-    default_config: ClassVar[dict[str, str | int | float | bool | list[int] | None]] = {
-        "POLL_INTERVAL": 5,
-        "CACHE_TIMEOUT": 30,
-        "TRANSMITTER_INACTIVITY_SECONDS": 10,
-    }
-
     @classmethod
     def get_config(cls) -> dict[str, Any]:
         """Get resolved configuration (merged defaults + user settings).
@@ -60,6 +51,10 @@ class MicboardConfig(AppConfig):
 
         # Validate merged configuration
         self._validate_configuration(resolved_config)
+
+        from micboard.model_lifecycle import register_model_lifecycle
+
+        register_model_lifecycle()
 
         # Register system checks
         from django.core.checks import Tags, register

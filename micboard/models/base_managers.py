@@ -9,17 +9,20 @@ Base classes for all models to support:
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, Protocol, TypeVar
 
 from django.apps import apps
 from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
 
-if TYPE_CHECKING:
-    from micboard.multitenancy.models import Organization
-
 _ModelT = TypeVar("_ModelT", bound=models.Model)
+
+
+class OrganizationLike(Protocol):
+    """Structural tenant identifier accepted by queryset filters."""
+
+    id: int
 
 
 # Models whose tenant owner is reached through a domain-specific relation rather
@@ -152,7 +155,7 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
         return self.filter(**{site_lookup: site_id}).distinct()
 
     def for_organization(
-        self, *, organization: Organization | int | None = None
+        self, *, organization: OrganizationLike | int | None = None
     ) -> TenantOptimizedQuerySet[_ModelT]:
         """Filter by Organization (MSP mode)."""
         if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
@@ -224,16 +227,13 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
             if not apps.is_installed("micboard.multitenancy"):
                 return self.none()
 
-            from micboard.multitenancy.models import OrganizationMembership
-
             memberships = list(
-                OrganizationMembership._default_manager.filter(
+                user.org_memberships.filter(
                     Q(campus__isnull=True)
                     | Q(
                         campus__is_active=True,
                         campus__organization_id=F("organization_id"),
                     ),
-                    user=user,
                     is_active=True,
                     organization__is_active=True,
                 ).values_list("organization_id", "campus_id")
@@ -252,10 +252,14 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
 
         # Single-site: use monitoring group filtering if available
         if hasattr(self.model, "location") and hasattr(user, "monitoring_groups"):
-            from micboard.services.monitoring.monitoring_access import MonitoringService
-
-            user_locations = MonitoringService.get_accessible_locations(user)
-            return self.filter(location__in=user_locations)
+            groups = user.monitoring_groups.filter(is_active=True)
+            all_room_buildings = groups.filter(
+                monitoringgrouplocation__include_all_rooms=True
+            ).values_list("monitoringgrouplocation__location__building_id", flat=True)
+            return self.filter(
+                Q(location__monitoring_groups__in=groups)
+                | Q(location__building_id__in=all_room_buildings)
+            ).distinct()
 
         return self
 
@@ -300,7 +304,7 @@ class TenantOptimizedManager(models.Manager[_ModelT]):
         return self.get_queryset().for_site(site_id=site_id)
 
     def for_organization(
-        self, *, organization: Organization | int | None = None
+        self, *, organization: OrganizationLike | int | None = None
     ) -> TenantOptimizedQuerySet[_ModelT]:
         return self.get_queryset().for_organization(organization=organization)
 
