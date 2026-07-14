@@ -8,12 +8,16 @@ from __future__ import annotations
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from micboard.models.monitoring.alert import Alert
-from micboard.services.monitoring.alerts import get_alerts_for_user
+from micboard.services.monitoring.alerts import (
+    acknowledge_alert,
+    get_alerts_for_user,
+    resolve_alert,
+)
 
 # Alert business logic has been moved to the service layer
 # (see `micboard.services.monitoring.alerts.AlertManager`).
@@ -35,7 +39,8 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
     # Base queryset
     visible_alerts = get_alerts_for_user(request.user)
     alerts = visible_alerts.select_related(
-        "assignment",
+        "assignment__performer",
+        "assignment__wireless_unit__base_chassis__location",
         "channel__chassis",
         "user",
     ).order_by("-created_at")
@@ -76,7 +81,8 @@ def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """View to display detailed information about a specific alert."""
     alert = get_object_or_404(
         get_alerts_for_user(request.user).select_related(
-            "assignment",
+            "assignment__performer",
+            "assignment__wireless_unit__base_chassis__location",
             "channel__chassis",
             "user",
         ),
@@ -93,19 +99,27 @@ def alert_detail_view(request: HttpRequest, alert_id: int) -> HttpResponse:
 @require_http_methods(["POST"])
 def acknowledge_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """View to acknowledge an alert (delegates to service)."""
-    from micboard.services.monitoring.alerts import acknowledge_alert
-
-    acknowledge_alert(alert_id=alert_id, user=request.user)
+    try:
+        acknowledge_alert(alert_id=alert_id, user=request.user)
+    except Alert.DoesNotExist:
+        raise Http404("Alert not found") from None
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("micboard:alerts")
     messages.success(request, "Alert has been acknowledged.")
-    return redirect(request.headers.get("referer") or "alerts")
+    return redirect("micboard:alerts")
 
 
 @login_required
 @require_http_methods(["POST"])
 def resolve_alert_view(request: HttpRequest, alert_id: int) -> HttpResponse:
     """View to resolve an alert (delegates to service)."""
-    from micboard.services.monitoring.alerts import resolve_alert
-
-    resolve_alert(alert_id=alert_id)
+    try:
+        resolve_alert(alert_id=alert_id, user=request.user)
+    except Alert.DoesNotExist:
+        raise Http404("Alert not found") from None
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("micboard:alerts")
     messages.success(request, "Alert has been resolved.")
-    return redirect(request.headers.get("referer") or "alerts")
+    return redirect("micboard:alerts")

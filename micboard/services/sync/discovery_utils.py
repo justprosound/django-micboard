@@ -48,8 +48,8 @@ def is_ip_managed_by_another_manufacturer(
     )
 
 
-def collect_base_candidates(manufacturer: Manufacturer) -> list[str]:
-    """Collect base candidates from remote discovery IPs and local chassis.
+def collect_local_candidates(manufacturer: Manufacturer) -> list[str]:
+    """Collect desired discovery candidates from locally managed chassis.
 
     Args:
         manufacturer: The manufacturer to collect candidates for
@@ -57,23 +57,11 @@ def collect_base_candidates(manufacturer: Manufacturer) -> list[str]:
     Returns:
         list[str]: List of candidate IP addresses
     """
-    candidates = []
-
-    plugin = get_manufacturer_plugin_instance(manufacturer)
-    try:
-        remote_ips = plugin.get_discovery_ips() or []
-        candidates.extend([ip for ip in remote_ips if isinstance(ip, str)])
-    except Exception:
-        logger.debug("Could not fetch remote discovery IPs for %s", manufacturer.code)
-
-    try:
-        for ch in WirelessChassis.objects.filter(manufacturer=manufacturer):
-            if ch.ip:
-                candidates.append(ch.ip)
-    except Exception:
-        logger.exception("Error fetching local chassis IPs for discovery candidates")
-
-    return candidates
+    return list(
+        WirelessChassis.objects.filter(manufacturer=manufacturer)
+        .exclude(ip__isnull=True)
+        .values_list("ip", flat=True)
+    )
 
 
 def prepare_scanning_data(
@@ -81,7 +69,7 @@ def prepare_scanning_data(
     scan_cidrs: bool,
     scan_fqdns: bool,
     max_hosts: int,
-) -> tuple[dict[str, list[str]], dict[str, list[str]], int]:
+) -> tuple[dict[str, list[str]], dict[str, list[str]], int, bool]:
     """Prepare CIDR and FQDN scanning data.
 
     Args:
@@ -91,13 +79,14 @@ def prepare_scanning_data(
         max_hosts: Maximum hosts to scan per CIDR
 
     Returns:
-        tuple: (cidr_hosts_map, fqdns_map, total_to_scan)
+        tuple: (cidr_hosts_map, fqdns_map, total_to_scan, sources_complete)
     """
     import ipaddress
 
     total_to_scan = 0
     cidr_hosts_map = {}
     fqdns_map = {}
+    sources_complete = True
 
     if scan_cidrs:
         cidrs = [dc.cidr for dc in DiscoveryCIDR.objects.filter(manufacturer=manufacturer)]
@@ -111,19 +100,22 @@ def prepare_scanning_data(
                 total_to_scan += len(hosts)
             except Exception:
                 cidr_hosts_map[cidr] = []
+                sources_complete = False
 
     if scan_fqdns:
         fqdns = [df.fqdn for df in DiscoveryFQDN.objects.filter(manufacturer=manufacturer)]
         try:
-            resolved = resolve_fqdns(fqdns)
+            resolved, fqdns_complete = resolve_fqdns(fqdns)
+            sources_complete = sources_complete and fqdns_complete
             for f, ips in resolved.items():
                 ips_filtered = [ip for ip in ips if isinstance(ip, str)]
                 fqdns_map[f] = ips_filtered
                 total_to_scan += len(ips_filtered)
         except Exception:
             fqdns_map = {f: [] for f in fqdns}
+            sources_complete = False
 
-    return cidr_hosts_map, fqdns_map, total_to_scan
+    return cidr_hosts_map, fqdns_map, total_to_scan, sources_complete
 
 
 def dedupe_preserve_order(items: list[str]) -> list[str]:

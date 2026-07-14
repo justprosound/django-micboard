@@ -1,7 +1,12 @@
 from django.urls import path
 
 from micboard.chargers.views import charger_display
-from micboard.views.alerts import alert_detail_view, alerts_view
+from micboard.views.alerts import (
+    acknowledge_alert_view,
+    alert_detail_view,
+    alerts_view,
+    resolve_alert_view,
+)
 from micboard.views.assignments import (
     AssignmentListView,
     create_assignment,
@@ -45,6 +50,12 @@ urlpatterns = [
     path("about/", about, name="about"),
     path("alerts/", alerts_view, name="alerts"),
     path("alerts/<int:alert_id>/", alert_detail_view, name="alert_detail"),
+    path(
+        "alerts/<int:alert_id>/acknowledge/",
+        acknowledge_alert_view,
+        name="acknowledge_alert",
+    ),
+    path("alerts/<int:alert_id>/resolve/", resolve_alert_view, name="resolve_alert"),
     path("chargers/", ChargerDashboardView.as_view(), name="charger_dashboard"),
     path("chargers/display/", charger_display, name="charger_display"),
     # Dashboard views

@@ -436,7 +436,8 @@ def _expand_cidr_candidates(cidrs: list[str], *, max_hosts: int) -> list[str]:
 def _resolve_fqdn_candidates(fqdns: list[str]) -> list[str]:
     from micboard.discovery.network_utils import resolve_fqdns
 
-    return [ip for ips in resolve_fqdns(fqdns).values() for ip in ips]
+    resolved, _ = resolve_fqdns(fqdns)
+    return [ip for ips in resolved.values() for ip in ips]
 
 
 def _submit_candidate_ips(

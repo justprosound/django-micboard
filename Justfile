@@ -39,14 +39,14 @@ test: uv-check
     uv run --no-sync pytest
 
 # Run the full suite with the current non-regression floor used in CI.
-# Ratchet this toward the 60% target in issue #73 as tests are added.
+# Ratchet this toward the 60% target as the remaining test phases land.
 coverage: uv-check
     uv run --no-sync pytest tests/ \
         --cov=micboard \
         --cov-report=html:htmlcov \
         --cov-report=xml \
         --cov-report=term-missing:skip-covered \
-        --cov-fail-under=42
+        --cov-fail-under=49
     uv run --no-sync python scripts/check_coverage_inventory.py
 
 # Run migrations

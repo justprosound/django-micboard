@@ -29,25 +29,27 @@ def expand_cidrs(cidrs: list[str], max_hosts: int = 1024) -> Iterator[str]:
                 break
 
 
-def resolve_fqdns(fqdns: list[str]) -> dict:
-    """Resolve FQDNs to IP addresses.
+def resolve_fqdns(fqdns: list[str]) -> tuple[dict[str, list[str]], bool]:
+    """Resolve FQDNs to IP addresses and report whether every lookup succeeded.
 
     Args:
         fqdns: list of hostname strings
 
     Returns:
-        dict mapping fqdn to list of IP addresses
+        Tuple containing the address mapping and a source-completeness flag.
     """
-    result = {}
+    result: dict[str, list[str]] = {}
+    complete = True
     for fqdn in fqdns:
         try:
             infos = socket.getaddrinfo(fqdn, None)
-            ips = list({info[4][0] for info in infos})
+            ips = list({str(info[4][0]) for info in infos})
             result[fqdn] = ips
         except (socket.gaierror, OSError):
-            # DNS resolution failed or network error - return empty list
+            # Preserve the failed key while telling reconciliation not to remove stale addresses.
             result[fqdn] = []
-    return result
+            complete = False
+    return result, complete
 
 
 # Note: Direct probing of mic receiver ports is intentionally omitted.

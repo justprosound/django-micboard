@@ -72,6 +72,86 @@ class AlertAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_pending_alert_actions_render(self) -> None:
+        self.owner_alert.status = "pending"
+        self.owner_alert.channel_data = {"vendor": "<script>alert('xss')</script>"}
+        self.owner_alert.save(update_fields=["status", "channel_data"])
+
+        response = self.client.get(reverse("micboard:alerts"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("micboard:acknowledge_alert", args=[self.owner_alert.pk]),
+        )
+        self.assertContains(
+            response,
+            reverse("micboard:resolve_alert", args=[self.owner_alert.pk]),
+        )
+        self.assertNotContains(response, "TEMPLATE ERROR")
+
+        detail_response = self.client.get(
+            reverse("micboard:alert_detail", args=[self.owner_alert.pk])
+        )
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertNotContains(detail_response, "<script>alert('xss')</script>")
+        self.assertContains(detail_response, "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;")
+        self.assertNotContains(detail_response, "TEMPLATE ERROR")
+
+        partial_response = self.client.get(
+            reverse("micboard:alert_row_partial", args=[self.owner_alert.pk])
+        )
+        self.assertEqual(partial_response.status_code, 200)
+        self.assertContains(
+            partial_response,
+            reverse("micboard:acknowledge_alert", args=[self.owner_alert.pk]),
+        )
+
+    def test_alert_mutations_hide_another_users_alert(self) -> None:
+        self.other_alert.status = "pending"
+        self.other_alert.save(update_fields=["status"])
+
+        for route_name in ("micboard:acknowledge_alert", "micboard:resolve_alert"):
+            with self.subTest(route_name=route_name):
+                response = self.client.post(reverse(route_name, args=[self.other_alert.pk]))
+                self.assertEqual(response.status_code, 404)
+
+        self.other_alert.refresh_from_db()
+        self.assertEqual(self.other_alert.status, "pending")
+
+    def test_alert_owner_can_acknowledge_and_resolve(self) -> None:
+        self.owner_alert.status = "pending"
+        self.owner_alert.save(update_fields=["status"])
+
+        response = self.client.post(
+            reverse("micboard:acknowledge_alert", args=[self.owner_alert.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.owner_alert.refresh_from_db()
+        self.assertEqual(self.owner_alert.status, "acknowledged")
+
+        response = self.client.post(reverse("micboard:resolve_alert", args=[self.owner_alert.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.owner_alert.refresh_from_db()
+        self.assertEqual(self.owner_alert.status, "resolved")
+
+        response = self.client.post(
+            reverse("micboard:acknowledge_alert", args=[self.owner_alert.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.owner_alert.refresh_from_db()
+        self.assertEqual(self.owner_alert.status, "resolved")
+
+    def test_alert_mutations_require_post_and_csrf(self) -> None:
+        acknowledge_url = reverse("micboard:acknowledge_alert", args=[self.owner_alert.pk])
+        self.assertEqual(self.client.get(acknowledge_url).status_code, 405)
+
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.owner)
+        self.assertEqual(csrf_client.post(acknowledge_url).status_code, 403)
+        self.owner_alert.refresh_from_db()
+        self.assertEqual(self.owner_alert.status, "resolved")
+
 
 class DiscoveredDevicePromotionAccessTests(TestCase):
     """Device promotion must use a permission-checked unsafe HTTP method."""

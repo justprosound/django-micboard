@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, TypeVar
 
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Count, QuerySet
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.locations.structure import Location
+from micboard.models.locations.structure import Building, Location, Room
 from micboard.services.shared.tenant_filters import apply_tenant_filters
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -24,26 +24,47 @@ class LocationService:
     """Business logic for location management and organization."""
 
     @staticmethod
-    def create_location(*, name: str, description: str = "") -> Location:
+    @transaction.atomic
+    def create_location(
+        *,
+        building: Building,
+        name: str,
+        room: Room | None = None,
+        description: str = "",
+    ) -> Location:
         """Create a new location.
 
         Args:
+            building: Building containing the location.
             name: Location name.
+            room: Optional room within the building.
             description: Optional location description.
 
         Returns:
             Created Location object.
 
         Raises:
-            ValueError: If location with same name already exists.
+            ValueError: If the hierarchy is inconsistent or already contains this name.
         """
-        if Location.objects.filter(name=name).exists():
+        building = Building.objects.select_for_update().get(pk=building.pk)
+        if room is not None:
+            room = Room.objects.select_for_update().get(pk=room.pk)
+            if room.building_id != building.pk:
+                raise ValueError("Location room must belong to its building")
+
+        if Location.objects.filter(building=building, room=room, name=name).exists():
             msg = f"Location with name '{name}' already exists"
             raise ValueError(msg)
 
-        return Location.objects.create(name=name, description=description)
+        return Location.objects.create(
+            building=building,
+            room=room,
+            name=name,
+            description=description,
+        )
 
     @staticmethod
+    @transaction.atomic
     def update_location(
         *, location: Location, name: str | None = None, description: str | None = None
     ) -> Location:
@@ -57,20 +78,34 @@ class LocationService:
         Returns:
             Updated Location object.
         """
-        updated = False
+        location = (
+            Location.objects.select_for_update()
+            .select_related("building", "room")
+            .get(pk=location.pk)
+        )
+        update_fields: list[str] = []
         if name is not None and location.name != name:
-            # Check for duplicates
-            if Location.objects.filter(name=name).exclude(id=location.id).exists():
+            # Serialize name changes with creates in the same building.
+            Building.objects.select_for_update().get(pk=location.building_id)
+            if (
+                Location.objects.filter(
+                    building_id=location.building_id,
+                    room=location.room,
+                    name=name,
+                )
+                .exclude(id=location.id)
+                .exists()
+            ):
                 msg = f"Location with name '{name}' already exists"
                 raise ValueError(msg)
             location.name = name
-            updated = True
+            update_fields.append("name")
         if description is not None and location.description != description:
             location.description = description
-            updated = True
+            update_fields.append("description")
 
-        if updated:
-            location.save()
+        if update_fields:
+            location.save(update_fields=[*update_fields, "updated_at"])
 
         return location
 
@@ -186,11 +221,19 @@ class LocationService:
     # Async methods (Django 4.2+ async view support)
 
     @staticmethod
-    async def acreate_location(*, name: str, description: str = ""):
+    async def acreate_location(
+        *,
+        building: Building,
+        name: str,
+        room: Room | None = None,
+        description: str = "",
+    ) -> Location:
         """Async: Create a new location.
 
         Args:
+            building: Building containing the location
             name: Location name
+            room: Optional room within the building
             description: Optional description
 
         Returns:
@@ -202,7 +245,9 @@ class LocationService:
         from asgiref.sync import sync_to_async
 
         return await sync_to_async(LocationService.create_location)(
+            building=building,
             name=name,
+            room=room,
             description=description,
         )
 
