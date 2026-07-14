@@ -35,7 +35,7 @@ def test_efis_import_success_skips_aggregate_regions_and_counts_bands(monkeypatc
     session = MagicMock(spec=httpx.Client)
     monkeypatch.setattr(efis_module, "create_resilient_session", Mock(return_value=session))
     activity_create = Mock()
-    monkeypatch.setattr(efis_module.ActivityLog.objects, "create", activity_create)
+    monkeypatch.setattr(efis_module.AuditService, "log_activity", activity_create)
     monkeypatch.setattr(EFISImportService, "_fetch_wireless_term_ids", Mock(return_value={1}))
     monkeypatch.setattr(
         EFISImportService,
@@ -75,7 +75,7 @@ def test_efis_import_records_failure_and_closes_session(monkeypatch) -> None:
     session = MagicMock(spec=httpx.Client)
     monkeypatch.setattr(efis_module, "create_resilient_session", Mock(return_value=session))
     activity_create = Mock()
-    monkeypatch.setattr(efis_module.ActivityLog.objects, "create", activity_create)
+    monkeypatch.setattr(efis_module.AuditService, "log_activity", activity_create)
     monkeypatch.setattr(
         EFISImportService,
         "_fetch_wireless_term_ids",

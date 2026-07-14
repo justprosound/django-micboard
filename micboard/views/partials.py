@@ -1,7 +1,7 @@
 """HTMX partial fragment endpoints."""
 
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
@@ -35,18 +35,15 @@ def charger_slot_partial(request: HttpRequest, slot_id: int) -> HttpResponse:
 @login_required
 def wall_section_partial(request: HttpRequest, section_id: int) -> HttpResponse:
     """HTMX partial: display wall section with chargers."""
-    from micboard.services.kiosk import KioskService
-    from micboard.services.monitoring.monitoring_access import MonitoringService
+    from micboard.services.kiosk.services import KioskService
 
-    section = get_object_or_404(
-        MonitoringService.get_accessible_wall_sections(request.user),
-        id=section_id,
-    )
-    data = KioskService.get_section_data(section_id=section.id, user=request.user)
+    snapshot = KioskService.get_section_snapshot(section_id, user=request.user)
+    if snapshot is None:
+        raise Http404("Wall section not found")
     return render(
         request,
         "micboard/partials/wall_section.html",
-        {"section": section, "data": data},
+        {"snapshot": snapshot},
     )
 
 
@@ -76,10 +73,14 @@ def assignment_row_partial(request: HttpRequest, assignment_id: int) -> HttpResp
 @login_required
 def charger_grid_partial(request: HttpRequest) -> HttpResponse:
     """HTMX partial: full charger dashboard grid."""
-    from micboard.services.kiosk import KioskService
+    from micboard.services.chargers.dashboard_service import ChargerDashboardService
 
-    data = KioskService.get_charger_dashboard_data(user=request.user)
-    return render(request, "micboard/partials/charger_grid.html", data)
+    snapshot = ChargerDashboardService.get_snapshot(user=request.user)
+    return render(
+        request,
+        "micboard/partials/charger_grid.html",
+        {"snapshot": snapshot},
+    )
 
 
 @login_required

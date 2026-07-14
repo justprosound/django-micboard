@@ -31,7 +31,7 @@ Do not put real credentials in source control.
 
 - `micboard.services.common.base.client.BaseHTTPClient`: HTTPS validation, connection pooling,
   retries, health checks, and circuit-breaker integration
-- `micboard.services.common.base.exceptions`: common API exception types
+- `micboard.exceptions`: common API exception types
 - `micboard.services.common.base.rate_limiter`: cache-backed minimum request intervals
 - `micboard.services.common.base.plugin.ManufacturerPlugin`: plugin interface
 
@@ -54,8 +54,9 @@ Do not put real credentials in source control.
 ## Sennheiser Sound Control Protocol
 
 The Sennheiser plugin targets SSCv2 over HTTPS with HTTP Basic authentication. Its username is
-fixed to `api`; `SENNHEISER_API_PASSWORD` supplies the host-configured password. Real-time device
-events use the integration's SSE client.
+fixed to `api`; `SENNHEISER_API_PASSWORD` supplies the host-configured password. The initial
+subscription GET remains open as the SSE stream. Its same-origin `Content-Location` identifies the
+control resource, which is configured over a separate authenticated connection.
 
 ## Plugin loading
 

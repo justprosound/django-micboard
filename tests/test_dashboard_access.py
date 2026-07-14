@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.locations import Building, Location, Room
+from micboard.models.locations.structure import Building, Location, Room
 from micboard.models.monitoring.group import MonitoringGroup
 
 
@@ -69,11 +69,8 @@ class DashboardAccessTests(TestCase):
         urls = [
             reverse("micboard:index"),
             reverse("micboard:all_buildings_view"),
-            reverse("micboard:single_building_view", args=[self.own_building.name]),
-            reverse(
-                "micboard:room_view",
-                args=[self.own_building.name, self.own_room.name],
-            ),
+            reverse("micboard:single_building_view", args=[self.own_building.pk]),
+            reverse("micboard:room_view", args=[self.own_room.pk]),
             reverse("micboard:device_type_view", args=["all"]),
             reverse("micboard:priority_view", args=["all"]),
         ]
@@ -92,7 +89,7 @@ class DashboardAccessTests(TestCase):
         self.assertContains(buildings_response, self.own_building.name)
         self.assertNotContains(buildings_response, self.foreign_building.name)
 
-        rooms_response = self.client.get(reverse("micboard:room_view", args=["all", "all"]))
+        rooms_response = self.client.get(reverse("micboard:all_rooms_view"))
         self.assertEqual(rooms_response.status_code, 200)
         self.assertContains(rooms_response, self.own_room.name)
         self.assertNotContains(rooms_response, self.foreign_room.name)
@@ -101,11 +98,8 @@ class DashboardAccessTests(TestCase):
         self.client.force_login(self.user)
 
         urls = [
-            reverse("micboard:single_building_view", args=[self.foreign_building.name]),
-            reverse(
-                "micboard:room_view",
-                args=[self.foreign_building.name, self.foreign_room.name],
-            ),
+            reverse("micboard:single_building_view", args=[self.foreign_building.pk]),
+            reverse("micboard:room_view", args=[self.foreign_room.pk]),
         ]
 
         for url in urls:

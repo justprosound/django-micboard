@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
@@ -51,7 +51,10 @@ def test_audit_log_activity_respects_mode_and_populates_object_request(monkeypat
         obj=instance,  # type: ignore[arg-type]
         details={"api_key": "private", "safe": 1},
         old_values={"password": "before"},
-        new_values={"access_token": "after"},
+        new_values={
+            "access_token": "after",
+            "changed_at": datetime(2026, 7, 14, 12, 30, tzinfo=UTC),
+        },
         request=request,  # type: ignore[arg-type]
         using="replica",
     )
@@ -66,7 +69,10 @@ def test_audit_log_activity_respects_mode_and_populates_object_request(monkeypat
     assert kwargs["user_agent"] == "agent"
     assert kwargs["details"] == {"api_key": "********", "safe": 1}
     assert kwargs["old_values"] == {"password": "********"}
-    assert kwargs["new_values"] == {"access_token": "********"}
+    assert kwargs["new_values"] == {
+        "access_token": "********",
+        "changed_at": "2026-07-14T12:30:00Z",
+    }
 
 
 @pytest.mark.django_db

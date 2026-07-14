@@ -13,7 +13,11 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.models.hardware.charger import Charger
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.hardware.dtos import WirelessChassisWrite
 from micboard.services.hardware.ip_ownership_service import HardwareIPOwnershipService
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
 from micboard.services.shared.base_dto import PydanticBaseDTO
 from micboard.services.sync.discovery_approval_policy import DiscoveryApprovalBatchPolicy
 from micboard.services.sync.discovery_approval_resolution import (
@@ -119,16 +123,26 @@ class DiscoveryApprovalService:
         values: dict[str, Any] = {}
         for item, target in entries:
             values.update(DiscoveryApprovalResolver.chassis_values(item, target))
+        write = WirelessChassisWrite(**values)
 
         if chassis is None:
-            chassis = WirelessChassis(**values)
-            chassis.save(using=using)
-            return chassis, True
+            return (
+                WirelessChassisPersistenceService.create(
+                    write=write,
+                    using=using,
+                ),
+                True,
+            )
 
-        for field_name, value in values.items():
-            setattr(chassis, field_name, value)
-        chassis.save(using=using)
-        return chassis, False
+        return (
+            WirelessChassisPersistenceService.update(
+                chassis=chassis,
+                write=write,
+                using=using,
+                save_all_fields=True,
+            ),
+            False,
+        )
 
     @staticmethod
     def _adopt_charger(

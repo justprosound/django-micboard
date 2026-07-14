@@ -91,50 +91,6 @@ class EmailService:
             )
             return False
 
-    def send_system_notification(
-        self, subject: str, message: str, recipients: list[str] | None = None
-    ) -> bool:
-        """Send system notification email.
-
-        Args:
-            subject: Email subject
-            message: Email message body
-            recipients: List of email addresses, or None to use default
-
-        Returns:
-            bool: True if email was sent successfully
-        """
-        if not recipients:
-            recipients = self._get_default_recipients()
-
-        if not recipients:
-            logger.warning("No email recipients configured for system notifications")
-            return False
-
-        try:
-            email = EmailMessage(
-                subject=f"Micboard System: {subject}",
-                body=message,
-                from_email=self._get_from_email(),
-                to=recipients,
-                connection=self.connection,
-            )
-
-            sent = email.send()
-            if sent:
-                logger.info("System notification sent to %s recipients", len(recipients))
-                return True
-            else:
-                logger.error("Failed to send system notification")
-                return False
-
-        except Exception as exc:
-            logger.exception(
-                "Error sending system notification",
-                exc_info=sanitized_exception_info(exc),
-            )
-            return False
-
     def _get_default_recipients(self) -> list[str]:
         """Get default email recipients from settings."""
         from micboard.services.settings.settings_service import settings as micboard_settings
@@ -160,32 +116,5 @@ class EmailService:
         )
 
 
-# Global email service instance
+# Canonical email service instance.
 email_service = EmailService()
-
-
-def send_alert_email(alert: Alert, recipients: list[str] | None = None) -> bool:
-    """Convenience function to send alert email.
-
-    Args:
-        alert: Alert instance
-        recipients: Optional list of email addresses
-
-    Returns:
-        bool: True if email was sent successfully
-    """
-    return email_service.send_alert_notification(alert, recipients)
-
-
-def send_system_email(subject: str, message: str, recipients: list[str] | None = None) -> bool:
-    """Convenience function to send system email.
-
-    Args:
-        subject: Email subject
-        message: Email message
-        recipients: Optional list of email addresses
-
-    Returns:
-        bool: True if email was sent successfully
-    """
-    return email_service.send_system_notification(subject, message, recipients)

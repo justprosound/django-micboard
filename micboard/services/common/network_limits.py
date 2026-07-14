@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import math
 
-from django.conf import settings
-
 from pydantic import Field
 
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.services.shared.base_dto import PydanticBaseDTO
 
 DEFAULT_HTTP_MAX_RETRY_DELAY_SECONDS = 30.0
@@ -70,7 +69,7 @@ class SSEStreamLimits(PydanticBaseDTO):
 
 def _bounded_positive_int_setting(name: str, *, default: int, hard_limit: int) -> int:
     """Parse a positive integer setting and enforce a package hard ceiling."""
-    raw_value = getattr(settings, name, default)
+    raw_value = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:
@@ -89,7 +88,7 @@ def _bounded_positive_float_setting(
     hard_limit: float,
 ) -> float:
     """Parse a finite positive float setting and enforce a package hard ceiling."""
-    raw_value = getattr(settings, name, default)
+    raw_value = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:

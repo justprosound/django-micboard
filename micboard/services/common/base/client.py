@@ -5,20 +5,18 @@ import math
 import time
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
-from typing import Any, Self
+from typing import Any, NoReturn, Self
 
 import httpx
 from httpx import RequestError, TimeoutException
 
-from micboard.services.common.network_limits import (
-    HTTP_RESPONSE_READ_CHUNK_BYTES,
-    HTTPClientLimits,
-)
+from micboard.exceptions import APIError, APIRateLimitError
+from micboard.services.common.base.bounded_transport import BoundedHTTPTransport
+from micboard.services.common.network_limits import HTTPClientLimits
 from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
 from micboard.utils.exception_logging import sanitized_exception_info
 
-from .circuit_breaker import CircuitBreaker, CircuitOpenError
-from .exceptions import APIError, APIRateLimitError
+from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +172,11 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
                 self._get_config_prefix(),
                 method,
             )
-            raise CircuitOpenError(f"Circuit open for {self._get_config_prefix()}")
+            api_exc = self.get_exception_class()
+            raise api_exc(
+                f"Circuit open for {self._get_config_prefix()}",
+                code="API_CIRCUIT_OPEN",
+            )
 
         retry_strategy = self._create_retry_strategy()
         max_retries = retry_strategy["total"]
@@ -246,34 +248,15 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         **kwargs: Any,
     ) -> httpx.Response:
         """Read a successful decoded response under a strict byte ceiling."""
-        with self.client.stream(method, url, **kwargs) as response:
-            if response.status_code >= 400:
-                return response
+        return self._bounded_transport().send(method, url, **kwargs)
 
-            content_length = response.headers.get("Content-Length")
-            if content_length is not None:
-                try:
-                    declared_length = int(content_length)
-                except ValueError:
-                    declared_length = 0
-                if declared_length > self.http_limits.max_response_bytes:
-                    self._raise_oversized_response(method)
-
-            chunks: list[bytes] = []
-            bytes_read = 0
-            for chunk in response.iter_bytes(chunk_size=HTTP_RESPONSE_READ_CHUNK_BYTES):
-                bytes_read += len(chunk)
-                if bytes_read > self.http_limits.max_response_bytes:
-                    self._raise_oversized_response(method)
-                chunks.append(chunk)
-
-            return httpx.Response(
-                status_code=response.status_code,
-                headers=response.headers,
-                content=b"".join(chunks),
-                request=response.request,
-                extensions=response.extensions,
-            )
+    def _bounded_transport(self) -> BoundedHTTPTransport:
+        """Bind the deep transport adapter to the client's current mutable configuration."""
+        return BoundedHTTPTransport(
+            client=self.client,
+            limits=self.http_limits,
+            oversized_response=self._raise_oversized_response,
+        )
 
     def _record_request_failure(self) -> None:
         """Record one failed transport attempt."""
@@ -379,21 +362,9 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
 
     def _bounded_response_content(self, response: httpx.Response, *, method: str) -> bytes:
         """Reject a vendor response that exceeds the configured JSON byte budget."""
-        content_length = response.headers.get("Content-Length")
-        if content_length is not None:
-            try:
-                declared_length = int(content_length)
-            except ValueError:
-                declared_length = 0
-            if declared_length > self.http_limits.max_response_bytes:
-                self._raise_oversized_response(method)
+        return self._bounded_transport().response_content(response, method=method)
 
-        content = response.content
-        if len(content) > self.http_limits.max_response_bytes:
-            self._raise_oversized_response(method)
-        return content
-
-    def _raise_oversized_response(self, method: str) -> None:
+    def _raise_oversized_response(self, method: str) -> NoReturn:
         """Record and raise one secret-safe oversized-response failure."""
         self._record_request_failure()
         logger.error(
@@ -408,20 +379,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         ) from None
 
     def _extract_retry_after(self, response: httpx.Response) -> int | None:
-        try:
-            retry_after_header = response.headers.get("Retry-After")
-            if retry_after_header is not None:
-                retry_after = int(retry_after_header)
-                if retry_after <= 0:
-                    return None
-                return min(retry_after, math.ceil(self.http_limits.max_retry_delay_seconds))
-        except ValueError as exc:
-            logger.exception(
-                "Invalid Retry-After header in API response; value redacted",
-                exc_info=sanitized_exception_info(exc),
-            )
-            return None
-        return None
+        return self._bounded_transport().extract_retry_after(response)
 
     def close(self) -> None:
         """Close the underlying HTTP connection pool."""

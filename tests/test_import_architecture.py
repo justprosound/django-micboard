@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 from scripts.check_import_architecture import analyze_import_architecture, format_report
@@ -60,3 +61,34 @@ def test_micboard_import_architecture_is_acyclic() -> None:
     report = analyze_import_architecture(Path("micboard"))
 
     assert report.is_valid, format_report(report)
+
+
+def test_public_service_functions_are_fully_typed() -> None:
+    """Keep service contracts discoverable without relying on implementation inference."""
+    violations: list[str] = []
+    for path in sorted(Path("micboard/services").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name.startswith("_"):
+                continue
+            arguments = [
+                *node.args.posonlyargs,
+                *node.args.args,
+                *node.args.kwonlyargs,
+                *([node.args.vararg] if node.args.vararg else []),
+                *([node.args.kwarg] if node.args.kwarg else []),
+            ]
+            missing = [
+                argument.arg
+                for argument in arguments
+                if argument.arg not in {"self", "cls"} and argument.annotation is None
+            ]
+            if missing or node.returns is None:
+                violations.append(
+                    f"{path}:{node.lineno}:{node.name} "
+                    f"missing_args={missing} missing_return={node.returns is None}"
+                )
+
+    assert not violations, "\n".join(violations)

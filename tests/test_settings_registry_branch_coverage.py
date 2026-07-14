@@ -7,9 +7,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from micboard.models.settings import Setting, SettingDefinition
-from micboard.services.shared import settings_registry as registry_module
-from micboard.services.shared.settings_registry import SettingsRegistry
+from micboard.models.settings.registry import Setting, SettingDefinition
+from micboard.services.settings import registry as registry_module
+from micboard.services.settings.registry import SettingsRegistry
 
 
 def test_get_uses_explicit_default_and_caches_it(monkeypatch) -> None:
@@ -23,84 +23,6 @@ def test_get_uses_explicit_default_and_caches_it(monkeypatch) -> None:
         "fallback"
     )
     cache_set.assert_called_once_with("cache-key", "fallback", SettingsRegistry.CACHE_TTL)
-
-
-def test_set_rejects_mixed_scope(monkeypatch) -> None:
-    definition = SimpleNamespace(scope=SettingDefinition.SCOPE_GLOBAL)
-    monkeypatch.setattr(
-        SettingDefinition.objects,
-        "get_or_create",
-        Mock(return_value=(definition, False)),
-    )
-    with pytest.raises(ValueError, match="exactly one scope"):
-        SettingsRegistry.set(
-            "mixed",
-            1,
-            organization=SimpleNamespace(pk=1),
-            site=SimpleNamespace(pk=2),
-        )
-
-
-def test_set_moves_new_definition_to_requested_scope(monkeypatch) -> None:
-    definition = SimpleNamespace(
-        scope=SettingDefinition.SCOPE_GLOBAL,
-        save=Mock(),
-        serialize_value=Mock(return_value="7"),
-    )
-    monkeypatch.setattr(
-        SettingDefinition.objects,
-        "get_or_create",
-        Mock(return_value=(definition, True)),
-    )
-    monkeypatch.setattr(
-        Setting.objects,
-        "get_or_create",
-        Mock(return_value=(SimpleNamespace(), True)),
-    )
-    invalidate = Mock()
-    monkeypatch.setattr(SettingsRegistry, "invalidate_cache", invalidate)
-
-    SettingsRegistry.set("organization_limit", 7, organization=SimpleNamespace(pk=4))
-
-    assert definition.scope == SettingDefinition.SCOPE_ORGANIZATION
-    definition.save.assert_called_once_with(update_fields=["scope"])
-    assert Setting.objects.get_or_create.call_args.kwargs["organization_id"] == 4
-    invalidate.assert_called_once_with("organization_limit")
-
-
-def test_set_rejects_existing_definition_scope_mismatch(monkeypatch) -> None:
-    definition = SimpleNamespace(scope=SettingDefinition.SCOPE_SITE)
-    monkeypatch.setattr(
-        SettingDefinition.objects,
-        "get_or_create",
-        Mock(return_value=(definition, False)),
-    )
-    with pytest.raises(ValueError, match="requires 'site' scope"):
-        SettingsRegistry.set("site_setting", 1, manufacturer=SimpleNamespace(pk=8))
-
-
-def test_set_updates_existing_value(monkeypatch) -> None:
-    definition = SimpleNamespace(
-        scope=SettingDefinition.SCOPE_GLOBAL,
-        serialize_value=Mock(return_value="2"),
-    )
-    setting = SimpleNamespace(set_value=Mock(), save=Mock())
-    monkeypatch.setattr(
-        SettingDefinition.objects,
-        "get_or_create",
-        Mock(return_value=(definition, False)),
-    )
-    monkeypatch.setattr(
-        Setting.objects,
-        "get_or_create",
-        Mock(return_value=(setting, False)),
-    )
-    monkeypatch.setattr(SettingsRegistry, "invalidate_cache", Mock())
-
-    SettingsRegistry.set("global_setting", 2)
-
-    setting.set_value.assert_called_once_with(2)
-    setting.save.assert_called_once_with()
 
 
 def test_invalidate_all_definitions_rotates_versions_and_clears_local_cache(monkeypatch) -> None:

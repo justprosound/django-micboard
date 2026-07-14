@@ -361,14 +361,6 @@ ignore = [
 "*/migrations/*.py" = ["ALL"]
 "example_project/*.py" = ["S105", "S106"]
 "tests/*.py" = ["S106"]  # Test credentials are intentionally non-production.
-# Existing hotspots are explicit debt; complexity rules remain blocking everywhere else.
-"micboard/management/commands/poll_devices.py" = ["C901", "PLR0912"]
-"micboard/management/commands/realtime_status.py" = ["C901"]
-"micboard/models/band_plans.py" = ["C901"]
-"micboard/services/core/hardware_post_save_hooks.py" = ["C901", "PLR0912"]
-"micboard/services/hardware/wireless_chassis_service.py" = ["C901", "PLR0912"]
-"micboard/services/manufacturer/sync.py" = ["C901"]
-"micboard/tasks/sync/discovery.py" = ["C901"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

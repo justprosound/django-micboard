@@ -17,7 +17,6 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   destination allowlisting
 - **Enhanced README**: Detailed reusable app integration guide with plugin architecture examples
 - **Comprehensive CONTRIBUTING.md**: Migration guidelines, code patterns, and development workflow documentation
-- **Tenant filtering helper**: Shared service-layer helper for consistent tenant scoping
 - **Settings overrides diff view**: Admin view and template for scope-level configuration diffs
 - **Native Huey integration**: Optional `huey.contrib.djhuey` task registration, Redis-backed
   host configuration, and an in-memory test backend
@@ -45,6 +44,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Poll-to-alert lifecycle coverage**: Exercise a native Huey task through persisted API-server
   credentials, normalized device telemetry, alert persistence, recipient delivery, replay
   deduplication, and cross-tenant rejection
+- **Live monitoring fragments**: Add bounded HTMX row/grid refreshes for alerts, assignments,
+  chargers, kiosks, and wall sections without history-wide polling counts
+- **Receiver browsing coverage**: Add tenant-scoped, eager-loaded building, room, performer,
+  priority, and device-role browsing through stable primary-key routes
+- **Movement audit coverage**: Record manufacturer-detected chassis address changes as typed
+  `DeviceMovementLog` events inside the serialized synchronization transaction
+- **Polling audit coverage**: Persist bounded, secret-free `ServiceSyncLog` rows for supported
+  manufacturer polling runs and expose the operational history through a read-only admin
 
 ### Changed
 
@@ -54,6 +61,49 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   imports no longer eagerly load unrelated implementations
 - **Explicit model imports**: Keep `micboard.models` for Django discovery only and import model
   classes from their defining domain modules
+- **Validated service DTOs**: Replace mutable hardware-normalization and deduplication result
+  containers with Pydantic DTOs, including a mutually exclusive deduplication outcome enum
+- **Canonical chassis persistence**: Route manufacturer sync, discovery approval, promotion,
+  imports, refresh, realtime updates, lifecycle creation, and regulatory repair through one
+  `WirelessChassisWrite` DTO seam; remove private cross-service writers
+- **Focused chassis ownership**: Split save lifecycle from band-plan detection and regulatory
+  coverage, return typed band-plan results, and delete the mixed wireless-chassis service module
+- **Settings persistence boundary**: Route bulk and manufacturer setting forms through one
+  authorization-aware DTO service that performs scoped bulk definition lookup, typed
+  serialization, upsert, and cache invalidation
+- **Canonical settings ownership**: Move scoped lookup under the settings domain, make
+  `SettingsService` the only production read/cache interface, keep deployment controls host-owned,
+  and delete the shared registry path and feature-flag facade
+- **Bounded live projections**: Cap dashboard and kiosk sections, chargers, and slots after tenant
+  filtering; return typed truncation metadata and render explicit overflow notices
+- **Bounded kiosk health**: Replace the unbounded connection-validation aggregator with a typed,
+  tenant-scoped health projection capped at 16 sections, 32 chargers per section, and 32 slots per
+  charger, including sentinel overflow metadata
+- **Deep charger snapshots**: Return primitive nested Pydantic charger, slot, and performer DTOs;
+  load assignments only for occupied serial numbers and skip the query for empty grids
+- **Database-ranked assignments**: Select one deterministic active performer assignment per
+  bounded wireless unit in SQL instead of materializing every candidate in Python
+- **Indexed discovery approval**: Pre-index locked chassis and charger inventory by primary key,
+  API identity, and serial identity so large approval batches avoid quadratic scans while
+  preserving ambiguous matches for fail-closed validation
+- **Organization device quotas**: Enforce finite chassis quotas under a locked organization row
+  for creates, upsert create branches, and transfers into a different owner while allowing
+  same-owner metadata updates at quota
+- **Query-oriented services**: Split charger cache state, discovery candidate collection, and
+  bounded HTTP transport enforcement from their orchestration services
+- **Domain package cleanup**: Remove model package re-exports, dead pagination/sync/tenant helpers,
+  the duplicate discovery-queue service, and the no-op manufacturer-default registry command path
+- **Direct implementation calls**: Remove residual email and alert convenience functions,
+  settings, metadata, lifecycle, regulatory, and routing forwarders, the optional-dependency
+  alias, package-level feature-flag exports, the wildcard settings facade, and the no-op device
+  status synchronization hook instead of retaining shims
+- **Complexity enforcement**: Remove every remaining McCabe and branch-count exemption after
+  simplifying the affected paths, so complexity rules now apply uniformly to production code
+- **Hardware service cleanup**: Remove unused chassis activity/band-plan facades and dead battery,
+  capability, and asynchronous status-sync methods; callers use lifecycle, specification, and
+  band-plan implementations directly
+- **Strict device-refresh plugins**: Call the required manufacturer plugin interface directly,
+  removing optional-method compatibility branches while retaining fail-closed vendor errors
 - **Explicit task imports**: Remove legacy task aliases and import task functions from their
   defining domain modules
 - **Queued API-server checks**: Move admin-triggered vendor health checks to a hard-capped native
@@ -122,6 +172,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   the same supervisor lifetime with configurable rotation and reconnect delays
 - **Realtime service boundaries**: Move SSE and Shure WebSocket subscription orchestration into
   typed services shared by thin native Huey tasks and foreground management commands
+- **Shared realtime lifecycle**: Share eligible chassis selection, transform, persistence,
+  primitive projection, broadcast, and secret-safe error handling between SSE and WebSocket while
+  keeping transport connection and cleanup local
 - **Post-poll alerts**: Rotate through a configurable, hard-capped set of assigned wireless units
   instead of scanning arbitrary manufacturer inventory or permanently starving later rows
 - **Dependency automation**: Consolidate updates under Renovate; refresh locked Click, filelock,
@@ -142,6 +195,29 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- Apply the same tenant-role and platform-scope policy to queued API-server health checks and
+  request-time admin actions, including active/staff/permission revalidation in the worker
+- Enforce active-Site ownership when listing or submitting monitoring groups, including
+  cross-organization superusers, and reject standalone admin relationships that combine RF
+  channels and wireless units from different chassis
+- Resolve regulatory status once per row, eager-load the effective RF channel, annotate explicit
+  and country-fallback domains, and keep wireless-unit admin query counts constant as rows grow
+- Eliminate duplicate lifecycle audit writes and use one alias-aware, redacting audit service for
+  model transitions, manufacturer events, and EFIS imports
+- Keep Sennheiser SSCv2 event streaming on the authenticated GET connection while sending control
+  requests through a separate authenticated client to a validated same-origin control resource
+- Remove per-refresh paginator counts from alert and assignment row fragments and reuse one
+  annotated discovery-device existence result across both admin status columns
+- Prevent manufacturer movement updates from requesting a nonexistent chassis `updated_at` field
+- Deepen live DisplayWall rendering into one typed, tenant-scoped kiosk snapshot used by initial
+  pages, periodic HTML fragments, JSON consumers, and wall-section partials while preserving a
+  bounded query count
+- Activate pinned HTMX on built-in browser pages, route kiosk refreshes to swappable HTML, restore
+  template head extensions, and send kiosk heartbeats through Django's CSRF contract
+- Render wall-section fragments from the current kiosk projection, with real section names,
+  charger groups, performer status, and explicit empty states
+- Propagate failures from either realtime subscription task while cancelling its sibling, and
+  remove the remaining CodeQL warnings from branch and failure-path tests
 - Configuration import consistency across app modules
 - Whitespace issues in documentation and code examples
 - Admin settings diff tests updated to validate masking and access control
@@ -229,9 +305,26 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Obsolete runtime surfaces**: Delete destructive seeding and direct-probing commands, legacy
   polling/discovery orchestrators, unused compatibility facades, duplicate realtime emitters,
   private middleware, and their stale templates and guides
+- **Dead monitoring surfaces**: Delete the duplicate charger-display route and template, the
+  generic connection-validation and connection-state services, and test-only health aggregation
+  and reconnect methods; supported kiosk and realtime services remain the only runtime paths
+- **Test-only service APIs**: Delete unused lifecycle mutation/query helpers, metadata version
+  accessors, unscoped chassis refresh, notification progress/system-email methods, health-state
+  predicates, and the settings test-mode property; active callers use the canonical typed paths
+- **Dead admin and polling surfaces**: Delete the unregistered wireless-unit inline and stop
+  returning raw vendor device payloads from the persistence-only discovery polling service
 
 ### Security
 
+- Enforce the same group-to-unit tenant invariant for performer-assignment updates, deletions, and
+  deactivations, locking the authorization graph inside each mutation transaction
+- Restrict optional sortable-admin writes to the request user's exact manageable queryset on the
+  write database, apply reorder batches atomically, and disable globally ranked page-move actions
+- Enforce MSP `viewer`, `operator`, `admin`, and `owner` roles at generic admin, bulk-action,
+  related-widget, settings-management, and queued chassis-refresh mutation boundaries; reserve
+  host-wide catalog writes for unrestricted platform superusers
+- Remove the stale trusted-HTML wall-section rendering path and autoescape section, charger, and
+  performer data in the HTMX fragment
 - Clarified that `.env` files should never be committed (already in `.gitignore`)
 - Added reminder in CONTRIBUTING.md about AGPL licensing requirements for production use
 - Enforce monitoring-group scope on charger, kiosk, alert, performer-assignment, and HTMX lookup
@@ -243,6 +336,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   certificate authorities use the standard `SSL_CERT_FILE` or `SSL_CERT_DIR` trust configuration
 - Redact API keys and subscription handshake identifiers from integration logs, and hardware
   identities and private network addresses from deduplication and probe logs
+- Sanitize sortable payload failures and Sennheiser/Shure stream exception tracebacks so injected
+  primary keys, callback messages, transport errors, and subscription failures cannot forge logs
+  or disclose secrets
+- Make activity and service-sync admin history strictly view-only, derive activity actor links and
+  search fields from the configured user model, and correct live sync/status badge choices
+- Detect snake, kebab, spaced, and camel-case credential keys before metadata key truncation;
+  restore masked list secrets by stable identity and reject ambiguous or missing originals
 - Serialize polling and import identity reads and writes behind one database lock, canonicalize
   valid MAC addresses, discard invalid MAC placeholders, and fail closed on cross-manufacturer
   serial, MAC, or occupied-IP conflicts in both live and dry-run imports

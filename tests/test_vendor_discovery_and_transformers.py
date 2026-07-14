@@ -187,16 +187,6 @@ class BrokenMapping(dict):
         raise RuntimeError("broken payload")
 
 
-class InvalidMinutes:
-    """Numeric-looking value that fails integer conversion after validation."""
-
-    def __lt__(self, _other):
-        return False
-
-    def __int__(self):
-        raise TypeError("not an integer")
-
-
 @pytest.mark.parametrize("transformer", [ShureDataTransformer, SennheiserDataTransformer])
 def test_transformers_fail_closed_and_cover_model_runtime_variants(
     transformer, monkeypatch
@@ -209,7 +199,7 @@ def test_transformers_fail_closed_and_cover_model_runtime_variants(
     assert transformer._format_runtime(None) == ""
     assert transformer._format_runtime(-1) == ""
     assert transformer._format_runtime(61) == "01:01"
-    assert transformer._format_runtime(InvalidMinutes()) == ""
+    assert transformer._format_runtime(float("nan")) == ""
 
     monkeypatch.setattr(transformer, "transform_transmitter_data", Mock(return_value=None))
     result = transformer.transform_device_data(

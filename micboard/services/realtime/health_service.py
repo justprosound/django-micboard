@@ -8,7 +8,7 @@ from datetime import timedelta
 from django.db.models import Count, F, Q, QuerySet
 from django.utils import timezone
 
-from micboard.models.realtime import RealTimeConnection
+from micboard.models.realtime.connection import RealTimeConnection
 from micboard.services.realtime.health_dtos import (
     RealtimeConnectionHealthResult,
     RealtimeConnectionStatusSummary,

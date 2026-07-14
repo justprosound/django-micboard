@@ -16,14 +16,12 @@ from micboard.models.hardware.charger import Charger, ChargerSlot
 from micboard.models.hardware.display_wall import DisplayWall, WallSection
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
-from micboard.models.locations import Building, Location
+from micboard.models.locations.structure import Building, Location
 from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
-from micboard.services.chargers.charger_display_service import get_charging_stations_data
-from micboard.services.core.charger_assignment import ChargerAssignmentService
-from micboard.services.monitoring.connection_validation import ConnectionValidationService
+from micboard.services.kiosk.services import KioskService
 
 User = get_user_model()
 
@@ -90,47 +88,6 @@ class AlertListQueryTests(TestCase):
         self.assertLessEqual(len(large_context), 10)
 
 
-class ChargerDisplayQueryTests(TestCase):
-    """Charger display serialization must retain the slot prefetch cache."""
-
-    def setUp(self) -> None:
-        self.user = User.objects.create_superuser(username="charger-query-admin")
-        building = Building.objects.create(name="Charger Query Building")
-        self.location = Location.objects.create(
-            name="Charger Query Location",
-            building=building,
-        )
-
-    def _add_charger(self, index: int) -> None:
-        charger = Charger.objects.create(
-            location=self.location,
-            name=f"Query Charger {index}",
-            serial_number=f"QUERY-CHARGER-{index}",
-            order=index,
-        )
-        ChargerSlot.objects.create(charger=charger, slot_number=2)
-        ChargerSlot.objects.create(charger=charger, slot_number=1)
-
-    def test_query_count_is_constant_as_chargers_grow(self) -> None:
-        self._add_charger(1)
-        with CaptureQueriesContext(connection) as small_context:
-            small_data = get_charging_stations_data(user=self.user)
-
-        self._add_charger(2)
-        self._add_charger(3)
-        with CaptureQueriesContext(connection) as large_context:
-            large_data = get_charging_stations_data(user=self.user)
-
-        self.assertEqual(len(small_data), 1)
-        self.assertEqual(len(large_data), 3)
-        self.assertEqual(len(large_context), len(small_context))
-        self.assertLessEqual(len(large_context), 2)
-        self.assertEqual(
-            [slot["slot_number"] for slot in large_data[0]["slots"]],
-            [1, 2],
-        )
-
-
 class DisplayWallSnapshotQueryTests(TestCase):
     """Display-wall snapshots must bulk-load their full display graph."""
 
@@ -191,7 +148,7 @@ class DisplayWallSnapshotQueryTests(TestCase):
     def test_query_count_is_constant_as_wall_topology_grows(self) -> None:
         self._add_topology(1)
         with CaptureQueriesContext(connection) as small_context:
-            small_data = ChargerAssignmentService.get_display_wall_data(
+            small_data = KioskService.get_wall_snapshot(
                 self.wall.pk,
                 user=self.user,
             )
@@ -199,44 +156,23 @@ class DisplayWallSnapshotQueryTests(TestCase):
         self._add_topology(2)
         self._add_topology(3)
         with CaptureQueriesContext(connection) as large_context:
-            large_data = ChargerAssignmentService.get_display_wall_data(
+            large_data = KioskService.get_wall_snapshot(
                 self.wall.pk,
                 user=self.user,
             )
 
-        self.assertEqual(len(small_data["sections"]), 1)
-        self.assertEqual(len(large_data["sections"]), 3)
+        self.assertIsNotNone(small_data)
+        self.assertIsNotNone(large_data)
+        assert small_data is not None
+        assert large_data is not None
+        self.assertEqual(len(small_data.sections), 1)
+        self.assertEqual(len(large_data.sections), 3)
         self.assertEqual(len(large_context), len(small_context))
         self.assertLessEqual(len(large_context), 6)
         self.assertEqual(
-            large_data["sections"][0]["performers"][0]["performers"][0]["performer_name"],
+            large_data.sections[0].performers[0].performers[0].performer_name,
             "Wall Query Performer 1",
         )
-
-
-class ChargerHealthRegressionTests(TestCase):
-    """Missing heartbeats must produce a stable offline health response."""
-
-    def test_missing_last_seen_is_offline_without_extra_slot_query(self) -> None:
-        building = Building.objects.create(name="Health Query Building")
-        location = Location.objects.create(name="Health Query Location", building=building)
-        charger = Charger.objects.create(
-            location=location,
-            name="Never Seen Charger",
-            serial_number="NEVER-SEEN",
-            last_seen=None,
-        )
-        for slot_number in (3, 1, 2):
-            ChargerSlot.objects.create(charger=charger, slot_number=slot_number)
-
-        with CaptureQueriesContext(connection) as query_context:
-            health = ConnectionValidationService.check_charger_health(charger.pk)
-
-        self.assertEqual(len(query_context), 2)
-        self.assertEqual(health["health"], "offline")
-        self.assertFalse(health["connected"])
-        self.assertIsNone(health["last_heartbeat_seconds_ago"])
-        self.assertEqual([slot["slot_number"] for slot in health["slots"]], [1, 2, 3])
 
 
 class KioskHealthQueryTests(TestCase):
@@ -308,12 +244,8 @@ class DisplayWallDetailRegressionTests(TestCase):
         )
         self.client.force_login(user)
 
-        with (
-            patch.object(ChargerAssignmentService, "get_display_wall_data") as display_mock,
-            patch.object(ConnectionValidationService, "check_charger_health") as health_mock,
-        ):
+        with patch.object(KioskService, "get_wall_snapshot") as display_mock:
             response = self.client.get(reverse("micboard:display_wall_detail", args=[wall.pk]))
 
         self.assertEqual(response.status_code, 200)
         display_mock.assert_not_called()
-        health_mock.assert_not_called()

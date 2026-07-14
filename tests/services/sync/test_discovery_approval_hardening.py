@@ -282,6 +282,39 @@ def test_owner_snapshot_preserves_duplicate_ids_and_rejects_ambiguity() -> None:
         policy.validate_charger(item=queue_item, charger=charger)
 
 
+def test_inventory_indexes_preserve_duplicate_and_blank_identity_rows() -> None:
+    """Index construction skips blanks and retains every ambiguous durable identity."""
+    first = SimpleNamespace(
+        pk=1,
+        manufacturer_id=7,
+        api_device_id="shared-api",
+        serial_number="shared-serial",
+    )
+    second = SimpleNamespace(
+        pk=2,
+        manufacturer_id=7,
+        api_device_id="shared-api",
+        serial_number="shared-serial",
+    )
+    blank = SimpleNamespace(
+        pk=3,
+        manufacturer_id=7,
+        api_device_id="",
+        serial_number=None,
+    )
+    charger = SimpleNamespace(pk=4, manufacturer_id=None, serial_number="")
+
+    indexes = DiscoveryApprovalResolver._inventory_indexes(
+        (first, second, blank),
+        (charger,),
+    )
+
+    assert set(indexes["chassis_by_pk"]) == {1, 2, 3}
+    assert indexes["chassis_by_api_identity"][(7, "shared-api")] == (first, second)
+    assert indexes["chassis_by_serial_identity"][(7, "shared-serial")] == (first, second)
+    assert indexes["chargers_by_serial_identity"] == {}
+
+
 def test_inventory_targets_are_prelocked_once_in_stable_model_queries(
     django_assert_num_queries,
 ) -> None:
@@ -308,6 +341,8 @@ def test_inventory_targets_are_prelocked_once_in_stable_model_queries(
         assert [chassis.pk for chassis in inventory.chassis] == sorted(
             [first_chassis.pk, second_chassis.pk]
         )
+        assert set(inventory.chassis_by_pk) == {first_chassis.pk, second_chassis.pk}
+        inventory.chassis = ()
         with django_assert_num_queries(0):
             first_target = DiscoveryApprovalResolver.resolve_chassis(
                 first_item,

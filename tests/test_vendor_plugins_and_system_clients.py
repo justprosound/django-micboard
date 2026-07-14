@@ -41,6 +41,7 @@ def test_shure_plugin_delegates_to_lazy_client_and_transformer(monkeypatch) -> N
             get_discovery_ips=Mock(return_value=["192.0.2.1"]),
             remove_discovery_ips=Mock(return_value=True),
         ),
+        connect_and_subscribe=AsyncMock(),
         is_healthy=Mock(return_value=True),
         check_health=Mock(return_value={"status": "healthy"}),
     )
@@ -89,6 +90,7 @@ def test_sennheiser_plugin_delegates_to_client_transformer_and_sse(monkeypatch) 
             get_discovery_ips=Mock(return_value=[]),
             remove_discovery_ips=Mock(return_value=True),
         ),
+        connect_and_subscribe=AsyncMock(),
         is_healthy=Mock(return_value=True),
         check_health=Mock(return_value={"status": "healthy"}),
     )
@@ -101,9 +103,6 @@ def test_sennheiser_plugin_delegates_to_client_transformer_and_sse(monkeypatch) 
         transform_device_data=Mock(return_value={"id": "normalized"}),
         transform_transmitter_data=Mock(return_value={"slot": 2}),
     )
-    subscribe = AsyncMock()
-    monkeypatch.setattr(sse_module, "connect_and_subscribe", subscribe)
-
     assert plugin.name == "Sennheiser"
     assert plugin.code == "sennheiser"
     assert plugin.get_client() is client
@@ -118,7 +117,7 @@ def test_sennheiser_plugin_delegates_to_client_transformer_and_sse(monkeypatch) 
     assert plugin.get_discovery_ips() == []
     assert plugin.remove_discovery_ips([])
     asyncio.run(plugin.connect_and_subscribe("one", AsyncMock()))
-    subscribe.assert_awaited_once()
+    client.connect_and_subscribe.assert_awaited_once()
 
 
 def test_system_clients_validate_auth_and_websocket_configuration(monkeypatch) -> None:
@@ -165,8 +164,11 @@ def test_system_clients_validate_auth_and_websocket_configuration(monkeypatch) -
         assert client._get_health_check_endpoint() == "/api/ssc/version"
         assert client.get_exception_class() is SennheiserAPIError
         assert client.get_rate_limit_exception_class().__name__ == "SennheiserAPIRateLimitError"
-        with pytest.raises(NotImplementedError, match="SSE subscription"):
-            asyncio.run(client.connect_and_subscribe("one", AsyncMock()))
+        subscribe = AsyncMock()
+        monkeypatch.setattr(sse_module, "connect_and_subscribe", subscribe)
+        callback = AsyncMock()
+        asyncio.run(client.connect_and_subscribe("one", callback))
+        subscribe.assert_awaited_once_with(client, "one", callback)
 
     monkeypatch.setattr(
         app_settings,
@@ -181,14 +183,9 @@ def test_system_clients_validate_auth_and_websocket_configuration(monkeypatch) -
 
 
 def test_sse_client_handles_non_success_and_wraps_transport_error(monkeypatch) -> None:
-    def direct_adapter(function, **_kwargs):
-        async def invoke(*args, **kwargs):
-            return function(*args, **kwargs)
-
-        return invoke
-
     class StreamResponse:
         status_code = 503
+        headers: dict[str, str] = {}
 
         async def __aenter__(self):
             return self
@@ -203,22 +200,39 @@ def test_sse_client_handles_non_success_and_wraps_transport_error(monkeypatch) -
         async def __aexit__(self, *_args):
             return None
 
-        def stream(self, *_args):
+        def stream(self, *_args, **_kwargs):
             return StreamResponse()
 
     monkeypatch.setattr(sse_module.httpx, "AsyncClient", lambda **_kwargs: StreamClient())
-    monkeypatch.setattr(sse_module, "sync_to_async", direct_adapter)
     client = SimpleNamespace(
         base_url="https://sennheiser.test",
+        username="api",
         password="secret",
-        _make_request=Mock(side_effect=[{"sessionUUID": "session"}, None]),
     )
-    asyncio.run(sse_module.connect_and_subscribe(client, "one", AsyncMock()))
+    with pytest.raises(SennheiserAPIError, match="status 503"):
+        asyncio.run(sse_module.connect_and_subscribe(client, "one", AsyncMock()))
 
-    client._make_request = Mock(side_effect=RuntimeError("transport down"))
+    monkeypatch.setattr(
+        sse_module.httpx,
+        "AsyncClient",
+        Mock(side_effect=RuntimeError("transport down")),
+    )
     with pytest.raises(SennheiserAPIError, match="subscription failed"):
         asyncio.run(sse_module.connect_and_subscribe(client, "one", AsyncMock()))
 
-    client._make_request = Mock(return_value={"unexpected": "shape"})
-    with pytest.raises(SennheiserAPIError, match="omitted its session"):
-        asyncio.run(sse_module.connect_and_subscribe(client, "one", AsyncMock()))
+
+@pytest.mark.parametrize(
+    "content_location",
+    [
+        None,
+        "https://attacker.example/api/ssc/state/subscriptions/session",
+        "/api/ssc/state/not-subscriptions/session",
+        "/api/ssc/state/subscriptions/",
+    ],
+)
+def test_sse_subscription_control_url_rejects_unsafe_locations(content_location) -> None:
+    with pytest.raises(SennheiserAPIError):
+        sse_module._subscription_control_url(
+            base_url="https://sennheiser.test",
+            content_location=content_location,
+        )

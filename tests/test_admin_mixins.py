@@ -15,6 +15,7 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.charger import Charger
 from micboard.models.integrations import Accessory
 from micboard.utils.dependencies import (
+    HAS_ADMIN_SORTABLE,
     HAS_UNFOLD,
     HAS_UNFOLD_FILTERS,
     HAS_UNFOLD_IMPORT_EXPORT,
@@ -27,7 +28,10 @@ def test_unconfigured_import_export_uses_core_admin_template() -> None:
     model_admin = cast(Any, admin.site._registry[Charger])
 
     assert HAS_IMPORT_EXPORT is False
-    assert model_admin.change_list_template is None
+    if HAS_ADMIN_SORTABLE:
+        assert "adminsortable2/change_list.html" in model_admin.change_list_template
+    else:
+        assert model_admin.change_list_template is None
 
 
 def test_accessory_admin_is_registered_on_the_live_site() -> None:

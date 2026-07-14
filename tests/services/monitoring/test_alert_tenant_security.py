@@ -52,7 +52,7 @@ def test_alert_delivery_intersects_group_recipient_with_unit_tenant() -> None:
         monitoring_group=group,
     )
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email"
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
     ) as send_email:
         denied = AlertDeliveryService.create_alert(
             unit=unit,
@@ -73,7 +73,7 @@ def test_alert_delivery_intersects_group_recipient_with_unit_tenant() -> None:
         role="viewer",
     )
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email",
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification",
         return_value=True,
     ) as send_email:
         allowed = AlertDeliveryService.create_alert(
@@ -118,7 +118,7 @@ def test_tenant_fanout_rejects_inactive_recipient_or_group(revoked: str) -> None
         group.save(update_fields=["is_active"])
 
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email"
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
     ) as send_email:
         denied = AlertDeliveryService.create_alert(
             unit=unit,

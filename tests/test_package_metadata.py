@@ -8,7 +8,6 @@ import micboard.models as model_api
 import micboard.models.telemetry.sessions as telemetry_sessions
 import micboard.services as services
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
-from micboard.services.monitoring.connection import ConnectionHealthService
 
 
 def test_runtime_version_uses_distribution_metadata() -> None:
@@ -97,12 +96,10 @@ def test_removed_compatibility_names_are_not_public() -> None:
         assert not hasattr(model_api, name)
 
     assert not hasattr(HardwareLifecycleManager, "transition")
-    assert not hasattr(ConnectionHealthService, "get_connections_for_manufacturer")
-    assert not hasattr(ConnectionHealthService, "update_heartbeat")
-    assert not hasattr(ConnectionHealthService, "is_connection_healthy")
 
 
 def test_removed_compatibility_modules_are_absent() -> None:
     """Old integration import paths must stay deleted instead of becoming shims."""
     assert find_spec("micboard.integrations.sennheiser.rate_limiter") is None
     assert find_spec("micboard.integrations.shure.discovery_sync") is None
+    assert find_spec("micboard.services.monitoring.connection") is None

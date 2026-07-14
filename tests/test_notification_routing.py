@@ -74,7 +74,6 @@ def test_routing_database_adapters_cover_rows_and_fail_closed(monkeypatch) -> No
         SimpleNamespace(_default_manager=chassis_manager),
     )
     assert RealtimeRoutingService.chassis_site_ids([1, 2]) == {1: 7}
-    assert RealtimeRoutingService.chassis_site_id(1) == 7
     assert RealtimeRoutingService.hardware_site_id(device_type="WirelessChassis", device_id=1) == 7
 
     chassis_manager.filter.return_value.values_list.return_value = [
@@ -82,7 +81,6 @@ def test_routing_database_adapters_cover_rows_and_fail_closed(monkeypatch) -> No
         (2, None, None),
     ]
     assert RealtimeRoutingService.chassis_tenant_scopes([1, 2]) == {1: (10, 11)}
-    assert RealtimeRoutingService.chassis_tenant_scope(1) == (10, 11)
     assert RealtimeRoutingService.hardware_tenant_scope(
         device_type="WirelessChassis", device_id=1
     ) == (10, 11)

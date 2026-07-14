@@ -6,7 +6,10 @@ for debugging and API responses.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any
+
+import httpx
 
 
 class MicboardError(Exception):
@@ -97,31 +100,100 @@ class HardwareValidationError(MicboardError):
         )
 
 
+class OrganizationDeviceQuotaExceededError(MicboardError):
+    """Raised when a tenant-scoped chassis creation would exceed its quota."""
+
+    def __init__(
+        self,
+        *,
+        organization_id: int,
+        max_devices: int,
+        current_devices: int,
+    ) -> None:
+        """Describe the finite organization quota that rejected a new chassis."""
+        super().__init__(
+            f"Organization {organization_id} has reached its device quota "
+            f"({current_devices}/{max_devices})",
+            code="ORGANIZATION_DEVICE_QUOTA_EXCEEDED",
+            details={
+                "organization_id": organization_id,
+                "max_devices": max_devices,
+                "current_devices": current_devices,
+            },
+        )
+
+
 class APIError(MicboardError):
-    """Raised when manufacturer API call fails."""
+    """Base error for bounded manufacturer API operations."""
 
     def __init__(
         self,
         message: str,
-        *,
         status_code: int | None = None,
+        response: httpx.Response | None = None,
+        *,
         response_body: str | None = None,
+        code: str = "API_ERROR",
     ):
-        """Initialize exception.
+        """Initialize an API error without reading an untrusted response body.
 
         Args:
             message: Error message
             status_code: HTTP status code from API
-            response_body: Response body from API
+            response: Optional response retained for transport-level handling
+            response_body: Explicitly supplied, already-bounded response text
+            code: Machine-readable error code
         """
+        self.status_code = status_code
+        self.response = response
         super().__init__(
             message,
-            code="API_ERROR",
+            code=code,
             details={
                 "status_code": status_code,
                 "response": response_body,
             },
         )
+
+
+class APIRateLimitError(APIError):
+    """Raised when a manufacturer API rate limit is exceeded."""
+
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded",
+        retry_after: int | None = None,
+        response: httpx.Response | None = None,
+    ):
+        """Initialize a rate-limit error and parse an integer Retry-After value."""
+        self.retry_after = retry_after
+        if self.retry_after is None and response is not None:
+            retry_after_header = response.headers.get("Retry-After")
+            if retry_after_header is not None:
+                with suppress(ValueError, TypeError):
+                    self.retry_after = int(retry_after_header)
+        super().__init__(
+            message,
+            status_code=429,
+            response=response,
+            code="API_RATE_LIMIT",
+        )
+
+
+class APIAuthenticationError(APIError):
+    """Raised when manufacturer API authentication fails."""
+
+    def __init__(self, message: str = "API authentication failed"):
+        """Initialize an authentication error."""
+        super().__init__(message, status_code=401, code="API_AUTH_ERROR")
+
+
+class APITimeoutError(APIError):
+    """Raised when a manufacturer API operation times out."""
+
+    def __init__(self, message: str = "API request timed out"):
+        """Initialize a timeout error."""
+        super().__init__(message, code="API_TIMEOUT")
 
 
 class LocationNotFoundError(MicboardError):

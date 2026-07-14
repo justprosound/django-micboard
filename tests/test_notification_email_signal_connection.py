@@ -47,22 +47,7 @@ def test_email_alert_delivery_covers_defaults_success_rejection_and_exception(
     assert "error details redacted" in caplog.text
 
 
-def test_system_email_settings_and_convenience_delegation(monkeypatch, caplog) -> None:
-    service = EmailService()
-    message = Mock(
-        send=Mock(side_effect=[1, 0, RuntimeError("smtp://operator:secret@example.test")])
-    )
-    monkeypatch.setattr(email_module, "EmailMessage", Mock(return_value=message))
-    service._get_default_recipients = Mock(return_value=[])
-    assert not service.send_system_notification("Notice", "Body")
-    service._get_default_recipients.return_value = ["ops@example.test"]
-    service._get_from_email = Mock(return_value="micboard@example.test")
-    assert service.send_system_notification("Notice", "Body")
-    assert not service.send_system_notification("Notice", "Body", ["one@example.test"])
-    assert not service.send_system_notification("Notice", "Body", ["one@example.test"])
-    assert "operator:secret" not in caplog.text
-    assert "error details redacted" in caplog.text
-
+def test_email_settings_helpers_validate_recipient_shapes(monkeypatch) -> None:
     service = EmailService()
     config = Mock()
     monkeypatch.setattr(
@@ -81,16 +66,6 @@ def test_system_email_settings_and_convenience_delegation(monkeypatch, caplog) -
     assert service._get_default_recipients() == ["two@example.test"]
     assert service._get_from_email() == "sender@example.test"
     assert service._get_from_email()
-
-    alert = object()
-    monkeypatch.setattr(
-        email_module.email_service, "send_alert_notification", Mock(return_value=True)
-    )
-    monkeypatch.setattr(
-        email_module.email_service, "send_system_notification", Mock(return_value=True)
-    )
-    assert email_module.send_alert_email(alert, ["ops@example.test"])
-    assert email_module.send_system_email("Notice", "Body", ["ops@example.test"])
 
 
 def _connection(**overrides):
@@ -120,26 +95,12 @@ def test_connection_state_helpers_cover_every_transition(monkeypatch) -> None:
     assert conn.status == "connected"
     assert conn.error_count == 0
     assert conn.reconnect_attempts == 0
-    connection_service.mark_disconnected(conn)
-    assert conn.error_count == 0
-    connection_service.mark_disconnected(conn, "closed")
-    assert conn.error_count == 1
     connection_service.mark_error(conn, "failed")
     assert conn.status == "error"
     connection_service.mark_connecting(conn)
     assert conn.status == "connecting"
     connection_service.mark_stopped(conn)
     assert conn.status == "stopped"
-
-    conn.status = "disconnected"
-    conn.reconnect_attempts = 1
-    assert connection_service.should_reconnect(conn)
-    conn.reconnect_attempts = conn.max_reconnect_attempts
-    assert not connection_service.should_reconnect(conn)
-    conn.status = "connected"
-    assert connection_service.is_active(conn)
-    connection_service.increment_reconnect_attempt(conn)
-    assert conn.reconnect_attempts == 4
 
     conn.last_message_at = None
     assert connection_service.time_since_last_message(conn) is None
@@ -148,6 +109,7 @@ def test_connection_state_helpers_cover_every_transition(monkeypatch) -> None:
     conn.connected_at = None
     assert connection_service.connection_duration(conn) is None
     conn.connected_at = first
+    conn.status = "connected"
     assert connection_service.connection_duration(conn) > timedelta(0)
 
     conn.status = "connecting"

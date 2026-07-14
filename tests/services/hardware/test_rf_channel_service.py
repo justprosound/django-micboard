@@ -122,18 +122,29 @@ def test_regulatory_update_applies_only_to_active_configured_uncovered_channels(
 
 
 @pytest.mark.parametrize(
-    ("domain", "frequency", "coverage", "message"),
+    ("domain", "frequency", "message"),
     [
-        (None, 500.0, False, "No regulatory domain"),
-        (SimpleNamespace(code="FCC"), None, False, "No operating frequency"),
-        (SimpleNamespace(code="FCC"), 700.0, False, "not covered by FCC"),
-        (SimpleNamespace(code="FCC"), 500.0, True, "coverage OK (FCC)"),
+        (None, 500.0, "No regulatory domain"),
+        (
+            SimpleNamespace(code="FCC", min_frequency_mhz=470.0, max_frequency_mhz=608.0),
+            None,
+            "No operating frequency",
+        ),
+        (
+            SimpleNamespace(code="FCC", min_frequency_mhz=470.0, max_frequency_mhz=608.0),
+            700.0,
+            "not covered by FCC",
+        ),
+        (
+            SimpleNamespace(code="FCC", min_frequency_mhz=470.0, max_frequency_mhz=608.0),
+            500.0,
+            "coverage OK (FCC)",
+        ),
     ],
 )
 def test_regulatory_status_explains_coverage_state(
     domain: object | None,
     frequency: float | None,
-    coverage: bool,
     message: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -143,20 +154,11 @@ def test_regulatory_status_explains_coverage_state(
         "micboard.services.hardware.rf_channel_service.get_regulatory_domain",
         Mock(return_value=domain),
     )
-    monkeypatch.setattr(
-        "micboard.services.hardware.rf_channel_service.has_regulatory_coverage",
-        Mock(return_value=coverage),
-    )
-    monkeypatch.setattr(
-        "micboard.services.hardware.rf_channel_service.get_needs_regulatory_update",
-        Mock(return_value=not coverage),
-    )
-
     result = get_regulatory_status(channel)
 
     assert message in str(result["message"])
     assert result["regulatory_domain"] == (domain.code if domain else None)
-    assert result["has_coverage"] is coverage
+    assert result["has_coverage"] is (domain is not None and frequency == 500.0)
 
 
 @pytest.mark.parametrize(

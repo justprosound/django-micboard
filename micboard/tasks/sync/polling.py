@@ -8,8 +8,8 @@ from typing import Any
 
 from django.core.exceptions import PermissionDenied
 
-from micboard.models.discovery import Manufacturer
-from micboard.models.hardware import WirelessChassis
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.integrations import ManufacturerAPIServer
 
 logger = logging.getLogger(__name__)

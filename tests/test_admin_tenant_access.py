@@ -15,9 +15,9 @@ import pytest
 
 from micboard.admin.display_wall import WallSectionAdmin, WallSectionInline
 from micboard.admin.manufacturers import ManufacturerAdmin
-from micboard.admin.mixins import PLATFORM_GLOBAL_ADMIN_MODEL_LABELS
 from micboard.admin.realtime import RealTimeConnectionAdmin
-from micboard.admin.receivers import RFChannelInline, WirelessChassisAdmin
+from micboard.admin.receiver_inlines import RFChannelInline
+from micboard.admin.receivers import WirelessChassisAdmin
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.charger import Charger
 from micboard.models.hardware.display_wall import DisplayWall, WallSection
@@ -27,6 +27,7 @@ from micboard.models.monitoring.group import MonitoringGroup, MonitoringGroupLoc
 from micboard.models.realtime.connection import RealTimeConnection
 from micboard.multitenancy.admin import SuperuserOnlyAdmin
 from micboard.multitenancy.models import Campus, Organization, OrganizationMembership
+from micboard.services.shared.access_policy import PLATFORM_GLOBAL_ADMIN_MODEL_LABELS
 from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
 
 

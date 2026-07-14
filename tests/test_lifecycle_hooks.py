@@ -31,12 +31,12 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
             {"created": True, "using": "default", "update_fields": None},
         ),
         (model_lifecycle._prepare_charger, {"using": "default"}),
-        (model_lifecycle._prepare_unit, {}),
+        (model_lifecycle._prepare_unit, {"using": "default"}),
         (
             model_lifecycle._finish_unit,
             {"using": "default", "update_fields": None},
         ),
-        (model_lifecycle._prepare_channel, {}),
+        (model_lifecycle._prepare_channel, {"using": "default"}),
         (
             model_lifecycle._finish_channel,
             {"using": "default", "update_fields": None},

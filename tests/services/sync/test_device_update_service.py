@@ -11,6 +11,9 @@ from micboard.integrations.sennheiser.transformers import SennheiserDataTransfor
 from micboard.integrations.shure.transformers import ShureDataTransformer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
 from micboard.services.sync.device_update_service import DeviceUpdateService
 from tests.factories.discovery import ManufacturerFactory
 
@@ -24,10 +27,11 @@ def test_realtime_update_does_not_reconcile_missing_chassis() -> None:
 
     with (
         patch.object(
-            DeviceUpdateService,
-            "_update_chassis",
-            return_value=SimpleNamespace(pk=11),
+            WirelessChassisPersistenceService,
+            "upsert",
+            return_value=(SimpleNamespace(pk=11), True),
         ),
+        patch.object(DeviceUpdateService, "_reconcile_chassis_lifecycle"),
         patch.object(DeviceUpdateService, "mark_offline_receivers") as mark_offline,
     ):
         updated = DeviceUpdateService.update_models_from_api_data(
@@ -49,10 +53,11 @@ def test_authoritative_snapshot_reconciles_only_missing_chassis() -> None:
 
     with (
         patch.object(
-            DeviceUpdateService,
-            "_update_chassis",
-            return_value=SimpleNamespace(pk=22),
+            WirelessChassisPersistenceService,
+            "upsert",
+            return_value=(SimpleNamespace(pk=22), True),
         ),
+        patch.object(DeviceUpdateService, "_reconcile_chassis_lifecycle"),
         patch.object(DeviceUpdateService, "mark_offline_receivers") as mark_offline,
     ):
         updated = DeviceUpdateService.update_models_from_api_data(
@@ -160,10 +165,11 @@ def test_incomplete_authoritative_snapshot_never_marks_devices_offline() -> None
 
     with (
         patch.object(
-            DeviceUpdateService,
-            "_update_chassis",
-            return_value=SimpleNamespace(pk=11),
+            WirelessChassisPersistenceService,
+            "upsert",
+            return_value=(SimpleNamespace(pk=11), True),
         ),
+        patch.object(DeviceUpdateService, "_reconcile_chassis_lifecycle"),
         patch.object(DeviceUpdateService, "mark_offline_receivers") as mark_offline,
     ):
         updated = DeviceUpdateService.update_models_from_api_data(
@@ -222,7 +228,9 @@ def test_embedded_normalized_channels_persist_null_safe_telemetry() -> None:
         ],
     }
 
-    with patch("micboard.services.sync.device_update_service.check_transmitter_alerts") as alerts:
+    with patch(
+        "micboard.services.sync.device_update_service.alert_manager.check_wireless_unit_alerts"
+    ) as alerts:
         updated = DeviceUpdateService.update_models_from_api_data(
             api_data=[{"id": "embedded-device", "channels": [{}]}],
             manufacturer=manufacturer,
@@ -263,7 +271,9 @@ def test_separate_channel_endpoint_uses_vendor_transmitter_transform() -> None:
         "name": "Detail transmitter",
     }
 
-    with patch("micboard.services.sync.device_update_service.check_transmitter_alerts"):
+    with patch(
+        "micboard.services.sync.device_update_service.alert_manager.check_wireless_unit_alerts"
+    ):
         assert (
             DeviceUpdateService.update_models_from_api_data(
                 api_data=[{"id": "detail-device", "channels": []}],
@@ -299,17 +309,16 @@ def test_existing_chassis_lifecycle_failures_abort_updates(
     lifecycle.transition_device.return_value = transition_result
     lifecycle.mark_online.return_value = mark_online_result
     with (
-        patch.object(WirelessChassis.objects, "update_or_create", return_value=(chassis, False)),
         patch(
-            "micboard.services.core.hardware_lifecycle.get_lifecycle_manager",
+            "micboard.services.core.hardware_lifecycle.HardwareLifecycleManager",
             return_value=lifecycle,
         ),
         pytest.raises(RuntimeError, match=message),
     ):
-        DeviceUpdateService._update_chassis(
-            transformed_data={"ip": "192.0.2.93"},
+        DeviceUpdateService._reconcile_chassis_lifecycle(
+            chassis=chassis,
+            created=False,
             manufacturer=MagicMock(code="vendor"),
-            api_device_id="lifecycle-device",
         )
 
 
@@ -317,19 +326,15 @@ def test_chassis_persistence_logs_only_database_identifiers() -> None:
     """Realtime persistence logs cannot expose vendor names or device identifiers."""
     private_identity = "private-vendor-device-identity"
     chassis = MagicMock(status="online", pk=17)
-    manufacturer = SimpleNamespace(code="vendor", pk=9)
+    manufacturer = SimpleNamespace(code=private_identity, pk=9)
     with (
-        patch.object(WirelessChassis.objects, "update_or_create", return_value=(chassis, True)),
-        patch("micboard.services.core.hardware_lifecycle.get_lifecycle_manager"),
+        patch("micboard.services.core.hardware_lifecycle.HardwareLifecycleManager"),
         patch("micboard.services.sync.device_update_service.logger") as logger,
     ):
-        DeviceUpdateService._update_chassis(
-            transformed_data={
-                "ip": "192.0.2.94",
-                "name": private_identity,
-            },
+        DeviceUpdateService._reconcile_chassis_lifecycle(
+            chassis=chassis,
+            created=True,
             manufacturer=manufacturer,
-            api_device_id=private_identity,
         )
 
     assert logger.info.call_args.args == (
@@ -384,11 +389,11 @@ def test_offline_reconciliation_continues_after_one_lifecycle_failure() -> None:
             side_effect=[initial_queryset, refreshed_queryset],
         ),
         patch(
-            "micboard.services.core.hardware_lifecycle.get_lifecycle_manager",
+            "micboard.services.core.hardware_lifecycle.HardwareLifecycleManager",
             return_value=lifecycle,
         ),
         patch(
-            "micboard.services.sync.device_update_service.check_hardware_offline_alerts"
+            "micboard.services.sync.device_update_service.alert_manager.check_hardware_offline_alerts"
         ) as alerts,
     ):
         DeviceUpdateService.mark_offline_receivers(

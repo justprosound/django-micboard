@@ -477,6 +477,47 @@ def test_reload_callback_keeps_supervisor_alive_after_clean_disconnect() -> None
     assert reload_items.await_count == 2
 
 
+def test_subscription_group_failure_cancels_heartbeat_and_propagates(monkeypatch) -> None:
+    """A supervisor implementation failure remains visible after sibling cleanup."""
+
+    async def scenario() -> bool:
+        heartbeat_started = asyncio.Event()
+        heartbeat_cancelled = asyncio.Event()
+
+        async def fail_subscription_group(**_kwargs: object) -> None:
+            await heartbeat_started.wait()
+            raise RuntimeError("subscription group failed")
+
+        async def hold_heartbeat(_lease: object) -> None:
+            heartbeat_started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                heartbeat_cancelled.set()
+
+        monkeypatch.setattr(
+            RealtimeSubscriptionSupervisor,
+            "_run_bounded_subscriptions",
+            staticmethod(fail_subscription_group),
+        )
+        monkeypatch.setattr(
+            RealtimeSubscriptionSupervisor,
+            "_maintain_lease",
+            staticmethod(hold_heartbeat),
+        )
+
+        with pytest.raises(RuntimeError, match="subscription group failed"):
+            await RealtimeSubscriptionSupervisor.run(
+                items=[1],
+                subscribe=AsyncMock(),
+                lease=Mock(),
+                limits=SubscriptionLimits(max_devices=1, max_concurrency=1),
+            )
+        return heartbeat_cancelled.is_set()
+
+    assert asyncio.run(scenario()) is True
+
+
 def test_lost_lease_cancels_blocking_subscriptions(monkeypatch) -> None:
     """Lease ownership loss stops every live device worker."""
     monkeypatch.setattr(supervisor_module, "SUBSCRIPTION_LEASE_REFRESH_SECONDS", 0)
@@ -503,6 +544,33 @@ def test_lost_lease_cancels_blocking_subscriptions(monkeypatch) -> None:
         )
 
     refresh_async.assert_awaited_once_with()
+
+
+def test_lease_heartbeat_continues_after_successful_refresh(monkeypatch) -> None:
+    """A successful refresh schedules the next heartbeat instead of ending supervision."""
+    sleep = AsyncMock(side_effect=[None, asyncio.CancelledError])
+    refresh_async = AsyncMock(return_value=True)
+    monkeypatch.setattr(supervisor_module.asyncio, "sleep", sleep)
+    monkeypatch.setattr(
+        supervisor_module,
+        "sync_to_async",
+        Mock(return_value=refresh_async),
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(RealtimeSubscriptionSupervisor._maintain_lease(Mock()))
+
+    refresh_async.assert_awaited_once_with()
+    assert sleep.await_count == 2
+
+
+@override_settings(MICBOARD_REALTIME_ROTATION_SECONDS="invalid")
+def test_malformed_float_limit_uses_safe_default() -> None:
+    """Malformed float settings cannot bypass the bounded rotation default."""
+    assert (
+        RealtimeSubscriptionSupervisor.limits().rotation_seconds
+        == DEFAULT_SUBSCRIPTION_ROTATION_SECONDS
+    )
 
 
 def test_supervisor_consumes_only_the_capped_generator_prefix() -> None:

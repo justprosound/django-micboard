@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
-from typing import Any, Literal
-
-from django.db.models import Subquery
+from typing import Any
 
 from micboard.discovery.limits import (
     DEFAULT_DISCOVERY_CANDIDATE_LIMIT,
@@ -14,37 +11,23 @@ from micboard.discovery.limits import (
     clamp_candidate_limit,
 )
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.registry import (
-    DiscoveredDevice,
-    DiscoveryCIDR,
-    DiscoveryFQDN,
-    DiscoveryJob,
-)
-from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.discovery.registry import DiscoveryJob
 from micboard.services.common.base.plugin import ManufacturerPlugin
 from micboard.services.manufacturer.activation_service import ManufacturerActivationService
 from micboard.services.notification.device_broadcast_service import (
     DeviceSnapshotBroadcastService,
 )
+from micboard.services.sync.discovery_candidate_source_service import (
+    DiscoveryCandidateSourceService,
+)
 from micboard.services.sync.discovery_claim_service import DiscoverySyncClaimService
 from micboard.services.sync.discovery_configuration_service import (
     DiscoveryConfigurationService,
 )
-from micboard.services.sync.discovery_dtos import (
-    DiscoveryCandidatePage,
-    DiscoveryScanSourcePage,
-    DiscoverySyncSummary,
-)
+from micboard.services.sync.discovery_dtos import DiscoverySyncSummary
 from micboard.services.sync.discovery_queue_service import DiscoveryQueueService
 from micboard.services.sync.discovery_service import DiscoveryService
-from micboard.services.sync.discovery_source_cursor_service import (
-    DiscoverySource,
-    DiscoverySourceCursorService,
-)
-from micboard.services.sync.discovery_utils import (
-    expand_scanning_sources,
-    get_manufacturer_plugin_instance,
-)
+from micboard.services.sync.discovery_utils import get_manufacturer_plugin_instance
 from micboard.services.sync.polling_dtos import ManufacturerPollLimits
 from micboard.utils.exception_logging import sanitized_exception_info
 
@@ -226,14 +209,14 @@ class DiscoverySyncService:
             getattr(client, "devices", None),
         ):
             summary.record_error(SUPPORTED_MODELS_INCOMPLETE_REASON)
-        inventory_page = self.collect_inventory_candidates(
+        inventory_page = DiscoveryCandidateSourceService.collect_inventory_candidates(
             manufacturer,
             limit=candidate_limit,
         )
         if not inventory_page.sources_complete:
             summary.record_error(INVENTORY_SOURCES_INCOMPLETE_REASON)
         remaining_candidates = candidate_limit - len(inventory_page.candidates)
-        scan_source_page = self.configured_scan_sources(
+        scan_source_page = DiscoveryCandidateSourceService.configured_scan_sources(
             manufacturer,
             scan_cidrs=scan_cidrs,
             scan_fqdns=scan_fqdns,
@@ -241,7 +224,7 @@ class DiscoverySyncService:
         )
         if not scan_source_page.sources_complete:
             summary.record_error(SCAN_SOURCES_INCOMPLETE_REASON)
-        scanned_page = self.collect_scanned_candidates(
+        scanned_page = DiscoveryCandidateSourceService.collect_scanned_candidates(
             cidrs=scan_source_page.cidrs,
             fqdns=scan_source_page.fqdns,
             scan_cidrs=scan_cidrs,
@@ -262,139 +245,6 @@ class DiscoverySyncService:
             summary=summary,
         )
         DiscoveryQueueService.poll_and_persist(manufacturer, plugin, summary)
-
-    @staticmethod
-    def configured_scan_sources(
-        manufacturer: Manufacturer,
-        *,
-        scan_cidrs: bool,
-        scan_fqdns: bool,
-        limit: int,
-    ) -> DiscoveryScanSourcePage:
-        """Load a bounded set of enabled scan sources for a manufacturer."""
-        source_limit = clamp_candidate_limit(limit)
-        sources = [
-            *(
-                [
-                    DiscoverySource(
-                        name="cidrs",
-                        queryset=DiscoveryCIDR.objects.filter(manufacturer=manufacturer),
-                        value_field="cidr",
-                    )
-                ]
-                if scan_cidrs
-                else []
-            ),
-            *(
-                [
-                    DiscoverySource(
-                        name="fqdns",
-                        queryset=DiscoveryFQDN.objects.filter(manufacturer=manufacturer),
-                        value_field="fqdn",
-                    )
-                ]
-                if scan_fqdns
-                else []
-            ),
-        ]
-        pages = DiscoverySourceCursorService.rotating_pages(
-            manufacturer,
-            group="full-sync-scan-sources",
-            sources=sources,
-            limit=source_limit,
-        )
-        source_order: list[Literal["cidrs", "fqdns"]] = []
-        for source_name in pages:
-            if source_name == "cidrs":
-                source_order.append("cidrs")
-            elif source_name == "fqdns":
-                source_order.append("fqdns")
-        return DiscoveryScanSourcePage(
-            cidrs=pages["cidrs"].values if "cidrs" in pages else [],
-            fqdns=pages["fqdns"].values if "fqdns" in pages else [],
-            source_order=source_order,
-            sources_complete=all(page.sources_complete for page in pages.values()),
-        )
-
-    @staticmethod
-    def collect_inventory_candidates(
-        manufacturer: Manufacturer,
-        *,
-        limit: int = DEFAULT_DISCOVERY_CANDIDATE_LIMIT,
-    ) -> DiscoveryCandidatePage:
-        """Collect a bounded, stable inventory projection for one manufacturer."""
-        candidate_limit = clamp_candidate_limit(limit)
-        configured_queryset = WirelessChassis.objects.filter(
-            manufacturer=manufacturer,
-        ).exclude(ip__isnull=True)
-        configured_ips = configured_queryset.values("ip")
-        sources = [
-            DiscoverySource(
-                name="configured",
-                queryset=configured_queryset,
-                value_field="ip",
-            ),
-            DiscoverySource(
-                name="staged",
-                queryset=(
-                    DiscoveredDevice.objects.filter(manufacturer=manufacturer).exclude(
-                        ip__in=Subquery(configured_ips)
-                    )
-                ),
-                value_field="ip",
-            ),
-        ]
-        pages = DiscoverySourceCursorService.rotating_pages(
-            manufacturer,
-            group="full-sync-local-inventory",
-            sources=sources,
-            limit=candidate_limit,
-        )
-        return DiscoveryCandidatePage(
-            candidates=[
-                *pages["configured"].values,
-                *pages["staged"].values,
-            ],
-            sources_complete=all(page.sources_complete for page in pages.values()),
-        )
-
-    @staticmethod
-    def collect_scanned_candidates(
-        *,
-        cidrs: list[str],
-        fqdns: list[str],
-        scan_cidrs: bool,
-        scan_fqdns: bool,
-        max_hosts: int,
-        source_order: Sequence[str] | None = None,
-    ) -> DiscoveryCandidatePage:
-        """Expand enabled scan sources into a deduplicated candidate list."""
-        candidate_limit = clamp_candidate_limit(max_hosts)
-        cidr_hosts, fqdn_hosts, _total, sources_complete = expand_scanning_sources(
-            cidrs if scan_cidrs else [],
-            fqdns if scan_fqdns else [],
-            max_hosts=candidate_limit,
-            source_order=source_order or ["cidrs", "fqdns"],
-        )
-        ordered_maps = {
-            "cidrs": cidr_hosts,
-            "fqdns": fqdn_hosts,
-        }
-        effective_order = [
-            source_name
-            for source_name in dict.fromkeys(source_order or ["cidrs", "fqdns"])
-            if source_name in ordered_maps
-        ]
-        candidate_ips = [
-            address
-            for source_name in effective_order
-            for addresses in ordered_maps[source_name].values()
-            for address in addresses
-        ]
-        return DiscoveryCandidatePage(
-            candidates=list(dict.fromkeys(candidate_ips))[:candidate_limit],
-            sources_complete=sources_complete,
-        )
 
     def submit_candidates(
         self,

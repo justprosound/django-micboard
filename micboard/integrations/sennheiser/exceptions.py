@@ -6,8 +6,7 @@ the common exception hierarchy while maintaining their distinct identities.
 
 from __future__ import annotations
 
-# Import base exceptions
-from micboard.services.common.base.exceptions import APIError, APIRateLimitError
+from micboard.exceptions import APIError, APIRateLimitError
 
 
 class SennheiserAPIError(APIError):

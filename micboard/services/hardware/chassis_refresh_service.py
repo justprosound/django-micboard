@@ -11,7 +11,11 @@ from django.contrib.auth import get_user_model
 from django.db import DEFAULT_DB_ALIAS, transaction
 from django.utils import timezone
 
-from micboard.services.hardware.dtos import ChassisRefreshResult
+from micboard.services.hardware.dtos import ChassisRefreshResult, WirelessChassisWrite
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
+from micboard.services.shared.access_policy import tenant_role_access
 from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:
@@ -66,24 +70,23 @@ class ChassisRefreshService:
                 .get(pk=chassis_id)
             )
 
-            update_fields = {"last_seen"}
-            chassis.last_seen = timezone.now()
+            update_values: dict[str, Any] = {"last_seen": timezone.now()}
             if name := transformed_data.get("name"):
-                chassis.name = str(name)
-                update_fields.add("name")
-            if firmware := (
-                transformed_data.get("firmware") or transformed_data.get("firmware_version")
-            ):
-                chassis.firmware_version = str(firmware)
-                update_fields.add("firmware_version")
-            chassis.save(update_fields=update_fields, using=using)
+                update_values["name"] = str(name)
+            if firmware := transformed_data.get("firmware"):
+                update_values["firmware_version"] = str(firmware)
+            WirelessChassisPersistenceService.update(
+                chassis=chassis,
+                write=WirelessChassisWrite(**update_values),
+                using=using,
+            )
 
             if chassis.status == "retired":
                 return True
 
-            from micboard.services.core.hardware_lifecycle import get_lifecycle_manager
+            from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 
-            lifecycle = get_lifecycle_manager(chassis.manufacturer.code)
+            lifecycle = HardwareLifecycleManager()
             if chassis.status == "discovered":
                 lifecycle.transition_device(
                     chassis,
@@ -114,25 +117,6 @@ class ChassisRefreshService:
         return ChassisRefreshResult(
             synced_count=synced_count,
             failed_count=failed_count,
-        )
-
-    @classmethod
-    def refresh_ids(
-        cls,
-        *,
-        chassis_ids: list[int],
-        using: str = DEFAULT_DB_ALIAS,
-    ) -> ChassisRefreshResult:
-        """Refresh only an explicit, serializable chassis selection."""
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-        selected_ids = sorted({chassis_id for chassis_id in chassis_ids if chassis_id > 0})
-        queryset = WirelessChassis._default_manager.using(using).filter(pk__in=selected_ids)
-        result = cls.refresh(queryset=queryset)
-        missing_count = len(selected_ids) - queryset.count()
-        return ChassisRefreshResult(
-            synced_count=result.synced_count,
-            failed_count=result.failed_count + missing_count,
         )
 
     @classmethod
@@ -169,6 +153,10 @@ class ChassisRefreshService:
             or not actor.is_active
             or not actor.is_staff
             or not actor.has_perm("micboard.change_wirelesschassis")
+            or not tenant_role_access.can_manage_model(
+                user=actor,
+                model=WirelessChassis,
+            )
         ):
             return ChassisRefreshResult(
                 synced_count=0,
@@ -181,7 +169,10 @@ class ChassisRefreshService:
             WirelessChassis,
             using=using,
         ).for_user(user=actor)
-        queryset = visible.filter(pk__in=selected_ids)
+        queryset = tenant_role_access.scope_manageable_queryset(
+            visible.filter(pk__in=selected_ids),
+            user=actor,
+        )
         visible_count = queryset.count()
         result = cls.refresh(queryset=queryset)
         return ChassisRefreshResult(

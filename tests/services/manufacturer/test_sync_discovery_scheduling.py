@@ -55,7 +55,6 @@ def test_hundred_device_sync_registers_one_discovery_dispatch(
             "_normalize_devices",
             return_value=payloads,
         ),
-        patch.object(ManufacturerSyncService, "_mark_chassis_online"),
         patch(
             "micboard.services.core.hardware_post_save_hooks."
             "HardwarePostSaveHooks._ensure_channel_count"

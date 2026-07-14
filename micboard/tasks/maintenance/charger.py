@@ -1,6 +1,6 @@
 import logging
 
-from micboard.models.discovery import Manufacturer
+from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)

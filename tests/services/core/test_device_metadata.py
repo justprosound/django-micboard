@@ -142,24 +142,19 @@ def test_shure_state_and_protocol_handle_structured_and_invalid_payloads() -> No
     )
 
 
-def test_sennheiser_metadata_exposes_state_versions_and_compatibility() -> None:
-    """Sennheiser metadata supports state fallbacks and version diagnostics."""
+def test_sennheiser_metadata_exposes_state_and_compatibility() -> None:
+    """Sennheiser metadata supports state fallbacks and compatibility diagnostics."""
     accessor = SennheiserMetadataAccessor(
         {
             "compatibility_status": "INCOMPATIBLE",
             "status": "OFFLINE",
             "required_api_version": "2.1",
-            "hardware_version": "A",
-            "software_version": "1.5",
         }
     )
 
     assert accessor.get_compatibility_status() == "INCOMPATIBLE"
     assert accessor.get_device_state() == "OFFLINE"
     assert accessor.get_incompatibility_reason() == "Device requires API version 2.1 or higher."
-    assert accessor.get_hardware_version() == "A"
-    assert accessor.get_software_version() == "1.5"
-
     without_version = SennheiserMetadataAccessor({"compatibility_status": "INCOMPATIBLE"})
     assert without_version.get_incompatibility_reason() == (
         "Device is incompatible with current API version."

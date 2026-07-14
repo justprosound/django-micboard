@@ -14,13 +14,6 @@ from micboard.services.core.device_metadata import DeviceMetadataAccessor
 logger = logging.getLogger(__name__)
 
 
-def get_device_metadata_accessor(
-    device: DiscoveredDevice,
-) -> DeviceMetadataAccessor:
-    """Get manufacturer-specific metadata accessor for a discovered device."""
-    return DeviceMetadataAccessor.get_for(device.manufacturer, device.metadata)
-
-
 def is_device_manageable(device: DiscoveredDevice) -> bool:
     """Check if device is ready to be managed via API.
 
@@ -39,14 +32,14 @@ def get_device_incompatibility_reason(device: DiscoveredDevice) -> str | None:
     Returns None if device is manageable.
     """
     if device.status == DiscoveredDevice.STATUS_INCOMPATIBLE:
-        accessor = get_device_metadata_accessor(device)
+        accessor = DeviceMetadataAccessor.get_for(device.manufacturer, device.metadata)
         reason = accessor.get_incompatibility_reason()
         if reason:
             return reason
         return "Device is incompatible with current API version."
 
     elif device.status == DiscoveredDevice.STATUS_PENDING:
-        accessor = get_device_metadata_accessor(device)
+        accessor = DeviceMetadataAccessor.get_for(device.manufacturer, device.metadata)
         device_state = accessor.get_device_state()
         if device_state == "DISCOVERED":
             return (
@@ -90,7 +83,7 @@ def can_promote_device_to_chassis(device: DiscoveredDevice) -> tuple[bool, str]:
 
 def get_device_communication_protocol(device: DiscoveredDevice) -> str | None:
     """Get communication protocol name from metadata."""
-    accessor = get_device_metadata_accessor(device)
+    accessor = DeviceMetadataAccessor.get_for(device.manufacturer, device.metadata)
     if hasattr(accessor, "get_communication_protocol"):
         return accessor.get_communication_protocol()  # type: ignore[return-value]
     return None

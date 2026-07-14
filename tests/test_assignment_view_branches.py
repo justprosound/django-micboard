@@ -57,13 +57,29 @@ def test_assignment_list_queryset_is_user_scoped_and_eager_loaded() -> None:
     assignment_view.request = request()
     queryset = MagicMock()
     with patch.object(
-        assignments.PerformerAssignment.objects, "for_user", return_value=queryset
-    ) as for_user:
-        assert assignment_view.get_queryset() is queryset.select_related.return_value
-    for_user.assert_called_once_with(user=assignment_view.request.user)
-    queryset.select_related.assert_called_once_with(
-        "performer", "wireless_unit", "monitoring_group"
-    )
+        assignments.PerformerAssignmentService,
+        "get_visible_assignments",
+        return_value=queryset,
+    ) as get_visible:
+        assert assignment_view.get_queryset() is queryset
+    get_visible.assert_called_once_with(user=assignment_view.request.user)
+
+
+def test_assignment_rows_view_uses_count_free_service_projection() -> None:
+    assert assignments.AssignmentRowsView.template_name == "micboard/partials/assignment_rows.html"
+    assert assignments.AssignmentListView.paginate_by == 50
+    assert assignments.AssignmentRowsView.paginate_by is None
+
+    assignment_view = assignments.AssignmentRowsView()
+    assignment_view.request = request(path="/?page=2")
+    queryset = MagicMock()
+    with patch.object(
+        assignments.PerformerAssignmentService,
+        "get_visible_assignment_rows",
+        return_value=queryset,
+    ) as get_rows:
+        assert assignment_view.get_queryset() is queryset
+    get_rows.assert_called_once_with(user=assignment_view.request.user, page="2")
 
 
 def test_create_assignment_get_and_missing_fields_render_scoped_form() -> None:

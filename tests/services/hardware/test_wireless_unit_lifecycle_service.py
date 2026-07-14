@@ -135,6 +135,25 @@ def test_assigned_channel_prefers_active_receive_then_direct_resource() -> None:
     assert get_assigned_rf_channel(SimpleNamespace(assigned_resource=None)) is None
     assert get_assigned_rf_channel(SimpleNamespace()) is None
 
+    assert (
+        get_assigned_rf_channel(
+            SimpleNamespace(
+                _admin_active_receive_channels=[active],
+                assigned_resource=direct,
+            )
+        )
+        is active
+    )
+    assert (
+        get_assigned_rf_channel(
+            SimpleNamespace(
+                _admin_active_receive_channels=[],
+                assigned_resource=direct,
+            )
+        )
+        is direct
+    )
+
 
 def test_regulatory_status_delegates_to_assigned_channel(
     monkeypatch: pytest.MonkeyPatch,

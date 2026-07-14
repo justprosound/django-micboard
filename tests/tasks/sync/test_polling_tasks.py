@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
-from micboard.models.discovery import Manufacturer
+from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.integrations import ManufacturerAPIServer
 from micboard.tasks.sync.polling import (
     poll_api_server_device,

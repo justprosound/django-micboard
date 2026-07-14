@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from django.conf import settings
 from django.db import models
@@ -151,69 +151,6 @@ class DiscoveryQueue(models.Model):
         if self.serial_number:
             return f"{self.name} (S/N: {self.serial_number}) - {status_display}"
         return f"{self.name} @ {self.ip} - {status_display}"
-
-    def check_for_duplicates(self) -> dict[str, Any]:
-        """Check if this device already exists in the system."""
-        from micboard.models.hardware import Charger, WirelessChassis
-
-        result: dict[str, Any] = {
-            "is_duplicate": False,
-            "is_ip_conflict": False,
-            "existing_device": None,
-            "existing_charger": None,
-            "conflict_type": None,
-        }
-
-        # Check for serial number match (primary deduplication)
-        if self.serial_number:
-            # Check Chassis
-            try:
-                existing_chassis = WirelessChassis.objects.get(serial_number=self.serial_number)
-                result["is_duplicate"] = True
-                result["existing_device"] = existing_chassis
-                result["conflict_type"] = "moved" if existing_chassis.ip != self.ip else "duplicate"
-                return result
-            except WirelessChassis.DoesNotExist:
-                pass
-
-            # Check Charger
-            try:
-                existing_charger = Charger.objects.get(serial_number=self.serial_number)
-                result["is_duplicate"] = True
-                result["existing_charger"] = existing_charger
-                result["conflict_type"] = "moved" if existing_charger.ip != self.ip else "duplicate"
-                return result
-            except Charger.DoesNotExist:
-                pass
-
-        # Check for IP conflict (different device, same IP)
-        try:
-            existing_chassis = WirelessChassis.objects.get(ip=self.ip)
-            result["is_ip_conflict"] = True
-            result["existing_device"] = existing_chassis
-            result["conflict_type"] = (
-                "ip_conflict"
-                if self.serial_number and existing_chassis.serial_number != self.serial_number
-                else "metadata_update"
-            )
-            return result
-        except WirelessChassis.DoesNotExist:
-            pass
-
-        try:
-            existing_charger = Charger.objects.get(ip=self.ip)
-            result["is_ip_conflict"] = True
-            result["existing_charger"] = existing_charger
-            result["conflict_type"] = (
-                "ip_conflict"
-                if self.serial_number and existing_charger.serial_number != self.serial_number
-                else "metadata_update"
-            )
-            return result
-        except Charger.DoesNotExist:
-            pass
-
-        return result
 
 
 class DeviceMovementLog(models.Model):

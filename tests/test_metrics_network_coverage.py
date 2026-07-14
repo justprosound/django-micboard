@@ -42,6 +42,14 @@ class Inventory:
         raise RuntimeError("broken")
 
 
+def _raise_value_error() -> None:
+    raise ValueError("bad")
+
+
+def _raise_runtime_error() -> None:
+    raise RuntimeError("failed")
+
+
 def test_record_metric_appends_trims_and_survives_cache_failure(monkeypatch, caplog) -> None:
     existing = [{"duration_ms": value} for value in range(100)]
     cache_get = Mock(return_value=existing)
@@ -125,7 +133,7 @@ def test_measure_operation_logs_even_when_body_raises(monkeypatch, caplog) -> No
         pytest.raises(ValueError, match="bad"),
         measure_operation("query"),
     ):
-        raise ValueError("bad")
+        _raise_value_error()
     assert "query took 250.00ms" in caplog.text
 
 
@@ -144,7 +152,7 @@ def test_performance_monitor_logs_success_failure_and_unstarted(monkeypatch, cap
         pytest.raises(RuntimeError),
         PerformanceMonitor("failure"),
     ):
-        raise RuntimeError("failed")
+        _raise_runtime_error()
     assert "failure: 200.00ms (failed)" in caplog.text
 
     PerformanceMonitor("never-started").__exit__(None, None, None)

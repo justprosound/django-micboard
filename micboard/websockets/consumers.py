@@ -19,6 +19,7 @@ from micboard.services.notification.realtime_routing_service import (
     organization_updates_group,
     site_updates_group,
 )
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.utils.dependencies import HAS_CHANNELS
 
 if HAS_CHANNELS:
@@ -64,7 +65,7 @@ class MicboardConsumer(AsyncWebsocketConsumer):
             .values_list("organization_id", "campus_id")
             .order_by("organization_id", "campus_id")
         )
-        if getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+        if micboard_settings.multi_site_mode:
             memberships = memberships.filter(organization__site_id=settings.SITE_ID)
 
         return tuple(
@@ -95,9 +96,9 @@ class MicboardConsumer(AsyncWebsocketConsumer):
         user = get_user_model()._default_manager.filter(pk=user_id, is_active=True).first()
         if user is None or not user.is_authenticated:
             return ()
-        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
+        if micboard_settings.msp_enabled:
             return cls._membership_group_names(user_id)
-        if getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+        if micboard_settings.multi_site_mode:
             site_id = RealtimeRoutingService.normalize_identifier(
                 getattr(settings, "SITE_ID", None)
             )
@@ -165,7 +166,7 @@ class MicboardConsumer(AsyncWebsocketConsumer):
             await self.close(code=UNAUTHORIZED_CLOSE_CODE)
             return
 
-        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
+        if micboard_settings.msp_enabled:
             # Superusers intentionally follow the same membership rules. A global
             # MSP bypass would expose every tenant over a single connection.
             if user.pk is not None:
@@ -178,7 +179,7 @@ class MicboardConsumer(AsyncWebsocketConsumer):
                 )
                 await self.close(code=UNAUTHORIZED_CLOSE_CODE)
                 return
-        elif getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+        elif micboard_settings.multi_site_mode:
             self.room_group_names = (site_updates_group(settings.SITE_ID),)
         else:
             if not await self._can_receive_global_updates(user):
@@ -265,10 +266,6 @@ class MicboardConsumer(AsyncWebsocketConsumer):
     async def status_update(self, event: dict[str, Any]) -> None:
         """Send status update to WebSocket client."""
         await self._send_authorized({"type": "status", "message": event["message"]})
-
-    async def progress_update(self, event: dict[str, Any]) -> None:
-        """Send progress update to WebSocket client."""
-        await self._send_authorized({"type": "progress", "status": event.get("status")})
 
     async def _forward_event(self, event: dict[str, Any]) -> None:
         """Forward a typed Channels event without its internal dispatch key."""

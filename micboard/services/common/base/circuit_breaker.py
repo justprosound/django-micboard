@@ -5,13 +5,7 @@ import time
 
 from micboard.utils.exception_logging import sanitized_exception_info
 
-from .exceptions import APIError
-
 logger = logging.getLogger(__name__)
-
-
-class CircuitOpenError(APIError):
-    """Raised when a circuit breaker is open for an endpoint."""
 
 
 class CircuitBreaker:

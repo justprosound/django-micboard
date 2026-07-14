@@ -9,11 +9,11 @@ from unittest.mock import Mock, call
 import httpx
 import pytest
 
+from micboard.exceptions import APIError, APIRateLimitError
 from micboard.services.common.base import circuit_breaker as circuit_module
 from micboard.services.common.base import client as client_module
-from micboard.services.common.base.circuit_breaker import CircuitBreaker, CircuitOpenError
+from micboard.services.common.base.circuit_breaker import CircuitBreaker
 from micboard.services.common.base.client import BaseHTTPClient
-from micboard.services.common.base.exceptions import APIError, APIRateLimitError
 from micboard.services.common.network_limits import HTTPClientLimits
 from micboard.services.settings.settings_service import settings as app_settings
 
@@ -75,14 +75,12 @@ def _response(status: int, *, content: bytes = b"", headers: dict[str, str] | No
 
 def test_api_error_string_and_retry_header_parsing() -> None:
     response = _response(429, headers={"Retry-After": "12"})
-    assert str(APIError("plain")) == "APIError: plain"
-    assert str(APIError("failed", status_code=503)) == "APIError: failed (Status: 503)"
-    assert str(APIRateLimitError(response=response)) == (
-        "APIRateLimitError: Rate limit exceeded. Retry after 12 seconds."
-    )
+    assert str(APIError("plain")) == "[API_ERROR] plain"
+    assert str(APIError("failed", status_code=503)) == "[API_ERROR] failed"
+    assert str(APIRateLimitError(response=response)) == "[API_RATE_LIMIT] Rate limit exceeded"
     invalid = APIRateLimitError(response=_response(429, headers={"Retry-After": "later"}))
     assert invalid.retry_after is None
-    assert str(invalid) == "APIRateLimitError: Rate limit exceeded"
+    assert str(invalid) == "[API_RATE_LIMIT] Rate limit exceeded"
     assert APIRateLimitError().retry_after is None
 
 
@@ -349,8 +347,9 @@ def test_chunked_response_is_bounded_without_content_length(transport_client) ->
 
 def test_circuit_fail_fast_and_metric_transitions(transport_client, monkeypatch) -> None:
     transport_client._circuit.allow_request = Mock(return_value=False)
-    with pytest.raises(CircuitOpenError):
+    with pytest.raises(DummyAPIError) as exc_info:
         transport_client._make_request("GET", "/resource")
+    assert exc_info.value.code == "API_CIRCUIT_OPEN"
 
     metric = Mock()
     monkeypatch.setattr("micboard.metrics.MetricsCollector.record_metric", metric)

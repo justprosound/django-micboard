@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
+from pydantic import field_validator
+
+from micboard.services.shared.base_dto import PydanticBaseDTO
 from micboard.utils.mac_address import canonicalize_mac_address
 
 
-@dataclass(slots=True)
-class NormalizedHardware:
+class NormalizedHardware(PydanticBaseDTO):
     """Normalized hardware payload independent of manufacturer key names."""
 
     api_device_id: str
@@ -27,9 +28,11 @@ class NormalizedHardware:
     network_mode: str
     interface_id: str
 
-    def __post_init__(self) -> None:
-        """Canonicalize hardware identity without changing non-MAC metadata."""
-        self.mac_address = canonicalize_mac_address(self.mac_address) or ""
+    @field_validator("mac_address", mode="before")
+    @classmethod
+    def canonicalize_mac(cls, value: Any) -> str:
+        """Canonicalize hardware identity on creation and assignment."""
+        return canonicalize_mac_address(value) or ""
 
     @classmethod
     def from_api(cls, data: dict[str, Any]) -> NormalizedHardware | None:

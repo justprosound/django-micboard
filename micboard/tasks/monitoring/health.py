@@ -7,8 +7,8 @@ import logging
 
 from django.core.cache import cache
 
-from micboard.models.discovery import Manufacturer
-from micboard.models.telemetry import APIHealthLog
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.telemetry.health import APIHealthLog
 from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.realtime.health_dtos import RealtimeConnectionHealthResult

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, time, timedelta
+from datetime import time, timedelta
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
-from django.test import RequestFactory
 from django.utils import timezone
 
 import pytest
 
-from micboard.models.audit.activity_log import ActivityLog, _json_safe
 from micboard.models.discovery.configuration import ManufacturerConfiguration
 from micboard.models.integrations import ManufacturerAPIServer
 from micboard.models.locations.structure import Building, Location
@@ -55,66 +53,6 @@ from tests.factories.telemetry import (
     WirelessUnitSessionFactory,
 )
 from tests.factories.users import UserProfileFactory, UserViewFactory
-
-
-@pytest.mark.django_db
-def test_audit_log_factories_normalize_values_and_request_identity(django_user_model) -> None:
-    """Audit entrypoints persist JSON-safe data and bounded client identity."""
-    assert _json_safe(None) == {}
-    assert _json_safe({"at": datetime(2026, 1, 2, tzinfo=UTC)}) == {"at": "2026-01-02T00:00:00Z"}
-
-    user = django_user_model.objects.create_user(username="auditor")
-    manufacturer = ManufacturerFactory()
-    request = RequestFactory().post(
-        "/",
-        HTTP_X_FORWARDED_FOR="192.0.2.4, 192.0.2.5",
-        HTTP_USER_AGENT="x" * 300,
-    )
-    crud = ActivityLog.log_crud(
-        operation=ActivityLog.UPDATE,
-        obj=manufacturer,
-        user=user,
-        old_values={"active": False},
-        new_values={"active": True},
-        request=request,
-    )
-    assert crud.ip_address == "192.0.2.4"
-    assert len(crud.user_agent) == 255
-    assert manufacturer.name in str(crud)
-
-    remote_request = RequestFactory().get("/", REMOTE_ADDR="198.51.100.8")
-    assert ActivityLog._get_client_ip(remote_request) == "198.51.100.8"
-
-    service = ActivityLog.log_service(
-        operation=ActivityLog.WARNING,
-        service_code="vendor",
-        summary="retrying",
-        status="warning",
-        details={"attempt": 2},
-    )
-    assert service.details == {"attempt": 2}
-    assert "retrying" in str(service)
-
-    successful_sync = ActivityLog.log_sync(
-        service_code="vendor",
-        summary="complete",
-        device_count=4,
-        online_count=3,
-        details={"source": "api"},
-    )
-    failed_sync = ActivityLog.log_sync(
-        service_code="vendor",
-        summary="failed",
-        status="failed",
-    )
-    assert successful_sync.operation == ActivityLog.SUCCESS
-    assert successful_sync.details["source"] == "api"
-    assert failed_sync.operation == ActivityLog.FAILURE
-
-    assert ActivityLog.log_discovery(summary="scan").operation == ActivityLog.SUCCESS
-    assert (
-        ActivityLog.log_discovery(summary="scan", status="failed").operation == ActivityLog.FAILURE
-    )
 
 
 @pytest.mark.django_db
@@ -198,6 +136,14 @@ def test_hardware_and_integration_display_contracts() -> None:
     assert "1920x1080" in str(wall)
     assert str(named_section).endswith("Left")
     assert str(default_section).endswith("Default Section")
+    wall.refresh_interval_seconds = type(wall).MIN_REFRESH_INTERVAL_SECONDS - 1
+    with pytest.raises(ValidationError, match="Refresh interval must be between"):
+        wall.clean()
+    wall.refresh_interval_seconds = type(wall).MAX_REFRESH_INTERVAL_SECONDS + 1
+    with pytest.raises(ValidationError, match="Refresh interval must be between"):
+        wall.clean()
+    wall.refresh_interval_seconds = type(wall).MIN_REFRESH_INTERVAL_SECONDS
+    wall.clean()
 
     named_unit = WirelessUnitFactory(name="Lead")
     anonymous_unit = WirelessUnitFactory(name="", serial_number="bodypack-1", slot=2)

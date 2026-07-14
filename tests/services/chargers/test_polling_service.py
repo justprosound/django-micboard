@@ -49,7 +49,7 @@ def test_poll_maps_supported_stations_and_checks_health_once() -> None:
             "micboard.services.chargers.polling_service.get_manufacturer_plugin",
             return_value=Mock(return_value=plugin),
         ),
-        patch("micboard.services.chargers.polling_service.cache.set") as cache_set,
+        patch("micboard.services.chargers.polling_cache.cache.set") as cache_set,
     ):
         result = ChargerPollingService.poll(_manufacturer())
 
@@ -114,7 +114,7 @@ def test_poll_bounds_vendor_inventory_stations_and_slots() -> None:
             "micboard.services.chargers.polling_service.get_manufacturer_plugin",
             return_value=Mock(return_value=plugin),
         ),
-        patch("micboard.services.chargers.polling_service.cache.set"),
+        patch("micboard.services.chargers.polling_cache.cache.set"),
     ):
         result = ChargerPollingService.poll(_manufacturer())
 
@@ -146,7 +146,7 @@ def test_poll_contains_channel_and_health_secrets_without_publishing_partial_sna
             "micboard.services.chargers.polling_service.get_manufacturer_plugin",
             return_value=Mock(return_value=plugin),
         ),
-        patch("micboard.services.chargers.polling_service.cache.set") as cache_set,
+        patch("micboard.services.chargers.polling_cache.cache.set") as cache_set,
         caplog.at_level("ERROR"),
     ):
         result = ChargerPollingService.poll(_manufacturer())
@@ -172,7 +172,7 @@ def test_poll_deduplicates_station_ids_before_channel_requests() -> None:
             "micboard.services.chargers.polling_service.get_manufacturer_plugin",
             return_value=Mock(return_value=plugin),
         ),
-        patch("micboard.services.chargers.polling_service.cache.set"),
+        patch("micboard.services.chargers.polling_cache.cache.set"),
     ):
         result = ChargerPollingService.poll(_manufacturer())
 
@@ -199,7 +199,7 @@ def test_poll_fails_safe_for_invalid_station_ids_and_numeric_fields() -> None:
             "micboard.services.chargers.polling_service.get_manufacturer_plugin",
             return_value=Mock(return_value=plugin),
         ),
-        patch("micboard.services.chargers.polling_service.cache.set") as cache_set,
+        patch("micboard.services.chargers.polling_cache.cache.set") as cache_set,
     ):
         result = ChargerPollingService.poll(_manufacturer())
 
@@ -241,7 +241,7 @@ def test_non_iterable_inventory_caches_an_empty_snapshot() -> None:
             "micboard.services.chargers.polling_service.get_manufacturer_plugin",
             return_value=Mock(return_value=plugin),
         ),
-        patch("micboard.services.chargers.polling_service.cache.set") as cache_set,
+        patch("micboard.services.chargers.polling_cache.cache.set") as cache_set,
     ):
         result = ChargerPollingService.poll(_manufacturer())
 

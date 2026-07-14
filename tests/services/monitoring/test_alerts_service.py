@@ -15,8 +15,6 @@ from micboard.services.monitoring.alert_delivery_service import AlertDeliverySer
 from micboard.services.monitoring.alerts import (
     AlertManager,
     acknowledge_alert,
-    check_hardware_offline_alerts,
-    check_transmitter_alerts,
     get_alerts_for_user,
     resolve_alert,
 )
@@ -51,7 +49,7 @@ def test_wireless_unit_checks_create_and_deduplicate_condition_alerts(assigned_u
     manager = AlertManager()
 
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email"
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
     ) as send_email:
         manager.check_wireless_unit_alerts(assigned_unit.unit)
         manager.check_wireless_unit_alerts(assigned_unit.unit)
@@ -79,7 +77,9 @@ def test_battery_preferences_select_low_alert_and_unknown_battery_is_ignored(
     assigned_unit.unit.battery = 38
     manager = AlertManager()
 
-    with patch("micboard.services.monitoring.alert_delivery_service.send_alert_email"):
+    with patch(
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
+    ):
         manager.check_wireless_unit_alerts(assigned_unit.unit)
     assert Alert.objects.get().alert_type == "battery_low"
 
@@ -155,7 +155,9 @@ def test_offline_checks_notify_group_users_only_when_device_is_offline(assigned_
     assert not Alert.objects.exists()
 
     assigned_unit.unit.status = "offline"
-    with patch("micboard.services.monitoring.alert_delivery_service.send_alert_email"):
+    with patch(
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
+    ):
         manager.check_hardware_offline_alerts(assigned_unit.unit)
 
     alert = Alert.objects.get()
@@ -164,18 +166,8 @@ def test_offline_checks_notify_group_users_only_when_device_is_offline(assigned_
 
 
 @pytest.mark.django_db
-def test_alert_wrappers_and_state_transitions(assigned_unit) -> None:
-    """Public wrappers delegate and acknowledgement timestamps are persisted."""
-    with (
-        patch("micboard.services.monitoring.alerts.alert_manager") as manager,
-        patch("micboard.services.monitoring.alert_delivery_service.send_alert_email"),
-    ):
-        check_transmitter_alerts(assigned_unit.unit)
-        check_hardware_offline_alerts(assigned_unit.unit)
-
-    manager.check_wireless_unit_alerts.assert_called_once_with(assigned_unit.unit)
-    manager.check_hardware_offline_alerts.assert_called_once_with(assigned_unit.unit)
-
+def test_alert_state_transitions(assigned_unit) -> None:
+    """Acknowledgement and resolution timestamps are persisted."""
     alert = AlertFactory(user=assigned_unit.user, channel=assigned_unit.channel)
     acknowledged = acknowledge_alert(alert.pk, user=assigned_unit.user)
     assert acknowledged.status == "acknowledged"

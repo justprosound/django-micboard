@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -22,7 +23,7 @@ def _disable_rate_limit_waits(monkeypatch) -> None:
     disable_rate_limit_waits(monkeypatch)
 
 
-def test_websocket_helpers_parse_subscribe_and_dispatch() -> None:
+def test_websocket_helpers_parse_subscribe_and_dispatch(caplog) -> None:
     assert websocket_module._parse_transport_id_from_message(b'{"transportId": "transport"}') == (
         "transport"
     )
@@ -41,7 +42,8 @@ def test_websocket_helpers_parse_subscribe_and_dispatch() -> None:
     with pytest.raises(ShureAPIError):
         websocket_module._subscribe_client_to_transport(client, "device", "transport")
 
-    callback = Mock(side_effect=[None, RuntimeError("handler failed")])
+    callback_secret = "private-shure-callback-secret"
+    callback = Mock(side_effect=[None, RuntimeError(callback_secret)])
     async_callback = AsyncMock()
 
     class Socket:
@@ -55,8 +57,12 @@ def test_websocket_helpers_parse_subscribe_and_dispatch() -> None:
             except StopIteration as exc:
                 raise StopAsyncIteration from exc
 
-    asyncio.run(websocket_module._read_and_dispatch_messages(Socket(), "device", callback))
+    caplog.clear()
+    with caplog.at_level(logging.ERROR, logger=websocket_module.__name__):
+        asyncio.run(websocket_module._read_and_dispatch_messages(Socket(), "device", callback))
     assert callback.call_count == 3
+    assert callback_secret not in caplog.text
+    assert "RuntimeError: error details redacted" in caplog.text
 
     class AsyncSocket(Socket):
         def __aiter__(self):
@@ -99,7 +105,10 @@ def test_websocket_connect_rejects_missing_dependency_url_and_handshake(monkeypa
         asyncio.run(websocket_module.connect_and_subscribe(client, "device", callback))
 
 
-def test_websocket_connect_dispatches_and_classifies_connection_failures(monkeypatch) -> None:
+def test_websocket_connect_dispatches_and_classifies_connection_failures(
+    monkeypatch,
+    caplog,
+) -> None:
     connect = Mock(return_value=VendorConnection())
     monkeypatch.setattr(websocket_module, "HAS_WEBSOCKETS", True)
     monkeypatch.setattr(websocket_module, "websockets", SimpleNamespace(connect=connect))
@@ -121,15 +130,24 @@ def test_websocket_connect_dispatches_and_classifies_connection_failures(monkeyp
     connect.return_value = VendorConnection(error=graceful_error())
     asyncio.run(websocket_module.connect_and_subscribe(client, "device", callback))
 
-    connect.return_value = VendorConnection(error=connection_error())
-    with pytest.raises(websocket_module.ShureWebSocketError, match="connection error"):
-        asyncio.run(websocket_module.connect_and_subscribe(client, "device", callback))
+    connection_secret = "private-shure-connection-secret"
+    unexpected_secret = "private-shure-unexpected-secret"
+    rest_secret = "private-shure-rest-secret"
+    with caplog.at_level(logging.ERROR, logger=websocket_module.__name__):
+        connect.return_value = VendorConnection(error=connection_error(connection_secret))
+        with pytest.raises(websocket_module.ShureWebSocketError, match="connection error"):
+            asyncio.run(websocket_module.connect_and_subscribe(client, "device", callback))
 
-    connect.return_value = VendorConnection(error=RuntimeError("unexpected"))
-    with pytest.raises(websocket_module.ShureWebSocketError, match="Unhandled"):
-        asyncio.run(websocket_module.connect_and_subscribe(client, "device", callback))
+        connect.return_value = VendorConnection(error=RuntimeError(unexpected_secret))
+        with pytest.raises(websocket_module.ShureWebSocketError, match="Unhandled"):
+            asyncio.run(websocket_module.connect_and_subscribe(client, "device", callback))
 
-    client._make_request.side_effect = ShureAPIError("REST failed")
-    connect.return_value = VendorConnection()
-    with pytest.raises(ShureAPIError, match="REST failed"):
-        asyncio.run(websocket_module.connect_and_subscribe(client, "device", callback))
+        client._make_request.side_effect = ShureAPIError(rest_secret)
+        connect.return_value = VendorConnection()
+        with pytest.raises(ShureAPIError, match=rest_secret):
+            asyncio.run(websocket_module.connect_and_subscribe(client, "device", callback))
+
+    assert connection_secret not in caplog.text
+    assert unexpected_secret not in caplog.text
+    assert rest_secret not in caplog.text
+    assert caplog.text.count("error details redacted") >= 3

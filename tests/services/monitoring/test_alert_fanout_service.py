@@ -52,7 +52,7 @@ def test_single_site_fanout_rejects_inactive_recipient_or_group(
         assigned_unit.assignment.monitoring_group.save(update_fields=["is_active"])
 
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email"
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
     ) as send_email:
         alert = AlertDeliveryService.create_alert(
             unit=assigned_unit.unit,
@@ -106,7 +106,9 @@ def test_revocation_before_persistence_and_before_email_is_rechecked(assigned_un
     """Authorization changes at either delivery boundary fail closed."""
     with (
         patch.object(AlertFanoutService, "current_authorized_recipient", return_value=None),
-        patch("micboard.services.monitoring.alert_delivery_service.send_alert_email") as send_email,
+        patch(
+            "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
+        ) as send_email,
     ):
         denied = AlertDeliveryService.create_alert(
             unit=assigned_unit.unit,
@@ -125,7 +127,9 @@ def test_revocation_before_persistence_and_before_email_is_rechecked(assigned_un
             "current_authorized_recipient",
             side_effect=[assigned_unit.user, None],
         ),
-        patch("micboard.services.monitoring.alert_delivery_service.send_alert_email") as send_email,
+        patch(
+            "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
+        ) as send_email,
     ):
         persisted = AlertDeliveryService.create_alert(
             unit=assigned_unit.unit,
@@ -255,7 +259,7 @@ def test_exact_delivery_budget_caps_persistence_and_email(assigned_unit) -> None
     budget = _budget(assignments=5, recipients=10, deliveries=2)
 
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email",
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification",
         return_value=True,
     ) as send_email:
         AlertManager().check_wireless_unit_alerts(assigned_unit.unit, budget=budget)

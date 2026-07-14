@@ -5,14 +5,16 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from micboard.services.deduplication.check import (
-    check_api_id_conflicts,
-    check_cross_vendor_api_id,
     check_device,
-    find_duplicate,
 )
 from micboard.services.deduplication.identity_index import DeviceIdentityIndex
+from micboard.services.deduplication.result import (
+    DeduplicationOutcome,
+    DeduplicationResult,
+)
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
 
@@ -22,6 +24,30 @@ pytestmark = pytest.mark.django_db
 def test_check_device_requires_manufacturer() -> None:
     with pytest.raises(ValueError, match="Manufacturer is required"):
         check_device(ip="192.0.2.80", api_device_id="device-80")
+
+
+def test_deduplication_result_rejects_contradictory_outcomes() -> None:
+    """The outcome enum cannot express the former conflicting boolean states."""
+    chassis = WirelessChassisFactory()
+    with pytest.raises(PydanticValidationError, match="require an existing device"):
+        DeduplicationResult(
+            outcome=DeduplicationOutcome.MOVED,
+            conflict_type="ip_changed",
+        )
+    with pytest.raises(PydanticValidationError, match="cannot reference"):
+        DeduplicationResult(
+            outcome=DeduplicationOutcome.NEW,
+            existing_device=chassis,
+        )
+    with pytest.raises(PydanticValidationError, match="require a conflict type"):
+        DeduplicationResult(
+            outcome=DeduplicationOutcome.CONFLICT,
+        )
+
+    assert repr(DeduplicationResult.new()) == "DeduplicationResult(new_device)"
+    assert "moved: ip_changed" in repr(
+        DeduplicationResult.moved(chassis, conflict_type="ip_changed")
+    )
 
 
 def test_check_device_reports_new_identity() -> None:
@@ -449,75 +475,3 @@ def test_check_device_matches_moved_api_identity() -> None:
     assert result.is_moved is True
     assert result.existing_device == chassis
     assert result.details["match_type"] == "api_device_id"
-
-
-@pytest.mark.parametrize(
-    ("payload", "expected_ip"),
-    [
-        ({"serialNumber": "lookup-serial"}, "192.0.2.92"),
-        ({"macAddress": "02:00:00:00:00:93"}, "192.0.2.93"),
-        ({"api_device_id": "lookup-api"}, "192.0.2.94"),
-        ({"ipAddress": "192.0.2.95"}, "192.0.2.95"),
-    ],
-)
-def test_find_duplicate_accepts_vendor_aliases(
-    payload: dict[str, str],
-    expected_ip: str,
-) -> None:
-    manufacturer = ManufacturerFactory()
-    WirelessChassisFactory(
-        manufacturer=manufacturer,
-        serial_number="lookup-serial",
-        mac_address="02:00:00:00:00:93",
-        api_device_id="lookup-api",
-        ip=expected_ip,
-    )
-
-    duplicate = find_duplicate(payload, manufacturer)
-
-    assert duplicate is not None
-    assert duplicate.ip == expected_ip
-
-
-def test_find_duplicate_returns_none_for_unknown_identity() -> None:
-    manufacturer = ManufacturerFactory()
-
-    assert find_duplicate({"id": "missing", "ip": "192.0.2.96"}, manufacturer) is None
-
-
-def test_find_duplicate_matches_legacy_mac_storage_variant() -> None:
-    """Legacy uppercase hyphen storage remains discoverable without a data migration."""
-    manufacturer = ManufacturerFactory()
-    chassis = WirelessChassisFactory(
-        manufacturer=manufacturer,
-        serial_number="",
-        mac_address="AA-BB-CC-DD-EE-FF",
-    )
-
-    assert find_duplicate({"macAddress": "aabbccddeeff"}, manufacturer) == chassis
-
-
-def test_api_id_conflict_summary_returns_matching_devices() -> None:
-    manufacturer = ManufacturerFactory()
-    chassis = WirelessChassisFactory(
-        manufacturer=manufacturer,
-        api_device_id="summary-id",
-    )
-
-    count, devices = check_api_id_conflicts("summary-id", manufacturer)
-
-    assert count == 1
-    assert devices == [(chassis.id, chassis.name, chassis.ip, chassis.serial_number)]
-
-
-def test_cross_vendor_api_id_reports_only_active_other_manufacturers() -> None:
-    current = ManufacturerFactory(code="current")
-    active = ManufacturerFactory(code="active")
-    inactive = ManufacturerFactory(code="inactive", is_active=False)
-    WirelessChassisFactory(manufacturer=current, api_device_id="shared-api")
-    active_chassis = WirelessChassisFactory(manufacturer=active, api_device_id="shared-api")
-    WirelessChassisFactory(manufacturer=inactive, api_device_id="shared-api")
-
-    conflicts = check_cross_vendor_api_id("shared-api", current_manufacturer=current)
-
-    assert conflicts == [(active.code, 1, [active_chassis])]

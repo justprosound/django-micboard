@@ -7,75 +7,55 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from django.http import HttpResponse
-from django.views.generic import ListView
+from django.views.generic import TemplateView
 
 import pytest
 
 from micboard.views import dashboard
-from micboard.views.charger_dashboard import ChargerDashboardView
+from micboard.views.charger_dashboard import ChargerDashboardView, ChargerGridView
 from tests.view_test_helpers import request, view
 
 
-def test_charger_dashboard_queryset_is_scoped_active_prefetched_and_ordered() -> None:
-    dashboard_view = ChargerDashboardView()
-    dashboard_view.request = request()
-    queryset = MagicMock()
-    with patch("micboard.views.charger_dashboard.Charger.objects.for_user", return_value=queryset):
-        result = dashboard_view.get_queryset()
-    assert (
-        result is queryset.filter.return_value.prefetch_related.return_value.order_by.return_value
-    )
-    queryset.filter.assert_called_once_with(is_active=True)
-
-
-def test_charger_dashboard_context_maps_assigned_unit_serials() -> None:
+def test_charger_dashboard_context_uses_one_typed_snapshot_boundary() -> None:
     dashboard_view = ChargerDashboardView()
     dashboard_view.request = request()
     profile = SimpleNamespace(display_width_px=1440)
-    photo = SimpleNamespace(url="/photo.jpg")
-    assignments_list = [
-        SimpleNamespace(
-            wireless_unit=SimpleNamespace(serial_number="A"),
-            performer=SimpleNamespace(name="Alice", title="Lead", photo=photo),
-        ),
-        SimpleNamespace(
-            wireless_unit=SimpleNamespace(serial_number="B"),
-            performer=SimpleNamespace(name="Bob", title=None, photo=None),
-        ),
-        SimpleNamespace(wireless_unit=None, performer=SimpleNamespace()),
-    ]
-    queryset = MagicMock()
-    queryset.filter.return_value.select_related.return_value = assignments_list
+    snapshot = object()
     with (
-        patch.object(ListView, "get_context_data", return_value={"chargers": []}),
+        patch.object(TemplateView, "get_context_data", return_value={}),
         patch(
             "micboard.views.charger_dashboard.UserProfile.objects.get_or_create",
             return_value=(profile, True),
         ),
         patch(
-            "micboard.views.charger_dashboard.PerformerAssignment.objects.for_user",
-            return_value=queryset,
-        ),
+            "micboard.views.charger_dashboard.ChargerDashboardService.get_snapshot",
+            return_value=snapshot,
+        ) as get_snapshot,
     ):
         context = dashboard_view.get_context_data()
 
     assert context["display_width_px"] == 1440
-    assert context["serial_to_performer"] == {
-        "A": {"name": "Alice", "title": "Lead", "photo_url": "/photo.jpg"},
-        "B": {"name": "Bob", "title": "", "photo_url": None},
-    }
+    assert context["snapshot"] is snapshot
+    get_snapshot.assert_called_once_with(user=dashboard_view.request.user)
 
 
-def test_charger_dashboard_get_switches_only_htmx_template() -> None:
-    dashboard_view = ChargerDashboardView()
-    with patch.object(ListView, "get", return_value=HttpResponse()) as get:
-        dashboard_view.get(request())
-        assert dashboard_view.template_name == "micboard/charger_dashboard.html"
-        hx_request = request()
-        hx_request.headers = {"HX-Request": "true"}
-        dashboard_view.get(hx_request)
-    assert dashboard_view.template_name == "micboard/partials/charger_grid.html"
-    assert get.call_count == 2
+def test_charger_grid_context_uses_typed_snapshot_without_profile_work() -> None:
+    grid_view = ChargerGridView()
+    grid_view.request = request()
+    snapshot = object()
+    with (
+        patch.object(TemplateView, "get_context_data", return_value={}),
+        patch(
+            "micboard.views.charger_dashboard.ChargerDashboardService.get_snapshot",
+            return_value=snapshot,
+        ) as get_snapshot,
+        patch("micboard.views.charger_dashboard.UserProfile.objects.get_or_create") as profile,
+    ):
+        context = grid_view.get_context_data()
+
+    assert context == {"snapshot": snapshot}
+    get_snapshot.assert_called_once_with(user=grid_view.request.user)
+    profile.assert_not_called()
 
 
 def test_charger_dashboard_post_updates_width_and_supports_htmx() -> None:
@@ -98,56 +78,18 @@ def test_charger_dashboard_post_updates_width_and_supports_htmx() -> None:
         hx_request.headers = {"HX-Request": "true"}
         assert dashboard_view.post(hx_request).content == b"grid"
 
-        with (
-            patch.object(dashboard_view, "get_queryset", return_value=[]) as get_queryset,
-            patch.object(dashboard_view, "get_context_data", return_value={}) as get_context,
-        ):
+        with patch.object(
+            dashboard_view,
+            "get_context_data",
+            return_value={},
+        ) as get_context:
             assert (
                 dashboard_view.post(request("post", data={"display_width_px": "wide"})).status_code
                 == 400
             )
-        get_queryset.assert_called_once_with()
         assert get_context.call_args.kwargs["display_width_form"].errors
         render_invalid.assert_called_once_with({}, status=400)
     get.assert_called_once()
-
-
-def test_get_filtered_receivers_covers_filter_backend_and_manufacturer_paths() -> None:
-    dashboard_request = request(path="/?search=desk")
-    queryset = MagicMock()
-    filtered = MagicMock()
-    with (
-        patch.object(dashboard.WirelessChassis.objects, "for_user", return_value=queryset),
-        patch.object(dashboard, "HAS_DJANGO_FILTERS", True),
-        patch.object(dashboard, "WirelessChassisFilter") as filter_class,
-    ):
-        filter_class.return_value.qs = filtered
-        result = dashboard.get_filtered_receivers(
-            dashboard_request, "vendor", location__name="Stage"
-        )
-    queryset.filter.assert_called_once_with(location__name="Stage")
-    filtered.by_manufacturer.assert_called_once_with(manufacturer="vendor")
-    assert result is filtered.by_manufacturer.return_value.distinct.return_value
-
-    fallback = MagicMock(spec=["filter", "distinct"])
-    fallback.filter.return_value = fallback
-    with (
-        patch.object(dashboard.WirelessChassis.objects, "for_user", return_value=fallback),
-        patch.object(dashboard, "HAS_DJANGO_FILTERS", False),
-    ):
-        result = dashboard.get_filtered_receivers(dashboard_request, "vendor", is_online=True)
-    fallback.filter.assert_any_call(is_online=True)
-    fallback.filter.assert_any_call(manufacturer__code="vendor")
-    assert result is fallback.distinct.return_value
-
-    no_vendor = MagicMock()
-    no_vendor.filter.return_value = no_vendor
-    with (
-        patch.object(dashboard.WirelessChassis.objects, "for_user", return_value=no_vendor),
-        patch.object(dashboard, "HAS_DJANGO_FILTERS", False),
-    ):
-        dashboard.get_filtered_receivers(dashboard_request, None)
-    no_vendor.distinct.assert_called_once_with()
 
 
 def test_simple_dashboard_pages_build_expected_contexts() -> None:
@@ -171,83 +113,95 @@ def test_simple_dashboard_pages_build_expected_contexts() -> None:
 
 
 @pytest.mark.parametrize(
-    ("function", "argument", "expected_filters"),
+    ("function", "argument", "expected_criteria"),
     [
-        (dashboard.device_type_view, "all", {"is_online": True}),
-        (dashboard.device_type_view, "receiver", {"role": "receiver", "is_online": True}),
-        (dashboard.priority_view, "all", {"is_online": True}),
+        (dashboard.device_type_view, "all", {"role": None}),
+        (dashboard.device_type_view, "receiver", {"role": "receiver"}),
+        (dashboard.priority_view, "all", {"priority": None}),
         (
             dashboard.priority_view,
-            "urgent",
-            {"field_units__performer_assignments__priority": "urgent", "is_online": True},
-        ),
-        (
-            dashboard.user_view,
-            "Alice",
-            {
-                "field_units__performer_assignments__performer__name": "Alice",
-                "is_online": True,
-            },
+            "critical",
+            {"priority": "critical"},
         ),
     ],
 )
-def test_receiver_dashboard_views_translate_routes_to_filters(
-    function: Any, argument: str, expected_filters: dict[str, Any]
+def test_receiver_dashboard_views_translate_routes_to_typed_criteria(
+    function: Any, argument: str, expected_criteria: dict[str, Any]
 ) -> None:
     dashboard_request = request(path="/?manufacturer=vendor")
     with (
-        patch.object(dashboard, "get_filtered_receivers", return_value="receivers") as filtered,
+        patch.object(
+            dashboard.ReceiverBrowseService,
+            "get_page",
+            return_value=MagicMock(),
+        ) as get_page,
         patch.object(dashboard, "render", return_value=HttpResponse()),
     ):
         assert view(function)(dashboard_request, argument).status_code == 200
-    filtered.assert_called_once_with(dashboard_request, "vendor", **expected_filters)
+    criteria = get_page.call_args.kwargs["criteria"]
+    assert criteria.manufacturer_code == "vendor"
+    for field, expected in expected_criteria.items():
+        assert getattr(criteria, field) == expected
 
 
-def test_building_room_and_listing_views_cover_all_route_variants() -> None:
+def test_performer_view_uses_visible_performer_identity() -> None:
+    dashboard_request = request(path="/?manufacturer=vendor")
+    performer = SimpleNamespace(pk=7, name="Alice")
+    with (
+        patch.object(dashboard.Performer.objects, "for_user", return_value=MagicMock()),
+        patch.object(dashboard, "get_object_or_404", return_value=performer),
+        patch.object(
+            dashboard.ReceiverBrowseService,
+            "get_page",
+            return_value=MagicMock(),
+        ) as get_page,
+        patch.object(dashboard, "render", return_value=HttpResponse()),
+    ):
+        assert view(dashboard.performer_view)(dashboard_request, performer.pk).status_code == 200
+    criteria = get_page.call_args.kwargs["criteria"]
+    assert criteria.performer_id == performer.pk
+    assert criteria.manufacturer_code == "vendor"
+
+
+@pytest.mark.parametrize(
+    ("function", "argument"),
+    [(dashboard.device_type_view, "mystery"), (dashboard.priority_view, "urgent")],
+)
+def test_receiver_dashboard_views_reject_unknown_choice(
+    function: Any,
+    argument: str,
+) -> None:
+    with pytest.raises(dashboard.Http404):
+        view(function)(request(), argument)
+
+
+def test_building_room_and_listing_views_use_stable_ids() -> None:
     dashboard_request = request(path="/?manufacturer=vendor")
     buildings = MagicMock()
     rooms = MagicMock()
-    building = object()
-    room = object()
-    with (
-        patch.object(
-            dashboard.MonitoringService, "get_accessible_buildings", return_value=buildings
-        ),
-        patch.object(dashboard, "get_object_or_404", return_value=building),
-        patch.object(dashboard, "all_buildings_view", return_value=HttpResponse("all buildings")),
-        patch.object(dashboard, "all_rooms_view", return_value=HttpResponse("all rooms")),
-        patch.object(
-            dashboard, "rooms_in_building_view", return_value=HttpResponse("building rooms")
-        ),
-    ):
-        assert (
-            view(dashboard.single_building_view)(dashboard_request, "all").content
-            == b"all buildings"
-        )
-        assert view(dashboard.room_view)(dashboard_request, "all", "all").content == b"all rooms"
-        assert (
-            view(dashboard.room_view)(dashboard_request, "all", "Room").content == b"all buildings"
-        )
-        assert (
-            view(dashboard.room_view)(dashboard_request, "Main", "all").content == b"building rooms"
-        )
+    building = SimpleNamespace(pk=10, name="Main")
+    room = SimpleNamespace(pk=20, name="Studio", building=building, building_id=building.pk)
+    rooms.select_related.return_value = rooms
 
     with (
         patch.object(
             dashboard.MonitoringService, "get_accessible_buildings", return_value=buildings
         ),
         patch.object(dashboard.MonitoringService, "get_accessible_rooms", return_value=rooms),
-        patch.object(
-            dashboard, "get_object_or_404", side_effect=[building, building, room, building]
-        ),
-        patch.object(dashboard, "get_filtered_receivers", return_value="receivers"),
+        patch.object(dashboard, "get_object_or_404", side_effect=[building, room, building]),
+        patch.object(dashboard.ReceiverBrowseService, "get_page", return_value=MagicMock()),
         patch.object(dashboard, "render", return_value=HttpResponse()) as render,
     ):
-        assert view(dashboard.single_building_view)(dashboard_request, "Main").status_code == 200
-        assert view(dashboard.room_view)(dashboard_request, "Main", "Room").status_code == 200
+        assert (
+            view(dashboard.single_building_view)(dashboard_request, building.pk).status_code == 200
+        )
+        assert view(dashboard.room_view)(dashboard_request, room.pk).status_code == 200
         assert view(dashboard.all_buildings_view)(dashboard_request).status_code == 200
         assert view(dashboard.all_rooms_view)(dashboard_request).status_code == 200
-        assert view(dashboard.rooms_in_building_view)(dashboard_request, "Main").status_code == 200
+        assert (
+            view(dashboard.rooms_in_building_view)(dashboard_request, building.pk).status_code
+            == 200
+        )
     assert render.call_count == 5
     buildings.order_by.assert_called_once_with("name")
-    rooms.select_related.assert_called_once_with("building")
+    assert rooms.select_related.call_count == 2

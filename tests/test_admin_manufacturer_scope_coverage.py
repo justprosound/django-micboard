@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 from django.contrib.admin.sites import AdminSite
 from django.test import RequestFactory, override_settings
 
-from micboard.admin import manufacturers, mixins
+from micboard.admin import manufacturers, mixins, sortable
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.discovery.manufacturer import Manufacturer
 
@@ -202,20 +202,35 @@ def test_related_queryset_scope_skips_shared_and_builds_database_manager_queryse
         _default_manager=manager,
     )
     db_field = SimpleNamespace(remote_field=SimpleNamespace(model=related_model))
-    with patch.object(model_admin, "_scope_queryset_for_user", return_value="scoped") as scope:
+    with (
+        patch.object(model_admin, "_scope_queryset_for_user", return_value="scoped") as scope,
+        patch.object(
+            mixins.tenant_role_access,
+            "scope_manageable_queryset",
+            return_value="managed",
+        ) as manage,
+    ):
         kwargs = {"using": "replica"}
         model_admin._scope_related_queryset(db_field, request, kwargs)
     manager.db_manager.assert_called_once_with("replica")
-    assert kwargs["queryset"] == "scoped"
+    assert kwargs["queryset"] == "managed"
     scope.assert_called_once_with(
         manager.db_manager.return_value.all.return_value, user=request.user
     )
+    manage.assert_called_once_with("scoped", user=request.user)
 
     supplied = object()
-    with patch.object(model_admin, "_scope_queryset_for_user", return_value="supplied-scoped"):
+    with (
+        patch.object(model_admin, "_scope_queryset_for_user", return_value="supplied-scoped"),
+        patch.object(
+            mixins.tenant_role_access,
+            "scope_manageable_queryset",
+            return_value="supplied-managed",
+        ),
+    ):
         kwargs = {"queryset": supplied}
         model_admin._scope_related_queryset(db_field, request, kwargs)
-    assert kwargs["queryset"] == "supplied-scoped"
+    assert kwargs["queryset"] == "supplied-managed"
 
 
 @override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=False)
@@ -249,8 +264,13 @@ def test_admin_queryset_and_relationship_widget_methods_delegate_scoped_queryset
 
 
 def test_sortable_admin_template_property_uses_base_and_explicit_override() -> None:
-    model_admin = _admin(mixins.MicboardSortableAdmin, Manufacturer)
-    with patch.object(mixins.MicboardModelAdmin, "change_list_template", "base-template"):
+    model_admin = _admin(sortable.MicboardSortableAdmin, Manufacturer)
+    with patch.object(
+        sortable.BaseSortableAdmin,
+        "change_list_template",
+        "base-template",
+        create=True,
+    ):
         assert model_admin.change_list_template == "base-template"
     model_admin.change_list_template = "custom-template"
     assert model_admin.change_list_template == "custom-template"

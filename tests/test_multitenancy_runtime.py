@@ -19,7 +19,7 @@ from micboard.models.hardware.charger import ChargerSlot
 from micboard.models.hardware.display_wall import WallSection
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
-from micboard.models.locations import Building, Location
+from micboard.models.locations.structure import Building, Location
 from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer

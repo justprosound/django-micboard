@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 import logging
-from importlib.metadata import PackageNotFoundError
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -13,23 +12,15 @@ from django.core.exceptions import ImproperlyConfigured
 
 import pytest
 
-import micboard
 from micboard.apps import MicboardConfig
 from micboard.models import device_specs
 from micboard.utils import dependencies
 
+micboard_package = importlib.import_module("micboard")
+
 
 def _app_config() -> MicboardConfig:
     return MicboardConfig("micboard", importlib.import_module("micboard"))
-
-
-def test_app_config_requires_startup_before_config_access() -> None:
-    """Callers get an actionable failure before Django runs app startup."""
-    with (
-        patch.object(MicboardConfig, "_resolved_config", None),
-        pytest.raises(RuntimeError, match="not yet initialized"),
-    ):
-        MicboardConfig.get_config()
 
 
 @pytest.mark.parametrize(
@@ -204,13 +195,13 @@ def test_package_metadata_has_a_source_checkout_fallback(monkeypatch) -> None:
     monkeypatch.setattr(
         importlib.metadata,
         "version",
-        Mock(side_effect=PackageNotFoundError),
+        Mock(side_effect=importlib.metadata.PackageNotFoundError),
     )
-    reloaded = importlib.reload(micboard)
+    reloaded = importlib.reload(micboard_package)
     assert reloaded.__version__ == "0+unknown"
 
     monkeypatch.undo()
-    importlib.reload(micboard)
+    importlib.reload(micboard_package)
 
 
 def test_device_spec_loader_handles_optional_yaml_and_resource_failures(monkeypatch) -> None:

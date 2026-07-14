@@ -15,6 +15,7 @@ from micboard.services.settings.dtos import SettingsVisibilityScope
 from micboard.services.settings.presentation_service import SettingsPresentationService
 from micboard.services.settings.settings_service import SettingsService
 from micboard.services.settings.visibility_service import SettingsVisibilityService
+from micboard.settings.scope_policy import matches_definition_scope, resolve_scope
 
 
 def test_settings_resolution_honors_each_remaining_fallback_source() -> None:
@@ -119,15 +120,13 @@ def test_visibility_filters_apply_unrestricted_explicit_and_empty_scope_sets() -
         ({"organization_id": 1, "site_id": 2, "manufacturer_id": None}, None),
     ],
 )
-def test_visibility_scope_helpers_delegate_exact_scope_rules(
+def test_scope_policy_applies_exact_scope_rules(
     identifiers: dict[str, int | None],
     expected: str | None,
 ) -> None:
-    service = SettingsVisibilityService()
-
-    assert service.resolve_scope(**identifiers) == expected
+    assert resolve_scope(**identifiers) == expected
     if expected is not None:
-        assert service.matches_definition_scope(definition_scope=expected, **identifiers)
+        assert matches_definition_scope(definition_scope=expected, **identifiers)
 
 
 @pytest.mark.parametrize(

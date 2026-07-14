@@ -195,40 +195,8 @@ class AlertManager:
         return snapshot
 
 
-# Global alert manager instance
+# Canonical alert manager instance.
 alert_manager = AlertManager()
-
-
-def check_transmitter_alerts(
-    unit: WirelessUnit,
-    *,
-    budget: AlertFanoutBudget | None = None,
-) -> None:
-    """Convenience function to check alerts for a wireless unit.
-
-    Args:
-        unit: WirelessUnit instance
-    """
-    if budget is None:
-        alert_manager.check_wireless_unit_alerts(unit)
-    else:
-        alert_manager.check_wireless_unit_alerts(unit, budget=budget)
-
-
-def check_hardware_offline_alerts(
-    unit: WirelessUnit,
-    *,
-    budget: AlertFanoutBudget | None = None,
-) -> None:
-    """Convenience function to check offline alerts for a wireless unit.
-
-    Args:
-        unit: WirelessUnit instance
-    """
-    if budget is None:
-        alert_manager.check_hardware_offline_alerts(unit)
-    else:
-        alert_manager.check_hardware_offline_alerts(unit, budget=budget)
 
 
 @transaction.atomic

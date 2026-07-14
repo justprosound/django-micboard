@@ -34,6 +34,11 @@ class LockedApprovalInventory(PydanticBaseDTO):
     chassis: tuple[WirelessChassis, ...]
     chargers: tuple[Charger, ...]
     owners: ApprovalIPOwners
+    chassis_by_pk: dict[int, WirelessChassis]
+    chargers_by_pk: dict[int, Charger]
+    chassis_by_api_identity: dict[tuple[int, str], tuple[WirelessChassis, ...]]
+    chassis_by_serial_identity: dict[tuple[int, str], tuple[WirelessChassis, ...]]
+    chargers_by_serial_identity: dict[tuple[int | None, str], tuple[Charger, ...]]
 
 
 class DiscoveryApprovalResolver:
@@ -61,6 +66,49 @@ class DiscoveryApprovalResolver:
         for row in rows:
             grouped_ids.setdefault(str(row.ip), []).append(int(row.pk))
         return {ip: tuple(owner_ids) for ip, owner_ids in grouped_ids.items()}
+
+    @classmethod
+    def _inventory_indexes(
+        cls,
+        chassis: tuple[WirelessChassis, ...],
+        chargers: tuple[Charger, ...],
+    ) -> dict[str, Any]:
+        """Index locked rows once while preserving duplicate identity candidates."""
+        chassis_by_api_identity: dict[tuple[int, str], list[WirelessChassis]] = {}
+        chassis_by_serial_identity: dict[tuple[int, str], list[WirelessChassis]] = {}
+        for chassis_row in chassis:
+            api_device_id = cls.text(chassis_row.api_device_id)
+            serial_number = cls.text(chassis_row.serial_number)
+            if api_device_id:
+                chassis_by_api_identity.setdefault(
+                    (chassis_row.manufacturer_id, api_device_id), []
+                ).append(chassis_row)
+            if serial_number:
+                chassis_by_serial_identity.setdefault(
+                    (chassis_row.manufacturer_id, serial_number), []
+                ).append(chassis_row)
+
+        chargers_by_serial_identity: dict[tuple[int | None, str], list[Charger]] = {}
+        for charger in chargers:
+            serial_number = cls.text(charger.serial_number)
+            if serial_number:
+                chargers_by_serial_identity.setdefault(
+                    (charger.manufacturer_id, serial_number), []
+                ).append(charger)
+
+        return {
+            "chassis_by_pk": {int(row.pk): row for row in chassis},
+            "chargers_by_pk": {int(row.pk): row for row in chargers},
+            "chassis_by_api_identity": {
+                identity: tuple(rows) for identity, rows in chassis_by_api_identity.items()
+            },
+            "chassis_by_serial_identity": {
+                identity: tuple(rows) for identity, rows in chassis_by_serial_identity.items()
+            },
+            "chargers_by_serial_identity": {
+                identity: tuple(rows) for identity, rows in chargers_by_serial_identity.items()
+            },
+        }
 
     @classmethod
     def lock_inventory(
@@ -116,7 +164,12 @@ class DiscoveryApprovalResolver:
                 tuple(charger for charger in chargers if str(charger.ip) in requested_ip_set)
             ),
         )
-        return LockedApprovalInventory(chassis=chassis, chargers=chargers, owners=owners)
+        return LockedApprovalInventory(
+            chassis=chassis,
+            chargers=chargers,
+            owners=owners,
+            **cls._inventory_indexes(chassis, chargers),
+        )
 
     @classmethod
     def resolve_charger(
@@ -127,14 +180,7 @@ class DiscoveryApprovalResolver:
     ) -> Charger:
         """Resolve one explicit or unambiguous charger from pre-locked inventory."""
         if item.existing_charger_id is not None:
-            charger = next(
-                (
-                    candidate
-                    for candidate in inventory.chargers
-                    if candidate.pk == item.existing_charger_id
-                ),
-                None,
-            )
+            charger = inventory.chargers_by_pk.get(item.existing_charger_id)
             if charger is None:
                 raise ValidationError(
                     f"The charger linked to {item.name or item.ip} no longer exists."
@@ -163,12 +209,10 @@ class DiscoveryApprovalResolver:
             raise ValidationError(
                 f"Charger {item.name or item.ip} needs an explicit inventory link or serial number."
             )
-        matches = [
-            candidate
-            for candidate in inventory.chargers
-            if candidate.manufacturer_id == item.manufacturer_id
-            and cls.text(candidate.serial_number) == serial_number
-        ]
+        matches = inventory.chargers_by_serial_identity.get(
+            (item.manufacturer_id, serial_number),
+            (),
+        )
         if not matches:
             raise ValidationError(
                 f"Charger {item.name or item.ip} needs a location before it can be imported."
@@ -247,6 +291,34 @@ class DiscoveryApprovalResolver:
                 f"The API identity for {item.name or item.ip} conflicts with existing inventory."
             )
 
+    @staticmethod
+    def _indexed_chassis_matches(
+        *,
+        item: DiscoveryQueue,
+        inventory: LockedApprovalInventory,
+        api_device_id: str,
+        serial_number: str,
+    ) -> tuple[WirelessChassis, ...]:
+        """Union explicit and durable identity indexes without duplicate rows."""
+        matches_by_pk: dict[int, WirelessChassis] = {}
+        if item.existing_device_id is not None:
+            explicit = inventory.chassis_by_pk.get(item.existing_device_id)
+            if explicit is not None:
+                matches_by_pk[int(explicit.pk)] = explicit
+        if api_device_id:
+            for candidate in inventory.chassis_by_api_identity.get(
+                (item.manufacturer_id, api_device_id),
+                (),
+            ):
+                matches_by_pk[int(candidate.pk)] = candidate
+        if serial_number:
+            for candidate in inventory.chassis_by_serial_identity.get(
+                (item.manufacturer_id, serial_number),
+                (),
+            ):
+                matches_by_pk[int(candidate.pk)] = candidate
+        return tuple(matches_by_pk.values())
+
     @classmethod
     def resolve_chassis(
         cls,
@@ -257,21 +329,12 @@ class DiscoveryApprovalResolver:
         """Resolve one chassis matching an explicit or durable pre-locked identity."""
         api_device_id = cls.text(item.api_device_id)
         serial_number = cls.text(item.serial_number)
-        matches = [
-            candidate
-            for candidate in inventory.chassis
-            if (item.existing_device_id is not None and candidate.pk == item.existing_device_id)
-            or (
-                api_device_id
-                and candidate.manufacturer_id == item.manufacturer_id
-                and cls.text(candidate.api_device_id) == api_device_id
-            )
-            or (
-                serial_number
-                and candidate.manufacturer_id == item.manufacturer_id
-                and cls.text(candidate.serial_number) == serial_number
-            )
-        ]
+        matches = cls._indexed_chassis_matches(
+            item=item,
+            inventory=inventory,
+            api_device_id=api_device_id,
+            serial_number=serial_number,
+        )
         if len(matches) > 1:
             raise ValidationError(
                 f"Discovery identities for {item.name or item.ip} match multiple chassis."

@@ -12,13 +12,6 @@ def get_device_count(organization: Any) -> int:
     ).count()
 
 
-def is_at_device_limit(organization: Any) -> bool:
-    """Return whether an organization reached its configured device limit."""
-    if organization.max_devices is None:
-        return False
-    return get_device_count(organization) >= organization.max_devices
-
-
 def set_created_by(obj: Any, user: Any) -> Any:
     """Set created_by field on a new OrganizationMembership object."""
     obj.created_by = user

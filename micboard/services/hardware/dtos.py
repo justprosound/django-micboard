@@ -6,20 +6,11 @@ All DTOs inherit from PydanticBaseDTO for consistent configuration.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import StrEnum
+from typing import Any
+
+from pydantic import Field
 
 from micboard.services.shared.base_dto import PydanticBaseDTO
-
-
-class ChassisStatus(StrEnum):
-    """Wireless chassis status values."""
-
-    ONLINE = "online"
-    DEGRADED = "degraded"
-    PROVISIONING = "provisioning"
-    OFFLINE = "offline"
-    MAINTENANCE = "maintenance"
-    UNKNOWN = "unknown"
 
 
 class BandPlanInfo(PydanticBaseDTO):
@@ -32,31 +23,6 @@ class BandPlanInfo(PydanticBaseDTO):
     message: str | None = None
 
 
-class WirelessChassisDTO(PydanticBaseDTO):
-    """DTO for WirelessChassis data transfer."""
-
-    id: int
-    name: str
-    model: str | None = None
-    manufacturer: str | None = None
-    serial_number: str | None = None
-    ip_address: str | None = None
-    status: ChassisStatus
-    is_active: bool
-    last_polled: datetime | None = None
-    band_plan: BandPlanInfo | None = None
-    accessory_count: int = 0
-    has_accessories: bool = False
-
-
-class ChassisBandPlanUpdate(PydanticBaseDTO):
-    """DTO for updating chassis band plan information."""
-
-    band_plan_name: str | None = None
-    band_plan_min_mhz: float | None = None
-    band_plan_max_mhz: float | None = None
-
-
 class ChassisRefreshResult(PydanticBaseDTO):
     """Summary of one tenant-scoped chassis refresh operation."""
 
@@ -64,3 +30,50 @@ class ChassisRefreshResult(PydanticBaseDTO):
     failed_count: int
     denied: bool = False
     truncated: bool = False
+
+
+class ChassisSaveContext(PydanticBaseDTO):
+    """Derived state carried between chassis pre-save and post-save adapters."""
+
+    created: bool
+    old_status: str | None = None
+    status_changed: bool = False
+    update_fields: set[str] = Field(default_factory=set)
+    discovery_manufacturer_ids: tuple[int, ...] = ()
+
+
+class WirelessChassisWrite(PydanticBaseDTO):
+    """Validated field set for one WirelessChassis persistence operation."""
+
+    manufacturer: Any | None = None
+    api_device_id: str | None = None
+    ip: str | None = None
+    serial_number: str | None = None
+    mac_address: str | None = None
+    name: str | None = None
+    fqdn: str | None = None
+    model: str | None = None
+    role: str | None = None
+    firmware_version: str | None = None
+    hosted_firmware_version: str | None = None
+    description: str | None = None
+    subnet_mask: str | None = None
+    gateway: str | None = None
+    network_mode: str | None = None
+    interface_id: str | None = None
+    location: Any | None = None
+    max_channels: int | None = None
+    status: str | None = None
+    is_online: bool | None = None
+    last_seen: datetime | None = None
+    band_plan_name: str | None = None
+    band_plan_min_mhz: float | None = None
+    band_plan_max_mhz: float | None = None
+
+
+class RegulatoryDomainDTO(PydanticBaseDTO):
+    """Minimal regulatory-domain projection used by query-optimized displays."""
+
+    code: str
+    min_frequency_mhz: float
+    max_frequency_mhz: float

@@ -19,7 +19,8 @@ from micboard.forms.settings import (
 )
 from micboard.forms.settings_admin import _scope_for_user as _admin_scope_for_user
 from micboard.models.settings.registry import SettingDefinition
-from micboard.services.settings.dtos import SettingsVisibilityScope
+from micboard.services.settings.dtos import SettingsVisibilityScope, SettingsWriteResult
+from micboard.services.settings.persistence_service import SettingsPersistenceService
 
 
 def test_scope_helpers_and_optional_boolean_contract() -> None:
@@ -27,10 +28,14 @@ def test_scope_helpers_and_optional_boolean_contract() -> None:
     assert _admin_scope_for_user(None) == SettingsVisibilityScope()
     user = object()
     scope = SettingsVisibilityScope(site_ids=frozenset({1}))
-    with patch("micboard.forms.settings.settings_visibility.for_user", return_value=scope) as bulk:
+    with patch(
+        "micboard.forms.settings.settings_visibility.for_management_user",
+        return_value=scope,
+    ) as bulk:
         assert _scope_for_user(user) is scope
     with patch(
-        "micboard.forms.settings_admin.settings_visibility.for_user", return_value=scope
+        "micboard.forms.settings_admin.settings_visibility.for_management_user",
+        return_value=scope,
     ) as admin:
         assert _admin_scope_for_user(user) is scope
     bulk.assert_called_once_with(user=user)
@@ -210,13 +215,6 @@ def test_bulk_save_rejects_invalid_form_skips_blanks_saves_and_collects_errors()
         form.save_settings()
 
     organization = SimpleNamespace(pk=2)
-    good = SimpleNamespace(
-        id=1, key="good", label="Good", serialize_value=Mock(return_value="serialized")
-    )
-    bad = SimpleNamespace(
-        id=2, key="bad", label="Bad", serialize_value=Mock(side_effect=ValueError("invalid"))
-    )
-    blank = SimpleNamespace(id=3, key="blank", label="Blank")
     form.cleaned_data = {
         "scope": SettingDefinition.SCOPE_ORGANIZATION,
         "organization": organization,
@@ -225,24 +223,20 @@ def test_bulk_save_rejects_invalid_form_skips_blanks_saves_and_collects_errors()
         "setting_3": "",
     }
     form.is_valid = Mock(return_value=True)
-    with (
-        patch(
-            "micboard.forms.settings.SettingDefinition.objects.filter",
-            return_value=[good, bad, blank],
-        ),
-        patch("micboard.forms.settings.Setting.objects.update_or_create") as update,
-        patch("micboard.forms.settings.SettingsRegistry.invalidate_cache") as invalidate,
-    ):
+    result = SettingsWriteResult(
+        saved=1,
+        errors=["Error saving Bad (ValueError); details redacted."],
+    )
+    with patch.object(
+        SettingsPersistenceService,
+        "save",
+        return_value=result,
+    ) as save:
         results = form.save_settings()
 
     assert results["saved"] == 1
-    assert results["errors"] == ["Error setting Bad (ValueError); details redacted."]
+    assert results["errors"] == ["Error saving Bad (ValueError); details redacted."]
     assert "invalid" not in str(results)
-    update.assert_called_once_with(
-        definition=good,
-        organization_id=2,
-        site=None,
-        manufacturer_id=None,
-        defaults={"value": "serialized"},
-    )
-    invalidate.assert_called_once_with("good")
+    request = save.call_args.kwargs["request"]
+    assert request.target.organization_id == 2
+    assert [item.definition_id for item in request.items] == [1, 2]

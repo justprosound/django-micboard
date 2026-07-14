@@ -7,17 +7,21 @@ separated from the model layer per ADR-002.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from micboard.models.locations.structure import Building
 
-def prepare_building(building) -> None:
+
+def prepare_building(building: Building) -> None:
     """Auto-assign a building's regulatory domain from its country."""
     from django.db import OperationalError, ProgrammingError
 
-    from micboard.models.rf_coordination import RegulatoryDomain
+    from micboard.models.rf_coordination.compliance import RegulatoryDomain
 
     if building.country and not building.regulatory_domain:
         try:

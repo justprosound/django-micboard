@@ -6,13 +6,14 @@ import logging
 from typing import Any
 from urllib.parse import urlsplit
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from micboard.models.integrations import ManufacturerAPIServer
 from micboard.services.integrations.dtos import APIServerHealthCheckBatchResult
+from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.access_policy import tenant_role_access
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class APIServerConnectionService:
     def validate_destination(base_url: str) -> None:
         """Require an endpoint host to appear in the deployment allowlist."""
         hostname = (urlsplit(base_url).hostname or "").rstrip(".").lower()
-        configured_hosts = getattr(settings, "MICBOARD_API_SERVER_ALLOWED_HOSTS", ())
+        configured_hosts = micboard_settings.get("MICBOARD_API_SERVER_ALLOWED_HOSTS", ())
         if isinstance(configured_hosts, str):
             configured_hosts = configured_hosts.split(",")
         allowed_hosts = {
@@ -133,7 +134,10 @@ class APIServerConnectionService:
             or not actor.is_active
             or not actor.is_staff
             or not actor.has_perm("micboard.change_manufacturerapiserver")
-            or not cls._actor_has_platform_scope(actor)
+            or not tenant_role_access.can_manage_model(
+                user=actor,
+                model=ManufacturerAPIServer,
+            )
         ):
             logger.warning(
                 "Denied queued API server health-check batch for actor %s",
@@ -176,16 +180,3 @@ class APIServerConnectionService:
             denied=False,
             truncated=truncated,
         )
-
-    @staticmethod
-    def _actor_has_platform_scope(actor: Any) -> bool:
-        """Mirror admin policy for credential-bearing platform-global rows."""
-        msp_enabled = getattr(settings, "MICBOARD_MSP_ENABLED", False)
-        multi_site_enabled = getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
-        if not (msp_enabled or multi_site_enabled):
-            return True
-        if not actor.is_superuser:
-            return False
-        if multi_site_enabled:
-            return True
-        return bool(getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True))

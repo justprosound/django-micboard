@@ -86,5 +86,5 @@ def test_rate_limit_user_uses_authenticated_user_key() -> None:
         response = rate_limit_user(8, 45)(view)(request)
 
     assert response.status_code == 200
-    get_key.assert_called_once_with(request, view_func_name="user_view")
+    get_key.assert_called_once_with(request, view_func_name="protected")
     check.assert_called_once_with("user:3", 8, 45)

@@ -173,7 +173,7 @@ def test_import_skips_lifecycle_write_when_status_is_unchanged(
     )
     lifecycle_factory = Mock()
     monkeypatch.setattr(
-        "micboard.services.import_service.get_lifecycle_manager",
+        "micboard.services.import_service.HardwareLifecycleManager",
         lifecycle_factory,
     )
 
@@ -202,12 +202,12 @@ def test_import_reconciles_discovered_device_through_provisioning(
         serial_number="newly-online",
         status="discovered",
     )
-    lifecycle = HardwareLifecycleManager(structured_logger=Mock())
+    lifecycle = HardwareLifecycleManager()
     manager = Mock()
     manager.transition_device.side_effect = lifecycle.transition_device
     lifecycle_factory = Mock(return_value=manager)
     monkeypatch.setattr(
-        "micboard.services.import_service.get_lifecycle_manager",
+        "micboard.services.import_service.HardwareLifecycleManager",
         lifecycle_factory,
     )
 
@@ -234,7 +234,7 @@ def test_import_reconciles_discovered_device_through_provisioning(
         call(chassis, "provisioning", **transition_arguments),
         call(chassis, "online", **transition_arguments),
     ]
-    lifecycle_factory.assert_called_once_with(service_code=manufacturer.code)
+    lifecycle_factory.assert_called_once_with()
     chassis.refresh_from_db()
     assert chassis.status == "online"
     assert chassis.is_online is True
@@ -252,7 +252,7 @@ def test_import_rolls_back_when_lifecycle_rejects_a_transition(
         model="Original Model",
         status="discovered",
     )
-    lifecycle = HardwareLifecycleManager(structured_logger=Mock())
+    lifecycle = HardwareLifecycleManager()
     manager = Mock()
 
     def reject_online(device, to_status: str, **kwargs) -> bool:
@@ -262,7 +262,7 @@ def test_import_rolls_back_when_lifecycle_rejects_a_transition(
 
     manager.transition_device.side_effect = reject_online
     monkeypatch.setattr(
-        "micboard.services.import_service.get_lifecycle_manager",
+        "micboard.services.import_service.HardwareLifecycleManager",
         Mock(return_value=manager),
     )
 
@@ -334,7 +334,7 @@ def test_import_checks_identity_inside_shared_lock_before_write(
     def classify(**_kwargs: object) -> DeduplicationResult:
         assert events == ["locked"]
         events.append("checked")
-        return DeduplicationResult(is_new=True)
+        return DeduplicationResult.new()
 
     def create(**_kwargs: object) -> object:
         assert events == ["locked", "checked"]
@@ -368,12 +368,7 @@ def test_import_rejects_foreign_row_if_deduplication_misclassifies_it(
     )
     monkeypatch.setattr(
         "micboard.services.import_service.check_device",
-        Mock(
-            return_value=DeduplicationResult(
-                is_duplicate=True,
-                existing_device=foreign,
-            )
-        ),
+        Mock(return_value=DeduplicationResult.duplicate(foreign)),
     )
 
     assert ImportService().import_device(

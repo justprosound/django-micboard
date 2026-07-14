@@ -6,10 +6,9 @@ from collections.abc import Iterable
 from itertools import islice
 from typing import Any
 
-from django.conf import settings
-
 from pydantic import Field
 
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.services.shared.base_dto import PydanticBaseDTO
 
 DEFAULT_MAX_POLL_DEVICES = 500
@@ -83,7 +82,7 @@ class ManufacturerSyncResult(PydanticBaseDTO):
 
 def _bounded_positive_setting(name: str, *, default: int, hard_limit: int) -> int:
     """Parse a positive integer setting and enforce a package hard ceiling."""
-    raw_value = getattr(settings, name, default)
+    raw_value = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:

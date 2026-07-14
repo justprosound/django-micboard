@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from django.conf import settings
-
 from pydantic import Field
 
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.services.shared.base_dto import PydanticBaseDTO
 
 DEFAULT_ALERT_MAX_ASSIGNMENTS = 100
@@ -18,7 +17,7 @@ HARD_ALERT_MAX_DELIVERIES = 1_000
 
 def _bounded_setting(name: str, *, default: int, hard_limit: int) -> int:
     """Return a positive integer setting clamped to its package hard limit."""
-    value = getattr(settings, name, default)
+    value = micboard_settings.get(name, default)
     if isinstance(value, bool):
         return default
     try:

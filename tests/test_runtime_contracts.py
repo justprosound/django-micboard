@@ -16,7 +16,7 @@ import pytest
 
 from micboard.integrations.shure.websocket import _read_and_dispatch_messages
 from micboard.management.commands.realtime_status import Command as RealtimeStatusCommand
-from micboard.models.audit import ActivityLog
+from micboard.models.audit.activity_log import ActivityLog
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
@@ -107,11 +107,11 @@ def test_offline_chassis_checks_attached_wireless_units() -> None:
 
     with (
         patch(
-            "micboard.services.core.hardware_lifecycle.get_lifecycle_manager",
+            "micboard.services.core.hardware_lifecycle.HardwareLifecycleManager",
             return_value=lifecycle,
         ),
         patch(
-            "micboard.services.sync.device_update_service.check_hardware_offline_alerts"
+            "micboard.services.sync.device_update_service.alert_manager.check_hardware_offline_alerts"
         ) as check_alerts,
     ):
         DeviceUpdateService.mark_offline_receivers(

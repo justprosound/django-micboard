@@ -10,7 +10,7 @@ from django.utils import timezone
 import pytest
 
 from micboard.models.monitoring.alert import Alert
-from micboard.models.rf_coordination import RFChannel
+from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.monitoring.alert_delivery_service import AlertDeliveryService
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.monitoring.alerts import AlertManager
@@ -62,7 +62,7 @@ def test_create_alert_requires_channel_locks_and_marks_delivery_failures(
             wraps=RFChannel.objects.select_for_update,
         ) as select_for_update,
         patch(
-            "micboard.services.monitoring.alert_delivery_service.send_alert_email",
+            "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification",
             side_effect=RuntimeError("smtp://operator:secret@example.test"),
         ),
     ):
@@ -83,7 +83,7 @@ def test_create_alert_requires_channel_locks_and_marks_delivery_failures(
 
     Alert.objects.all().delete()
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email",
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification",
         return_value=False,
     ):
         alert = AlertDeliveryService.create_alert(
@@ -107,7 +107,7 @@ def test_alert_email_honors_delivery_method_quiet_hours_and_override(assigned_un
         email_address="override@example.test",
     )
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email"
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
     ) as send_email:
         alert = AlertDeliveryService.create_alert(
             unit=assigned_unit.unit,
@@ -126,7 +126,7 @@ def test_alert_email_honors_delivery_method_quiet_hours_and_override(assigned_un
     preferences.quiet_hours_end = time.max
     preferences.save()
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email"
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
     ) as send_email:
         AlertDeliveryService.create_alert(
             unit=assigned_unit.unit,
@@ -141,7 +141,7 @@ def test_alert_email_honors_delivery_method_quiet_hours_and_override(assigned_un
     preferences.quiet_hours_enabled = False
     preferences.save(update_fields=["quiet_hours_enabled"])
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email",
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification",
         return_value=True,
     ) as send_email:
         alert = AlertDeliveryService.create_alert(
@@ -159,7 +159,7 @@ def test_alert_email_honors_delivery_method_quiet_hours_and_override(assigned_un
     assigned_unit.user.email = ""
     assigned_unit.user.save(update_fields=["email"])
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email"
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
     ) as send_email:
         alert = AlertDeliveryService.create_alert(
             unit=assigned_unit.unit,
@@ -187,7 +187,7 @@ def test_alert_deduplication_honors_recipient_interval(
     if interval is not None:
         UserAlertPreferenceFactory(user=assigned_unit.user, min_alert_interval=interval)
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email",
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification",
         return_value=True,
     ):
         first = AlertDeliveryService.create_alert(

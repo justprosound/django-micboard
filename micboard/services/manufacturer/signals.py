@@ -7,44 +7,44 @@ when manufacturers are created, updated, or deleted.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from micboard.models.audit import ActivityLog
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from micboard.models.discovery.manufacturer import Manufacturer
 
-def handle_manufacturer_save(*, manufacturer, created: bool, old_active: bool | None) -> bool:
+
+def handle_manufacturer_save(
+    *,
+    manufacturer: Manufacturer,
+    created: bool,
+    old_active: bool | None,
+    using: str = "default",
+) -> bool:
     """Perform side-effects after a Manufacturer is saved.
 
     - Emits audit ActivityLog entries
     - Triggers discovery when a manufacturer is toggled active
     """
-    from django.contrib.contenttypes.models import ContentType
+    from micboard.services.maintenance.audit import AuditService
 
     try:
-        if created:
-            ActivityLog.objects.create(
-                activity_type=ActivityLog.ACTIVITY_CRUD,
-                operation=ActivityLog.CREATE,
-                content_type=ContentType.objects.get_for_model(manufacturer),
-                object_id=manufacturer.pk,
-                summary=f"Created manufacturer: {manufacturer.name}",
-                details={"name": manufacturer.name, "code": manufacturer.code},
-            )
-        else:
-            ActivityLog.objects.create(
-                activity_type=ActivityLog.ACTIVITY_CRUD,
-                operation=ActivityLog.UPDATE,
-                content_type=ContentType.objects.get_for_model(manufacturer),
-                object_id=manufacturer.pk,
-                summary=f"Modified manufacturer: {manufacturer.name}",
-                details={
-                    "name": manufacturer.name,
-                    "code": manufacturer.code,
-                    "is_active": manufacturer.is_active,
-                },
-            )
+        operation = "create" if created else "update"
+        AuditService.log_activity(
+            activity_type="crud",
+            operation=operation,
+            obj=manufacturer,
+            summary=f"{operation.title()}d manufacturer: {manufacturer.name}",
+            details={
+                "name": manufacturer.name,
+                "code": manufacturer.code,
+                "is_active": manufacturer.is_active,
+            },
+            using=using,
+        )
     except Exception as exc:
         logger.exception(
             "Failed to write activity log for manufacturer %s",
@@ -55,19 +55,26 @@ def handle_manufacturer_save(*, manufacturer, created: bool, old_active: bool | 
     return (not created) and manufacturer.is_active and not bool(old_active)
 
 
-def handle_manufacturer_delete(*, manufacturer) -> None:
+def handle_manufacturer_delete(
+    *,
+    manufacturer: Manufacturer,
+    using: str = "default",
+) -> None:
     """Perform side-effects after Manufacturer deletion (audit/log)."""
+    from micboard.services.maintenance.audit import AuditService
+
     try:
-        ActivityLog.objects.create(
-            activity_type=ActivityLog.ACTIVITY_CRUD,
-            operation="deleted",
+        AuditService.log_activity(
+            activity_type="crud",
+            operation="delete",
+            obj=manufacturer,
             summary=f"Deleted {manufacturer.__class__.__name__}: {manufacturer.name}",
-            object_id=str(manufacturer.pk) if manufacturer.pk else None,
             details={
                 "name": manufacturer.name,
                 "code": manufacturer.code,
                 "model_name": manufacturer.__class__.__name__,
             },
+            using=using,
         )
     except Exception as exc:
         logger.exception(

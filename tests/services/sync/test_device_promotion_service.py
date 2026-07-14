@@ -7,6 +7,9 @@ from unittest.mock import Mock
 
 import pytest
 
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
 from micboard.services.sync.device_promotion_service import DevicePromotionService
 from tests.factories.discovery import DiscoveredDeviceFactory
 from tests.factories.hardware import WirelessChassisFactory
@@ -74,14 +77,15 @@ def test_promotion_creates_basic_chassis_without_api_detail(
         Mock(return_value=(plugin, None)),
     )
     create = Mock(return_value=basic)
-    monkeypatch.setattr(service, "_create_basic_chassis_from_discovered", create)
+    monkeypatch.setattr(WirelessChassisPersistenceService, "create", create)
 
     assert service.promote_discovered_device(discovered) == (
         True,
         "Created basic chassis (limited API data)",
         basic,
     )
-    create.assert_called_once_with(discovered)
+    assert create.call_args.kwargs["manufacturer"] is discovered.manufacturer
+    assert create.call_args.kwargs["write"].api_device_id == discovered.ip
 
 
 def test_promotion_delegates_detailed_api_payload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -199,6 +203,7 @@ def test_plugin_device_lookup_contains_inventory_errors(monkeypatch: pytest.Monk
 def test_basic_chassis_creation_preserves_discovery_identity(
     channels: int,
     expected_channels: int,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Basic promotion retains discovery identity and applies a safe channel default."""
     discovered = DiscoveredDeviceFactory(
@@ -207,8 +212,18 @@ def test_basic_chassis_creation_preserves_discovery_identity(
         channels=channels,
     )
 
-    chassis = DevicePromotionService()._create_basic_chassis_from_discovered(discovered)
+    service = DevicePromotionService()
+    monkeypatch.setattr(service, "_find_existing_chassis_for_discovered", Mock(return_value=None))
+    monkeypatch.setattr(
+        service,
+        "_get_plugin_and_device_data_for_promotion",
+        Mock(return_value=(object(), None)),
+    )
 
+    success, _message, chassis = service.promote_discovered_device(discovered)
+
+    assert success is True
+    assert chassis is not None
     assert chassis.manufacturer == discovered.manufacturer
     assert chassis.api_device_id == discovered.ip
     assert chassis.ip == discovered.ip
@@ -285,7 +300,8 @@ def test_duplicate_promotion_requires_normalization_before_update(
         normalize,
     )
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.ManufacturerSyncService._update_existing_chassis",
+        "micboard.services.sync.device_promotion_service."
+        "WirelessChassisPersistenceService.update_from_normalized",
         update,
     )
 
@@ -297,7 +313,7 @@ def test_duplicate_promotion_requires_normalization_before_update(
 
     if normalizes:
         assert result == (True, "Updated existing chassis", existing)
-        update.assert_called_once_with(existing, payload)
+        update.assert_called_once_with(chassis=existing, payload=payload)
     else:
         assert result == (False, "Failed to normalize duplicate device data", None)
         update.assert_not_called()
@@ -322,7 +338,8 @@ def test_new_promotion_requires_normalization_before_create(
     )
     create = Mock(return_value=created)
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.ManufacturerSyncService._create_chassis",
+        "micboard.services.sync.device_promotion_service."
+        "WirelessChassisPersistenceService.create_from_normalized",
         create,
     )
 
@@ -334,7 +351,10 @@ def test_new_promotion_requires_normalization_before_create(
 
     if normalizes:
         assert result == (True, "Created new managed chassis", created)
-        create.assert_called_once_with(payload, discovered.manufacturer)
+        create.assert_called_once_with(
+            payload=payload,
+            manufacturer=discovered.manufacturer,
+        )
     else:
         assert result == (False, "Failed to normalize device data", None)
         create.assert_not_called()

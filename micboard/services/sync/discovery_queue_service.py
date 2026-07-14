@@ -21,7 +21,7 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.services.common.base.plugin import ManufacturerPlugin
 from micboard.services.common.base.utils import validate_hostname
-from micboard.services.manufacturer.secret_redaction import redact_secrets
+from micboard.services.manufacturer.secret_redaction import REDACTED_VALUE, is_secret_key
 from micboard.services.sync.discovery_dtos import DiscoveryQueueDevice, DiscoverySyncSummary
 
 logger = logging.getLogger(__name__)
@@ -46,10 +46,9 @@ class DiscoveryQueueService:
         if isinstance(value, dict):
             items = list(islice(value.items(), MAX_DISCOVERY_METADATA_FIELDS + 1))
             bounded = {
-                str(key)[:MAX_DISCOVERY_METADATA_STRING_LENGTH]: cls._bound_metadata(
-                    item,
-                    depth=depth + 1,
-                )
+                str(key)[:MAX_DISCOVERY_METADATA_STRING_LENGTH]: REDACTED_VALUE
+                if is_secret_key(key)
+                else cls._bound_metadata(item, depth=depth + 1)
                 for key, item in items[:MAX_DISCOVERY_METADATA_FIELDS]
             }
             if len(items) > MAX_DISCOVERY_METADATA_FIELDS:
@@ -130,13 +129,7 @@ class DiscoveryQueueService:
             if len(fqdn_candidate) <= 255 and validate_hostname(fqdn_candidate)
             else ""
         )
-        metadata = redact_secrets(cls._bound_metadata(device))
-        if not isinstance(metadata, dict):
-            logger.warning(
-                "Skipping discovery device %r; invalid metadata",
-                cls._bounded_log_identity(device_id),
-            )
-            return None
+        metadata = cls._bound_metadata(device)
         if fqdn:
             metadata.setdefault("fqdn", fqdn)
             if not name or name in (model, ip_address, ip_text):
@@ -187,11 +180,15 @@ class DiscoveryQueueService:
             serial_number=serial_number,
             defaults=defaults,
         )
-        conflicts = queue_entry.check_for_duplicates()
-        queue_entry.is_duplicate = conflicts["is_duplicate"]
-        queue_entry.is_ip_conflict = conflicts["is_ip_conflict"]
-        queue_entry.existing_device = conflicts["existing_device"]
-        queue_entry.existing_charger = conflicts["existing_charger"]
+        from micboard.services.deduplication.queue_conflict_service import (
+            DiscoveryQueueConflictService,
+        )
+
+        conflicts = DiscoveryQueueConflictService.check(queue_entry)
+        queue_entry.is_duplicate = conflicts.is_duplicate
+        queue_entry.is_ip_conflict = conflicts.is_ip_conflict
+        queue_entry.existing_device = conflicts.existing_device
+        queue_entry.existing_charger = conflicts.existing_charger
         update_fields = [
             "is_duplicate",
             "is_ip_conflict",
@@ -214,7 +211,7 @@ class DiscoveryQueueService:
         manufacturer: Manufacturer,
         plugin: ManufacturerPlugin,
         summary: DiscoverySyncSummary,
-    ) -> list[dict[str, Any]]:
+    ) -> None:
         """Poll a plugin and stage each usable device for review."""
         raw_devices = plugin.get_devices() or []
         devices = list(islice(iter(raw_devices), MAX_DISCOVERY_CANDIDATES + 1))
@@ -229,10 +226,9 @@ class DiscoveryQueueService:
             logger.warning("Vendor device payload was invalid or exceeded the hard limit")
         if not devices:
             logger.info("No devices returned from API")
-            return []
+            return
 
         for device in devices:
             device_data = cls.normalize_device(device)
             if device_data is not None:
                 cls.upsert(manufacturer, device_data, summary)
-        return devices

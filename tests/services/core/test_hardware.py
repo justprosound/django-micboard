@@ -112,6 +112,20 @@ def test_chassis_save_hook_threads_database_alias_to_channel_sync() -> None:
     ensure.assert_called_once_with(chassis=chassis, using="inventory")
 
 
+@pytest.mark.parametrize(("online", "expected_status"), [(True, "online"), (False, "offline")])
+def test_hardware_status_sync_persists_the_requested_state(
+    online: bool,
+    expected_status: str,
+) -> None:
+    """Persist the canonical lifecycle status without a forwarding async API."""
+    chassis = Mock(status="discovered")
+
+    HardwareSyncService.sync_hardware_status(obj=chassis, online=online)
+
+    assert chassis.status == expected_status
+    chassis.save.assert_called_once_with(update_fields=["status"])
+
+
 def test_chassis_lifecycle_logs_redact_vendor_hardware_identity() -> None:
     """Save/delete hooks retain numeric context without names, addresses, or vendor IDs."""
     private_identity = "private-chassis-identity"
@@ -146,7 +160,7 @@ def test_channel_sync_binds_all_reads_and_writes_to_database_alias() -> None:
     alias_channels.filter.side_effect = [existing_channels, excess_channel]
 
     with patch(
-        "micboard.models.rf_coordination.RFChannel.objects.using",
+        "micboard.models.rf_coordination.rf_channel.RFChannel.objects.using",
         return_value=alias_channels,
     ) as using:
         result = HardwareSyncService.ensure_channel_count(
@@ -166,3 +180,30 @@ def test_channel_sync_binds_all_reads_and_writes_to_database_alias() -> None:
         link_direction="receive",
     )
     excess_channel.delete.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    ("role", "expected_direction"),
+    [("transmitter", "send"), ("transceiver", "bidirectional")],
+)
+def test_channel_sync_derives_link_direction_from_chassis_role(
+    role: str,
+    expected_direction: str,
+) -> None:
+    """Create missing channels with the chassis role's RF direction."""
+    chassis = Mock(pk=17, role=role)
+    chassis.get_expected_channel_count.return_value = 1
+    alias_channels = Mock()
+    alias_channels.filter.return_value.values_list.return_value = []
+
+    with patch(
+        "micboard.models.rf_coordination.rf_channel.RFChannel.objects.using",
+        return_value=alias_channels,
+    ):
+        assert HardwareSyncService.ensure_channel_count(chassis=chassis) == (1, 0)
+
+    alias_channels.create.assert_called_once_with(
+        chassis_id=17,
+        channel_number=1,
+        link_direction=expected_direction,
+    )

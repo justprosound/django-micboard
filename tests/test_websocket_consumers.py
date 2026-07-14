@@ -70,7 +70,6 @@ def test_consumer_adapters_disconnect_receive_and_forward(monkeypatch) -> None:
     for handler, event, expected_type in (
         (consumer.device_update, {"data": {"id": 1}}, "device_update"),
         (consumer.status_update, {"message": "ready"}, "status"),
-        (consumer.progress_update, {"status": "running"}, "progress"),
     ):
         asyncio.run(handler(event))
         assert json.loads(consumer.send.await_args.kwargs["text_data"])["type"] == expected_type
@@ -118,7 +117,8 @@ def test_consumer_module_provides_optional_channels_fallback(monkeypatch) -> Non
     """Importing without Channels still provides a harmless consumer base."""
     import micboard.utils.dependencies as dependencies
     import micboard.websockets as websockets_package
-    import micboard.websockets.consumers as consumers_module
+
+    consumers_module = importlib.import_module("micboard.websockets.consumers")
 
     module_name = consumers_module.__name__
     original = sys.modules.pop(module_name)

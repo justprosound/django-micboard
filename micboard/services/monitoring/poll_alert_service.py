@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from django.conf import settings
 from django.core.cache import cache
 
 from pydantic import Field
@@ -17,15 +16,13 @@ from micboard.services.monitoring.alert_fanout_dtos import (
     HARD_ALERT_MAX_RECIPIENTS,
     AlertFanoutBudget,
 )
-from micboard.services.monitoring.alerts import (
-    check_hardware_offline_alerts,
-    check_transmitter_alerts,
-)
+from micboard.services.monitoring.alerts import alert_manager
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.services.shared.base_dto import PydanticBaseDTO
 from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models.discovery import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +76,15 @@ class PollAlertService:
         budget = AlertFanoutBudget.from_settings()
         transmitter_first = cls._read_scope_cursor(manufacturer.pk)
         checks = (
-            (check_transmitter_alerts, check_hardware_offline_alerts)
+            (
+                alert_manager.check_wireless_unit_alerts,
+                alert_manager.check_hardware_offline_alerts,
+            )
             if transmitter_first
-            else (check_hardware_offline_alerts, check_transmitter_alerts)
+            else (
+                alert_manager.check_hardware_offline_alerts,
+                alert_manager.check_wireless_unit_alerts,
+            )
         )
         if bounded_units:
             cls._write_scope_cursor(manufacturer.pk, transmitter_first=not transmitter_first)
@@ -199,8 +202,7 @@ class PollAlertService:
 
     @staticmethod
     def _scan_limit() -> int:
-        raw_limit = getattr(
-            settings,
+        raw_limit = micboard_settings.get(
             "MICBOARD_POLL_ALERT_MAX_UNITS",
             DEFAULT_POLL_ALERT_MAX_UNITS,
         )

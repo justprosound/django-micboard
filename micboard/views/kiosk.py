@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import DetailView, ListView
 
 from micboard.models.hardware.display_wall import DisplayWall, WallSection
-from micboard.services.core.charger_assignment import ChargerAssignmentService
-from micboard.services.monitoring.connection_validation import ConnectionValidationService
+from micboard.services.kiosk.dtos import DisplayWallSnapshot
+from micboard.services.kiosk.health_service import KioskHealthService
+from micboard.services.kiosk.services import KioskService
 from micboard.services.monitoring.monitoring_access import MonitoringService
-
-logger = logging.getLogger(__name__)
 
 
 @method_decorator(login_required, name="dispatch")
@@ -34,40 +32,20 @@ class KioskAuthView(View):
         Returns:
             Kiosk display HTML or 404
         """
-        wall = get_object_or_404(
-            MonitoringService.get_accessible_display_walls(request.user),
-            kiosk_id=kiosk_id,
-            is_active=True,
+        snapshot = KioskService.get_kiosk_snapshot(kiosk_id, user=request.user)
+        if snapshot is None:
+            raise Http404("Kiosk not found")
+        return render(
+            request,
+            "micboard/kiosk/display.html",
+            {"snapshot": snapshot, "kiosk": True},
         )
-
-        # Get display data
-        display_data = ChargerAssignmentService.get_display_wall_data(
-            wall.id,
-            user=request.user,
-        )
-
-        context = {
-            "wall": display_data.get("wall", {}),
-            "sections": display_data.get("sections", []),
-            "kiosk": True,
-        }
-
-        return render(request, "micboard/kiosk/display.html", context)
 
     def post(self, request: HttpRequest, kiosk_id: str) -> JsonResponse:
         """Heartbeat update from kiosk."""
-        from django.utils import timezone
-
-        try:
-            wall = MonitoringService.get_accessible_display_walls(request.user).get(
-                kiosk_id=kiosk_id,
-                is_active=True,
-            )
-            wall.last_heartbeat = timezone.now()
-            wall.save(update_fields=["last_heartbeat"])
+        if KioskService.record_heartbeat(kiosk_id, user=request.user):
             return JsonResponse({"status": "ok", "message": "Heartbeat received"})
-        except DisplayWall.DoesNotExist:
-            return JsonResponse({"status": "error", "message": "Kiosk not found"}, status=404)
+        return JsonResponse({"status": "error", "message": "Kiosk not found"}, status=404)
 
 
 @method_decorator(login_required, name="dispatch")
@@ -140,14 +118,26 @@ class WallSectionListView(ListView):
         return context
 
 
+def _serialize_kiosk_data(snapshot: DisplayWallSnapshot) -> dict[str, Any]:
+    """Adapt a typed snapshot to the stable programmatic kiosk response shape."""
+    return {
+        "wall": snapshot.wall.model_dump(mode="json"),
+        "sections": [
+            {
+                "section": section.model_dump(mode="json", exclude={"performers"}),
+                "performers": [group.model_dump(mode="json") for group in section.performers],
+            }
+            for section in snapshot.sections
+        ],
+    }
+
+
 @method_decorator(login_required, name="dispatch")
 class KioskDataView(View):
-    """JSON API endpoint for kiosk real-time updates."""
+    """JSON snapshot endpoint for programmatic display consumers."""
 
     def get(self, request: HttpRequest, wall_id: int) -> JsonResponse:
         """Get current display data for a wall.
-
-        Used by HTMX to refresh performer/charger data.
 
         Args:
             request: HTTP request
@@ -156,25 +146,25 @@ class KioskDataView(View):
         Returns:
             JSON with performer and charger data
         """
-        try:
-            wall = MonitoringService.get_accessible_display_walls(request.user).get(
-                id=wall_id,
-                is_active=True,
-            )
-        except DisplayWall.DoesNotExist:
+        snapshot = KioskService.get_wall_snapshot(wall_id, user=request.user)
+        if snapshot is None:
             return JsonResponse({"error": "Wall not found"}, status=404)
+        return JsonResponse({"status": "ok", **_serialize_kiosk_data(snapshot)})
 
-        display_data = ChargerAssignmentService.get_display_wall_data(
-            wall.id,
-            user=request.user,
-        )
 
-        return JsonResponse(
-            {
-                "status": "ok",
-                "wall": display_data.get("wall", {}),
-                "sections": display_data.get("sections", []),
-            }
+@method_decorator(login_required, name="dispatch")
+class KioskContentView(View):
+    """HTML adapter for periodic DisplayWall refreshes."""
+
+    def get(self, request: HttpRequest, wall_id: int) -> HttpResponse:
+        """Render one current, tenant-scoped DisplayWall fragment."""
+        snapshot = KioskService.get_wall_snapshot(wall_id, user=request.user)
+        if snapshot is None:
+            raise Http404("Wall not found")
+        return render(
+            request,
+            "micboard/kiosk/display_content.html",
+            {"snapshot": snapshot},
         )
 
 
@@ -192,18 +182,7 @@ class KioskHealthView(View):
         Returns:
             JSON with health status for each charger
         """
-        try:
-            wall, charger_health = ConnectionValidationService.get_display_wall_charger_health(
-                wall_id=wall_id,
-                user=request.user,
-            )
-        except DisplayWall.DoesNotExist:
+        health = KioskHealthService.get_wall_health(wall_id=wall_id, user=request.user)
+        if health is None:
             return JsonResponse({"error": "Wall not found"}, status=404)
-
-        return JsonResponse(
-            {
-                "status": "ok",
-                "wall_id": wall.id,
-                "chargers": charger_health,
-            }
-        )
+        return JsonResponse({"status": "ok", **health.model_dump(mode="json")})

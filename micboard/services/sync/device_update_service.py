@@ -13,10 +13,11 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.rf_coordination.rf_channel import RFChannel
-from micboard.services.monitoring.alerts import (
-    check_hardware_offline_alerts,
-    check_transmitter_alerts,
+from micboard.services.hardware.dtos import WirelessChassisWrite
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
 )
+from micboard.services.monitoring.alerts import alert_manager
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -75,10 +76,23 @@ class DeviceUpdateService:
                 api_device_id = str(raw_device_id).strip() if raw_device_id is not None else ""
                 if not api_device_id:
                     raise ValueError("Transformed device data is missing its identifier")
-                chassis = cls._update_chassis(
-                    transformed_data=transformed_data,
+                defaults = WirelessChassisWrite(
+                    ip=transformed_data.get("ip", ""),
+                    model=transformed_data.get("type", "unknown"),
+                    name=transformed_data.get("name", ""),
+                    firmware_version=transformed_data.get("firmware", ""),
+                    last_seen=timezone.now(),
+                )
+                chassis, created = WirelessChassisPersistenceService.upsert(
                     manufacturer=manufacturer,
                     api_device_id=api_device_id,
+                    defaults=defaults,
+                    create_defaults=defaults.model_copy(update={"status": "online"}),
+                )
+                cls._reconcile_chassis_lifecycle(
+                    chassis=chassis,
+                    created=created,
+                    manufacturer=manufacturer,
                 )
                 if chassis.pk is None:  # pragma: no cover - persistence contract guard
                     raise ValueError("Persisted wireless chassis is missing its primary key")
@@ -122,30 +136,16 @@ class DeviceUpdateService:
         return updated_count
 
     @staticmethod
-    def _update_chassis(
+    def _reconcile_chassis_lifecycle(
         *,
-        transformed_data: dict[str, Any],
+        chassis: WirelessChassis,
+        created: bool,
         manufacturer: Manufacturer,
-        api_device_id: str,
-    ) -> WirelessChassis:
-        """Update or create one wireless chassis from normalized data."""
-        from micboard.services.core.hardware_lifecycle import get_lifecycle_manager
+    ) -> None:
+        """Log one upsert and restore the expected operational lifecycle state."""
+        from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 
-        defaults = {
-            "ip": transformed_data.get("ip", ""),
-            "model": transformed_data.get("type", "unknown"),
-            "name": transformed_data.get("name", ""),
-            "firmware_version": transformed_data.get("firmware", ""),
-            "last_seen": timezone.now(),
-        }
-        chassis, created = WirelessChassis.objects.update_or_create(
-            api_device_id=api_device_id,
-            manufacturer=manufacturer,
-            defaults=defaults,
-            create_defaults={**defaults, "status": "online"},
-        )
-
-        lifecycle = get_lifecycle_manager(manufacturer.code)
+        lifecycle = HardwareLifecycleManager()
         if created:
             logger.info(
                 "Created wireless chassis %s for manufacturer %s",
@@ -170,7 +170,6 @@ class DeviceUpdateService:
                 chassis.refresh_from_db(
                     fields=["status", "is_online", "last_online_at", "last_seen"]
                 )
-        return chassis
 
     @classmethod
     def _update_channel_and_unit(
@@ -248,7 +247,7 @@ class DeviceUpdateService:
                 "name": transformed_unit.get("name") or "",
             },
         )
-        check_transmitter_alerts(unit)
+        alert_manager.check_wireless_unit_alerts(unit)
 
     @staticmethod
     def _assign_unit_slot(
@@ -286,7 +285,7 @@ class DeviceUpdateService:
         active_chassis_ids: Iterable[int],
     ) -> None:
         """Mark chassis missing from an authoritative snapshot offline."""
-        from micboard.services.core.hardware_lifecycle import get_lifecycle_manager
+        from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 
         offline_chassis = WirelessChassis.objects.filter(
             manufacturer=manufacturer,
@@ -295,7 +294,7 @@ class DeviceUpdateService:
         if not offline_chassis.exists():
             return
 
-        lifecycle = get_lifecycle_manager(manufacturer.code)
+        lifecycle = HardwareLifecycleManager()
         offline_count = 0
         for chassis in offline_chassis:
             try:
@@ -321,4 +320,4 @@ class DeviceUpdateService:
         ).prefetch_related("field_units")
         for chassis in refreshed_chassis:
             for unit in chassis.field_units.all():
-                check_hardware_offline_alerts(unit)
+                alert_manager.check_hardware_offline_alerts(unit)

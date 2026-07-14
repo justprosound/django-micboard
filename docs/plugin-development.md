@@ -3,11 +3,11 @@
 This guide describes the plugin boundary that exists in the current codebase. Use it when adding
 a manufacturer under `micboard/integrations/<vendor>/`.
 
-!!! note "Current implementation, not proposed architecture"
-    [ADR-004](adr/004-standardize-manufacturer-plugins.md) proposes shared classes under
-    `micboard/integrations/common/`, but that directory does not exist today. New plugins must use
-    the live classes in `micboard/services/common/base/` and the live
-    `PluginRegistry` in `micboard/services/manufacturer/plugin_registry.py`.
+!!! note "Implemented architecture"
+    [ADR-004](adr/004-standardize-manufacturer-plugins.md) keeps shared transport and plugin
+    contracts in `micboard/services/common/base/` while protocol-specific code remains under
+    `micboard/integrations/<vendor>/`. `PluginRegistry` loads those integrations by convention;
+    there is no central registration module.
 
 ## Runtime boundaries
 
@@ -16,7 +16,7 @@ a manufacturer under `micboard/integrations/<vendor>/`.
 | Plugin contract and dynamic import | `micboard.services.common.base.plugin` |
 | Cached class lookup and instance construction | `micboard.services.manufacturer.plugin_registry.PluginRegistry` |
 | Shared verified HTTP transport | `micboard.services.common.base.client.BaseHTTPClient` |
-| API exceptions | `micboard.services.common.base.exceptions` |
+| API exceptions | `micboard.exceptions` |
 | Rate limiting | `micboard.services.common.base.rate_limiter.rate_limit` |
 | IPv4 discovery validation | `micboard.services.common.base.utils.validate_ipv4_list` |
 | Poll and persistence orchestration | `micboard.services.manufacturer.sync.ManufacturerSyncService` |
@@ -78,7 +78,7 @@ Import implementations from their defining modules; do not add compatibility ali
 Use the common exception hierarchy so retry and health behavior remains consistent:
 
 ```python
-from micboard.services.common.base.exceptions import APIError, APIRateLimitError
+from micboard.exceptions import APIError, APIRateLimitError
 
 
 class AcmeAudioAPIError(APIError):
@@ -370,10 +370,9 @@ Create or enable a `micboard.models.discovery.manufacturer.Manufacturer` row who
 explicit development reload path. Do not add package re-exports or a compatibility registration
 module.
 
-`ManufacturerConfigRegistry` stores optional capability defaults; it does not register plugin
-classes. `ManufacturerConfiguration` validation and the admin API-server connection checker also
-have explicit vendor behavior. Extend those separate surfaces only if the new integration uses
-them; do not describe them as automatic consequences of plugin registration.
+`ManufacturerConfiguration` validation and the admin API-server connection checker have explicit
+vendor behavior. Extend those separate surfaces only if the new integration uses them; do not
+describe them as automatic consequences of plugin registration.
 
 ## Protocol-specific patterns
 

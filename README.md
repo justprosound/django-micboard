@@ -20,7 +20,7 @@ django-micboard is a community-driven, pre-production Django reusable app for mo
 - **Alert System**: User-specific notification rules for battery, signal, offline events
 - **Regulatory Compliance**: Frequency band coordination and domain auditing
 - **Multi-Tenant Safe**: Optional MSP (Managed Service Provider) mode with organization isolation
-- **Settings Registry**: Scope-aware configuration (global → site → organization → manufacturer)
+- **Settings Registry**: Typed configuration at each definition's exact declared scope
 - **Admin Interface**: Beautiful Unfold admin theme with advanced filtering and history tracking
 
 ## Installation
@@ -92,6 +92,18 @@ MICBOARD_SITE_ISOLATION = "site"  # or "organization", "campus"
 Micboard intentionally disables generic admin import and export. A host may install the
 `import-export` extra only after defining request-aware resources that validate tenant ownership
 for every transferred row and explicitly opting its own admin classes into those resources.
+
+In MSP mode, Django model permissions are necessary but do not override membership roles:
+`viewer` is read-only, `operator` changes performer assignments through the service-backed
+assignment workflow, and `admin`/`owner` may mutate rows only in their exact organization and
+campus scopes. Host-wide catalogs remain platform-superuser surfaces. Multi-site creation of an
+unassigned performer is deliberately disabled until onboarding can bind the performer and first
+tenant assignment atomically.
+
+The built-in DisplayWall page renders one typed snapshot for its initial response, periodic HTML
+refreshes, JSON consumers, and section fragments. Micboard ships a pinned local HTMX runtime for
+offline and restrictive-CSP deployments. The base template still loads Bootstrap from
+`cdn.jsdelivr.net`; hosts that block that origin can override the template with a local asset.
 
 Add to your `urls.py`:
 

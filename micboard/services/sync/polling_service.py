@@ -6,8 +6,12 @@ Coordinates one manufacturer poll and broadcasts its persisted device state.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from django.utils import timezone
+
+from micboard.services.manufacturer.sync import ManufacturerSyncService
 from micboard.services.sync.polling_dtos import ManufacturerPollLimits
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -34,27 +38,23 @@ class PollingService:
         Returns:
             Dictionary with polling results
         """
-        from micboard.services.sync.hardware_sync_service import HardwareSyncService
-
         logger.info("Starting poll for manufacturer: %s", manufacturer.name)
+        started_at = timezone.now()
 
         try:
-            # Use HardwareSyncService for the heavy lifting
-            stats = HardwareSyncService.sync_devices(
+            sync_result = ManufacturerSyncService.sync_devices_for_manufacturer(
                 manufacturer_code=manufacturer.code,
                 force=force,
             )
 
-            # Map stats back to result format
-            error_count = int(stats.get("errors", 0))
             result: dict[str, Any] = {
-                "devices_created": stats.get("created", 0),
-                "devices_updated": stats.get("updated", 0),
-                "units_synced": 0,  # HardwareSyncService doesn't track units yet
-                "errors": ["Manufacturer sync reported errors"] if error_count else [],
-                "devices_examined": stats.get("devices_examined", 0),
-                "device_limit": stats.get("device_limit"),
-                "inventory_complete": stats.get("inventory_complete", True),
+                "devices_created": sync_result.get("devices_added", 0),
+                "devices_updated": sync_result.get("devices_updated", 0),
+                "units_synced": 0,
+                "errors": list(sync_result.get("errors", [])),
+                "devices_examined": sync_result.get("devices_examined", 0),
+                "device_limit": sync_result.get("device_limit"),
+                "inventory_complete": sync_result.get("inventory_complete", True),
             }
 
             # Broadcast updates if successful
@@ -69,6 +69,11 @@ class PollingService:
                 len(result.get("errors", [])),
             )
 
+            self._record_sync_audit(
+                manufacturer=manufacturer,
+                started_at=started_at,
+                result=result,
+            )
             return result
 
         except Exception as exc:
@@ -80,7 +85,7 @@ class PollingService:
                 exc_info=sanitized_exception_info(exc),
             )
             error_message = f"{type(exc).__name__}: polling failed"
-            return {
+            result = {
                 "manufacturer": manufacturer.code,
                 "status": "failed",
                 "error": error_message,
@@ -89,6 +94,28 @@ class PollingService:
                 "units_synced": 0,
                 "errors": [error_message],
             }
+            self._record_sync_audit(
+                manufacturer=manufacturer,
+                started_at=started_at,
+                result=result,
+            )
+            return result
+
+    @staticmethod
+    def _record_sync_audit(
+        *,
+        manufacturer: Manufacturer,
+        started_at: datetime,
+        result: dict[str, Any],
+    ) -> None:
+        """Delegate bounded audit persistence without widening poll orchestration."""
+        from micboard.services.maintenance.sync_audit_service import ServiceSyncAuditService
+
+        ServiceSyncAuditService.record_poll_result(
+            manufacturer=manufacturer,
+            started_at=started_at,
+            result=result,
+        )
 
     def broadcast_device_updates(self, manufacturer: Manufacturer, data: dict[str, Any]) -> None:
         """Broadcast device updates via WebSocket/Channels.

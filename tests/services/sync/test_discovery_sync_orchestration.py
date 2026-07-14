@@ -11,6 +11,9 @@ import pytest
 
 from micboard.discovery.limits import MAX_DISCOVERY_CANDIDATES
 from micboard.models.discovery.registry import DiscoveryJob
+from micboard.services.sync.discovery_candidate_source_service import (
+    DiscoveryCandidateSourceService,
+)
 from micboard.services.sync.discovery_claim_service import DiscoverySyncClaimService
 from micboard.services.sync.discovery_configuration_service import (
     DiscoveryConfigurationService,
@@ -149,7 +152,7 @@ def test_run_coordinates_services_and_finalizes_successful_job() -> None:
             side_effect=poll,
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "configured_scan_sources",
             return_value=DiscoveryScanSourcePage(
                 cidrs=["192.0.2.0/24"],
@@ -157,12 +160,12 @@ def test_run_coordinates_services_and_finalizes_successful_job() -> None:
             ),
         ) as configured_sources,
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_inventory_candidates",
             return_value=DiscoveryCandidatePage(candidates=["192.0.2.41"]),
         ) as collect_inventory,
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_scanned_candidates",
             return_value=DiscoveryCandidatePage(candidates=["192.0.2.42"]),
         ) as collect_scanned,
@@ -223,7 +226,7 @@ def test_run_reports_incomplete_local_pages_after_safe_bounded_submission() -> N
             return_value=plugin,
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_inventory_candidates",
             return_value=DiscoveryCandidatePage(
                 candidates=["192.0.2.41"],
@@ -231,7 +234,7 @@ def test_run_reports_incomplete_local_pages_after_safe_bounded_submission() -> N
             ),
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "configured_scan_sources",
             return_value=DiscoveryScanSourcePage(
                 cidrs=["192.0.2.0/24"],
@@ -239,7 +242,7 @@ def test_run_reports_incomplete_local_pages_after_safe_bounded_submission() -> N
             ),
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_scanned_candidates",
             return_value=DiscoveryCandidatePage(candidates=["192.0.2.42"]),
         ),
@@ -280,12 +283,12 @@ def test_run_reports_incomplete_scan_expansion_after_safe_submission() -> None:
             return_value=plugin,
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_inventory_candidates",
             return_value=DiscoveryCandidatePage(),
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "configured_scan_sources",
             return_value=DiscoveryScanSourcePage(
                 cidrs=["192.0.2.0/24"],
@@ -293,7 +296,7 @@ def test_run_reports_incomplete_scan_expansion_after_safe_submission() -> None:
             ),
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_scanned_candidates",
             return_value=DiscoveryCandidatePage(
                 candidates=["192.0.2.1"],
@@ -336,17 +339,17 @@ def test_run_marks_oversized_supported_model_snapshot_incomplete() -> None:
             return_value=False,
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_inventory_candidates",
             return_value=DiscoveryCandidatePage(),
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "configured_scan_sources",
             return_value=DiscoveryScanSourcePage(),
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_scanned_candidates",
             return_value=DiscoveryCandidatePage(),
         ),
@@ -369,7 +372,11 @@ def test_run_marks_invalid_configuration_input_incomplete() -> None:
 
     with (
         patch.object(DiscoveryConfigurationService, "add_entries", return_value=False),
-        patch.object(service, "collect_inventory_candidates", side_effect=RuntimeError),
+        patch.object(
+            DiscoveryCandidateSourceService,
+            "collect_inventory_candidates",
+            side_effect=RuntimeError,
+        ),
     ):
         result = service.run(manufacturer.pk)
 
@@ -390,17 +397,17 @@ def test_run_clamps_caller_controlled_candidate_limit() -> None:
             return_value=plugin,
         ),
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_inventory_candidates",
             return_value=DiscoveryCandidatePage(),
         ) as inventory,
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "configured_scan_sources",
             return_value=DiscoveryScanSourcePage(),
         ) as sources,
         patch.object(
-            service,
+            DiscoveryCandidateSourceService,
             "collect_scanned_candidates",
             return_value=DiscoveryCandidatePage(),
         ) as scanned,

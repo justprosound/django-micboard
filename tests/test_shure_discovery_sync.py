@@ -4,6 +4,9 @@ from django.test import TestCase
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveredDevice
+from micboard.services.sync.discovery_candidate_source_service import (
+    DiscoveryCandidateSourceService,
+)
 from micboard.services.sync.discovery_dtos import DiscoverySyncSummary
 from micboard.services.sync.discovery_sync_service import DiscoverySyncService
 
@@ -26,7 +29,7 @@ class ShureDiscoverySyncTest(TestCase):
 
         DiscoverySyncService().submit_candidates(
             self.manufacturer,
-            missing_ips=DiscoverySyncService.collect_inventory_candidates(
+            missing_ips=DiscoveryCandidateSourceService.collect_inventory_candidates(
                 self.manufacturer
             ).candidates,
             scanned_ips=[],

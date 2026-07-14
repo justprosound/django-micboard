@@ -7,15 +7,20 @@ from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 from django.contrib.admin.sites import AdminSite
+from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
+from django.db import connection
 from django.http import HttpResponse
 from django.test import RequestFactory
+from django.test.utils import CaptureQueriesContext
 
 import pytest
 
 from micboard.admin import monitoring
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.discovery.registry import DiscoveredDevice
+from tests.factories.discovery import DiscoveredDeviceFactory, ManufacturerFactory
+from tests.factories.hardware import WirelessChassisFactory
 
 
 def _request(method: str = "get", data: dict[str, Any] | None = None) -> Any:
@@ -45,6 +50,7 @@ def _discovered(**overrides: Any) -> Any:
         "STATUS_INCOMPATIBLE": DiscoveredDevice.STATUS_INCOMPATIBLE,
         "STATUS_ERROR": DiscoveredDevice.STATUS_ERROR,
         "STATUS_OFFLINE": DiscoveredDevice.STATUS_OFFLINE,
+        "_is_managed": False,
         "get_status_display": lambda: "Custom",
         "delete": Mock(),
     }
@@ -56,7 +62,12 @@ def test_discovered_device_admin_queryset_status_protocol_and_management_flags()
     model_admin = _admin(monitoring.DiscoveredDeviceAdmin, DiscoveredDevice)
     queryset = MagicMock()
     with patch.object(MicboardModelAdmin, "get_queryset", return_value=queryset):
-        assert model_admin.get_queryset(_request()) is queryset.select_related.return_value
+        assert (
+            model_admin.get_queryset(_request())
+            is queryset.select_related.return_value.annotate.return_value
+        )
+    queryset.select_related.assert_called_once_with("manufacturer")
+    assert "_is_managed" in queryset.select_related.return_value.annotate.call_args.kwargs
     for status, expected in (
         (DiscoveredDevice.STATUS_READY, "Ready"),
         (DiscoveredDevice.STATUS_PENDING, "Pending"),
@@ -66,11 +77,7 @@ def test_discovered_device_admin_queryset_status_protocol_and_management_flags()
     with patch.object(monitoring, "get_device_communication_protocol", side_effect=["HTTP", None]):
         assert model_admin.protocol_display(_discovered()) == "HTTP"
         assert model_admin.protocol_display(_discovered()) == "—"
-    with patch(
-        "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.filter"
-    ) as chassis_filter:
-        chassis_filter.return_value.exists.return_value = True
-        assert model_admin.is_managed_display(_discovered()) is True
+    assert model_admin.is_managed_display(_discovered(_is_managed=True)) is True
     with patch.object(monitoring, "is_device_manageable", return_value=True):
         assert model_admin.is_manageable_display(_discovered()) is True
 
@@ -110,15 +117,54 @@ def test_discovered_device_promotion_action_paths(
 ) -> None:
     model_admin = _admin(monitoring.DiscoveredDeviceAdmin, DiscoveredDevice)
     with (
-        patch(
-            "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.filter"
-        ) as chassis_filter,
         patch.object(monitoring, "can_promote_device_to_chassis", return_value=promotion),
         patch.object(monitoring, "is_device_manageable", return_value=manageable),
         patch.object(monitoring, "reverse", return_value="/promote/"),
     ):
-        chassis_filter.return_value.exists.return_value = managed
-        assert expected in model_admin.promotion_actions(_discovered())
+        assert expected in model_admin.promotion_actions(_discovered(_is_managed=managed))
+
+
+@pytest.mark.django_db
+def test_discovered_device_management_columns_share_one_bounded_query() -> None:
+    user = get_user_model().objects.create_superuser(username="discovered-device-query-admin")
+    request = RequestFactory().get("/admin/micboard/discovereddevice/")
+    request.user = user
+    model_admin = _admin(monitoring.DiscoveredDeviceAdmin, DiscoveredDevice)
+    manufacturer = ManufacturerFactory()
+    managed = DiscoveredDeviceFactory(manufacturer=manufacturer)
+    WirelessChassisFactory(
+        manufacturer=manufacturer,
+        ip=managed.ip,
+        max_channels=0,
+    )
+
+    def render_columns() -> tuple[int, list[tuple[bool, str]], list[str]]:
+        with (
+            patch.object(monitoring, "can_promote_device_to_chassis", return_value=(True, "")),
+            patch.object(monitoring, "is_device_manageable", return_value=True),
+            patch.object(monitoring, "reverse", return_value="/promote/"),
+            CaptureQueriesContext(connection) as query_context,
+        ):
+            devices = list(model_admin.get_queryset(request).order_by("pk"))
+            columns = [
+                (
+                    model_admin.is_managed_display(device),
+                    str(model_admin.promotion_actions(device)),
+                )
+                for device in devices
+            ]
+        return len(query_context), columns, [query["sql"] for query in query_context]
+
+    small_count, small_columns, _small_queries = render_columns()
+    DiscoveredDeviceFactory.create_batch(5, manufacturer=manufacturer)
+    large_count, large_columns, large_queries = render_columns()
+
+    assert small_columns == [(True, "✓ Already Managed")]
+    assert len(large_columns) == 6
+    assert large_columns.count((True, "✓ Already Managed")) == 1
+    assert large_count == small_count == 1
+    assert "COUNT(" not in large_queries[0].upper()
+    assert large_queries[0].upper().count("EXISTS(") == 1
 
 
 def test_discovered_device_admin_urls_and_promote_view_outcomes() -> None:

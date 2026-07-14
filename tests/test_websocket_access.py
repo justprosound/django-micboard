@@ -325,7 +325,7 @@ def test_user_deactivation_blocks_next_site_event(regular_user: User) -> None:
     current_groups = MicboardConsumer._current_group_names(regular_user.pk)
     assert current_groups == ()
     consumer._current_groups_for_user = AsyncMock(return_value=current_groups)
-    asyncio.run(consumer.progress_update({"status": "revoked"}))
+    asyncio.run(consumer.status_update({"message": "revoked"}))
 
     consumer.send.assert_not_awaited()
     consumer.channel_layer.group_discard.assert_awaited_once_with(

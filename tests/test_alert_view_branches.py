@@ -15,9 +15,9 @@ from tests.view_test_helpers import request, view
 
 def test_alert_controller_remaining_filter_and_error_paths() -> None:
     alert_request = request(path="/?status=all")
-    queryset = MagicMock()
     with (
-        patch.object(alerts, "get_alerts_for_user", return_value=queryset),
+        patch.object(alerts.AlertBrowseService, "get_page", return_value=MagicMock()),
+        patch.object(alerts.AlertBrowseService, "get_stats", return_value=MagicMock()),
         patch.object(alerts, "render", return_value=HttpResponse()),
     ):
         assert view(alerts.alerts_view)(alert_request).status_code == 200
@@ -40,22 +40,23 @@ def test_alert_controller_remaining_filter_and_error_paths() -> None:
 def test_alert_list_filters_and_detail_use_user_visible_queryset() -> None:
     alert_request = request(path="/?status=acknowledged&type=battery_low&page=2")
     queryset = MagicMock()
-    ordered = queryset.select_related.return_value.order_by.return_value
-    type_filtered = ordered.filter.return_value.filter.return_value
+    page = MagicMock()
+    stats = MagicMock()
     with (
         patch.object(alerts, "get_alerts_for_user", return_value=queryset),
-        patch.object(alerts, "Paginator") as paginator,
+        patch.object(alerts.AlertBrowseService, "get_page", return_value=page) as get_page,
+        patch.object(alerts.AlertBrowseService, "get_stats", return_value=stats),
         patch.object(alerts, "render", return_value=HttpResponse()) as render,
         patch.object(alerts, "get_object_or_404", return_value="alert") as get_object,
     ):
-        paginator.return_value.get_page.return_value = "page"
         assert view(alerts.alerts_view)(alert_request).status_code == 200
         assert view(alerts.alert_detail_view)(alert_request, 4).status_code == 200
 
-    ordered.filter.assert_called_once_with(status="acknowledged")
-    ordered.filter.return_value.filter.assert_called_once_with(alert_type="battery_low")
-    paginator.assert_called_once_with(type_filtered, 25)
-    assert render.call_args_list[0].args[2]["alerts"] == "page"
+    criteria = get_page.call_args.kwargs["criteria"]
+    assert criteria.status == "acknowledged"
+    assert criteria.alert_type == "battery_low"
+    assert criteria.page == "2"
+    assert render.call_args_list[0].args[2]["browse"] is page
     get_object.assert_called_once()
 
 

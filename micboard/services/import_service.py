@@ -9,20 +9,24 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware_lifecycle import (
+    HardwareLifecycleManager,
     HardwareStatus,
-    get_lifecycle_manager,
     map_api_state_to_status,
 )
 from micboard.services.deduplication.check import check_device
 from micboard.services.deduplication.identity_mutation_lock import (
     DeviceIdentityMutationLockService,
 )
+from micboard.services.hardware.dtos import WirelessChassisWrite
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
 from micboard.utils.mac_address import canonicalize_mac_address
 
 if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.models.locations.structure import Location
 
 logger = logging.getLogger(__name__)
@@ -46,7 +50,7 @@ class ImportService:
         ):
             transition_statuses.insert(0, HardwareStatus.PROVISIONING.value)
 
-        lifecycle = get_lifecycle_manager(service_code=getattr(chassis.manufacturer, "code", None))
+        lifecycle = HardwareLifecycleManager()
         metadata = {
             "source": "import",
             "server_id": server_id,
@@ -101,17 +105,6 @@ class ImportService:
             "discovered",
         )
 
-        chassis_defaults = {
-            "model": model or "Unknown",
-            "role": role,
-            "ip": ip,
-            "mac_address": mac,
-            "location": location,
-            "status": status,
-            "is_online": status == "online",
-            "api_device_id": api_device_id,
-        }
-
         with DeviceIdentityMutationLockService.acquire(
             manufacturer=manufacturer
         ) as locked_manufacturer:
@@ -132,22 +125,35 @@ class ImportService:
                 return (chassis is None, chassis is not None)
 
             if chassis is None:
-                WirelessChassis.objects.create(
+                WirelessChassisPersistenceService.create(
                     manufacturer=locked_manufacturer,
-                    serial_number=serial,
-                    **chassis_defaults,
+                    write=WirelessChassisWrite(
+                        serial_number=serial,
+                        model=model or "Unknown",
+                        role=role,
+                        ip=ip,
+                        mac_address=mac,
+                        location=location,
+                        status=status,
+                        is_online=status == "online",
+                        api_device_id=api_device_id,
+                    ),
                 )
                 return True, False
 
-            metadata_updates = {
-                field: chassis_defaults[field]
-                for field in ("model", "role", "ip", "location", "api_device_id")
-            }
+            metadata_write = WirelessChassisWrite(
+                model=model or "Unknown",
+                role=role,
+                ip=ip,
+                location=location,
+                api_device_id=api_device_id,
+            )
             if mac is not None:
-                metadata_updates["mac_address"] = mac
-            for field, value in metadata_updates.items():
-                setattr(chassis, field, value)
-            chassis.save(update_fields=list(metadata_updates))
+                metadata_write = metadata_write.model_copy(update={"mac_address": mac})
+            WirelessChassisPersistenceService.update(
+                chassis=chassis,
+                write=metadata_write,
+            )
 
             if status != chassis.status:
                 self._reconcile_status(
@@ -168,7 +174,10 @@ class ImportService:
         return "receiver"
 
     def import_from_servers(
-        self, api_servers: dict, manufacturer, options: dict
+        self,
+        api_servers: dict[str, dict[str, Any]],
+        manufacturer: Manufacturer,
+        options: dict[str, Any],
     ) -> tuple[int, int, int]:
         """Import devices from multiple API servers.
 

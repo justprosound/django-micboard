@@ -26,6 +26,12 @@ from micboard.services.manufacturer.secret_redaction import redact_secrets
 logger = logging.getLogger(__name__)
 
 
+def _json_safe(value: dict[str, Any] | None) -> dict[str, Any]:
+    """Return redacted JSON-compatible audit metadata."""
+    redacted = redact_secrets(value or {})
+    return json.loads(json.dumps(redacted, cls=DjangoJSONEncoder))
+
+
 class AuditService:
     """Business logic for audit logs and data retention."""
 
@@ -56,10 +62,10 @@ class AuditService:
             "user": actor,
             "activity_type": activity_type,
             "operation": operation,
-            "summary": summary,
-            "details": redact_secrets(details or {}),
-            "old_values": redact_secrets(old_values or {}),
-            "new_values": redact_secrets(new_values or {}),
+            "summary": summary[:255],
+            "details": _json_safe(details),
+            "old_values": _json_safe(old_values),
+            "new_values": _json_safe(new_values),
             "status": status,
             "error_message": error_message or "",
         }
@@ -71,7 +77,9 @@ class AuditService:
         if request:
             # Safely extract IP and User Agent if request object is provided
             log_data["ip_address"] = getattr(request, "META", {}).get("REMOTE_ADDR")
-            log_data["user_agent"] = getattr(request, "META", {}).get("HTTP_USER_AGENT")
+            log_data["user_agent"] = (getattr(request, "META", {}).get("HTTP_USER_AGENT") or "")[
+                :255
+            ]
 
         return ActivityLog.objects.using(using).create(**log_data)
 

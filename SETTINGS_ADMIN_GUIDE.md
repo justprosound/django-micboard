@@ -111,26 +111,15 @@ When you enter a value, the system validates it based on type:
 
 ---
 
-## 🔍 Scope Hierarchy (How Values Are Resolved)
+## 🔍 Exact Scope (How Values Are Resolved)
 
-Settings are looked up in this order. The **first one found** is used:
+Each setting definition declares exactly one scope. A manufacturer definition checks the selected
+manufacturer only; site and organization definitions behave the same way for their own scope.
+Global definitions check only the global row. Missing rows use host/package/definition defaults;
+they never fall through to another tenant scope.
 
-```
-1. Manufacturer-specific setting (if applicable)
-   ↓ if not found
-2. Site-specific setting (if applicable)
-   ↓ if not found
-3. Organization-specific setting
-   ↓ if not found
-4. Global setting
-   ↓ if not found
-5. Default value (built into system)
-```
-
-**Example**: Battery low threshold for Shure microphones at NYC site:
-1. Check if **NYC Site** has a Shure battery setting → **NOT found**
-2. Check if **Your Organization** has a Shure battery setting → **Found: 22%** ✓ **USE THIS**
-3. (Would check global, then default, but we already found it)
+**Example**: A manufacturer-scoped battery threshold for Shure uses the Shure row. An organization
+or site row with the same key is invalid and cannot override that definition.
 
 ---
 
@@ -242,7 +231,7 @@ Settings are looked up in this order. The **first one found** is used:
 
 ```bash
 # Initialize all settings
-uv run --no-sync python manage.py init_settings --manufacturer-defaults
+uv run --no-sync python manage.py init_settings
 
 # Verify
 # Go to Admin → Setting Definition
@@ -305,7 +294,7 @@ A: Yes! Use **Site** scope to set per-location configs.
 A: Yes! Use **Manufacturer** scope to set per-brand configs.
 
 **Q: What if I set conflicting values at different scopes?**
-A: The **most specific scope** wins. So Manufacturer > Site > Organization > Global
+A: The definition permits only one scope, so supported forms reject conflicting cross-scope rows.
 
 **Q: How do I know what value to use?**
 A: See the "What Values Should I Set?" section above.

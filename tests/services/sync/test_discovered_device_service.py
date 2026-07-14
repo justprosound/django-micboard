@@ -5,31 +5,16 @@ from __future__ import annotations
 import pytest
 
 from micboard.models.discovery.registry import DiscoveredDevice
-from micboard.services.core.device_metadata import ShureMetadataAccessor
 from micboard.services.sync.discovered_device_service import (
     can_promote_device_to_chassis,
     get_device_communication_protocol,
     get_device_incompatibility_reason,
-    get_device_metadata_accessor,
     is_device_manageable,
 )
 from tests.factories.discovery import DiscoveredDeviceFactory, ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
 
 pytestmark = pytest.mark.django_db
-
-
-def test_metadata_accessor_uses_discovered_manufacturer_and_payload() -> None:
-    """Lifecycle policy delegates vendor metadata interpretation to its strategy."""
-    device = DiscoveredDeviceFactory.build(
-        manufacturer=ManufacturerFactory.build(code="shure"),
-        metadata={"deviceState": "ONLINE"},
-    )
-
-    accessor = get_device_metadata_accessor(device)
-
-    assert isinstance(accessor, ShureMetadataAccessor)
-    assert accessor.get_device_state() == "ONLINE"
 
 
 @pytest.mark.parametrize(

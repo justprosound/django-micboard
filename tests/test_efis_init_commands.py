@@ -66,21 +66,15 @@ def test_efis_command_reports_previous_import(monkeypatch) -> None:
     assert f"Last import: {previous}" in output.getvalue()
 
 
-def test_init_settings_reset_defaults_and_creation_counts(monkeypatch) -> None:
+def test_init_settings_reset_and_creation_counts(monkeypatch) -> None:
     all_definitions = MagicMock()
     monkeypatch.setattr(
         init_command.SettingDefinition.objects, "all", Mock(return_value=all_definitions)
     )
-    monkeypatch.setattr(
-        init_command.ManufacturerConfigRegistry,
-        "initialize_defaults",
-        Mock(),
-    )
     command = init_command.Command(stdout=StringIO())
     command._initialize_definitions = Mock(return_value=4)
-    command.handle(reset=True, manufacturer_defaults=True)
+    command.handle(reset=True)
     all_definitions.delete.assert_called_once_with()
-    init_command.ManufacturerConfigRegistry.initialize_defaults.assert_called_once_with()
 
     created_definition = object()
     monkeypatch.setattr(
@@ -93,13 +87,10 @@ def test_init_settings_reset_defaults_and_creation_counts(monkeypatch) -> None:
     assert init_command.SettingDefinition.objects.get_or_create.call_count == 17
 
 
-def test_init_settings_without_optional_actions(monkeypatch) -> None:
+def test_init_settings_without_reset(monkeypatch) -> None:
     command = init_command.Command(stdout=StringIO())
     command._initialize_definitions = Mock(return_value=0)
     delete = Mock()
     monkeypatch.setattr(init_command.SettingDefinition.objects, "all", delete)
-    initialize = Mock()
-    monkeypatch.setattr(init_command.ManufacturerConfigRegistry, "initialize_defaults", initialize)
-    command.handle(reset=False, manufacturer_defaults=False)
+    command.handle(reset=False)
     delete.assert_not_called()
-    initialize.assert_not_called()

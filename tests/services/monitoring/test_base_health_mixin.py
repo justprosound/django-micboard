@@ -1,4 +1,4 @@
-"""Standardized and aggregate health-check contracts."""
+"""Standardized health-check contracts."""
 
 from __future__ import annotations
 
@@ -6,10 +6,7 @@ import logging
 
 import pytest
 
-from micboard.services.monitoring.base_health_mixin import (
-    AggregatedHealthChecker,
-    HealthCheckMixin,
-)
+from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
 
 
 class _Checker(HealthCheckMixin):
@@ -103,82 +100,20 @@ def test_parser_extracts_errors_and_retains_unrecognized_detail(
 
 
 @pytest.mark.parametrize(
-    ("result", "healthy", "degraded", "unhealthy"),
+    ("result", "healthy"),
     [
-        ({"status": "healthy"}, True, False, False),
-        ({"status": "degraded"}, False, True, False),
-        ({"status": "unhealthy"}, False, False, True),
-        ({"status": "error"}, False, False, True),
-        ({}, False, False, False),
+        ({"status": "healthy"}, True),
+        ({"status": "degraded"}, False),
+        ({"status": "unhealthy"}, False),
+        ({"status": "error"}, False),
+        ({}, False),
     ],
 )
 def test_health_predicates_follow_standard_status(
     result: dict,
     healthy: bool,
-    degraded: bool,
-    unhealthy: bool,
 ) -> None:
-    """Convenience predicates remain direct projections of check results."""
+    """The health predicate remains a direct projection of the standardized result."""
     checker = _Checker(result)
 
     assert checker.is_healthy() is healthy
-    assert checker.is_degraded() is degraded
-    assert checker.is_unhealthy() is unhealthy
-
-
-def test_empty_aggregate_has_unknown_health() -> None:
-    """An aggregator with no registered probes does not claim success."""
-    result = AggregatedHealthChecker().get_overall_health()
-
-    assert result["overall_status"] == "unknown"
-    assert result["details"] == {}
-
-
-def test_aggregate_preserves_worst_status_and_failed_checks(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The worst result wins and probe exceptions become named error details."""
-    aggregate = AggregatedHealthChecker()
-    aggregate.add_check("healthy", _Checker({"status": "healthy"}))
-    aggregate.add_check("degraded", _Checker({"status": "degraded"}))
-    aggregate.add_check("unhealthy", _Checker({"status": "unhealthy"}))
-    aggregate.add_check("error", _Checker({"status": "error"}))
-    aggregate.add_check("late-degraded", _Checker({"status": "degraded"}))
-    aggregate.add_check("late-unhealthy", _Checker({"status": "unhealthy"}))
-    aggregate.add_check("failed", _Checker(RuntimeError("probe crashed")))
-
-    with caplog.at_level(logging.ERROR):
-        result = aggregate.get_overall_health()
-
-    assert result["overall_status"] == "error"
-    assert result["details"]["failed"]["status"] == "error"
-    assert result["details"]["failed"]["error"] == (
-        "Health check failed (RuntimeError); details redacted."
-    )
-    assert "probe crashed" not in str(result)
-    assert "Error checking health for failed" in caplog.messages
-
-
-def test_aggregate_selects_degraded_and_unhealthy_without_errors() -> None:
-    """Degraded and unhealthy remain distinct when no check reports an error."""
-    degraded = AggregatedHealthChecker()
-    degraded.add_check("healthy", _Checker({"status": "healthy"}))
-    degraded.add_check("degraded", _Checker({"status": "degraded"}))
-    assert degraded.get_overall_health()["overall_status"] == "degraded"
-
-    unhealthy = AggregatedHealthChecker()
-    unhealthy.add_check("unhealthy", _Checker({"status": "unhealthy"}))
-    unhealthy.add_check("degraded", _Checker({"status": "degraded"}))
-    assert unhealthy.get_overall_health()["overall_status"] == "unhealthy"
-
-
-def test_aggregate_filters_healthy_and_unhealthy_names() -> None:
-    """Named subsets support concise operator summaries."""
-    aggregate = AggregatedHealthChecker()
-    aggregate.add_check("healthy", _Checker({"status": "healthy"}))
-    aggregate.add_check("unhealthy", _Checker({"status": "unhealthy"}))
-    aggregate.add_check("error", _Checker({"status": "error"}))
-    aggregate.add_check("unknown", _Checker({}))
-
-    assert aggregate.get_healthy_checks() == ["healthy"]
-    assert aggregate.get_unhealthy_checks() == ["unhealthy", "error"]

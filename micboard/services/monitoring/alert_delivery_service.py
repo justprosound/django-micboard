@@ -12,10 +12,10 @@ from django.utils import timezone
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
-from micboard.models.rf_coordination import RFChannel
+from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.monitoring.alert_fanout_service import AlertFanoutService
-from micboard.services.notification.email import send_alert_email
+from micboard.services.notification.email import email_service
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ class AlertDeliveryService:
                     current_user.pk,
                 )
                 return
-            if not send_alert_email(alert, recipients=[recipient]):
+            if not email_service.send_alert_notification(alert, recipients=[recipient]):
                 alert.status = "failed"
                 alert.save(update_fields=["status"])
         except Exception as exc:

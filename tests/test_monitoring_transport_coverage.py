@@ -8,12 +8,15 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
-from micboard.models.discovery import Manufacturer
-from micboard.models.hardware import WirelessChassis
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.realtime import (
     shure_websocket_subscription_service as websocket_tasks,
 )
 from micboard.services.realtime import sse_subscription_service as sse_tasks
+from micboard.services.realtime.subscription_lifecycle_service import (
+    RealtimeSubscriptionLifecycleService,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -360,7 +363,7 @@ def test_websocket_reload_stops_after_manufacturer_deactivation(
 
 
 def test_get_or_create_sse_connection_updates_existing_tracking(monkeypatch) -> None:
-    from micboard.models.realtime import RealTimeConnection
+    from micboard.models.realtime.connection import RealTimeConnection
 
     manufacturer = object()
     plugin = SimpleNamespace(manufacturer=manufacturer)
@@ -399,7 +402,11 @@ def test_subscribe_sse_redacts_payloads_and_connectionless_failures(monkeypatch,
 
     plugin.connect_and_subscribe.side_effect = deliver
     process = AsyncMock()
-    monkeypatch.setattr(sse_tasks, "_process_sse_update_async", process)
+    monkeypatch.setattr(
+        sse_tasks.RealtimeSubscriptionLifecycleService,
+        "process_update",
+        process,
+    )
     monkeypatch.setattr(sse_tasks, "sync_to_async", direct_sync_adapter)
     monkeypatch.setattr(
         sse_tasks,
@@ -409,7 +416,11 @@ def test_subscribe_sse_redacts_payloads_and_connectionless_failures(monkeypatch,
 
     asyncio.run(sse_tasks._subscribe_device_async(plugin, "one"))
 
-    process.assert_awaited_once_with(plugin, {"id": "one", "secret": secret})
+    process.assert_awaited_once_with(
+        plugin=plugin,
+        data={"id": "one", "secret": secret},
+        transport="sse",
+    )
     assert secret not in caplog.text
 
     failure_secret = "private-stream-credential"
@@ -447,67 +458,40 @@ def test_subscribe_sse_stops_before_outbound_when_manufacturer_deactivates(
     stopped.assert_called_once_with(connection)
 
 
-@pytest.mark.parametrize(
-    ("transformed", "updated_count", "expect_broadcast"),
-    [
-        (None, 0, False),
-        ({"name": "missing identifier"}, 0, False),
-        ({"api_device_id": "one"}, 0, False),
-        ({"api_device_id": "one"}, 1, True),
-    ],
-)
-def test_process_sse_update_branches(
-    monkeypatch, transformed, updated_count, expect_broadcast
-) -> None:
+def test_subscribe_sse_rejects_missing_manufacturer_identity(monkeypatch) -> None:
     plugin = SimpleNamespace(
-        manufacturer=object(),
-        transform_device_data=Mock(return_value=transformed),
+        manufacturer=SimpleNamespace(pk=None),
+        connect_and_subscribe=AsyncMock(),
     )
-    update = Mock(return_value=updated_count)
-    broadcast = AsyncMock()
-    monkeypatch.setattr(sse_tasks.DeviceUpdateService, "update_models_from_api_data", update)
-    monkeypatch.setattr(sse_tasks, "_broadcast_sse_update_async", broadcast)
+    create_connection = Mock()
+    monkeypatch.setattr(sse_tasks, "_get_or_create_sse_connection", create_connection)
+
+    asyncio.run(sse_tasks._subscribe_device_async(plugin, "one"))
+
+    create_connection.assert_not_called()
+    plugin.connect_and_subscribe.assert_not_awaited()
+
+
+def test_subscribe_sse_stops_connectionless_inactive_round(monkeypatch) -> None:
+    plugin = SimpleNamespace(
+        manufacturer=SimpleNamespace(pk=17),
+        connect_and_subscribe=AsyncMock(),
+    )
     monkeypatch.setattr(sse_tasks, "sync_to_async", direct_sync_adapter)
-
-    asyncio.run(sse_tasks._process_sse_update_async(plugin, {"raw": True}))
-
-    assert broadcast.await_count == int(expect_broadcast)
-
-    plugin.transform_device_data.side_effect = RuntimeError("bad payload")
-    asyncio.run(sse_tasks._process_sse_update_async(plugin, {"raw": True}))
-
-
-def test_sse_broadcast_serializes_chassis_and_async_errors(monkeypatch) -> None:
-    chassis = SimpleNamespace(
-        id=3,
-        api_device_id="one",
-        name="Receiver",
-        ip=None,
-        status="online",
-        model="EW-D",
-    )
-    monkeypatch.setattr(sse_tasks.WirelessChassis.objects, "get", Mock(return_value=chassis))
-    broadcast = Mock()
     monkeypatch.setattr(
-        "micboard.services.notification.broadcast_service.BroadcastService.broadcast_device_update",
-        broadcast,
+        sse_tasks,
+        "_get_or_create_sse_connection",
+        Mock(side_effect=WirelessChassis.DoesNotExist),
     )
-    manufacturer = object()
-    sse_tasks._broadcast_sse_update(manufacturer, "one")
-    assert broadcast.call_args.kwargs["data"]["receivers"][0]["ip"] is None
+    monkeypatch.setattr(
+        sse_tasks.ManufacturerActivationService,
+        "is_active",
+        Mock(return_value=False),
+    )
 
-    monkeypatch.setattr(sse_tasks, "sync_to_async", direct_sync_adapter)
-    wrapped = Mock()
-    monkeypatch.setattr(sse_tasks, "_broadcast_sse_update", wrapped)
-    asyncio.run(sse_tasks._broadcast_sse_update_async(manufacturer, {}))
-    wrapped.assert_not_called()
-    asyncio.run(sse_tasks._broadcast_sse_update_async(manufacturer, {"api_device_id": "one"}))
-    wrapped.assert_called_once_with(manufacturer, "one")
+    asyncio.run(sse_tasks._subscribe_device_async(plugin, "one"))
 
-    wrapped.side_effect = WirelessChassis.DoesNotExist
-    asyncio.run(sse_tasks._broadcast_sse_update_async(manufacturer, {"api_device_id": "missing"}))
-    wrapped.side_effect = RuntimeError("layer down")
-    asyncio.run(sse_tasks._broadcast_sse_update_async(manufacturer, {"api_device_id": "one"}))
+    plugin.connect_and_subscribe.assert_not_awaited()
 
 
 def test_start_websocket_subscriptions_handles_missing_and_empty_manufacturer(monkeypatch) -> None:
@@ -598,7 +582,7 @@ def test_start_websocket_subscriptions_handles_empty_iteration_after_existence_c
 
 
 def test_get_or_create_websocket_connection_updates_existing_tracking(monkeypatch) -> None:
-    from micboard.models.realtime import RealTimeConnection
+    from micboard.models.realtime.connection import RealTimeConnection
 
     chassis = object()
     connection = SimpleNamespace(connection_type="sse", save=Mock())
@@ -647,6 +631,48 @@ def test_websocket_subscription_redacts_preconnection_and_close_errors(monkeypat
     client.close.assert_called_once_with()
     assert tracking_secret not in caplog.text
     assert close_secret not in caplog.text
+
+
+def test_websocket_callback_delegates_to_shared_lifecycle(monkeypatch) -> None:
+    plugin = SimpleNamespace(manufacturer=SimpleNamespace(pk=18))
+    chassis = SimpleNamespace(
+        pk=28,
+        ip="192.0.2.28",
+        port=443,
+        api_device_id="one",
+    )
+    client = SimpleNamespace(close=Mock())
+    process = AsyncMock()
+
+    async def deliver(_client, _device_id, callback):
+        await callback({"id": "one"})
+
+    monkeypatch.setattr(websocket_tasks, "sync_to_async", direct_sync_adapter)
+    monkeypatch.setattr(
+        websocket_tasks,
+        "_get_or_create_websocket_connection",
+        Mock(return_value=object()),
+    )
+    monkeypatch.setattr(websocket_tasks, "received_message", Mock())
+    monkeypatch.setattr(
+        "micboard.integrations.shure.client.ShureSystemAPIClient",
+        Mock(return_value=client),
+    )
+    monkeypatch.setattr(websocket_tasks, "connect_and_subscribe", AsyncMock(side_effect=deliver))
+    monkeypatch.setattr(
+        websocket_tasks.RealtimeSubscriptionLifecycleService,
+        "process_update",
+        process,
+    )
+
+    asyncio.run(websocket_tasks._start_receiver_websocket_async(plugin, chassis))
+
+    process.assert_awaited_once_with(
+        plugin=plugin,
+        data={"id": "one"},
+        transport="websocket",
+    )
+    client.close.assert_called_once_with()
 
 
 def test_websocket_subscription_uses_bracketed_ipv6_origin(monkeypatch) -> None:
@@ -717,76 +743,36 @@ def test_websocket_subscription_stops_before_outbound_when_manufacturer_deactiva
     client.close.assert_called_once_with()
 
 
-@pytest.mark.parametrize(
-    ("transformed", "updated_count", "expect_broadcast"),
-    [
-        (None, 0, False),
-        ({"name": "missing identifier"}, 0, False),
-        ({"api_device_id": "one"}, 0, False),
-        ({"api_device_id": "one"}, 1, True),
-    ],
-)
-def test_process_websocket_update_branches(
-    monkeypatch, transformed, updated_count, expect_broadcast
-) -> None:
-    plugin = SimpleNamespace(
-        manufacturer=object(),
-        transform_device_data=Mock(return_value=transformed),
-    )
-    update = Mock(return_value=updated_count)
-    broadcast = AsyncMock()
-    monkeypatch.setattr(websocket_tasks.DeviceUpdateService, "update_models_from_api_data", update)
-    monkeypatch.setattr(websocket_tasks, "_broadcast_websocket_update_async", broadcast)
-    monkeypatch.setattr(websocket_tasks, "sync_to_async", direct_sync_adapter)
-
-    asyncio.run(websocket_tasks._process_websocket_update_async(plugin, {"raw": True}))
-    assert broadcast.await_count == int(expect_broadcast)
-
-    plugin.transform_device_data.side_effect = RuntimeError("bad payload")
-    asyncio.run(websocket_tasks._process_websocket_update_async(plugin, {"raw": True}))
-
-
-def test_websocket_broadcast_serializes_chassis_and_async_errors(monkeypatch) -> None:
-    from micboard.models.hardware import WirelessChassis as ChassisModel
-
+def test_websocket_subscription_rejects_missing_manufacturer_identity(monkeypatch) -> None:
+    plugin = SimpleNamespace(manufacturer=SimpleNamespace(pk=None))
     chassis = SimpleNamespace(
-        id=3,
+        pk=28,
+        ip="192.0.2.28",
+        port=443,
         api_device_id="one",
-        name="Receiver",
-        ip="192.0.2.1",
-        status="online",
-        model="ULXD",
     )
-    monkeypatch.setattr(ChassisModel.objects, "get", Mock(return_value=chassis))
-    broadcast = Mock()
-    monkeypatch.setattr(
-        "micboard.services.notification.broadcast_service.BroadcastService.broadcast_device_update",
-        broadcast,
-    )
-    manufacturer = object()
-    websocket_tasks._broadcast_websocket_update(manufacturer, "one")
-    assert broadcast.call_args.kwargs["data"]["receivers"][0]["ip"] == "192.0.2.1"
-
+    connection = object()
+    client = SimpleNamespace(close=Mock())
+    stopped = Mock()
+    connect = AsyncMock()
     monkeypatch.setattr(websocket_tasks, "sync_to_async", direct_sync_adapter)
-    wrapped = Mock()
-    monkeypatch.setattr(websocket_tasks, "_broadcast_websocket_update", wrapped)
-    asyncio.run(websocket_tasks._broadcast_websocket_update_async(manufacturer, {}))
-    wrapped.assert_not_called()
-    asyncio.run(
-        websocket_tasks._broadcast_websocket_update_async(manufacturer, {"api_device_id": "one"})
+    monkeypatch.setattr(
+        websocket_tasks,
+        "_get_or_create_websocket_connection",
+        Mock(return_value=connection),
     )
-    wrapped.assert_called_once_with(manufacturer, "one")
+    monkeypatch.setattr(
+        "micboard.integrations.shure.client.ShureSystemAPIClient",
+        Mock(return_value=client),
+    )
+    monkeypatch.setattr(websocket_tasks, "mark_stopped", stopped)
+    monkeypatch.setattr(websocket_tasks, "connect_and_subscribe", connect)
 
-    wrapped.side_effect = ChassisModel.DoesNotExist
-    asyncio.run(
-        websocket_tasks._broadcast_websocket_update_async(
-            manufacturer, {"api_device_id": "missing"}
-        )
-    )
-    wrapped.side_effect = RuntimeError("layer down")
-    asyncio.run(
-        websocket_tasks._broadcast_websocket_update_async(manufacturer, {"api_device_id": "one"})
-    )
+    asyncio.run(websocket_tasks._start_receiver_websocket_async(plugin, chassis))
+
+    stopped.assert_called_once_with(connection)
+    connect.assert_not_awaited()
+    client.close.assert_called_once_with()
 
 
 def test_realtime_transport_logs_exclude_vendor_and_device_sentinels(
@@ -818,7 +804,13 @@ def test_realtime_transport_logs_exclude_vendor_and_device_sentinels(
         Mock(side_effect=WirelessChassis.DoesNotExist),
     )
     asyncio.run(sse_tasks._subscribe_device_async(sse_plugin, device_id))
-    asyncio.run(sse_tasks._process_sse_update_async(sse_plugin, {}))
+    asyncio.run(
+        RealtimeSubscriptionLifecycleService.process_update(
+            plugin=sse_plugin,
+            data={},
+            transport="sse",
+        )
+    )
 
     websocket_plugin = SimpleNamespace(
         manufacturer=manufacturer,
@@ -838,7 +830,13 @@ def test_realtime_transport_logs_exclude_vendor_and_device_sentinels(
         Mock(side_effect=RuntimeError(transport_secret)),
     )
     asyncio.run(websocket_tasks._start_receiver_websocket_async(websocket_plugin, chassis))
-    asyncio.run(websocket_tasks._process_websocket_update_async(websocket_plugin, {}))
+    asyncio.run(
+        RealtimeSubscriptionLifecycleService.process_update(
+            plugin=websocket_plugin,
+            data={},
+            transport="websocket",
+        )
+    )
 
     for sentinel in (
         manufacturer_code,

@@ -14,10 +14,19 @@ from micboard.services.notification.device_broadcast_dtos import DeviceBroadcast
 from micboard.services.notification.device_broadcast_service import (
     DeviceSnapshotBroadcastService,
 )
-from micboard.services.sync.hardware_sync_service import HardwareSyncService
 from micboard.services.sync.polling_service import PollingService
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
+
+
+@pytest.fixture(autouse=True)
+def _disable_sync_audit() -> Any:
+    """Keep orchestration unit tests independent from audit persistence."""
+    with patch(
+        "micboard.services.maintenance.sync_audit_service."
+        "ServiceSyncAuditService.record_poll_result"
+    ) as record:
+        yield record
 
 
 def _manufacturer(code: str = "test") -> Any:
@@ -25,34 +34,15 @@ def _manufacturer(code: str = "test") -> Any:
 
 
 @patch(
-    "micboard.services.sync.hardware_sync_service."
-    "ManufacturerSyncService.sync_devices_for_manufacturer"
+    "micboard.services.sync.polling_service.ManufacturerSyncService.sync_devices_for_manufacturer"
 )
-def test_hardware_sync_preserves_inventory_limit_metadata(sync_manufacturer: MagicMock) -> None:
-    """The compatibility service retains bounded-inventory metadata for task callers."""
-    sync_manufacturer.return_value = {
-        "success": False,
-        "devices_added": 0,
-        "devices_updated": 0,
-        "devices_removed": 0,
-        "errors": ["inventory incomplete"],
-        "devices_examined": 501,
-        "device_limit": 500,
-        "inventory_complete": False,
-    }
-
-    result = HardwareSyncService.sync_devices(manufacturer_code="test", force=True)
-
-    assert result["devices_examined"] == 501
-    assert result["device_limit"] == 500
-    assert result["inventory_complete"] is False
-    sync_manufacturer.assert_called_once_with(manufacturer_code="test", force=True)
-
-
-@patch("micboard.services.sync.hardware_sync_service.HardwareSyncService.sync_devices")
 def test_poll_manufacturer_broadcasts_persisted_state_once(sync_devices: MagicMock) -> None:
     manufacturer = _manufacturer()
-    sync_devices.return_value = {"created": 2, "updated": 1, "errors": 0}
+    sync_devices.return_value = {
+        "devices_added": 2,
+        "devices_updated": 1,
+        "errors": [],
+    }
     service = cast(Any, PollingService())
     service.broadcast_device_updates = Mock()
 
@@ -64,11 +54,13 @@ def test_poll_manufacturer_broadcasts_persisted_state_once(sync_devices: MagicMo
     service.broadcast_device_updates.assert_called_once_with(manufacturer, result)
 
 
-@patch("micboard.services.sync.hardware_sync_service.HardwareSyncService.sync_devices")
+@patch(
+    "micboard.services.sync.polling_service.ManufacturerSyncService.sync_devices_for_manufacturer"
+)
 def test_poll_manufacturer_propagates_explicit_force(sync_devices: MagicMock) -> None:
     """The operator force override reaches the locked persistence boundary."""
     manufacturer = _manufacturer()
-    sync_devices.return_value = {"created": 0, "updated": 0, "errors": 0}
+    sync_devices.return_value = {"devices_added": 0, "devices_updated": 0, "errors": []}
     service = cast(Any, PollingService())
     service.broadcast_device_updates = Mock()
 
@@ -77,14 +69,16 @@ def test_poll_manufacturer_propagates_explicit_force(sync_devices: MagicMock) ->
     sync_devices.assert_called_once_with(manufacturer_code="test", force=True)
 
 
-@patch("micboard.services.sync.hardware_sync_service.HardwareSyncService.sync_devices")
+@patch(
+    "micboard.services.sync.polling_service.ManufacturerSyncService.sync_devices_for_manufacturer"
+)
 def test_poll_manufacturer_propagates_incomplete_inventory(sync_devices: MagicMock) -> None:
     """The Huey-facing result exposes fail-closed vendor inventory overflow."""
     manufacturer = _manufacturer()
     sync_devices.return_value = {
-        "created": 0,
-        "updated": 0,
-        "errors": 1,
+        "devices_added": 0,
+        "devices_updated": 0,
+        "errors": ["inventory incomplete"],
         "devices_examined": 501,
         "device_limit": 500,
         "inventory_complete": False,
@@ -100,7 +94,9 @@ def test_poll_manufacturer_propagates_incomplete_inventory(sync_devices: MagicMo
     service.broadcast_device_updates.assert_not_called()
 
 
-@patch("micboard.services.sync.hardware_sync_service.HardwareSyncService.sync_devices")
+@patch(
+    "micboard.services.sync.polling_service.ManufacturerSyncService.sync_devices_for_manufacturer"
+)
 def test_poll_manufacturer_redacts_sync_failure(
     sync_devices: MagicMock,
     caplog,

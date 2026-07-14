@@ -64,9 +64,7 @@ class SennheiserPlugin(ManufacturerPlugin):
         callback: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
         """Establish SSE connection and subscribe to Sennheiser device updates."""
-        from .sse_client import connect_and_subscribe
-
-        await connect_and_subscribe(self.client, device_id, callback)
+        await self.client.connect_and_subscribe(device_id, callback)
 
     def is_healthy(self) -> bool:
         """Check if the Sennheiser SSCv2 API client is healthy."""

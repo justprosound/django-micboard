@@ -222,9 +222,9 @@ ws://your-server/ws
 Implement health check endpoints:
 
 ```python
-from micboard.services.monitoring.connection import ConnectionHealthService
+from micboard.services.realtime.health_service import RealtimeConnectionHealthService
 
-# Query connected hardware integrations
-active_connections = ConnectionHealthService.get_active_connections()
-print(f"Active real-time connections: {active_connections.count()}")
+# Return one bounded, typed status aggregate.
+summary = RealtimeConnectionHealthService.summarize()
+print(f"Active real-time connections: {summary.connected}")
 ```

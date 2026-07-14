@@ -10,7 +10,9 @@ import pytest
 
 from micboard.discovery.limits import (
     MAX_DISCOVERY_CANDIDATES,
+    MAX_DISCOVERY_METADATA_DEPTH,
     MAX_DISCOVERY_METADATA_FIELDS,
+    MAX_DISCOVERY_METADATA_LIST_ITEMS,
     MAX_DISCOVERY_METADATA_STRING_LENGTH,
 )
 from micboard.services.manufacturer.secret_redaction import REDACTED_VALUE
@@ -121,6 +123,48 @@ def test_normalize_device_redacts_and_bounds_nested_metadata() -> None:
     assert "token-secret-sentinel" not in str(metadata)
 
 
+def test_normalize_device_detects_secrets_before_key_truncation() -> None:
+    """Long and camel-case secret keys cannot evade bounded metadata redaction."""
+    long_key = "x" * MAX_DISCOVERY_METADATA_STRING_LENGTH + "_apiToken"
+    sentinel = "PRIVATE-METADATA-SENTINEL"
+    device = {
+        "id": "receiver-long-secret",
+        "serial": "serial-long-secret",
+        "ip": "192.0.2.39",
+        long_key: sentinel,
+        "nested": {"privateKey": sentinel},
+    }
+
+    normalized = DiscoveryQueueService.normalize_device(device)
+
+    assert normalized is not None
+    metadata = normalized["metadata"]
+    assert metadata[long_key[:MAX_DISCOVERY_METADATA_STRING_LENGTH]] == REDACTED_VALUE
+    assert metadata["nested"]["privateKey"] == REDACTED_VALUE
+    assert sentinel not in str(metadata)
+
+
+def test_normalize_device_bounds_nested_lists_and_depth() -> None:
+    """Secret-safe traversal retains its list and recursion resource ceilings."""
+    nested: object = "leaf"
+    for _ in range(MAX_DISCOVERY_METADATA_DEPTH + 1):
+        nested = {"next": nested}
+    device = {
+        "id": "receiver-bounded-nesting",
+        "serial": "serial-bounded-nesting",
+        "ip": "192.0.2.40",
+        "items": list(range(MAX_DISCOVERY_METADATA_LIST_ITEMS + 1)),
+        "nested": nested,
+    }
+
+    normalized = DiscoveryQueueService.normalize_device(device)
+
+    assert normalized is not None
+    metadata = normalized["metadata"]
+    assert metadata["items"][-1] == "<truncated>"
+    assert "<truncated>" in str(metadata["nested"])
+
+
 def test_normalize_device_rejects_oversized_identifiers_and_bounds_display_fields() -> None:
     oversized_identifier = {
         "id": "receiver",
@@ -227,14 +271,6 @@ def test_upsert_refreshes_conflict_snapshot_without_mutating_input(created: bool
         reviewed_at=None,
         reviewed_by_id=None,
         status="pending",
-        check_for_duplicates=Mock(
-            return_value={
-                "is_duplicate": True,
-                "is_ip_conflict": True,
-                "existing_device": "chassis",
-                "existing_charger": "charger",
-            }
-        ),
         save=Mock(),
     )
     device_data = {"serial_number": "serial-24", "ip": "192.0.2.24"}
@@ -243,7 +279,20 @@ def test_upsert_refreshes_conflict_snapshot_without_mutating_input(created: bool
         "micboard.services.sync.discovery_queue_service.DiscoveryQueue.objects.update_or_create"
     )
 
-    with patch(manager_path, return_value=(queue_entry, created)) as update_or_create:
+    conflicts = SimpleNamespace(
+        is_duplicate=True,
+        is_ip_conflict=True,
+        existing_device="chassis",
+        existing_charger="charger",
+    )
+    with (
+        patch(manager_path, return_value=(queue_entry, created)) as update_or_create,
+        patch(
+            "micboard.services.deduplication.queue_conflict_service."
+            "DiscoveryQueueConflictService.check",
+            return_value=conflicts,
+        ),
+    ):
         DiscoveryQueueService.upsert(SimpleNamespace(), device_data, summary)
 
     update_or_create.assert_called_once_with(
@@ -350,7 +399,7 @@ def test_new_discovery_uses_pending_workflow_defaults() -> None:
 def test_poll_and_persist_handles_empty_and_mixed_payloads() -> None:
     summary = DiscoverySyncSummary(manufacturer=1)
     empty_plugin = SimpleNamespace(get_devices=Mock(return_value=None))
-    assert DiscoveryQueueService.poll_and_persist(SimpleNamespace(), empty_plugin, summary) == []
+    assert DiscoveryQueueService.poll_and_persist(SimpleNamespace(), empty_plugin, summary) is None
 
     devices = [{"id": "valid"}, {"id": "invalid"}]
     plugin = SimpleNamespace(get_devices=Mock(return_value=devices))
@@ -363,7 +412,7 @@ def test_poll_and_persist_handles_empty_and_mixed_payloads() -> None:
         ),
         patch.object(DiscoveryQueueService, "upsert") as upsert,
     ):
-        assert DiscoveryQueueService.poll_and_persist(SimpleNamespace(), plugin, summary) == devices
+        assert DiscoveryQueueService.poll_and_persist(SimpleNamespace(), plugin, summary) is None
 
     upsert.assert_called_once_with(
         upsert.call_args.args[0],
@@ -387,13 +436,12 @@ def test_poll_and_persist_bounds_raw_vendor_iterable_and_marks_incomplete() -> N
         patch.object(DiscoveryQueueService, "normalize_device", return_value=None),
         patch.object(DiscoveryQueueService, "upsert") as upsert,
     ):
-        returned = DiscoveryQueueService.poll_and_persist(
+        DiscoveryQueueService.poll_and_persist(
             SimpleNamespace(),
             plugin,
             summary,
         )
 
     assert consumed == MAX_DISCOVERY_CANDIDATES + 1
-    assert len(returned) == MAX_DISCOVERY_CANDIDATES
     assert summary.errors == [INCOMPLETE_VENDOR_PAYLOAD_REASON]
     upsert.assert_not_called()

@@ -98,7 +98,9 @@ def test_msp_broadcast_explicit_and_embedded_scopes(monkeypatch) -> None:
         data={"organization_id": 20, "campus_id": 21},
     )
     monkeypatch.setattr(
-        RealtimeRoutingService, "chassis_tenant_scope", Mock(return_value=(30, None))
+        RealtimeRoutingService,
+        "chassis_tenant_scopes",
+        Mock(return_value={3: (30, None)}),
     )
     BroadcastService.broadcast_device_update(
         manufacturer=manufacturer,
@@ -121,7 +123,11 @@ def test_multisite_broadcast_resolution_and_fail_closed_paths(monkeypatch) -> No
     partition = Mock()
     monkeypatch.setattr(BroadcastService, "_send_for_scope", send_scope)
     monkeypatch.setattr(BroadcastService, "_broadcast_partitioned_site_data", partition)
-    monkeypatch.setattr(RealtimeRoutingService, "chassis_site_id", Mock(side_effect=[7, None]))
+    monkeypatch.setattr(
+        RealtimeRoutingService,
+        "chassis_site_ids",
+        Mock(side_effect=[{3: 7}, {}]),
+    )
     manufacturer = SimpleNamespace(code="vendor")
 
     BroadcastService.broadcast_device_update(

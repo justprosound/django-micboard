@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.deduplication.identity_resolution import (
+    resolve_mac_identity,
+    resolve_serial_identity,
+)
 from micboard.services.deduplication.result import DeduplicationResult
 from micboard.utils.mac_address import canonicalize_mac_address, mac_address_query_variants
 
@@ -39,8 +43,8 @@ def check_device(
         raise ValueError("Manufacturer is required for deduplication")
 
     mac_address = canonicalize_mac_address(mac_address)
-    serial_existing = _resolve_serial_identity(serial_number, identity_index)
-    mac_existing = _resolve_mac_identity(mac_address, identity_index)
+    serial_existing = resolve_serial_identity(serial_number, identity_index)
+    mac_existing = resolve_mac_identity(mac_address, identity_index)
     if durable_conflict := _check_durable_identity_conflict(
         serial_existing=serial_existing,
         mac_existing=mac_existing,
@@ -93,37 +97,7 @@ def check_device(
     if result:
         return result
 
-    return DeduplicationResult(is_new=True)
-
-
-def _resolve_serial_identity(
-    serial_number: str | None,
-    identity_index: DeviceIdentityIndex | None,
-) -> WirelessChassis | None:
-    """Resolve a supplied serial once so every durable identity can be validated."""
-    if not serial_number:
-        return None
-    if identity_index is not None:
-        return identity_index.serial(serial_number)
-    try:
-        return WirelessChassis.objects.get(serial_number=serial_number)
-    except WirelessChassis.DoesNotExist:
-        return None
-
-
-def _resolve_mac_identity(
-    mac_address: str | None,
-    identity_index: DeviceIdentityIndex | None,
-) -> WirelessChassis | None:
-    """Resolve a supplied canonical MAC once across indexed and query paths."""
-    if not mac_address:
-        return None
-    if identity_index is not None:
-        return identity_index.mac(mac_address)
-    try:
-        return WirelessChassis.objects.get(mac_address__in=mac_address_query_variants(mac_address))
-    except WirelessChassis.DoesNotExist:
-        return None
+    return DeduplicationResult.new()
 
 
 def _check_durable_identity_conflict(
@@ -157,103 +131,13 @@ def _check_durable_identity_conflict(
         serial_existing.pk,
         mac_existing.pk,
     )
-    return DeduplicationResult(
-        is_conflict=True,
+    return DeduplicationResult.conflict(
         conflict_type="durable_identity_mismatch",
         details={
             "serial_device_id": serial_existing.pk,
             "mac_device_id": mac_existing.pk,
         },
     )
-
-
-def find_duplicate(api_data: dict[str, Any], manufacturer: Manufacturer) -> WirelessChassis | None:
-    """Find an existing device matching the API data."""
-    serial = api_data.get("serial_number") or api_data.get("serialNumber")
-    mac = canonicalize_mac_address(api_data.get("mac_address") or api_data.get("macAddress"))
-    api_id = api_data.get("id") or api_data.get("api_device_id")
-    ip = api_data.get("ip") or api_data.get("ipAddress")
-
-    if serial:
-        chassis = WirelessChassis.objects.filter(serial_number=serial).first()
-        if chassis:
-            return chassis
-
-    if mac:
-        chassis = WirelessChassis.objects.filter(
-            mac_address__in=mac_address_query_variants(mac)
-        ).first()
-        if chassis:
-            return chassis
-
-    if api_id:
-        chassis = WirelessChassis.objects.filter(
-            manufacturer=manufacturer, api_device_id=api_id
-        ).first()
-        if chassis:
-            return chassis
-
-    if ip:
-        chassis = WirelessChassis.objects.filter(ip=ip).first()
-        if chassis:
-            return chassis
-
-    return None
-
-
-def check_api_id_conflicts(api_device_id: str, manufacturer: Manufacturer) -> tuple[int, list]:
-    """Check for duplicate API device IDs within same manufacturer."""
-    duplicates = WirelessChassis.objects.filter(
-        manufacturer=manufacturer,
-        api_device_id=api_device_id,
-    ).values_list("id", "name", "ip", "serial_number")
-
-    if len(duplicates) > 1:
-        logger.warning(
-            "Duplicate manufacturer API identity detected "
-            "(manufacturer=%s, conflict=api_device_id, count=%d, device_ids=%s)",
-            manufacturer.code,
-            len(duplicates),
-            [device_id for device_id, *_ in duplicates],
-        )
-
-    return len(duplicates), list(duplicates)
-
-
-def check_cross_vendor_api_id(
-    api_device_id: str, current_manufacturer: Manufacturer | None = None
-) -> list[tuple[str, int, list]]:
-    """Check if API device ID exists in other manufacturers.
-
-    Args:
-        api_device_id: Device identifier to check
-        current_manufacturer: Manufacturer to exclude from the check
-
-    Returns:
-        List of tuples (manufacturer_code, count, devices)
-    """
-    from micboard.models.discovery.manufacturer import Manufacturer
-
-    results: list[tuple[str, int, list]] = []
-    exclude_id = current_manufacturer.id if current_manufacturer else -1
-
-    for mfg in Manufacturer.objects.filter(is_active=True).exclude(id=exclude_id):
-        duplicates_qs = WirelessChassis.objects.filter(
-            manufacturer=mfg,
-            api_device_id=api_device_id,
-        )
-        cross_vendor_count = duplicates_qs.count()
-
-        if cross_vendor_count > 0:
-            logger.warning(
-                "Cross-vendor API identity detected "
-                "(manufacturer=%s, conflict=cross_vendor_api_device_id, count=%d)",
-                mfg.code,
-                cross_vendor_count,
-            )
-            results.append((mfg.code, cross_vendor_count, list(duplicates_qs)))
-
-    return results
 
 
 def _check_by_serial(
@@ -287,9 +171,8 @@ def _check_by_serial(
                 existing.pk,
                 manufacturer.code,
             )
-            return DeduplicationResult(
-                is_moved=True,
-                existing_device=existing,
+            return DeduplicationResult.moved(
+                existing,
                 conflict_type="ip_changed",
                 details={
                     "old_ip": existing.ip,
@@ -298,10 +181,8 @@ def _check_by_serial(
                 },
             )
 
-        return DeduplicationResult(
-            is_duplicate=True,
-            existing_device=existing,
-            conflict_type="duplicate",
+        return DeduplicationResult.duplicate(
+            existing,
             details={"match_type": "serial_number"},
         )
 
@@ -345,9 +226,8 @@ def _check_by_mac(
                 existing.pk,
                 manufacturer.code,
             )
-            return DeduplicationResult(
-                is_moved=True,
-                existing_device=existing,
+            return DeduplicationResult.moved(
+                existing,
                 conflict_type="ip_changed",
                 details={
                     "old_ip": existing.ip,
@@ -356,10 +236,8 @@ def _check_by_mac(
                 },
             )
 
-        return DeduplicationResult(
-            is_duplicate=True,
-            existing_device=existing,
-            conflict_type="duplicate",
+        return DeduplicationResult.duplicate(
+            existing,
             details={"match_type": "mac_address"},
         )
 
@@ -385,8 +263,7 @@ def _check_manufacturer_conflict(
         manufacturer.code,
         match_type,
     )
-    return DeduplicationResult(
-        is_conflict=True,
+    return DeduplicationResult.conflict(
         existing_device=existing,
         conflict_type="manufacturer_mismatch",
         details={
@@ -421,8 +298,7 @@ def _check_by_ip(
                 existing.pk,
                 manufacturer.code,
             )
-            return DeduplicationResult(
-                is_conflict=True,
+            return DeduplicationResult.conflict(
                 existing_device=existing,
                 conflict_type="ip_conflict",
                 details={
@@ -441,8 +317,7 @@ def _check_by_ip(
                 existing.pk,
                 manufacturer.code,
             )
-            return DeduplicationResult(
-                is_conflict=True,
+            return DeduplicationResult.conflict(
                 existing_device=existing,
                 conflict_type="ip_conflict",
                 details={
@@ -452,10 +327,8 @@ def _check_by_ip(
                 },
             )
 
-        return DeduplicationResult(
-            is_duplicate=True,
-            existing_device=existing,
-            conflict_type="duplicate",
+        return DeduplicationResult.duplicate(
+            existing,
             details={"match_type": "ip"},
         )
 
@@ -488,9 +361,8 @@ def _check_by_api_id(
                 existing.pk,
                 manufacturer.code,
             )
-            return DeduplicationResult(
-                is_moved=True,
-                existing_device=existing,
+            return DeduplicationResult.moved(
+                existing,
                 conflict_type="ip_changed",
                 details={
                     "old_ip": existing.ip,
@@ -499,10 +371,8 @@ def _check_by_api_id(
                 },
             )
 
-        return DeduplicationResult(
-            is_duplicate=True,
-            existing_device=existing,
-            conflict_type="duplicate",
+        return DeduplicationResult.duplicate(
+            existing,
             details={"match_type": "api_device_id"},
         )
 

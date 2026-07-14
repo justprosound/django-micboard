@@ -74,14 +74,7 @@ uv run --no-sync python manage.py migrate
 
 ### Settings Reference
 
-Import the multitenancy settings template:
-
-```python
-# settings.py
-from micboard.settings.multitenancy import *
-```
-
-Or customize individual settings:
+Configure the required values explicitly in the host settings module:
 
 ```python
 # Enable/disable features
@@ -123,7 +116,9 @@ org = Organization.objects.create(
 - `site` - Django Site FK
 - `is_active` - Active status
 - `subscription_tier` - 'basic', 'pro', 'enterprise'
-- `max_devices` - Device limit (null = unlimited)
+- `max_devices` - Organization-owned wireless chassis limit (`null` = unlimited). The canonical
+  chassis persistence service locks the organization and enforces this limit for new inventory and
+  ownership transfers; locationless platform inventory is outside organization quotas.
 - `logo` - Organization logo
 - `primary_color` - Brand color (hex)
 
@@ -432,9 +427,10 @@ print(f"User has {memberships.count()} active memberships")
 Verify feature flags:
 
 ```python
-from django.conf import settings
-print(f"Multi-site: {getattr(settings, 'MICBOARD_MULTI_SITE_MODE', False)}")
-print(f"MSP: {getattr(settings, 'MICBOARD_MSP_ENABLED', False)}")
+from micboard.services.settings.settings_service import settings as micboard_settings
+
+print(f"Multi-site: {micboard_settings.multi_site_mode}")
+print(f"MSP: {micboard_settings.msp_enabled}")
 ```
 
 ## API Reference

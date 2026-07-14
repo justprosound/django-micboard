@@ -8,7 +8,11 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from django.contrib.admin.sites import AdminSite
+from django.contrib.auth import get_user_model
+from django.db import connection
+from django.forms.models import model_to_dict
 from django.test import RequestFactory
+from django.test.utils import CaptureQueriesContext
 
 import pytest
 
@@ -16,10 +20,14 @@ from micboard.admin import (
     channels,
     chargers,
 )
+from micboard.admin.channel_forms import RFChannelAdminForm, WirelessUnitAdminForm
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.hardware.charger import ChargerSlot
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.rf_coordination.rf_channel import RFChannel
+from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
+from tests.factories.locations import BuildingFactory, LocationFactory
+from tests.factories.rf_coordination import RegulatoryDomainFactory, RFChannelFactory
 
 NOW = datetime(2026, 7, 14, 12, 0, tzinfo=UTC)
 
@@ -43,11 +51,86 @@ def test_rf_channel_queryset_annotation_and_active_unit_display() -> None:
         patch.object(channels.FrequencyBand.objects, "filter", return_value=bands),
         patch.object(channels, "Exists", return_value="exists"),
     ):
-        assert model_admin.get_queryset(_request()) is queryset.annotate.return_value
+        result = model_admin.get_queryset(_request())
+    assert result is queryset.annotate.return_value.annotate.return_value
     queryset.annotate.assert_called_once_with(_has_specific_band="exists")
     unit = SimpleNamespace(name="Mic", slot=2)
     assert "Mic" in model_admin.active_unit(SimpleNamespace(active_wireless_unit=unit))
     assert model_admin.active_unit(SimpleNamespace(active_wireless_unit=None)) == "✗ None"
+
+
+@pytest.mark.django_db
+def test_rf_channel_admin_form_rejects_units_from_another_chassis() -> None:
+    channel = RFChannelFactory()
+    foreign_unit = WirelessUnitFactory(
+        base_chassis=WirelessChassisFactory(max_channels=0),
+    )
+    data = model_to_dict(channel)
+    data["active_wireless_unit"] = foreign_unit.pk
+
+    form = RFChannelAdminForm(data=data, instance=channel)
+
+    assert not form.is_valid()
+    assert "selected chassis" in form.errors["active_wireless_unit"][0]
+
+
+@pytest.mark.django_db
+def test_wireless_unit_admin_form_rejects_resources_from_another_chassis() -> None:
+    unit = WirelessUnitFactory(base_chassis=WirelessChassisFactory(max_channels=0))
+    foreign_channel = RFChannelFactory()
+    data = model_to_dict(unit)
+    data["assigned_resource"] = foreign_channel.pk
+
+    form = WirelessUnitAdminForm(data=data, instance=unit)
+
+    assert not form.is_valid()
+    assert "base chassis" in form.errors["assigned_resource"][0]
+
+
+@pytest.mark.django_db
+def test_wireless_unit_regulatory_columns_have_constant_query_count() -> None:
+    user = get_user_model().objects.create_superuser(username="channel-query-admin")
+    request = RequestFactory().get("/admin/micboard/wirelessunit/")
+    request.user = user
+    model_admin = _admin(channels.WirelessUnitAdmin, WirelessUnit)
+    RegulatoryDomainFactory(country_code="US")
+    building = BuildingFactory(country="US", regulatory_domain=None)
+    location = LocationFactory(building=building)
+
+    def add_unit(index: int) -> None:
+        chassis = WirelessChassisFactory(
+            location=location,
+            max_channels=0,
+            wmas_capable=True,
+        )
+        channel = RFChannelFactory(
+            chassis=chassis,
+            channel_number=index,
+            frequency=500.0,
+            resource_state="active",
+        )
+        WirelessUnitFactory(
+            base_chassis=chassis,
+            assigned_resource=channel,
+            slot=index,
+        )
+
+    def render_statuses() -> int:
+        queryset = model_admin.get_queryset(request).select_related(
+            *model_admin.list_select_related
+        )
+        with CaptureQueriesContext(connection) as query_context:
+            [model_admin.regulatory_status_display(unit) for unit in queryset]
+        return len(query_context)
+
+    add_unit(1)
+    small_query_count = render_statuses()
+    for index in range(2, 6):
+        add_unit(index)
+    large_query_count = render_statuses()
+
+    assert large_query_count == small_query_count
+    assert large_query_count <= 2
 
 
 @pytest.mark.parametrize(
@@ -61,7 +144,12 @@ def test_rf_channel_queryset_annotation_and_active_unit_display() -> None:
                 ),
                 frequency=500,
             ),
-            None,
+            {
+                "regulatory_domain": None,
+                "needs_update": False,
+                "has_coverage": False,
+                "operating_frequency_mhz": 500,
+            },
             "No regulatory domain",
         ),
         (
@@ -81,7 +169,12 @@ def test_rf_channel_queryset_annotation_and_active_unit_display() -> None:
                 ),
                 frequency=500,
             ),
-            {"needs_update": True, "has_coverage": False, "operating_frequency_mhz": 500},
+            {
+                "regulatory_domain": "FCC",
+                "needs_update": True,
+                "has_coverage": False,
+                "operating_frequency_mhz": 500,
+            },
             "Missing coverage",
         ),
         (
@@ -91,7 +184,12 @@ def test_rf_channel_queryset_annotation_and_active_unit_display() -> None:
                 ),
                 frequency=500,
             ),
-            {"needs_update": False, "has_coverage": True, "operating_frequency_mhz": 500},
+            {
+                "regulatory_domain": "FCC",
+                "needs_update": False,
+                "has_coverage": True,
+                "operating_frequency_mhz": 500,
+            },
             "OK",
         ),
         (
@@ -101,7 +199,12 @@ def test_rf_channel_queryset_annotation_and_active_unit_display() -> None:
                 ),
                 frequency=500,
             ),
-            {"needs_update": False, "has_coverage": False, "operating_frequency_mhz": 500},
+            {
+                "regulatory_domain": "FCC",
+                "needs_update": False,
+                "has_coverage": False,
+                "operating_frequency_mhz": 500,
+            },
             "—",
         ),
     ],
@@ -192,7 +295,7 @@ def test_wireless_unit_battery_health_and_detail_displays() -> None:
 )
 def test_wireless_unit_regulatory_display_paths(status: dict[str, Any], expected: str) -> None:
     model_admin = _admin(channels.WirelessUnitAdmin, WirelessUnit)
-    with patch.object(channels, "get_regulatory_status", return_value=status):
+    with patch.object(channels, "get_regulatory_status_for_domain", return_value=status):
         assert expected in model_admin.regulatory_status_display(object())
 
 

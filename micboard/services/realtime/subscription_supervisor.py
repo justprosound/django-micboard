@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from itertools import islice
 from typing import Any, TypeVar
 
-from django.conf import settings
 from django.core.cache import caches
 from django.core.cache.backends.base import BaseCache
 from django.db import models
@@ -33,6 +32,7 @@ from micboard.services.realtime.subscription_dtos import (
     SubscriptionLimits,
     SubscriptionSelectionCursor,
 )
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ class RealtimeSubscriptionSupervisor:
         scope: str | int,
     ) -> RealtimeSubscriptionLease | None:
         """Acquire the singleton lease for a transport and manufacturer scope."""
-        cache_alias = getattr(settings, "MICBOARD_REALTIME_CACHE_ALIAS", "default")
+        cache_alias = micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default")
         cache_key = f"micboard:realtime-supervisor:v1:{transport}:{scope}"
         token = secrets.token_urlsafe(24)
 
@@ -224,9 +224,10 @@ class RealtimeSubscriptionSupervisor:
                 {subscription_group, lease_heartbeat},
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            if lease_heartbeat in completed:
-                await lease_heartbeat
-            await subscription_group
+            for completed_task in completed:
+                error = completed_task.exception()
+                if error is not None:
+                    raise error
         finally:
             subscription_group.cancel()
             lease_heartbeat.cancel()
@@ -323,7 +324,7 @@ class RealtimeSubscriptionSupervisor:
 
     @staticmethod
     def _read_selection_cursor(cursor_key: str) -> SubscriptionSelectionCursor:
-        cache_alias = getattr(settings, "MICBOARD_REALTIME_CACHE_ALIAS", "default")
+        cache_alias = micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default")
         try:
             cached_value = caches[cache_alias].get(cursor_key)
             if cached_value is None:
@@ -343,7 +344,7 @@ class RealtimeSubscriptionSupervisor:
         cursor_key: str,
         cursor: SubscriptionSelectionCursor,
     ) -> None:
-        cache_alias = getattr(settings, "MICBOARD_REALTIME_CACHE_ALIAS", "default")
+        cache_alias = micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default")
         try:
             caches[cache_alias].set(
                 cursor_key,
@@ -358,7 +359,7 @@ class RealtimeSubscriptionSupervisor:
 
 
 def _bounded_positive_setting(name: str, *, default: int, hard_limit: int) -> int:
-    raw_value = getattr(settings, name, default)
+    raw_value = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:
@@ -375,7 +376,7 @@ def _bounded_positive_float_setting(
     hard_limit: float,
     minimum: float = 1.0,
 ) -> float:
-    raw_value: Any = getattr(settings, name, default)
+    raw_value: Any = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:

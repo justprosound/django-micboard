@@ -72,7 +72,7 @@ def test_setting_definition_admin_displays_persistence_and_invalidation() -> Non
     with (
         patch.object(
             settings_admin.settings_presentation,
-            "is_sensitive_definition",
+            "is_key_sensitive",
             return_value=False,
         ),
         patch.object(
@@ -81,14 +81,12 @@ def test_setting_definition_admin_displays_persistence_and_invalidation() -> Non
     ):
         assert model_admin.default_value_display(obj) == "formatted"
     obj.parse_value.side_effect = ValueError("bad")
-    with patch.object(
-        settings_admin.settings_presentation, "is_sensitive_definition", return_value=False
-    ):
+    with patch.object(settings_admin.settings_presentation, "is_key_sensitive", return_value=False):
         assert "Parse Error" in model_admin.default_value_display(obj)
     with (
         patch.object(
             settings_admin.settings_presentation,
-            "is_sensitive_definition",
+            "is_key_sensitive",
             return_value=True,
         ),
         patch.object(settings_admin.settings_presentation, "format_value", return_value="••••"),
@@ -100,7 +98,7 @@ def test_setting_definition_admin_displays_persistence_and_invalidation() -> Non
     with (
         patch.object(settings_admin.SettingDefinition.objects, "filter", return_value=previous),
         patch.object(MicboardModelAdmin, "save_model"),
-        patch.object(settings_admin.SettingsRegistry, "invalidate_definition") as invalidate,
+        patch.object(settings_admin.settings, "invalidate_definition_cache") as invalidate,
     ):
         model_admin.save_model(_request(), obj, MagicMock(), change=True)
     assert {item.args[0] for item in invalidate.call_args_list} == {"old-key", "new-key"}
@@ -110,7 +108,7 @@ def test_setting_definition_admin_displays_persistence_and_invalidation() -> Non
     with (
         patch.object(MicboardModelAdmin, "delete_model"),
         patch.object(MicboardModelAdmin, "delete_queryset"),
-        patch.object(settings_admin.SettingsRegistry, "invalidate_definition") as invalidate,
+        patch.object(settings_admin.settings, "invalidate_definition_cache") as invalidate,
     ):
         model_admin.delete_model(_request(), obj)
         model_admin.delete_queryset(_request(), queryset)
@@ -127,7 +125,11 @@ def test_setting_admin_query_form_displays_and_scope_paths() -> None:
     management_filter = object()
     with (
         patch.object(admin.ModelAdmin, "get_queryset", return_value=queryset),
-        patch.object(settings_admin.settings_visibility, "for_user", return_value=scope),
+        patch.object(
+            settings_admin.settings_visibility,
+            "for_management_user",
+            return_value=scope,
+        ),
         patch.object(
             settings_admin.settings_visibility,
             "build_management_filter",
@@ -169,7 +171,7 @@ def test_setting_admin_query_form_displays_and_scope_paths() -> None:
         patch.object(settings_admin.settings_presentation, "format_value", return_value="x" * 60),
         patch.object(
             settings_admin.settings_presentation,
-            "is_sensitive_definition",
+            "is_key_sensitive",
             return_value=False,
         ),
     ):
@@ -188,7 +190,7 @@ def test_setting_admin_query_form_displays_and_scope_paths() -> None:
     with (
         patch.object(
             settings_admin.settings_presentation,
-            "is_sensitive_definition",
+            "is_key_sensitive",
             return_value=True,
         ),
         patch.object(settings_admin.settings_presentation, "format_value", return_value="••••"),
@@ -196,9 +198,7 @@ def test_setting_admin_query_form_displays_and_scope_paths() -> None:
         assert model_admin.value_display(obj) == "••••"
         assert model_admin.parsed_value_display(obj) == "••••"
     obj.get_parsed_value.side_effect = ValueError("bad")
-    with patch.object(
-        settings_admin.settings_presentation, "is_sensitive_definition", return_value=False
-    ):
+    with patch.object(settings_admin.settings_presentation, "is_key_sensitive", return_value=False):
         assert "Parse Error" in model_admin.parsed_value_display(obj)
 
 
@@ -221,7 +221,7 @@ def test_setting_admin_save_authorizes_reports_and_invalidates() -> None:
         patch.object(settings_admin.settings_visibility, "can_manage_scope", return_value=True),
         patch.object(MicboardModelAdmin, "save_model"),
         patch.object(settings_admin.messages, "success") as success,
-        patch.object(settings_admin.SettingsRegistry, "invalidate_cache") as invalidate,
+        patch.object(settings_admin.settings, "invalidate_value_cache") as invalidate,
     ):
         model_admin.save_model(request, obj, MagicMock(), change=True)
         obj.pk = None
@@ -242,7 +242,7 @@ def test_setting_admin_save_authorizes_reports_and_invalidates() -> None:
     with (
         patch.object(MicboardModelAdmin, "delete_model"),
         patch.object(MicboardModelAdmin, "delete_queryset"),
-        patch.object(settings_admin.SettingsRegistry, "invalidate_cache") as invalidate,
+        patch.object(settings_admin.settings, "invalidate_value_cache") as invalidate,
     ):
         model_admin.delete_model(request, obj)
         model_admin.delete_queryset(request, queryset)

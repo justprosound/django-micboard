@@ -6,6 +6,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from micboard.services.sync.discovery_candidate_source_service import (
+    DiscoveryCandidateSourceService,
+)
 from micboard.services.sync.discovery_dtos import DiscoverySyncSummary
 from micboard.services.sync.discovery_sync_service import DiscoverySyncService
 from tests.factories.discovery import (
@@ -27,7 +30,7 @@ def test_configured_scan_sources_are_scoped_to_manufacturer() -> None:
     DiscoveryFQDNFactory(manufacturer=manufacturer, fqdn="receiver.example.test")
     DiscoveryFQDNFactory(manufacturer=other, fqdn="other.example.test")
 
-    page = DiscoverySyncService.configured_scan_sources(
+    page = DiscoveryCandidateSourceService.configured_scan_sources(
         manufacturer,
         scan_cidrs=True,
         scan_fqdns=True,
@@ -44,7 +47,7 @@ def test_configured_scan_sources_bounds_materialization_and_skips_disabled_sourc
         DiscoveryCIDRFactory(manufacturer=manufacturer, cidr=f"192.0.2.{index}/32")
         DiscoveryFQDNFactory(manufacturer=manufacturer, fqdn=f"receiver-{index}.example.test")
 
-    bounded = DiscoverySyncService.configured_scan_sources(
+    bounded = DiscoveryCandidateSourceService.configured_scan_sources(
         manufacturer,
         scan_cidrs=True,
         scan_fqdns=False,
@@ -53,7 +56,7 @@ def test_configured_scan_sources_bounds_materialization_and_skips_disabled_sourc
     assert bounded.cidrs == ["192.0.2.0/32", "192.0.2.1/32"]
     assert bounded.fqdns == []
     assert bounded.sources_complete is False
-    empty = DiscoverySyncService.configured_scan_sources(
+    empty = DiscoveryCandidateSourceService.configured_scan_sources(
         manufacturer,
         scan_cidrs=True,
         scan_fqdns=True,
@@ -63,7 +66,7 @@ def test_configured_scan_sources_bounds_materialization_and_skips_disabled_sourc
     assert empty.fqdns == []
     assert empty.sources_complete is False
 
-    disabled = DiscoverySyncService.configured_scan_sources(
+    disabled = DiscoveryCandidateSourceService.configured_scan_sources(
         manufacturer,
         scan_cidrs=False,
         scan_fqdns=False,
@@ -87,7 +90,7 @@ def test_configured_scan_sources_rotate_across_types_and_wrap() -> None:
     ]
 
     pages = [
-        DiscoverySyncService.configured_scan_sources(
+        DiscoveryCandidateSourceService.configured_scan_sources(
             manufacturer,
             scan_cidrs=True,
             scan_fqdns=True,
@@ -113,7 +116,7 @@ def test_collect_inventory_candidates_is_scoped_and_deduplicated() -> None:
     DiscoveredDeviceFactory(manufacturer=manufacturer, ip="192.0.2.54")
     DiscoveredDeviceFactory(manufacturer=other, ip="192.0.2.56")
 
-    page = DiscoverySyncService.collect_inventory_candidates(manufacturer)
+    page = DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer)
     assert page.candidates == [
         "192.0.2.53",
         "192.0.2.54",
@@ -127,14 +130,14 @@ def test_collect_inventory_candidates_honors_aggregate_limit() -> None:
     WirelessChassisFactory(manufacturer=manufacturer, ip="192.0.2.56")
     DiscoveredDeviceFactory(manufacturer=manufacturer, ip="192.0.2.57")
 
-    first = DiscoverySyncService.collect_inventory_candidates(manufacturer, limit=2)
-    second = DiscoverySyncService.collect_inventory_candidates(manufacturer, limit=2)
+    first = DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=2)
+    second = DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=2)
 
     assert first.candidates == ["192.0.2.55", "192.0.2.57"]
     assert second.candidates == ["192.0.2.56", "192.0.2.57"]
     assert first.sources_complete is False
     assert second.sources_complete is False
-    zero = DiscoverySyncService.collect_inventory_candidates(manufacturer, limit=0)
+    zero = DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=0)
     assert zero.candidates == []
     assert zero.sources_complete is False
 
@@ -151,11 +154,11 @@ def test_inventory_shared_cap_rotates_source_priority_and_each_page_wraps() -> N
     ]
 
     one_item_pages = [
-        DiscoverySyncService.collect_inventory_candidates(manufacturer, limit=1)
+        DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=1)
         for _index in range(2)
     ]
     later_pages = [
-        DiscoverySyncService.collect_inventory_candidates(manufacturer, limit=2)
+        DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=2)
         for _index in range(4)
     ]
 
@@ -185,7 +188,7 @@ def test_inventory_pagination_fails_open_during_cache_outage(caplog) -> None:
             side_effect=RuntimeError(secret),
         ),
     ):
-        page = DiscoverySyncService.collect_inventory_candidates(manufacturer, limit=2)
+        page = DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=2)
 
     assert page.candidates == ["192.0.2.80", "192.0.2.82"]
     assert page.sources_complete is False
@@ -200,13 +203,16 @@ def test_inventory_pagination_resets_invalid_cursor_and_handles_empty_sources() 
         "micboard.services.sync.discovery_source_cursor_service.cache.get",
         return_value=True,
     ):
-        page = DiscoverySyncService.collect_inventory_candidates(manufacturer, limit=2)
+        page = DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=2)
 
     assert page.candidates == ["192.0.2.90"]
     assert page.sources_complete is True
 
     empty_manufacturer = ManufacturerFactory()
-    empty_page = DiscoverySyncService.collect_inventory_candidates(empty_manufacturer, limit=2)
+    empty_page = DiscoveryCandidateSourceService.collect_inventory_candidates(
+        empty_manufacturer,
+        limit=2,
+    )
     assert empty_page.candidates == []
     assert empty_page.sources_complete is True
 
@@ -334,7 +340,7 @@ def test_collect_scanned_candidates_combines_and_deduplicates_sources() -> None:
             True,
         ),
     ) as resolve:
-        page = DiscoverySyncService.collect_scanned_candidates(
+        page = DiscoveryCandidateSourceService.collect_scanned_candidates(
             cidrs=["192.0.2.0/30"],
             fqdns=["one.example.test", "two.example.test"],
             scan_cidrs=True,
@@ -352,7 +358,7 @@ def test_collect_scanned_candidates_enforces_one_limit_across_all_sources() -> N
         "micboard.services.sync.discovery_utils.resolve_fqdns",
         return_value=({"receiver.example.test": ["203.0.113.1"]}, True),
     ) as resolve:
-        page = DiscoverySyncService.collect_scanned_candidates(
+        page = DiscoveryCandidateSourceService.collect_scanned_candidates(
             cidrs=["192.0.2.0/30", "198.51.100.0/30"],
             fqdns=["receiver.example.test"],
             scan_cidrs=True,
@@ -370,7 +376,7 @@ def test_collect_scanned_candidates_honors_rotating_source_priority() -> None:
         "micboard.services.sync.discovery_utils.resolve_fqdns",
         return_value=({"receiver.example.test": ["198.51.100.50"]}, True),
     ):
-        page = DiscoverySyncService.collect_scanned_candidates(
+        page = DiscoveryCandidateSourceService.collect_scanned_candidates(
             cidrs=["192.0.2.0/30"],
             fqdns=["receiver.example.test"],
             scan_cidrs=True,
@@ -391,7 +397,7 @@ def test_collect_scanned_candidates_caps_fqdn_results_and_handles_zero_limit() -
             True,
         ),
     ):
-        page = DiscoverySyncService.collect_scanned_candidates(
+        page = DiscoveryCandidateSourceService.collect_scanned_candidates(
             cidrs=[],
             fqdns=["receiver.example.test"],
             scan_cidrs=False,
@@ -401,7 +407,7 @@ def test_collect_scanned_candidates_caps_fqdn_results_and_handles_zero_limit() -
 
     assert page.candidates == ["192.0.2.60", "192.0.2.61"]
     assert page.sources_complete is False
-    zero = DiscoverySyncService.collect_scanned_candidates(
+    zero = DiscoveryCandidateSourceService.collect_scanned_candidates(
         cidrs=["192.0.2.0/24"],
         fqdns=["receiver.example.test"],
         scan_cidrs=True,
@@ -423,7 +429,7 @@ def test_collect_scanned_candidates_skips_disabled_or_empty_sources(
     with (
         patch("micboard.services.sync.discovery_utils.resolve_fqdns") as resolve,
     ):
-        page = DiscoverySyncService.collect_scanned_candidates(
+        page = DiscoveryCandidateSourceService.collect_scanned_candidates(
             cidrs=[],
             fqdns=[],
             scan_cidrs=scan_cidrs,

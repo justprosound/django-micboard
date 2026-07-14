@@ -7,14 +7,13 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
-from django.conf import settings
-
 from asgiref.sync import async_to_sync
 
 from micboard.services.notification.realtime_routing_service import (
     RealtimeRoutingService,
     TenantScope,
 )
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:
@@ -215,7 +214,9 @@ class BroadcastService:
         """Route one non-MSP device payload within Django Site boundaries."""
         resolved_site_id = site_id
         if resolved_site_id is None and chassis_id is not None:
-            resolved_site_id = RealtimeRoutingService.chassis_site_id(chassis_id)
+            resolved_site_id = RealtimeRoutingService.chassis_site_ids((chassis_id,)).get(
+                chassis_id
+            )
         if resolved_site_id is None and isinstance(data, Mapping):
             resolved_site_id = RealtimeRoutingService.normalize_identifier(data.get("site_id"))
         if resolved_site_id is not None:
@@ -240,8 +241,8 @@ class BroadcastService:
         site_id: int | None = None,
     ) -> None:
         """Broadcast polled device data to authorized WebSocket clients."""
-        msp_enabled = getattr(settings, "MICBOARD_MSP_ENABLED", False)
-        multi_site_enabled = getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
+        msp_enabled = micboard_settings.msp_enabled
+        multi_site_enabled = micboard_settings.multi_site_mode
         if not (msp_enabled or multi_site_enabled):
             cls._send_for_scope({"type": "device_update", "data": data})
             return
@@ -259,7 +260,7 @@ class BroadcastService:
         if organization_id is not None:
             scope = (organization_id, campus_id)
         elif chassis_id is not None:
-            scope = RealtimeRoutingService.chassis_tenant_scope(chassis_id)
+            scope = RealtimeRoutingService.chassis_tenant_scopes((chassis_id,)).get(chassis_id)
         elif isinstance(data, Mapping):
             scope = RealtimeRoutingService.scope_from_mapping(data)
 
@@ -285,8 +286,8 @@ class BroadcastService:
             "manufacturer_code": getattr(manufacturer, "code", None),
             "health_data": health_data,
         }
-        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
-            if getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+        if not micboard_settings.msp_enabled:
+            if micboard_settings.multi_site_mode:
                 cls._send_for_sites(
                     event,
                     RealtimeRoutingService.manufacturer_site_ids(manufacturer),
@@ -319,8 +320,8 @@ class BroadcastService:
             "is_active": is_active,
         }
         scope = None
-        msp_enabled = getattr(settings, "MICBOARD_MSP_ENABLED", False)
-        multi_site_enabled = getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
+        msp_enabled = micboard_settings.msp_enabled
+        multi_site_enabled = micboard_settings.multi_site_mode
         if msp_enabled:
             scope = (
                 (organization_id, campus_id)
@@ -342,22 +343,5 @@ class BroadcastService:
             event,
             organization_id=scope[0] if scope else None,
             campus_id=scope[1] if scope else None,
-            site_id=site_id,
-        )
-
-    @classmethod
-    def broadcast_progress_update(
-        cls,
-        *,
-        status: Any,
-        organization_id: int | None = None,
-        campus_id: int | None = None,
-        site_id: int | None = None,
-    ) -> None:
-        """Broadcast discovery progress when its tenant is explicit."""
-        cls._send_for_scope(
-            {"type": "progress_update", "status": status},
-            organization_id=organization_id,
-            campus_id=campus_id,
             site_id=site_id,
         )

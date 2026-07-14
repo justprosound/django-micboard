@@ -79,12 +79,24 @@ class AssignmentListView(LoginRequiredMixin, ListView):
     model = PerformerAssignment
     template_name = "micboard/assignments.html"
     context_object_name = "assignments"
-    paginate_by = 50
+    paginate_by: int | None = PerformerAssignmentService.PAGE_SIZE
 
     def get_queryset(self):
         """Filter assignments by user permissions and monitoring groups they manage."""
-        return PerformerAssignment.objects.for_user(user=self.request.user).select_related(
-            "performer", "wireless_unit", "monitoring_group"
+        return PerformerAssignmentService.get_visible_assignments(user=self.request.user)
+
+
+class AssignmentRowsView(AssignmentListView):
+    """Render only the bounded assignment rows used for live refreshes."""
+
+    template_name = "micboard/partials/assignment_rows.html"
+    paginate_by = None
+
+    def get_queryset(self):
+        """Return the requested row slice without full-page pagination metadata."""
+        return PerformerAssignmentService.get_visible_assignment_rows(
+            user=self.request.user,
+            page=self.request.GET.get("page", 1),
         )
 
 

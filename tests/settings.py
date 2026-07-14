@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sites",
     "django.contrib.staticfiles",
+    "adminsortable2",
     "huey.contrib.djhuey",
     "micboard",
     "micboard.chargers",

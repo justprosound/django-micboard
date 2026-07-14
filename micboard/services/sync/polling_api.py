@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.integrations import ManufacturerAPIServer
-from micboard.models.locations import Location
+from micboard.models.locations.structure import Location
 from micboard.services.integrations.api_server_service import APIServerConnectionService
 
 

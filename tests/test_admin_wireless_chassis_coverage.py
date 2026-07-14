@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 from django.contrib.admin.sites import AdminSite
 from django.core.exceptions import PermissionDenied
+from django.forms.models import BaseInlineFormSet
 from django.http import HttpResponse
 from django.test import RequestFactory
 
@@ -16,8 +17,8 @@ import pytest
 
 from micboard.admin import receivers
 from micboard.admin.mixins import MicboardModelAdmin
+from micboard.admin.receiver_inlines import RFChannelInlineFormSet
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.hardware.wireless_unit import WirelessUnit
 
 
 def _request(method: str = "get", data: dict[str, Any] | None = None) -> Any:
@@ -65,7 +66,7 @@ def test_wireless_chassis_admin_delete_queryset_uses_locked_rows_and_one_bulk_ho
     delete.assert_called_once_with(request, deletion_queryset)
 
 
-def test_wireless_chassis_admin_queryset_counts_and_inline_battery() -> None:
+def test_wireless_chassis_admin_queryset_counts() -> None:
     model_admin = _admin(receivers.WirelessChassisAdmin, WirelessChassis)
     queryset = MagicMock()
     with patch.object(MicboardModelAdmin, "get_queryset", return_value=queryset):
@@ -74,15 +75,45 @@ def test_wireless_chassis_admin_queryset_counts_and_inline_battery() -> None:
     assert model_admin.channel_count_display(SimpleNamespace()) == 0
     assert model_admin.active_units_display(SimpleNamespace(_active_units_count=2)) == 2
     assert model_admin.active_units_display(SimpleNamespace()) == 0
-    inline = receivers.WirelessUnitInline(WirelessUnit, AdminSite())
-    with patch.object(receivers, "get_battery_percentage", return_value=75):
-        assert inline.battery_percentage(object()) == 75
 
 
-def _layout_chassis(*, manufacturer: Any, ip: str | None, channels: list[Any]) -> Any:
-    channel_manager = MagicMock()
-    channel_manager.all.return_value.order_by.return_value = channels
-    return SimpleNamespace(manufacturer=manufacturer, ip=ip, rf_channels=channel_manager)
+def test_rf_channel_inline_rejects_forged_cross_chassis_units() -> None:
+    """Server-side cleaning rejects forged unit and IEM assignments."""
+    formset = object.__new__(RFChannelInlineFormSet)
+    formset.instance = SimpleNamespace(pk=7)
+    matching = SimpleNamespace(base_chassis_id=7)
+    foreign = SimpleNamespace(base_chassis_id=8)
+    valid_form = SimpleNamespace(
+        cleaned_data={
+            "active_wireless_unit": matching,
+            "active_iem_receiver": None,
+        },
+        add_error=Mock(),
+    )
+    forged_form = SimpleNamespace(
+        cleaned_data={
+            "active_wireless_unit": foreign,
+            "active_iem_receiver": foreign,
+        },
+        add_error=Mock(),
+    )
+    deleted_form = SimpleNamespace(
+        cleaned_data={"DELETE": True, "active_wireless_unit": foreign},
+        add_error=Mock(),
+    )
+    invalid_form = SimpleNamespace(add_error=Mock())
+    formset.forms = [valid_form, forged_form, deleted_form, invalid_form]
+
+    with patch.object(BaseInlineFormSet, "clean"):
+        formset.clean()
+
+    valid_form.add_error.assert_not_called()
+    assert forged_form.add_error.call_args_list == [
+        (("active_wireless_unit", "Selected wireless unit must belong to this chassis."), {}),
+        (("active_iem_receiver", "Selected wireless unit must belong to this chassis."), {}),
+    ]
+    deleted_form.add_error.assert_not_called()
+    invalid_form.add_error.assert_not_called()
 
 
 def test_wireless_chassis_hardware_layout_groups_units_and_unknowns() -> None:
@@ -96,40 +127,19 @@ def test_wireless_chassis_hardware_layout_groups_units_and_unknowns() -> None:
     ):
         model_admin.hardware_layout_view(_request())
 
-    unit = SimpleNamespace(frequency=500)
-    first = _layout_chassis(
-        manufacturer=SimpleNamespace(name="Vendor"),
-        ip="192.0.2.1",
-        channels=[
-            SimpleNamespace(channel_number=1, active_wireless_unit=unit, active_iem_receiver=None),
-            SimpleNamespace(channel_number=2, active_wireless_unit=None, active_iem_receiver=None),
-        ],
-    )
-    second = _layout_chassis(
-        manufacturer=None,
-        ip=None,
-        channels=[
-            SimpleNamespace(
-                channel_number=1,
-                active_wireless_unit=None,
-                active_iem_receiver=SimpleNamespace(frequency=None),
-            )
-        ],
-    )
-    queryset = MagicMock()
-    queryset.filter.return_value.select_related.return_value.prefetch_related.return_value.annotate.return_value.order_by.return_value = [
-        first,
-        second,
-    ]
+    hardware_layout = SimpleNamespace(manufacturers=[])
     with (
         patch.object(model_admin, "has_view_permission", return_value=True),
-        patch.object(model_admin, "get_queryset", return_value=queryset),
+        patch.object(model_admin, "get_queryset", return_value=MagicMock()),
+        patch.object(
+            receivers.ChassisAdminService,
+            "get_hardware_layout",
+            return_value=hardware_layout,
+        ),
         patch.object(receivers, "render", return_value=HttpResponse()) as render,
     ):
         assert model_admin.hardware_layout_view(_request()).status_code == 200
-    grouped = render.call_args.args[2]["grouped_chassis"]
-    assert grouped["Vendor"]["192.0.2.1"][0]["channels"][0]["frequency"] == 500
-    assert grouped["Unknown"]["Unknown IP"][0]["channels"][0]["frequency"] is None
+    assert render.call_args.args[2]["hardware_layout"] is hardware_layout
 
 
 def test_wireless_chassis_display_summary_changelist_and_status_paths() -> None:
@@ -141,32 +151,23 @@ def test_wireless_chassis_display_summary_changelist_and_status_paths() -> None:
         == "Vendor"
     )
     assert model_admin.manufacturer_display(SimpleNamespace(manufacturer=None)) == "Unknown"
-    assigned = MagicMock()
-    assigned.filter.return_value.exists.return_value = True
-    assigned.filter.return_value.first.return_value.user.username = "alice"
-    unassigned = MagicMock()
-    unassigned.filter.return_value.exists.return_value = False
     channels = [
         SimpleNamespace(
             channel_number=1,
-            active_wireless_unit=SimpleNamespace(device_type="tx"),
-            active_iem_receiver=None,
-            assignments=assigned,
+            unit_type="TX",
         ),
         SimpleNamespace(
             channel_number=2,
-            active_wireless_unit=None,
-            active_iem_receiver=None,
-            assignments=unassigned,
+            unit_type=None,
         ),
     ]
-    manager = MagicMock()
-    manager.select_related.return_value.prefetch_related.return_value.order_by.return_value = (
-        channels
-    )
-    assert model_admin.get_hardware_summary(SimpleNamespace(rf_channels=manager)) == (
-        "CH1: TX → alice | CH2: No Unit → Unassigned"
-    )
+    with patch.object(
+        receivers.ChassisAdminService,
+        "get_hardware_summary",
+        return_value=channels,
+    ) as summary:
+        assert model_admin.get_hardware_summary(SimpleNamespace(pk=7)) == ("CH1: TX | CH2: No Unit")
+    summary.assert_called_once_with(chassis_id=7)
     with patch.object(MicboardModelAdmin, "changelist_view", return_value=HttpResponse()) as view:
         model_admin.changelist_view(_request())
         context = {"existing": True}
@@ -255,7 +256,7 @@ def test_wireless_chassis_band_plan_display_paths(has_plan: bool, name: str, exp
         band_plan_max_mhz=534,
     )
     with patch(
-        "micboard.services.hardware.wireless_chassis_service.get_band_plan_status",
+        "micboard.services.hardware.chassis_regulatory_service.get_band_plan_status",
         return_value=has_plan,
     ):
         assert expected in model_admin.band_plan_display(obj)

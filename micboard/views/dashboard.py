@@ -1,37 +1,35 @@
 """Dashboard views for the micboard app."""
 
 from django.contrib.auth.decorators import login_required
-from django.http import HttpRequest
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
 
-from micboard.filters import HAS_DJANGO_FILTERS, WirelessChassisFilter
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.monitoring.performer import Performer
+from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.services.hardware.receiver_browse_dtos import ReceiverBrowseCriteria
+from micboard.services.hardware.receiver_browse_service import ReceiverBrowseService
 from micboard.services.monitoring.monitoring_access import MonitoringService
 
 
-def get_filtered_receivers(request: HttpRequest, manufacturer_code: str | None, **filters):
-    """Helper function to get filtered receivers for dashboard views."""
-    qs = WirelessChassis.objects.for_user(user=request.user).filter(**filters)
-
-    if HAS_DJANGO_FILTERS:
-        # Use django-filter if available
-        f = WirelessChassisFilter(request.GET, queryset=qs)
-        qs = f.qs
-
-    if manufacturer_code:
-        # Use the manager method if available or filter directly
-        if hasattr(qs, "by_manufacturer"):
-            qs = qs.by_manufacturer(manufacturer=manufacturer_code)
-        else:
-            qs = qs.filter(manufacturer__code=manufacturer_code)
-
-    return qs.distinct()
+def _render_receiver_browse(
+    request: HttpRequest,
+    *,
+    criteria: ReceiverBrowseCriteria,
+) -> HttpResponse:
+    """Render one bounded, tenant-scoped receiver page."""
+    browse = ReceiverBrowseService.get_page(
+        user=request.user,
+        criteria=criteria,
+        query_params=request.GET,
+    )
+    return render(request, "micboard/receiver_browse.html", {"browse": browse})
 
 
 @login_required
 @require_http_methods(["GET"])
-def index(request: HttpRequest):
+def index(request: HttpRequest) -> HttpResponse:
     """Main dashboard view."""
     # Filter receivers based on user permissions
     user_receivers = WirelessChassis.objects.for_user(user=request.user)
@@ -44,156 +42,114 @@ def index(request: HttpRequest):
 
 
 @require_http_methods(["GET"])
-def about(request: HttpRequest):
+def about(request: HttpRequest) -> HttpResponse:
     """About page."""
     return render(request, "micboard/about.html")
 
 
 @login_required
 @require_http_methods(["GET"])
-def device_type_view(request: HttpRequest, device_type: str):
-    """View to display receivers of a specific type."""
-    manufacturer_code = request.GET.get("manufacturer")
-
-    # Map device_type to role if necessary, or filter by role
-    # Assuming device_type param maps to WirelessChassis.role
-    # Handle 'all' case - show all devices regardless of type
-    if device_type == "all":
-        receivers = get_filtered_receivers(request, manufacturer_code, is_online=True)
-    else:
-        receivers = get_filtered_receivers(
-            request, manufacturer_code, role=device_type, is_online=True
-        )
-
-    context = {
-        "device_type": device_type,
-        "receivers": receivers,
-    }
-    return render(request, "micboard/device_type_view.html", context)
+def device_type_view(request: HttpRequest, device_type: str) -> HttpResponse:
+    """Display online chassis with an optional RF-role filter."""
+    role = None if device_type == "all" else device_type
+    role_labels = dict(WirelessChassis.DEVICE_ROLES)
+    if role is not None and role not in role_labels:
+        raise Http404("Unknown wireless chassis role")
+    role_label = role_labels.get(role or "", role or "")
+    title = "All online wireless chassis" if role is None else f"Online {role_label} chassis"
+    return _render_receiver_browse(
+        request,
+        criteria=ReceiverBrowseCriteria(
+            title=title,
+            manufacturer_code=request.GET.get("manufacturer"),
+            role=role,
+        ),
+    )
 
 
 @login_required
 @require_http_methods(["GET"])
-def single_building_view(request: HttpRequest, building: str):
+def single_building_view(request: HttpRequest, building_id: int) -> HttpResponse:
     """View to display receivers in a specific building."""
-    # Handle special 'all' case
-    if building == "all":
-        return all_buildings_view(request)
-
-    manufacturer_code = request.GET.get("manufacturer")
-
-    # Get the Building object
     building_obj = get_object_or_404(
         MonitoringService.get_accessible_buildings(request.user),
-        name=building,
+        pk=building_id,
     )
-
-    # status="online" replaces is_active=True/is_online=True usually,
-    # but lets stick to is_online field
-    receivers = get_filtered_receivers(
-        request, manufacturer_code, location__building=building_obj, is_online=True
-    )
-
-    context = {
-        "building_name": building,
-        "receivers": receivers,
-    }
-    return render(request, "micboard/building_view.html", context)
-
-
-@login_required
-@require_http_methods(["GET"])
-def user_view(request: HttpRequest, username: str):
-    """View to display receivers assigned to a specific performer."""
-    manufacturer_code = request.GET.get("manufacturer")
-
-    # Filter by performer (field_units -> performer_assignments -> performer -> name)
-    receivers = get_filtered_receivers(
+    return _render_receiver_browse(
         request,
-        manufacturer_code,
-        field_units__performer_assignments__performer__name=username,
-        is_online=True,
+        criteria=ReceiverBrowseCriteria(
+            title=f"Online wireless chassis in {building_obj.name}",
+            manufacturer_code=request.GET.get("manufacturer"),
+            building_id=building_obj.pk,
+        ),
     )
-
-    context = {
-        "username": username,
-        "receivers": receivers,
-    }
-    return render(request, "micboard/user_view.html", context)
 
 
 @login_required
 @require_http_methods(["GET"])
-def room_view(request: HttpRequest, building: str, room: str):
+def performer_view(request: HttpRequest, performer_id: int) -> HttpResponse:
+    """Display online chassis assigned to a named performer."""
+    performer = get_object_or_404(
+        Performer.objects.for_user(user=request.user),
+        pk=performer_id,
+    )
+    return _render_receiver_browse(
+        request,
+        criteria=ReceiverBrowseCriteria(
+            title=f"Online wireless chassis assigned to {performer.name}",
+            manufacturer_code=request.GET.get("manufacturer"),
+            performer_id=performer.pk,
+        ),
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def room_view(request: HttpRequest, room_id: int) -> HttpResponse:
     """View to display receivers in a specific room."""
-    # Handle special 'all' cases
-    if building == "all" and room == "all":
-        return all_rooms_view(request)
-    elif building == "all":
-        return all_buildings_view(request)
-
-    manufacturer_code = request.GET.get("manufacturer")
-
-    # Get the Building and Room objects
-    building_obj = get_object_or_404(
-        MonitoringService.get_accessible_buildings(request.user),
-        name=building,
-    )
-
-    # Handle 'all' rooms in a specific building
-    if room == "all":
-        return rooms_in_building_view(request, building)
-
     room_obj = get_object_or_404(
-        MonitoringService.get_accessible_rooms(request.user),
-        building=building_obj,
-        name=room,
+        MonitoringService.get_accessible_rooms(request.user).select_related("building"),
+        pk=room_id,
     )
 
-    receivers = get_filtered_receivers(
+    return _render_receiver_browse(
         request,
-        manufacturer_code,
-        location__building=building_obj,
-        location__room=room_obj,
-        is_online=True,
+        criteria=ReceiverBrowseCriteria(
+            title=f"Online wireless chassis in {room_obj.building.name} / {room_obj.name}",
+            manufacturer_code=request.GET.get("manufacturer"),
+            building_id=room_obj.building_id,
+            room_id=room_obj.pk,
+        ),
     )
 
-    context = {
-        "building": building,
-        "room_name": room,
-        "receivers": receivers,
-    }
-    return render(request, "micboard/room_view.html", context)
-
 
 @login_required
 @require_http_methods(["GET"])
-def priority_view(request: HttpRequest, priority: str):
+def priority_view(request: HttpRequest, priority: str) -> HttpResponse:
     """View to display receivers with a specific assignment priority."""
-    manufacturer_code = request.GET.get("manufacturer")
-
-    # Handle 'all' case - show all priorities
-    if priority == "all":
-        receivers = get_filtered_receivers(request, manufacturer_code, is_online=True)
-    else:
-        # Correct path: chassis -> field_units -> performer_assignments -> priority
-        receivers = get_filtered_receivers(
-            request,
-            manufacturer_code,
-            field_units__performer_assignments__priority=priority,
-            is_online=True,
-        )
-
-    context = {
-        "priority": priority,
-        "receivers": receivers,
-    }
-    return render(request, "micboard/priority_view.html", context)
+    assignment_priority = None if priority == "all" else priority
+    priority_labels = dict(PerformerAssignment.PRIORITY_CHOICES)
+    if assignment_priority is not None and assignment_priority not in priority_labels:
+        raise Http404("Unknown performer assignment priority")
+    priority_label = priority_labels.get(priority, priority.replace("_", " ").title())
+    title = (
+        "All online wireless chassis"
+        if assignment_priority is None
+        else f"Online chassis with {priority_label} assignments"
+    )
+    return _render_receiver_browse(
+        request,
+        criteria=ReceiverBrowseCriteria(
+            title=title,
+            manufacturer_code=request.GET.get("manufacturer"),
+            priority=assignment_priority,
+        ),
+    )
 
 
 @login_required
 @require_http_methods(["GET"])
-def all_buildings_view(request: HttpRequest):
+def all_buildings_view(request: HttpRequest) -> HttpResponse:
     """View to display all buildings."""
     buildings = MonitoringService.get_accessible_buildings(request.user).order_by("name")
     context = {
@@ -204,7 +160,7 @@ def all_buildings_view(request: HttpRequest):
 
 @login_required
 @require_http_methods(["GET"])
-def all_rooms_view(request: HttpRequest):
+def all_rooms_view(request: HttpRequest) -> HttpResponse:
     """View to display all rooms."""
     rooms = (
         MonitoringService.get_accessible_rooms(request.user)
@@ -219,11 +175,11 @@ def all_rooms_view(request: HttpRequest):
 
 @login_required
 @require_http_methods(["GET"])
-def rooms_in_building_view(request: HttpRequest, building: str):
+def rooms_in_building_view(request: HttpRequest, building_id: int) -> HttpResponse:
     """View to display all rooms within a specific building."""
     building_obj = get_object_or_404(
         MonitoringService.get_accessible_buildings(request.user),
-        name=building,
+        pk=building_id,
     )
     rooms = (
         MonitoringService.get_accessible_rooms(request.user)
@@ -231,7 +187,7 @@ def rooms_in_building_view(request: HttpRequest, building: str):
         .order_by("name")
     )
     context = {
-        "building_name": building,
+        "building": building_obj,
         "rooms": rooms,
     }
     return render(request, "micboard/rooms_in_building_view.html", context)

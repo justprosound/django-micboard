@@ -3,18 +3,26 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.views.generic import ListView
 
-from micboard.models.hardware.display_wall import DisplayWall
-from micboard.views import assignments
+import pytest
+
+from micboard.services.kiosk.dtos import (
+    DisplayWallHealthSnapshot,
+    DisplayWallMetadata,
+    DisplayWallSnapshot,
+    KioskChargerGroupSnapshot,
+    KioskChargerSnapshot,
+    WallSectionSnapshot,
+)
 from micboard.views.kiosk import (
     DisplayWallDetailView,
     DisplayWallListView,
     KioskAuthView,
+    KioskContentView,
     KioskDataView,
     KioskHealthView,
     WallSectionListView,
@@ -22,39 +30,49 @@ from micboard.views.kiosk import (
 from tests.view_test_helpers import request
 
 
+def _snapshot() -> DisplayWallSnapshot:
+    return DisplayWallSnapshot(
+        wall=DisplayWallMetadata(
+            id=5,
+            name="Stage",
+            kiosk_id="stage",
+            display_width_px=1920,
+            display_height_px=1080,
+            orientation="landscape",
+            refresh_interval_seconds=10,
+            show_performer_photos=True,
+            show_rf_levels=True,
+            show_battery_levels=True,
+            show_audio_levels=True,
+        ),
+        sections=[],
+    )
+
+
 def test_kiosk_auth_get_and_post_cover_success_and_missing_wall() -> None:
     kiosk_request = request()
-    wall = MagicMock(id=4)
-    queryset = MagicMock()
-    queryset.get.return_value = wall
+    snapshot = _snapshot()
     with (
-        patch.object(
-            assignments.MonitoringService,
-            "get_accessible_display_walls",
-            return_value=queryset,
-            create=True,
-        ),
-        patch("micboard.views.kiosk.get_object_or_404", return_value=wall),
         patch(
-            "micboard.views.kiosk.ChargerAssignmentService.get_display_wall_data",
-            return_value={"wall": {"id": 4}},
+            "micboard.views.kiosk.KioskService.get_kiosk_snapshot",
+            return_value=snapshot,
+        ),
+        patch(
+            "micboard.views.kiosk.KioskService.record_heartbeat",
+            side_effect=[True, False],
         ),
         patch("micboard.views.kiosk.render", return_value=HttpResponse()) as render,
-        patch("django.utils.timezone.now", return_value="now"),
     ):
-        assert KioskAuthView().get(kiosk_request, "wall-4").status_code == 200
-        assert KioskAuthView().post(kiosk_request, "wall-4").status_code == 200
-    assert render.call_args.args[2]["sections"] == []
-    assert wall.last_heartbeat == "now"
-    wall.save.assert_called_once_with(update_fields=["last_heartbeat"])
+        assert KioskAuthView().get(kiosk_request, "stage").status_code == 200
+        assert KioskAuthView().post(kiosk_request, "stage").status_code == 200
+        assert KioskAuthView().post(kiosk_request, "missing").status_code == 404
+    assert render.call_args.args[2] == {"snapshot": snapshot, "kiosk": True}
 
-    queryset.get.side_effect = DisplayWall.DoesNotExist
-    with patch(
-        "micboard.views.kiosk.MonitoringService.get_accessible_display_walls",
-        return_value=queryset,
+    with (
+        patch("micboard.views.kiosk.KioskService.get_kiosk_snapshot", return_value=None),
+        pytest.raises(Http404),
     ):
-        response = KioskAuthView().post(kiosk_request, "missing")
-    assert response.status_code == 404
+        KioskAuthView().get(kiosk_request, "missing")
 
 
 def test_kiosk_list_detail_and_section_views_scope_querysets_and_context() -> None:
@@ -96,48 +114,88 @@ def test_kiosk_list_detail_and_section_views_scope_querysets_and_context() -> No
 
 def test_kiosk_data_view_returns_data_and_not_found() -> None:
     kiosk_request = request()
-    wall = SimpleNamespace(id=5)
-    queryset = MagicMock()
-    queryset.get.return_value = wall
-    with (
-        patch(
-            "micboard.views.kiosk.MonitoringService.get_accessible_display_walls",
-            return_value=queryset,
-        ),
-        patch(
-            "micboard.views.kiosk.ChargerAssignmentService.get_display_wall_data",
-            return_value={"wall": {"id": 5}},
-        ),
-    ):
+    snapshot = _snapshot().model_copy(
+        update={
+            "sections": [
+                WallSectionSnapshot(
+                    id=7,
+                    name="Main",
+                    layout="grid",
+                    columns=3,
+                    performers=[
+                        KioskChargerGroupSnapshot(
+                            charger=KioskChargerSnapshot(id=8, name="Rack", location_id=9),
+                            performers=[],
+                        )
+                    ],
+                )
+            ]
+        }
+    )
+    with patch("micboard.views.kiosk.KioskService.get_wall_snapshot", return_value=snapshot):
         response = KioskDataView().get(kiosk_request, 5)
     assert json.loads(response.content) == {
         "status": "ok",
-        "wall": {"id": 5},
-        "sections": [],
+        "wall": snapshot.wall.model_dump(mode="json"),
+        "sections": [
+            {
+                "section": {
+                    "id": 7,
+                    "name": "Main",
+                    "layout": "grid",
+                    "columns": 3,
+                    "chargers_truncated": False,
+                    "charger_limit": 32,
+                    "occupied_slots_truncated": False,
+                    "occupied_slot_limit": 32,
+                },
+                "performers": [
+                    {
+                        "charger": {"id": 8, "name": "Rack", "location_id": 9},
+                        "performers": [],
+                        "occupied_slots_truncated": False,
+                        "occupied_slot_limit": 32,
+                    }
+                ],
+            }
+        ],
     }
 
-    queryset.get.side_effect = DisplayWall.DoesNotExist
-    with patch(
-        "micboard.views.kiosk.MonitoringService.get_accessible_display_walls",
-        return_value=queryset,
-    ):
+    with patch("micboard.views.kiosk.KioskService.get_wall_snapshot", return_value=None):
         assert KioskDataView().get(kiosk_request, 5).status_code == 404
+
+
+def test_kiosk_content_view_renders_html_snapshot_and_not_found() -> None:
+    kiosk_request = request()
+    snapshot = _snapshot()
+    with (
+        patch("micboard.views.kiosk.KioskService.get_wall_snapshot", return_value=snapshot),
+        patch("micboard.views.kiosk.render", return_value=HttpResponse()) as render,
+    ):
+        assert KioskContentView().get(kiosk_request, 5).status_code == 200
+    assert render.call_args.args[1] == "micboard/kiosk/display_content.html"
+    assert render.call_args.args[2] == {"snapshot": snapshot}
+
+    with (
+        patch("micboard.views.kiosk.KioskService.get_wall_snapshot", return_value=None),
+        pytest.raises(Http404),
+    ):
+        KioskContentView().get(kiosk_request, 5)
 
 
 def test_kiosk_health_view_checks_only_accessible_chargers_and_handles_missing_wall() -> None:
     kiosk_request = request()
-    wall = SimpleNamespace(id=5)
-    health = [{"id": 1}, {"id": 2}]
+    health = DisplayWallHealthSnapshot(wall_id=5, chargers=[])
     with patch(
-        "micboard.views.kiosk.ConnectionValidationService.get_display_wall_charger_health",
-        return_value=(wall, health),
+        "micboard.views.kiosk.KioskHealthService.get_wall_health",
+        return_value=health,
     ) as get_health:
         response = KioskHealthView().get(kiosk_request, 5)
-    assert json.loads(response.content)["chargers"] == health
+    assert json.loads(response.content) == {"status": "ok", **health.model_dump(mode="json")}
     get_health.assert_called_once_with(wall_id=5, user=kiosk_request.user)
 
     with patch(
-        "micboard.views.kiosk.ConnectionValidationService.get_display_wall_charger_health",
-        side_effect=DisplayWall.DoesNotExist,
+        "micboard.views.kiosk.KioskHealthService.get_wall_health",
+        return_value=None,
     ):
         assert KioskHealthView().get(kiosk_request, 5).status_code == 404

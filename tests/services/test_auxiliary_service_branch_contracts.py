@@ -11,14 +11,11 @@ from django.test import override_settings
 import pytest
 
 from micboard.models.integrations import ManufacturerAPIServer
-from micboard.multitenancy import is_msp_enabled, is_multisite_enabled
-from micboard.services.chargers.charger_display_service import get_charging_stations_data
+from micboard.services.chargers.dashboard_service import ChargerDashboardService
 from micboard.services.integrations.api_server_service import APIServerConnectionService
-from micboard.services.kiosk import KioskService
 from micboard.services.locations.structure_service import prepare_building
 from micboard.services.multitenancy.organization_service import (
     get_device_count,
-    is_at_device_limit,
     set_created_by,
 )
 from micboard.utils.exception_logging import sanitized_exception_info
@@ -39,23 +36,14 @@ def _server(**overrides: object) -> SimpleNamespace:
     return SimpleNamespace(**values)
 
 
-def test_organization_service_counts_limits_and_records_creator() -> None:
-    organization = SimpleNamespace(pk=9, max_devices=None)
+def test_organization_service_counts_devices_and_records_creator() -> None:
+    organization = SimpleNamespace(pk=9)
     with patch(
         "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.filter"
     ) as chassis_filter:
         chassis_filter.return_value.count.return_value = 3
         assert get_device_count(organization) == 3
     chassis_filter.assert_called_once_with(location__building__organization_id=9)
-    assert not is_at_device_limit(organization)
-
-    organization.max_devices = 3
-    with patch(
-        "micboard.services.multitenancy.organization_service.get_device_count",
-        side_effect=[2, 3],
-    ):
-        assert not is_at_device_limit(organization)
-        assert is_at_device_limit(organization)
 
     membership = SimpleNamespace(created_by=None)
     user = object()
@@ -63,16 +51,44 @@ def test_organization_service_counts_limits_and_records_creator() -> None:
     assert membership.created_by is user
 
 
-def test_kiosk_charger_dashboard_maps_complete_and_partial_assignments() -> None:
+def test_charger_dashboard_maps_complete_and_partial_assignments() -> None:
     user = object()
-    chargers = [object()]
-    charger_scope = MagicMock()
-    charger_scope.filter.return_value.prefetch_related.return_value.order_by.return_value = chargers
-    assignment_scope = MagicMock()
     photo = SimpleNamespace(url="/media/performer.jpg")
+    chargers = [
+        SimpleNamespace(
+            pk=9,
+            name="Stage charger",
+            model="CHG-2",
+            ip="192.0.2.20",
+            _dashboard_slots=[
+                SimpleNamespace(
+                    slot_number=1,
+                    occupied=True,
+                    device_serial="UNIT-1",
+                    device_model="TX-1",
+                    battery_percent=None,
+                    device_firmware_version="",
+                    device_status="charging",
+                    is_functional=True,
+                ),
+                SimpleNamespace(
+                    slot_number=2,
+                    occupied=True,
+                    device_serial="UNIT-2",
+                    device_model="TX-2",
+                    battery_percent=80,
+                    device_firmware_version="1.2",
+                    device_status="updating",
+                    is_functional=False,
+                ),
+            ],
+        )
+    ]
+    charger_scope = MagicMock()
+    (
+        charger_scope.filter.return_value.order_by.return_value.__getitem__.return_value.prefetch_related.return_value
+    ) = chargers
     assignments = [
-        SimpleNamespace(wireless_unit=None),
-        SimpleNamespace(wireless_unit=SimpleNamespace(serial_number="")),
         SimpleNamespace(
             wireless_unit=SimpleNamespace(serial_number="UNIT-1"),
             performer=SimpleNamespace(name="One", title=None, photo=None),
@@ -82,80 +98,64 @@ def test_kiosk_charger_dashboard_maps_complete_and_partial_assignments() -> None
             performer=SimpleNamespace(name="Two", title="Lead", photo=photo),
         ),
     ]
-    assignment_scope.filter.return_value.select_related.return_value = assignments
     with (
-        patch("micboard.services.kiosk.Charger.objects.for_user", return_value=charger_scope),
         patch(
-            "micboard.services.kiosk.PerformerAssignment.objects.for_user",
-            return_value=assignment_scope,
+            "micboard.services.chargers.dashboard_service.Charger.objects.for_user",
+            return_value=charger_scope,
         ),
+        patch(
+            "micboard.services.chargers.dashboard_service."
+            "PerformerAssignmentService.get_preferred_active_assignments_for_serials",
+            return_value=assignments,
+        ) as preferred_assignments,
     ):
-        result = KioskService.get_charger_dashboard_data(user=user)
+        result = ChargerDashboardService.get_snapshot(user=user)
 
-    assert result["chargers"] is chargers
-    assert result["serial_to_performer"] == {
-        "UNIT-1": {"name": "One", "title": "", "photo_url": None},
-        "UNIT-2": {"name": "Two", "title": "Lead", "photo_url": "/media/performer.jpg"},
-    }
-
-
-def test_kiosk_section_delegates_tenant_scoped_assignment_lookup() -> None:
-    user = object()
-    with patch(
-        "micboard.services.core.charger_assignment.ChargerAssignmentService.get_wall_section_performers",
-        return_value=["performer"],
-    ) as get_performers:
-        result = KioskService.get_section_data(section_id=5, user=user)
-
-    assert result == {"performers": ["performer"]}
-    get_performers.assert_called_once_with(5, user=user)
-
-
-def test_charger_display_serializes_occupied_empty_and_model_specific_slots() -> None:
-    slots = [
-        SimpleNamespace(
-            slot_number=1,
-            occupied=True,
-            device_model="ulxd1",
-            battery_percent=None,
-            device_status="charging",
-        ),
-        SimpleNamespace(
-            slot_number=2,
-            occupied=True,
-            device_model=None,
-            battery_percent=65,
-            device_status="ready",
-        ),
-        SimpleNamespace(slot_number=3, occupied=False),
-    ]
-    chargers = [
-        SimpleNamespace(
-            serial_number="CH-1",
-            name="",
-            status="offline",
-            slots=SimpleNamespace(all=Mock(return_value=slots)),
-        )
-    ]
-    scope = MagicMock()
-    scope.filter.return_value.order_by.return_value.prefetch_related.return_value = chargers
-    with patch(
-        "micboard.services.chargers.charger_display_service.Charger.objects.for_user",
-        return_value=scope,
-    ):
-        result = get_charging_stations_data(user=object())
-
-    assert result[0]["name"] == "Charger CH-1"
-    assert result[0]["status"] == "offline"
-    assert result[0]["slots"][0]["image"].endswith("ulxd1_wl185.svg")
-    assert result[0]["slots"][0]["battery_level"] == 0
-    assert result[0]["slots"][1]["mic_name"] == "Slot 2"
-    assert result[0]["slots"][2] == {
-        "slot_number": 3,
-        "image": None,
-        "mic_name": "Empty",
-        "battery_level": 0,
-        "charging": False,
+    preferred_assignments.assert_called_once_with(
+        user=user,
+        serial_numbers={"UNIT-1", "UNIT-2"},
+    )
+    assert result.model_dump() == {
+        "chargers": [
+            {
+                "id": 9,
+                "name": "Stage charger",
+                "model_name": "CHG-2",
+                "ip_address": "192.0.2.20",
+                "slots_truncated": False,
+                "slot_limit": 32,
+                "slots": [
+                    {
+                        "slot_number": 1,
+                        "occupied": True,
+                        "device_serial": "UNIT-1",
+                        "device_model": "TX-1",
+                        "battery_percent": None,
+                        "device_firmware_version": "",
+                        "device_status": "charging",
+                        "is_functional": True,
+                        "performer": {"name": "One", "title": "", "photo_url": None},
+                    },
+                    {
+                        "slot_number": 2,
+                        "occupied": True,
+                        "device_serial": "UNIT-2",
+                        "device_model": "TX-2",
+                        "battery_percent": 80,
+                        "device_firmware_version": "1.2",
+                        "device_status": "updating",
+                        "is_functional": False,
+                        "performer": {
+                            "name": "Two",
+                            "title": "Lead",
+                            "photo_url": "/media/performer.jpg",
+                        },
+                    },
+                ],
+            }
+        ],
+        "chargers_truncated": False,
+        "charger_limit": 64,
     }
 
 
@@ -165,7 +165,9 @@ def test_prepare_building_skips_lookup_without_country_or_with_existing_domain(
     has_domain: bool,
 ) -> None:
     building = SimpleNamespace(country=country, regulatory_domain=object() if has_domain else None)
-    with patch("micboard.models.rf_coordination.RegulatoryDomain.objects.filter") as lookup:
+    with patch(
+        "micboard.models.rf_coordination.compliance.RegulatoryDomain.objects.filter"
+    ) as lookup:
         prepare_building(building)
     lookup.assert_not_called()
 
@@ -173,7 +175,9 @@ def test_prepare_building_skips_lookup_without_country_or_with_existing_domain(
 def test_prepare_building_assigns_matching_domain_and_tolerates_missing_or_unready_tables() -> None:
     domain = object()
     building = SimpleNamespace(country="us", regulatory_domain=None)
-    with patch("micboard.models.rf_coordination.RegulatoryDomain.objects.filter") as lookup:
+    with patch(
+        "micboard.models.rf_coordination.compliance.RegulatoryDomain.objects.filter"
+    ) as lookup:
         lookup.return_value.first.side_effect = [domain, None, OperationalError("not ready")]
         prepare_building(building)
         assert building.regulatory_domain is domain
@@ -257,23 +261,3 @@ def test_api_server_connection_handles_none_and_records_sanitized_failures() -> 
     assert server.status_message == "Connection failed (RuntimeError)"
     assert server.last_health_check == "now"
     assert secret not in str(logged.call_args)
-
-
-@pytest.mark.parametrize(
-    ("function", "setting_name"),
-    [(is_msp_enabled, "MICBOARD_MSP_ENABLED"), (is_multisite_enabled, "MICBOARD_MULTI_SITE_MODE")],
-)
-def test_multitenancy_feature_helpers_return_flags_and_fail_closed(
-    function: object,
-    setting_name: str,
-) -> None:
-    enabled_settings = SimpleNamespace(**{setting_name: True})
-    with patch("django.conf.settings", enabled_settings):
-        assert function() is True
-
-    class BrokenSettings:
-        def __getattr__(self, name: str) -> object:
-            raise RuntimeError(name)
-
-    with patch("django.conf.settings", BrokenSettings()):
-        assert function() is False

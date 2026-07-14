@@ -1,12 +1,20 @@
 """Service for RealTimeConnection business logic."""
 
+from __future__ import annotations
+
+from datetime import timedelta
+
 from django.utils import timezone
 
+from micboard.models.realtime.connection import RealTimeConnection
 
-def mark_connected(conn):
+
+def mark_connected(conn: RealTimeConnection) -> None:
+    """Record a successful connection and reset its consecutive error state."""
+    now = timezone.now()
     conn.status = "connected"
-    conn.connected_at = timezone.now()
-    conn.last_message_at = timezone.now()
+    conn.connected_at = now
+    conn.last_message_at = now
     conn.disconnected_at = None
     conn.error_count = 0
     conn.error_message = ""
@@ -14,17 +22,8 @@ def mark_connected(conn):
     conn.save()
 
 
-def mark_disconnected(conn, error_message: str = ""):
-    conn.status = "disconnected"
-    conn.disconnected_at = timezone.now()
-    if error_message:
-        conn.error_message = error_message
-        conn.error_count += 1
-        conn.last_error_at = timezone.now()
-    conn.save()
-
-
-def mark_error(conn, error_message: str):
+def mark_error(conn: RealTimeConnection, error_message: str) -> None:
+    """Record one redacted transport error for an active connection row."""
     conn.status = "error"
     conn.error_message = error_message
     conn.error_count += 1
@@ -32,48 +31,37 @@ def mark_error(conn, error_message: str):
     conn.save()
 
 
-def mark_connecting(conn):
+def mark_connecting(conn: RealTimeConnection) -> None:
+    """Mark a connection attempt as in progress."""
     conn.status = "connecting"
     conn.save()
 
 
-def mark_stopped(conn):
+def mark_stopped(conn: RealTimeConnection) -> None:
+    """Record an intentional connection stop."""
     conn.status = "stopped"
     conn.disconnected_at = timezone.now()
     conn.save()
 
 
-def received_message(conn):
-    conn.last_message_at = timezone.now()
+def received_message(conn: RealTimeConnection) -> None:
+    """Record message activity and establish a previously pending connection."""
     if conn.status != "connected":
         mark_connected(conn)
     else:
+        conn.last_message_at = timezone.now()
         conn.save(update_fields=["last_message_at"])
 
 
-def should_reconnect(conn):
-    return (
-        conn.status in ["disconnected", "error"]
-        and conn.reconnect_attempts < conn.max_reconnect_attempts
-    )
-
-
-def increment_reconnect_attempt(conn):
-    conn.reconnect_attempts += 1
-    conn.save(update_fields=["reconnect_attempts"])
-
-
-def is_active(conn):
-    return conn.status == "connected"
-
-
-def time_since_last_message(conn):
+def time_since_last_message(conn: RealTimeConnection) -> timedelta | None:
+    """Return elapsed time since the latest message, when one exists."""
     if not conn.last_message_at:
         return None
     return timezone.now() - conn.last_message_at
 
 
-def connection_duration(conn):
+def connection_duration(conn: RealTimeConnection) -> timedelta | None:
+    """Return the current connected duration, or none outside an active session."""
     if not conn.connected_at or conn.status != "connected":
         return None
     return timezone.now() - conn.connected_at

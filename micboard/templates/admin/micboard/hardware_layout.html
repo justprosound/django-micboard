@@ -5,17 +5,17 @@
 <div id="content-main">
     <div class="module">
         <h1>Hardware Layout Overview</h1>
-        <p class="help">Physical receiver layout by building/room with channel frequencies.</p>
+        <p class="help">Active chassis grouped by manufacturer and network address.</p>
 
-        {% for manufacturer, locations in grouped_receivers.items %}
+        {% for manufacturer in hardware_layout.manufacturers %}
         <div class="manufacturer-section">
-            <h2>{{ manufacturer }}</h2>
-            {% for location, receivers in locations.items %}
+            <h2>{{ manufacturer.name }}</h2>
+            {% for location in manufacturer.locations %}
             <div class="location-section">
-                <h3>{{ location }}</h3>
+                <h3>{{ location.name }}</h3>
                 <div class="channels-frequency-grid">
-                    {% for r in receivers %}
-                        {% for channel in r.channels %}
+                    {% for chassis in location.chassis %}
+                        {% for channel in chassis.channels %}
                         <div class="channel-frequency-card">
                             <div class="channel-number">CH {{ channel.channel_number }}</div>
                             {% if channel.frequency %}
@@ -30,11 +30,9 @@
             </div>
             {% endfor %}
         </div>
-        {% endfor %}
-
-        {% if not receivers %}
+        {% empty %}
         <p>No active receivers found.</p>
-        {% endif %}
+        {% endfor %}
     </div>
 </div>
 {% endblock %}

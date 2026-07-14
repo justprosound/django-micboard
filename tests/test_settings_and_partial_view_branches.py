@@ -31,13 +31,15 @@ def test_all_partial_views_resolve_scoped_objects_and_service_data() -> None:
             return_value=scoped,
         ),
         patch(
-            "micboard.services.monitoring.monitoring_access.MonitoringService.get_accessible_wall_sections",
-            return_value=scoped,
+            "micboard.services.kiosk.services.KioskService.get_section_snapshot",
+            return_value=obj,
         ),
-        patch("micboard.services.kiosk.KioskService.get_section_data", return_value={"x": 1}),
         patch.object(partials, "get_alerts_for_user", return_value=scoped),
         patch.object(partials.PerformerAssignment.objects, "for_user", return_value=scoped),
-        patch("micboard.services.kiosk.KioskService.get_charger_dashboard_data", return_value={}),
+        patch(
+            "micboard.services.chargers.dashboard_service.ChargerDashboardService.get_snapshot",
+            return_value=SimpleNamespace(chargers=[]),
+        ),
         patch.object(partials.WirelessChassis.objects, "for_user", return_value=scoped),
     ):
         for function, args in (
@@ -50,7 +52,7 @@ def test_all_partial_views_resolve_scoped_objects_and_service_data() -> None:
             (partials.device_tiles_partial, ()),
         ):
             assert view(function)(partial_request, *args).status_code == 200
-    assert get_object.call_count == 5
+    assert get_object.call_count == 4
     assert render.call_count == 7
 
 

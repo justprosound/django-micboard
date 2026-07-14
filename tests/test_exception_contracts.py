@@ -1,7 +1,10 @@
 """Public exception payload and message contracts."""
 
 from micboard.exceptions import (
+    APIAuthenticationError,
     APIError,
+    APIRateLimitError,
+    APITimeoutError,
     DiscoveryError,
     HardwareNotFoundError,
     HardwareValidationError,
@@ -9,6 +12,7 @@ from micboard.exceptions import (
     LocationNotFoundError,
     ManufacturerNotSupportedError,
     MicboardError,
+    OrganizationDeviceQuotaExceededError,
     ServiceError,
 )
 
@@ -39,6 +43,21 @@ def test_domain_errors_build_stable_payloads() -> None:
     invalid = HardwareValidationError("ip", "invalid")
     assert invalid.details == {"field": "ip", "message": "invalid"}
 
+    quota = OrganizationDeviceQuotaExceededError(
+        organization_id=8,
+        max_devices=20,
+        current_devices=20,
+    )
+    assert quota.code == "ORGANIZATION_DEVICE_QUOTA_EXCEEDED"
+    assert str(quota) == (
+        "[ORGANIZATION_DEVICE_QUOTA_EXCEEDED] Organization 8 has reached its device quota (20/20)"
+    )
+    assert quota.details == {
+        "organization_id": 8,
+        "max_devices": 20,
+        "current_devices": 20,
+    }
+
     api = APIError("unavailable", status_code=503, response_body="retry")
     assert api.details == {"status_code": 503, "response": "retry"}
 
@@ -55,3 +74,17 @@ def test_marker_errors_accept_base_contract() -> None:
         error = error_type("failed", code="DOMAIN")
         assert isinstance(error, MicboardError)
         assert str(error) == "[DOMAIN] failed"
+
+
+def test_api_error_family_uses_one_structured_root() -> None:
+    """Transport specializations remain catchable through the canonical root."""
+    rate_limit = APIRateLimitError(retry_after=5)
+    authentication = APIAuthenticationError()
+    timeout = APITimeoutError()
+
+    assert isinstance(rate_limit, MicboardError)
+    assert rate_limit.code == "API_RATE_LIMIT"
+    assert rate_limit.retry_after == 5
+    assert authentication.code == "API_AUTH_ERROR"
+    assert authentication.status_code == 401
+    assert timeout.code == "API_TIMEOUT"

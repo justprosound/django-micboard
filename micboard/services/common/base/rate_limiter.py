@@ -2,17 +2,22 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
+from typing import Any, TypeVar, cast
 
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+_CallableT = TypeVar("_CallableT", bound=Callable[..., Any])
 
 
-def rate_limit(*, calls_per_second: float = 10.0):
-    def decorator(func):
+def rate_limit(*, calls_per_second: float = 10.0) -> Callable[[_CallableT], _CallableT]:
+    """Rate-limit calls to a decorated client method through the shared cache."""
+
+    def _decorator(func: _CallableT) -> _CallableT:
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def _wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             cache_key = f"rate_limit_{self.__class__.__name__}_{func.__name__}"
             min_interval = 1.0 / calls_per_second
 
@@ -29,6 +34,6 @@ def rate_limit(*, calls_per_second: float = 10.0):
             cache.set(cache_key, now, timeout=60)
             return func(self, *args, **kwargs)
 
-        return wrapper
+        return cast(_CallableT, _wrapper)
 
-    return decorator
+    return _decorator

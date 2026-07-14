@@ -6,112 +6,24 @@ This module provides Django admin interfaces for managing wireless audio hardwar
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, Q
-from django.forms.models import BaseInlineFormSet
 from django.shortcuts import render
 from django.urls import path
 from django.utils.html import format_html
 
 from micboard.admin.forms import WirelessChassisAdminForm
-from micboard.admin.mixins import MicboardModelAdmin, TenantScopedAdminInlineMixin
+from micboard.admin.mixins import MicboardModelAdmin
+from micboard.admin.receiver_inlines import AccessoryInline, RFChannelInline
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.hardware.wireless_unit import WirelessUnit
-from micboard.models.integrations import Accessory
-from micboard.models.rf_coordination.rf_channel import RFChannel
-from micboard.services.hardware.wireless_unit_service import get_battery_percentage
+from micboard.services.hardware.chassis_admin_service import ChassisAdminService
 
 logger = logging.getLogger(__name__)
 MAX_SYNCHRONOUS_REFRESH = 25
-
-
-class WirelessUnitInline(admin.StackedInline):
-    """Inline admin for WirelessUnit model."""
-
-    model = WirelessUnit
-    fk_name = "base_chassis"
-    extra = 0
-    readonly_fields = (
-        "battery_percentage",
-        "updated_at",
-        "device_type",
-        "name",
-        "status",
-    )
-    fields = (
-        "device_type",
-        "name",
-        "battery_percentage",
-        "audio_level",
-        "rf_level",
-        "status",
-        "updated_at",
-    )
-    can_delete = False
-
-    @admin.display(description="Battery Percentage", ordering="battery")
-    def battery_percentage(self, obj: WirelessUnit) -> int | None:
-        """Expose normalized battery percentage as an inline readonly field."""
-        return get_battery_percentage(obj)
-
-
-class RFChannelInlineFormSet(BaseInlineFormSet):
-    """Keep active-unit assignments on the inline's own chassis."""
-
-    unit_fields = ("active_wireless_unit", "active_iem_receiver")
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        chassis_id = self.instance.pk
-        for form in self.forms:
-            for field_name in self.unit_fields:
-                field = form.fields.get(field_name)
-                queryset = getattr(field, "queryset", None)
-                if queryset is not None:
-                    field.queryset = queryset.filter(base_chassis_id=chassis_id)
-
-    def clean(self) -> None:
-        """Reject forged unit assignments even if a custom widget bypasses choices."""
-        super().clean()
-        chassis_id = self.instance.pk
-        for form in self.forms:
-            if not hasattr(form, "cleaned_data") or form.cleaned_data.get("DELETE"):
-                continue
-            for field_name in self.unit_fields:
-                unit = form.cleaned_data.get(field_name)
-                if unit is not None and unit.base_chassis_id != chassis_id:
-                    form.add_error(
-                        field_name,
-                        "Selected wireless unit must belong to this chassis.",
-                    )
-
-
-class RFChannelInline(TenantScopedAdminInlineMixin, admin.StackedInline):
-    """Inline admin for RFChannel model."""
-
-    model = RFChannel
-    fk_name = "chassis"
-    formset = RFChannelInlineFormSet
-
-
-class AccessoryInline(TenantScopedAdminInlineMixin, admin.TabularInline):
-    """Inline admin for managing accessories attached to a chassis."""
-
-    model = Accessory
-    extra = 1
-    fields = (
-        "category",
-        "name",
-        "assigned_to",
-        "condition",
-        "is_available",
-        "checked_out_date",
-    )
-    readonly_fields = ("created_at",)
 
 
 @admin.register(WirelessChassis)
@@ -288,45 +200,12 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         if not self.has_view_permission(request):
             raise PermissionDenied
 
-        chassis_qs = (
-            self.get_queryset(request)
-            .filter(status__in=["online", "degraded", "provisioning"])
-            .select_related("manufacturer")
-            .prefetch_related(
-                "rf_channels__active_wireless_unit",
-                "rf_channels__active_iem_receiver",
-            )
-            .annotate(
-                channel_count=Count("rf_channels"),
-                unit_count=Count(
-                    "rf_channels",
-                    filter=Q(rf_channels__active_wireless_unit__isnull=False),
-                ),
-            )
-            .order_by("manufacturer__name", "ip")
+        hardware_layout = ChassisAdminService.get_hardware_layout(
+            queryset=self.get_queryset(request)
         )
 
-        # Build grouped structure for template to avoid complex template logic
-        grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
-        for chassis in chassis_qs:
-            m_name = chassis.manufacturer.name if chassis.manufacturer else "Unknown"
-            grouped.setdefault(m_name, {})
-            # Use IP as chassis location identifier
-            loc = chassis.ip or "Unknown IP"
-            grouped[m_name].setdefault(loc, [])
-
-            channels = []
-            for ch in chassis.rf_channels.all().order_by("channel_number"):
-                freq = None
-                unit = ch.active_wireless_unit or ch.active_iem_receiver
-                if unit and getattr(unit, "frequency", None):
-                    freq = unit.frequency
-                channels.append({"channel_number": ch.channel_number, "frequency": freq})
-
-            grouped[m_name][loc].append({"chassis": chassis, "channels": channels})
-
         context = {
-            "grouped_chassis": grouped,
+            "hardware_layout": hardware_layout,
             "title": "Hardware Layout Overview",
             "opts": self.model._meta,
         }
@@ -343,19 +222,10 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.display(description="Hardware Layout")
     def get_hardware_summary(self, obj):
         """Show hardware summary for this chassis."""
-        channels = obj.rf_channels.select_related(
-            "active_wireless_unit", "active_iem_receiver"
-        ).prefetch_related("assignments__user", "assignments__location")
-
-        summary = []
-        for channel in channels.order_by("channel_number"):
-            unit = channel.active_wireless_unit or channel.active_iem_receiver
-            unit_info = "No Unit" if not unit else f"{unit.device_type.upper()}"
-            assignments = channel.assignments.filter(is_active=True)
-            user_info = assignments.first().user.username if assignments.exists() else "Unassigned"
-            summary.append(f"CH{channel.channel_number}: {unit_info} → {user_info}")
-
-        return " | ".join(summary)
+        channels = ChassisAdminService.get_hardware_summary(chassis_id=obj.pk)
+        return " | ".join(
+            f"CH{channel.channel_number}: {channel.unit_type or 'No Unit'}" for channel in channels
+        )
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
@@ -459,7 +329,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.display(description="Band Plan")
     def band_plan_display(self, obj):
         """Display chassis band plan information."""
-        from micboard.services.hardware.wireless_chassis_service import get_band_plan_status
+        from micboard.services.hardware.chassis_regulatory_service import get_band_plan_status
 
         if get_band_plan_status(obj):
             range_str = f"{obj.band_plan_min_mhz}-{obj.band_plan_max_mhz} MHz"

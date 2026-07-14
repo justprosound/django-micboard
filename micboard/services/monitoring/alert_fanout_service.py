@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any, TypeVar, cast
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import models
@@ -15,6 +14,7 @@ from micboard.models.base_managers import TenantOptimizedQuerySet
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -148,10 +148,7 @@ class AlertFanoutService:
             return False
         if unit.pk is None:
             return False
-        if not (
-            getattr(settings, "MICBOARD_MSP_ENABLED", False)
-            or getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
-        ):
+        if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
             return True
 
         tenant_units: QuerySet[WirelessUnit] = TenantOptimizedQuerySet(

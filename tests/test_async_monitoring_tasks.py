@@ -11,17 +11,19 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from micboard.integrations.sennheiser.plugin import SennheiserPlugin
-from micboard.models.discovery import Manufacturer
-from micboard.models.hardware import WirelessChassis
-from micboard.models.realtime import RealTimeConnection
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.realtime.connection import RealTimeConnection
 from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.realtime.shure_websocket_subscription_service import (
-    _process_websocket_update_async,
     _start_receiver_websocket_async,
 )
 from micboard.services.realtime.sse_subscription_service import (
-    _process_sse_update_async,
     _subscribe_device_async,
+)
+from micboard.services.realtime.subscription_lifecycle_service import (
+    RealtimeSubscriptionLifecycleService,
+    RealtimeTransport,
 )
 from tests.async_utils import run_async_with_heartbeat
 from tests.factories.discovery import ManufacturerFactory
@@ -39,17 +41,13 @@ def _chassis(**kwargs: Any) -> WirelessChassis:
 def test_sennheiser_plugin_awaits_native_sse_subscription() -> None:
     """The plugin exposes the asynchronous SSE contract used by task and CLI loops."""
     plugin = object.__new__(SennheiserPlugin)
-    plugin.client = Mock()
     callback = AsyncMock()
     subscribe = AsyncMock()
+    plugin.client = Mock(connect_and_subscribe=subscribe)
 
-    with patch(
-        "micboard.integrations.sennheiser.sse_client.connect_and_subscribe",
-        subscribe,
-    ):
-        asyncio.run(plugin.connect_and_subscribe("device-1", callback))
+    asyncio.run(plugin.connect_and_subscribe("device-1", callback))
 
-    subscribe.assert_awaited_once_with(plugin.client, "device-1", callback)
+    subscribe.assert_awaited_once_with("device-1", callback)
 
 
 class EventPlugin:
@@ -218,14 +216,13 @@ def test_websocket_connection_error_state_excludes_private_exception_details() -
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
-    "process_update",
-    [_process_sse_update_async, _process_websocket_update_async],
-    ids=["sse", "websocket"],
+    "transport",
+    ["sse", "websocket"],
 )
 def test_realtime_updates_adapt_model_persistence_and_broadcast_lookup(
-    process_update: Callable[[Any, dict[str, Any]], Awaitable[None]],
+    transport: RealtimeTransport,
 ) -> None:
-    """Both event transports persist and broadcast through sync Django services safely."""
+    """The shared event lifecycle persists and broadcasts outside the event-loop thread."""
     manufacturer = _manufacturer()
     chassis = _chassis(
         manufacturer=manufacturer,
@@ -236,9 +233,10 @@ def test_realtime_updates_adapt_model_persistence_and_broadcast_lookup(
 
     with patch.object(BroadcastService, "broadcast_device_update") as broadcast:
         run_async_with_heartbeat(
-            process_update(
-                plugin,
-                {"id": chassis.api_device_id, "name": "After event"},
+            RealtimeSubscriptionLifecycleService.process_update(
+                plugin=plugin,
+                data={"id": chassis.api_device_id, "name": "After event"},
+                transport=transport,
             )
         )
 

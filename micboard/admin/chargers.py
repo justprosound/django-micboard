@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from micboard.admin.mixins import MicboardModelAdmin, MicboardSortableAdmin
+from micboard.admin.mixins import MicboardModelAdmin
+from micboard.admin.sortable import MicboardSortableAdmin
 from micboard.models.hardware.charger import Charger, ChargerSlot
 
 

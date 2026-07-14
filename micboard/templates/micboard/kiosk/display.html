@@ -1,91 +1,69 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ wall.name }} - Micboard Kiosk</title>
-    <link rel="stylesheet" href="/static/micboard/css/accessibility.css">
+    <title>{{ snapshot.wall.name }} - Micboard Kiosk</title>
+    <link rel="stylesheet" href="{% static 'micboard/css/accessibility.css' %}">
+    <script src="{% static 'micboard/vendor/htmx/htmx-2.0.7.min.js' %}" defer></script>
 </head>
 <body>
     <div class="kiosk-header">
-        <h1>{{ wall.name }}</h1>
-        <p id="update-time">Loading...</p>
+        <h1>{{ snapshot.wall.name }}</h1>
+        <p id="update-time" aria-live="polite">Loading...</p>
     </div>
 
-    <div class="kiosk-content" hx-get="{% url 'micboard:kiosk_data' wall.id %}"
-         hx-target="this" hx-trigger="load, every {{ wall.refresh_interval_seconds }}s"
+    <div id="kiosk-content" class="kiosk-content"
+         hx-get="{% url 'micboard:kiosk_content' snapshot.wall.id %}"
+         hx-target="this" hx-trigger="every {{ snapshot.wall.refresh_interval_seconds }}s"
          hx-swap="innerHTML">
-
-        {% for section in sections %}
-        <div class="section">
-            <div class="section-title">{{ section.section.name }}</div>
-            {% if section.performers %}
-                <div class="performers-list">
-                    {% for charger_group in section.performers %}
-                        {% for performer in charger_group.performers %}
-                        <div class="performer-card">
-                            {% if wall.show_performer_photos and performer.performer_photo %}
-                            <img src="{{ performer.performer_photo }}" alt="{{ performer.performer_name }}" class="performer-photo">
-                            {% else %}
-                            <div class="performer-photo no-photo">
-                                <span>No Photo</span>
-                            </div>
-                            {% endif %}
-                            <div class="performer-name">{{ performer.performer_name }}</div>
-                            {% if performer.performer_title %}
-                            <div class="performer-title">{{ performer.performer_title }}</div>
-                            {% endif %}
-                            <div class="performer-stats">
-                                {% if wall.show_battery_levels %}
-                                <div class="stat battery">
-                                    <div class="stat-label">Battery</div>
-                                    <div class="stat-value">{{ performer.unit_battery_percent }}%</div>
-                                </div>
-                                {% endif %}
-                                {% if wall.show_rf_levels %}
-                                <div class="stat signal">
-                                    <div class="stat-label">RF</div>
-                                    <div class="stat-value">{{ performer.unit_rf_level|default:"—" }}</div>
-                                </div>
-                                {% endif %}
-                                {% if performer.channel %}
-                                <div class="stat frequency">
-                                    <div class="stat-label">Freq</div>
-                                    <div class="stat-value">{{ performer.channel.frequency|default:"—" }}</div>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="no-performers">No performers assigned</p>
-            {% endif %}
-        </div>
-        {% endfor %}
+        {% include "micboard/kiosk/display_content.html" %}
     </div>
 
     <div class="kiosk-footer">
-        <p>Last updated: <span id="footer-time">-</span> • Refresh every {{ wall.refresh_interval_seconds }}s</p>
+        <p>Last updated: <span id="footer-time">-</span> • Refresh every {{ snapshot.wall.refresh_interval_seconds }}s</p>
     </div>
+
+    <form id="kiosk-heartbeat-form"
+          action="{% url 'micboard:kiosk_display' snapshot.wall.kiosk_id %}" hidden>
+        {% csrf_token %}
+    </form>
 
     <script>
         // Heartbeat to notify server kiosk is active
         function sendHeartbeat() {
-            fetch('{{ request.path }}', { method: 'POST' })
-                .catch(e => console.error('Heartbeat failed:', e));
+            const heartbeatForm = document.getElementById("kiosk-heartbeat-form");
+            const csrfToken = heartbeatForm.querySelector(
+                "input[name=csrfmiddlewaretoken]"
+            ).value;
+            fetch(heartbeatForm.action, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {"X-CSRFToken": csrfToken},
+            }).catch(error => console.error("Heartbeat failed:", error));
         }
         setInterval(sendHeartbeat, 30000);
 
-        // Update timestamp
+        // Record only successful renders so stale displays remain visible to operators.
         function updateTimestamp() {
             const now = new Date();
             document.getElementById('update-time').textContent = now.toLocaleTimeString();
             document.getElementById('footer-time').textContent = now.toLocaleTimeString();
         }
         updateTimestamp();
-        setInterval(updateTimestamp, 1000);
+        document.body.addEventListener("htmx:afterSwap", event => {
+            if (event.detail.target.id === "kiosk-content") {
+                updateTimestamp();
+            }
+        });
+        function showRefreshError(event) {
+            if (event.detail.target.id === "kiosk-content") {
+                document.getElementById("update-time").textContent = "Refresh failed";
+            }
+        }
+        document.body.addEventListener("htmx:responseError", showRefreshError);
+        document.body.addEventListener("htmx:sendError", showRefreshError);
 
         // Hide cursor after inactivity
         let hideTimeout;

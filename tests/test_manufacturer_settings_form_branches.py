@@ -11,8 +11,7 @@ from django.core.exceptions import ValidationError
 import pytest
 
 from micboard.forms.settings import ManufacturerSettingsForm
-from micboard.models.settings.registry import SettingDefinition
-from micboard.services.settings.dtos import SettingsVisibilityScope
+from micboard.services.settings.dtos import SettingsVisibilityScope, SettingsWriteResult
 
 
 def _fake_manufacturer_form(cleaned_data: dict[str, Any]) -> ManufacturerSettingsForm:
@@ -58,16 +57,19 @@ def test_manufacturer_save_skips_blanks_saves_and_classifies_errors() -> None:
         }
     )
     form.is_valid = Mock(return_value=True)
-    good = SimpleNamespace(serialize_value=Mock(return_value="80"))
-    broken = SimpleNamespace(serialize_value=Mock(side_effect=ValueError("bad serialize")))
+    result = SettingsWriteResult(
+        saved=1,
+        errors=[
+            "Setting definition not found for battery_low_level",
+            "Error saving battery_critical_level (ValueError); details redacted.",
+        ],
+    )
     with (
         patch("micboard.forms.settings.settings_visibility.can_manage_scope", return_value=True),
         patch(
-            "micboard.forms.settings.SettingDefinition.objects.get",
-            side_effect=[good, SettingDefinition.DoesNotExist, broken],
-        ),
-        patch("micboard.forms.settings.Setting.objects.update_or_create") as update,
-        patch("micboard.forms.settings.SettingsRegistry.invalidate_cache") as invalidate,
+            "micboard.forms.settings.SettingsPersistenceService.save",
+            return_value=result,
+        ) as save,
     ):
         results = form.save_settings()
 
@@ -77,5 +79,10 @@ def test_manufacturer_save_skips_blanks_saves_and_classifies_errors() -> None:
         "Error saving battery_critical_level (ValueError); details redacted.",
     ]
     assert "bad serialize" not in str(results)
-    update.assert_called_once()
-    invalidate.assert_called_once_with("battery_good_level")
+    request = save.call_args.kwargs["request"]
+    assert request.target.manufacturer_id == 5
+    assert [item.key for item in request.items] == [
+        "battery_good_level",
+        "battery_low_level",
+        "battery_critical_level",
+    ]

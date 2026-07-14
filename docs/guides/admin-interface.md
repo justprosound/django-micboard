@@ -97,7 +97,8 @@ uv run --no-sync python manage.py realtime_status --verbose
 ```
 
 Operational history is available through Activity Log, Service Sync Log, Device Movement Log, and
-Configuration Audit Log admins. Secret-bearing configuration is redacted in audit displays.
+Configuration Audit Log admins. Activity and service-sync history is view-only; retention services
+own deletion. Secret-bearing configuration is redacted in audit displays.
 
 ## Bulk actions
 

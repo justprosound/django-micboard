@@ -9,14 +9,14 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from django.conf import settings
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from micboard.models.hardware.charger import Charger, ChargerSlot
 from micboard.models.hardware.display_wall import DisplayWall, WallSection
 from micboard.models.locations.structure import Building, Location, Room
 from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.rf_coordination.rf_channel import RFChannel
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.services.shared.access_policy import has_unrestricted_tenant_access
 
 logger = logging.getLogger(__name__)
@@ -28,10 +28,7 @@ class MonitoringService:
     @staticmethod
     def _apply_tenant_scope(queryset: QuerySet, *, user: Any) -> QuerySet:
         """Intersect monitoring results with active tenant or site scope."""
-        if not (
-            getattr(settings, "MICBOARD_MSP_ENABLED", False)
-            or getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
-        ):
+        if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
             return queryset
 
         from micboard.models.base_managers import TenantOptimizedQuerySet
@@ -44,10 +41,29 @@ class MonitoringService:
 
     @staticmethod
     def get_user_monitoring_groups(user: Any) -> QuerySet[MonitoringGroup]:
-        """Get all active monitoring groups for a user."""
+        """Get active monitoring groups inside the user's tenant scope."""
         if has_unrestricted_tenant_access(user):
-            return MonitoringGroup.objects.filter(is_active=True)
-        return user.monitoring_groups.filter(is_active=True)
+            groups = MonitoringGroup.objects.filter(is_active=True)
+        else:
+            groups = user.monitoring_groups.filter(is_active=True)
+
+        if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
+            return groups
+
+        from micboard.models.base_managers import TenantOptimizedQuerySet
+
+        building_ids: QuerySet[Any] = (
+            TenantOptimizedQuerySet(Building).for_user(user=user).values("pk")
+        )
+        return groups.filter(
+            Q(locations__building_id__in=building_ids)
+            | Q(channels__chassis__location__building_id__in=building_ids)
+            | Q(
+                performer_assignments__wireless_unit__base_chassis__location__building_id__in=(
+                    building_ids
+                )
+            )
+        ).distinct()
 
     @staticmethod
     def get_accessible_locations(user: Any) -> QuerySet[Location]:

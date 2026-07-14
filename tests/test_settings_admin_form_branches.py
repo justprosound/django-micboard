@@ -76,6 +76,7 @@ def _fake_setting_value(cleaned_data: dict[str, Any], *, saved: bool = False) ->
 )
 def test_setting_value_init_describes_selected_definition(setting_type: str, expected: str) -> None:
     definition = SimpleNamespace(
+        key="poll_interval",
         setting_type=setting_type,
         choices_json={"one": "One"},
     )
@@ -83,7 +84,7 @@ def test_setting_value_init_describes_selected_definition(setting_type: str, exp
         patch.object(SettingValueForm, "_scope_target_fields"),
         patch.object(SettingValueForm, "_selected_definition", return_value=definition),
         patch(
-            "micboard.forms.settings_admin.settings_presentation.is_sensitive_definition",
+            "micboard.forms.settings_admin.settings_presentation.is_key_sensitive",
             return_value=False,
         ),
     ):
@@ -176,6 +177,7 @@ def test_setting_value_scope_fields_build_exact_visible_choices(installed: bool)
 
 def test_setting_value_clean_preserves_secret_parses_and_authorizes() -> None:
     definition = SimpleNamespace(
+        key="shared_secret",
         scope=SettingDefinition.SCOPE_GLOBAL,
         setting_type=SettingDefinition.TYPE_INTEGER,
         parse_value=Mock(),
@@ -185,11 +187,11 @@ def test_setting_value_clean_preserves_secret_parses_and_authorizes() -> None:
     with (
         patch("django.forms.models.BaseModelForm.clean", return_value=cleaned_data),
         patch(
-            "micboard.forms.settings_admin.settings_presentation.is_sensitive_definition",
+            "micboard.forms.settings_admin.settings_presentation.is_key_sensitive",
             return_value=True,
         ),
         patch(
-            "micboard.forms.settings_admin.settings_visibility.matches_definition_scope",
+            "micboard.forms.settings_admin.matches_definition_scope",
             return_value=True,
         ),
         patch(
@@ -203,6 +205,7 @@ def test_setting_value_clean_preserves_secret_parses_and_authorizes() -> None:
 
 def test_setting_value_clean_records_parse_error_and_rejects_scope_mismatch() -> None:
     definition = SimpleNamespace(
+        key="poll_interval",
         scope=SettingDefinition.SCOPE_SITE,
         setting_type=SettingDefinition.TYPE_INTEGER,
         parse_value=Mock(side_effect=ValueError("not int")),
@@ -212,11 +215,11 @@ def test_setting_value_clean_records_parse_error_and_rejects_scope_mismatch() ->
     with (
         patch("django.forms.models.BaseModelForm.clean", return_value=cleaned_data),
         patch(
-            "micboard.forms.settings_admin.settings_presentation.is_sensitive_definition",
+            "micboard.forms.settings_admin.settings_presentation.is_key_sensitive",
             return_value=False,
         ),
         patch(
-            "micboard.forms.settings_admin.settings_visibility.matches_definition_scope",
+            "micboard.forms.settings_admin.matches_definition_scope",
             return_value=False,
         ),
         pytest.raises(forms.ValidationError, match="does not match"),

@@ -1,0 +1,69 @@
+{% if snapshot.sections_truncated %}
+<p class="projection-overflow" role="status">
+    Showing the first {{ snapshot.section_limit }} wall sections. Additional sections are not shown.
+</p>
+{% endif %}
+{% for section in snapshot.sections %}
+<section class="section" aria-label="Wall section {{ section.name }}">
+    <h2 class="section-title">{{ section.name }}</h2>
+    {% if section.chargers_truncated %}
+    <p class="projection-overflow" role="status">
+        Showing the first {{ section.charger_limit }} chargers in this section. Additional chargers are not shown.
+    </p>
+    {% endif %}
+    {% if section.occupied_slots_truncated %}
+    <p class="projection-overflow" role="status">
+        Some chargers have more than {{ section.occupied_slot_limit }} occupied slots. Additional performers are not shown.
+    </p>
+    {% endif %}
+    {% if section.performers %}
+        <div class="performers-list">
+            {% for charger_group in section.performers %}
+                {% for performer in charger_group.performers %}
+                <article class="performer-card">
+                    {% if snapshot.wall.show_performer_photos and performer.performer_photo %}
+                    <img src="{{ performer.performer_photo }}" alt="{{ performer.performer_name }}" class="performer-photo">
+                    {% else %}
+                    <div class="performer-photo no-photo"><span>No Photo</span></div>
+                    {% endif %}
+                    <div class="performer-name">{{ performer.performer_name }}</div>
+                    {% if performer.performer_title %}
+                    <div class="performer-title">{{ performer.performer_title }}</div>
+                    {% endif %}
+                    <div class="performer-stats">
+                        {% if snapshot.wall.show_battery_levels %}
+                        <div class="stat battery">
+                            <div class="stat-label">Battery</div>
+                            <div class="stat-value">{{ performer.unit_battery_percent|default_if_none:"—" }}%</div>
+                        </div>
+                        {% endif %}
+                        {% if snapshot.wall.show_rf_levels %}
+                        <div class="stat signal">
+                            <div class="stat-label">RF</div>
+                            <div class="stat-value">{{ performer.unit_rf_level|default_if_none:"—" }}</div>
+                        </div>
+                        {% endif %}
+                        {% if snapshot.wall.show_audio_levels %}
+                        <div class="stat audio">
+                            <div class="stat-label">Audio</div>
+                            <div class="stat-value">{{ performer.unit_audio_level|default_if_none:"—" }}</div>
+                        </div>
+                        {% endif %}
+                        {% if performer.channel %}
+                        <div class="stat frequency">
+                            <div class="stat-label">Freq</div>
+                            <div class="stat-value">{{ performer.channel.frequency|default_if_none:"—" }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="no-performers">No performers assigned</p>
+    {% endif %}
+</section>
+{% empty %}
+<p class="no-sections">No active wall sections</p>
+{% endfor %}

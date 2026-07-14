@@ -43,10 +43,10 @@ def test_alert_scan_rotates_through_inventory_and_wraps_fairly() -> None:
 
     with (
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_hardware_offline_alerts"
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts"
         ) as offline,
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_transmitter_alerts"
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_wireless_unit_alerts"
         ) as transmitter,
     ):
         first = PollAlertService.evaluate_manufacturer(manufacturer)
@@ -109,11 +109,11 @@ def test_alert_scan_isolates_and_redacts_unit_failures(caplog) -> None:
 
     with (
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_hardware_offline_alerts",
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts",
             side_effect=[RuntimeError(secret), None],
         ),
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_transmitter_alerts"
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_wireless_unit_alerts"
         ) as transmitter,
     ):
         result = PollAlertService.evaluate_manufacturer(manufacturer)
@@ -140,9 +140,11 @@ def test_alert_scan_continues_when_cursor_cache_fails(caplog) -> None:
             side_effect=RuntimeError(secret),
         ),
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_hardware_offline_alerts"
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts"
         ) as offline,
-        patch("micboard.services.monitoring.poll_alert_service.check_transmitter_alerts"),
+        patch(
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_wireless_unit_alerts"
+        ),
     ):
         result = PollAlertService.evaluate_manufacturer(unit.manufacturer)
 
@@ -165,10 +167,10 @@ def test_alert_scan_excludes_units_without_active_fanout(assigned_unit, revoked:
 
     with (
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_hardware_offline_alerts"
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts"
         ) as offline,
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_transmitter_alerts"
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_wireless_unit_alerts"
         ) as transmitter,
     ):
         result = PollAlertService.evaluate_manufacturer(assigned_unit.unit.manufacturer)
@@ -198,7 +200,7 @@ def test_poll_shares_one_exact_delivery_budget_across_alert_checks(assigned_unit
     cache.delete(PollAlertService._scope_cursor_key(assigned_unit.unit.manufacturer_id))
 
     with patch(
-        "micboard.services.monitoring.alert_delivery_service.send_alert_email",
+        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification",
         return_value=True,
     ) as send_email:
         result = PollAlertService.evaluate_manufacturer(assigned_unit.unit.manufacturer)
@@ -234,11 +236,11 @@ def test_poll_rotates_first_access_to_an_exhaustible_scope_budget(assigned_unit)
 
     with (
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_hardware_offline_alerts",
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts",
             side_effect=claim_offline,
         ),
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_transmitter_alerts",
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_wireless_unit_alerts",
             side_effect=claim_transmitter,
         ),
     ):
@@ -280,11 +282,11 @@ def test_exhausted_fanout_budget_advances_to_the_next_unit() -> None:
 
     with (
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_hardware_offline_alerts",
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts",
             side_effect=claim_offline,
         ),
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_transmitter_alerts",
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_wireless_unit_alerts",
             side_effect=claim_transmitter,
         ),
     ):
@@ -332,10 +334,12 @@ def test_exact_fanout_cap_stops_before_advancing_past_the_next_unit(dimension: s
 
     with (
         patch(
-            "micboard.services.monitoring.poll_alert_service.check_hardware_offline_alerts",
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts",
             side_effect=consume_exact_cap,
         ),
-        patch("micboard.services.monitoring.poll_alert_service.check_transmitter_alerts"),
+        patch(
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_wireless_unit_alerts"
+        ),
     ):
         first = PollAlertService.evaluate_manufacturer(manufacturer)
         second = PollAlertService.evaluate_manufacturer(manufacturer)

@@ -10,6 +10,7 @@ from django.test import override_settings
 
 import pytest
 
+from micboard.services.chargers.polling_cache import ChargerPollingCacheAdapter
 from micboard.services.chargers.polling_service import (
     HARD_MAX_CHARGER_INVENTORY_SIZE,
     ChargerPollingService,
@@ -101,7 +102,7 @@ def test_inventory_fingerprint_changes_with_normalized_identity_order() -> None:
 
 def test_inventory_above_fingerprint_ceiling_preserves_last_complete_snapshot() -> None:
     manufacturer = _manufacturer()
-    cursor_key = ChargerPollingService._cursor_key(manufacturer)
+    cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     public_key = "charger_data_shure"
     previous_snapshot = [{"id": "previous-complete-snapshot"}]
     backend, values = _cache_backend(
@@ -117,7 +118,7 @@ def test_inventory_above_fingerprint_ceiling_preserves_last_complete_snapshot() 
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert result.scanned_count == 0
@@ -132,7 +133,7 @@ def test_inventory_above_fingerprint_ceiling_preserves_last_complete_snapshot() 
 def test_repeated_poll_reaches_station_behind_ordinary_inventory_prefix() -> None:
     """A stable first page of receivers cannot permanently hide a later charger."""
     manufacturer = _manufacturer()
-    cursor_key = ChargerPollingService._cursor_key(manufacturer)
+    cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     public_key = "charger_data_shure"
     previous_snapshot = [{"id": "previous-complete-snapshot"}]
     backend, values = _cache_backend({public_key: previous_snapshot})
@@ -143,7 +144,7 @@ def test_repeated_poll_reaches_station_behind_ordinary_inventory_prefix() -> Non
     ]
     plugin = _plugin(inventory)
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         first = ChargerPollingService.poll(manufacturer)
 
         assert values[public_key] is previous_snapshot
@@ -170,7 +171,7 @@ def test_repeated_poll_reaches_station_behind_ordinary_inventory_prefix() -> Non
 def test_channel_failure_in_any_page_preserves_last_complete_snapshot() -> None:
     """A failed station subrequest makes the entire paginated cycle non-publishable."""
     manufacturer = _manufacturer()
-    cursor_key = ChargerPollingService._cursor_key(manufacturer)
+    cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     public_key = "charger_data_shure"
     previous_snapshot = [{"id": "previous-complete-snapshot"}]
     backend, values = _cache_backend({public_key: previous_snapshot})
@@ -182,7 +183,7 @@ def test_channel_failure_in_any_page_preserves_last_complete_snapshot() -> None:
     plugin = _plugin(inventory)
     plugin.get_device_channels.side_effect = [RuntimeError("private channel failure"), [], []]
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         first = ChargerPollingService.poll(manufacturer)
 
         assert first.failed_count == 1
@@ -210,7 +211,7 @@ def test_cursor_accumulates_in_inventory_order_and_deduplicates_across_pages() -
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         ChargerPollingService.poll(manufacturer)
         result = ChargerPollingService.poll(manufacturer)
 
@@ -237,7 +238,7 @@ def test_changed_inventory_size_restarts_cycle_without_stale_stations() -> None:
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
             {"api_device_id": "replacement-charger", "model": "SBC250"},
@@ -275,7 +276,7 @@ def test_same_length_inventory_reorder_restarts_without_hybrid_station_order() -
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
             {"api_device_id": "charger-c", "model": "SBC250"},
@@ -314,7 +315,7 @@ def test_same_length_identity_change_discards_stale_accumulated_station() -> Non
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
             {"api_device_id": "replacement-charger", "model": "SBC250"},
@@ -340,7 +341,7 @@ def test_same_length_identity_change_discards_stale_accumulated_station() -> Non
 @override_settings(MICBOARD_CHARGER_MAX_DEVICES=2)
 def test_invalid_cursor_restarts_first_page_and_preserves_public_snapshot() -> None:
     manufacturer = _manufacturer()
-    cursor_key = ChargerPollingService._cursor_key(manufacturer)
+    cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     public_key = "charger_data_shure"
     previous_snapshot = [{"id": "previous-complete-snapshot"}]
     backend, values = _cache_backend(
@@ -356,7 +357,7 @@ def test_invalid_cursor_restarts_first_page_and_preserves_public_snapshot() -> N
     ]
     plugin = _plugin(inventory)
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert result.scanned_count == 2
@@ -379,7 +380,7 @@ def test_missing_or_invalid_cursor_fingerprint_restarts_first_page(
     cached_fingerprint: str | None,
 ) -> None:
     manufacturer = _manufacturer()
-    cursor_key = ChargerPollingService._cursor_key(manufacturer)
+    cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     inventory = [
         {"api_device_id": "receiver-1", "model": "AD4Q"},
         {"api_device_id": "receiver-2", "model": "AD4Q"},
@@ -395,7 +396,7 @@ def test_missing_or_invalid_cursor_fingerprint_restarts_first_page(
     backend, values = _cache_backend({cursor_key: cached_cursor})
     plugin = _plugin(inventory)
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert result.scanned_count == 2
@@ -425,7 +426,7 @@ def test_partial_poll_contains_cursor_read_and_write_failures(caplog) -> None:
 
     with (
         _plugin_patch(plugin),
-        patch("micboard.services.chargers.polling_service.cache", backend),
+        patch("micboard.services.chargers.polling_cache.cache", backend),
         caplog.at_level("ERROR"),
     ):
         result = ChargerPollingService.poll(_manufacturer())
@@ -447,7 +448,7 @@ def test_complete_poll_contains_snapshot_write_and_cursor_delete_failures(caplog
 
     with (
         _plugin_patch(plugin),
-        patch("micboard.services.chargers.polling_service.cache", backend),
+        patch("micboard.services.chargers.polling_cache.cache", backend),
         caplog.at_level("ERROR"),
     ):
         result = ChargerPollingService.poll(_manufacturer())
@@ -461,7 +462,7 @@ def test_complete_poll_contains_snapshot_write_and_cursor_delete_failures(caplog
 @override_settings(MICBOARD_CHARGER_MAX_DEVICES=2)
 def test_truncated_one_shot_inventory_preserves_complete_public_snapshot() -> None:
     manufacturer = _manufacturer()
-    cursor_key = ChargerPollingService._cursor_key(manufacturer)
+    cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     public_key = "charger_data_shure"
     previous_snapshot = [{"id": "previous-complete-snapshot"}]
     backend, values = _cache_backend(
@@ -479,7 +480,7 @@ def test_truncated_one_shot_inventory_preserves_complete_public_snapshot() -> No
             yield {"api_device_id": f"charger-{index}", "model": "SBC250"}
 
     plugin = _plugin(inventory())
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert consumed == 3
@@ -492,7 +493,7 @@ def test_truncated_one_shot_inventory_preserves_complete_public_snapshot() -> No
 @override_settings(MICBOARD_CHARGER_MAX_STATIONS=1)
 def test_cursor_stations_are_rebounded_in_stable_order_when_limit_shrinks() -> None:
     manufacturer = _manufacturer()
-    cursor_key = ChargerPollingService._cursor_key(manufacturer)
+    cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     inventory = [
         {"api_device_id": "first", "model": "SBC250"},
         {"api_device_id": "second", "model": "SBC850"},
@@ -519,7 +520,7 @@ def test_cursor_stations_are_rebounded_in_stable_order_when_limit_shrinks() -> N
     )
     plugin = _plugin(inventory)
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert result.cached_count == 1
@@ -537,7 +538,7 @@ def test_station_cap_retains_same_exact_vendor_order_prefix_across_cycles() -> N
         [{"api_device_id": f"charger-{index}", "model": "SBC250"} for index in range(4)]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         ChargerPollingService.poll(manufacturer)
         first_cycle = ChargerPollingService.poll(manufacturer)
         ChargerPollingService.poll(manufacturer)
@@ -564,7 +565,7 @@ def test_station_cap_retains_same_exact_vendor_order_prefix_across_cycles() -> N
 )
 def test_cursor_retains_snapshot_truncation_flags_until_cycle_completion() -> None:
     manufacturer = _manufacturer()
-    cursor_key = ChargerPollingService._cursor_key(manufacturer)
+    cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     backend, values = _cache_backend()
     plugin = _plugin(
         [
@@ -578,7 +579,7 @@ def test_cursor_retains_snapshot_truncation_flags_until_cycle_completion() -> No
         {"channel": 1, "tx": {"battery_percentage": 75}},
     ]
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_service.cache", backend):
+    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
         partial = ChargerPollingService.poll(manufacturer)
 
         assert partial.stations_truncated is True

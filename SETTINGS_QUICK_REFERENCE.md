@@ -76,19 +76,11 @@ Admin → Settings → Bulk Configuration
 
 ---
 
-## 🔍 Scope Hierarchy
+## 🔍 Exact Scope
 
-When looking up a setting, it checks in this order:
-
-```
-1. Manufacturer
-2. Site
-3. Organization
-4. Global
-5. Default
-```
-
-**First match wins** ← Use this
+Every setting definition declares one scope: manufacturer, site, organization, or global. Runtime
+lookup checks only that scope and never falls through to a different tenant scope. If no row
+exists, host/package/definition defaults apply.
 
 ---
 

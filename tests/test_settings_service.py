@@ -11,9 +11,9 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.settings.registry import Setting, SettingDefinition
 from micboard.multitenancy.models import Campus, Organization, OrganizationMembership
 from micboard.services.settings.presentation_service import settings_presentation
+from micboard.services.settings.registry import SettingsRegistry
 from micboard.services.settings.settings_service import settings
 from micboard.services.settings.visibility_service import settings_visibility
-from micboard.services.shared.settings_registry import SettingsRegistry
 from tests.factories.base import UserFactory
 
 
@@ -109,11 +109,6 @@ class SettingsServiceTests(TestCase):
         """Resolve the audit archive path."""
         self.assertEqual(settings.audit_archive_path, "/var/audit")
 
-    @override_settings(TESTING=True)
-    def test_testing_flag(self) -> None:
-        """Expose the host's testing flag."""
-        self.assertTrue(settings.testing)
-
     @override_settings(MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
     def test_allow_cross_org_view(self) -> None:
         """Resolve the cross-organization visibility flag."""
@@ -156,7 +151,6 @@ class MicboardAppConfigTests(TestCase):
             startup_events.append("lifecycle")
 
         with (
-            patch.object(MicboardConfig, "_resolved_config", MicboardConfig._resolved_config),
             patch.object(settings, "get_config_dict", side_effect=resolve_config) as get_config,
             patch(
                 "micboard.model_lifecycle.register_model_lifecycle",
@@ -168,7 +162,6 @@ class MicboardAppConfigTests(TestCase):
             patch.object(app_config, "_register_background_tasks"),
         ):
             app_config.ready()
-            self.assertEqual(MicboardConfig.get_config(), resolved_config)
 
         get_config.assert_called_once_with()
         register_lifecycle_mock.assert_called_once_with()

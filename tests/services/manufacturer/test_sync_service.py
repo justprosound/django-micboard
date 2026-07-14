@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 from django.db import connection
 from django.test import override_settings
 
 import pytest
 
+from micboard.models.discovery.queue import DeviceMovementLog
 from micboard.services.core.hardware import NormalizedHardware
 from micboard.services.deduplication.check import check_device
 from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 from micboard.services.deduplication.result import DeduplicationResult
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
 from micboard.services.manufacturer.sync import ManufacturerSyncService
 from micboard.services.sync.polling_dtos import (
     DEFAULT_BROADCAST_CHUNK_SIZE,
@@ -587,9 +590,8 @@ def test_sync_rejects_foreign_existing_device_even_if_deduplication_misclassifie
         name="Protected chassis",
         status="offline",
     )
-    dedup_result = DeduplicationResult(
-        is_moved=True,
-        existing_device=chassis,
+    dedup_result = DeduplicationResult.moved(
+        chassis,
         conflict_type="ip_changed",
     )
 
@@ -643,16 +645,16 @@ def test_bulk_identity_index_tracks_ipv6_moves_and_ambiguous_values() -> None:
         identity_index.serial("ambiguous")
 
 
-def test_identity_query_chunks_support_backends_without_parameter_metadata(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_identity_query_chunks_support_backends_without_parameter_metadata() -> None:
     """Backends without a declared parameter ceiling still receive finite query chunks."""
-    monkeypatch.setattr(
-        "micboard.services.deduplication.identity_index.connection.features.max_query_params",
-        None,
-    )
-
-    querysets = list(DeviceIdentityIndex._chunked_querysets("serial_number", {"one", "two"}))
+    features_type = type(connection.features)
+    with patch.object(
+        features_type,
+        "max_query_params",
+        new_callable=PropertyMock,
+        return_value=None,
+    ):
+        querysets = list(DeviceIdentityIndex._chunked_querysets("serial_number", {"one", "two"}))
 
     assert len(querysets) == 1
 
@@ -707,7 +709,7 @@ def test_normalization_skips_untransformable_and_incomplete_devices() -> None:
 
 
 @pytest.mark.parametrize(
-    ("dedup", "expected", "update_ip", "marked_online"),
+    ("dedup", "expected", "update_ip", "reconciles_existing_status"),
     [
         (SimpleNamespace(is_conflict=True), None, False, False),
         (
@@ -716,7 +718,12 @@ def test_normalization_skips_untransformable_and_incomplete_devices() -> None:
                 is_moved=True,
                 is_duplicate=False,
                 is_new=False,
-                existing_device=SimpleNamespace(status="offline", manufacturer_id=1, pk=1),
+                existing_device=SimpleNamespace(
+                    status="offline",
+                    manufacturer_id=1,
+                    pk=1,
+                    ip="192.0.2.99",
+                ),
             ),
             "updated",
             True,
@@ -756,7 +763,7 @@ def test_normalization_skips_untransformable_and_incomplete_devices() -> None:
             ),
             "created",
             False,
-            True,
+            False,
         ),
         (
             SimpleNamespace(
@@ -776,7 +783,7 @@ def test_sync_normalized_device_applies_deduplication_outcome(
     dedup: SimpleNamespace,
     expected: str | None,
     update_ip: bool,
-    marked_online: bool,
+    reconciles_existing_status: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Deduplication state controls whether a chassis is skipped, updated, or created."""
@@ -784,11 +791,14 @@ def test_sync_normalized_device_applies_deduplication_outcome(
     manufacturer = SimpleNamespace(pk=1)
     check_device = Mock(return_value=dedup)
     update = Mock()
-    create = Mock(return_value=object())
-    mark_online = Mock()
-    monkeypatch.setattr(ManufacturerSyncService, "_update_existing_chassis", update)
-    monkeypatch.setattr(ManufacturerSyncService, "_create_chassis", create)
-    monkeypatch.setattr(ManufacturerSyncService, "_mark_chassis_online", mark_online)
+    create = Mock(return_value=SimpleNamespace(status="offline"))
+    reconcile_status = Mock()
+    monkeypatch.setattr(WirelessChassisPersistenceService, "update_from_normalized", update)
+    monkeypatch.setattr(WirelessChassisPersistenceService, "create_from_normalized", create)
+    monkeypatch.setattr(
+        "micboard.services.manufacturer.sync._transition_responding_chassis_online",
+        reconcile_status,
+    )
 
     result = ManufacturerSyncService._sync_normalized_device(
         payload,
@@ -805,12 +815,105 @@ def test_sync_normalized_device_applies_deduplication_outcome(
         manufacturer=manufacturer,
     )
     if update_ip:
-        update.assert_called_once_with(dedup.existing_device, payload, set_ip=True)
+        update.assert_called_once_with(
+            chassis=dedup.existing_device,
+            payload=payload,
+            set_ip=True,
+        )
     elif expected == "updated":
-        update.assert_called_once_with(dedup.existing_device, payload)
+        update.assert_called_once_with(chassis=dedup.existing_device, payload=payload)
     else:
         update.assert_not_called()
-    assert mark_online.called is marked_online
+    assert reconcile_status.called is reconciles_existing_status
+    if expected == "created":
+        assert create.call_args.kwargs["initial_status"] == "online"
+
+
+def test_new_sync_chassis_is_created_in_its_final_online_state() -> None:
+    """A responding new device avoids an invalid discovered-to-online follow-up save."""
+    manufacturer = ManufacturerFactory(code="new-online-vendor")
+    payload = _payload(
+        api_device_id="new-online-device",
+        serial_number="new-online-serial",
+        ip="192.0.2.151",
+    )
+
+    result = ManufacturerSyncService._sync_normalized_device(
+        payload,
+        manufacturer,
+        Mock(return_value=DeduplicationResult.new()),
+    )
+
+    chassis = manufacturer.wirelesschassis_set.get(api_device_id=payload.api_device_id)
+    assert result == "created"
+    assert chassis.status == "online"
+    assert chassis.is_online is True
+    assert chassis.last_online_at is not None
+
+
+def test_moved_sync_device_records_address_audit_inside_persistence_flow() -> None:
+    """A durable identity address change writes one explicit movement record."""
+    manufacturer = ManufacturerFactory(code="movement-audit-vendor")
+    chassis = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="movement-device",
+        serial_number="movement-serial",
+        ip="192.0.2.160",
+        status="online",
+    )
+    payload = _payload(
+        api_device_id=chassis.api_device_id,
+        serial_number=chassis.serial_number,
+        ip="192.0.2.161",
+    )
+
+    result = ManufacturerSyncService._sync_normalized_device(
+        payload,
+        manufacturer,
+        Mock(
+            return_value=DeduplicationResult.moved(
+                chassis,
+                conflict_type="ip_changed",
+            )
+        ),
+    )
+
+    chassis.refresh_from_db()
+    movement = DeviceMovementLog.objects.get(device=chassis)
+    assert result == "updated"
+    assert str(chassis.ip) == "192.0.2.161"
+    assert str(movement.old_ip) == "192.0.2.160"
+    assert str(movement.new_ip) == "192.0.2.161"
+    assert movement.detected_by == "manufacturer_sync"
+
+
+def test_duplicate_discovered_chassis_transitions_through_provisioning() -> None:
+    """A known discovered device reaches online through both legal lifecycle steps."""
+    manufacturer = ManufacturerFactory(code="duplicate-online-vendor")
+    chassis = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="duplicate-online-device",
+        serial_number="duplicate-online-serial",
+        ip="192.0.2.152",
+        status="discovered",
+    )
+    payload = _payload(
+        api_device_id=chassis.api_device_id,
+        serial_number=chassis.serial_number,
+        ip=str(chassis.ip),
+    )
+
+    result = ManufacturerSyncService._sync_normalized_device(
+        payload,
+        manufacturer,
+        Mock(return_value=DeduplicationResult.duplicate(chassis)),
+    )
+
+    chassis.refresh_from_db()
+    assert result == "updated"
+    assert chassis.status == "online"
+    assert chassis.is_online is True
+    assert chassis.last_online_at is not None
 
 
 def test_deduplication_omits_blank_optional_identities() -> None:
@@ -848,12 +951,12 @@ def test_indexed_move_refreshes_the_batch_ip_identity() -> None:
     )
     identity_index = Mock()
     update = Mock(
-        side_effect=lambda existing, payload, **_kwargs: setattr(existing, "ip", payload.ip)
+        side_effect=lambda *, chassis, payload, **_kwargs: setattr(chassis, "ip", payload.ip)
     )
 
     with (
-        patch.object(ManufacturerSyncService, "_update_existing_chassis", update),
-        patch.object(ManufacturerSyncService, "_mark_chassis_online"),
+        patch.object(WirelessChassisPersistenceService, "update_from_normalized", update),
+        patch("micboard.services.manufacturer.sync.log_device_movement"),
     ):
         result = ManufacturerSyncService._sync_normalized_device(
             _payload(ip="192.0.2.141"),
@@ -864,19 +967,7 @@ def test_indexed_move_refreshes_the_batch_ip_identity() -> None:
 
     assert result == "updated"
     identity_index.move_ip.assert_called_once_with(chassis, old_ip="192.0.2.140")
-
-
-def test_mark_online_only_writes_on_state_transition() -> None:
-    """Already-online chassis avoid a redundant database write."""
-    online = SimpleNamespace(status="online", save=Mock())
-    offline = SimpleNamespace(status="offline", save=Mock())
-
-    ManufacturerSyncService._mark_chassis_online(online)
-    ManufacturerSyncService._mark_chassis_online(offline)
-
-    online.save.assert_not_called()
-    assert offline.status == "online"
-    offline.save.assert_called_once_with(update_fields=["status"])
+    assert chassis.ip == "192.0.2.141"
 
 
 @pytest.mark.parametrize(
@@ -907,20 +998,25 @@ def test_update_existing_chassis_maps_role_and_preserves_blank_fields(
         interface_id="eth0",
         save=Mock(),
     )
-    payload = replace(
-        _payload(device_type=device_type),
-        name="",
-        model="",
-        firmware_version="",
-        hosted_firmware_version="",
-        description="",
-        subnet_mask=None,
-        gateway=None,
-        network_mode="",
-        interface_id="",
+    payload = _payload(device_type=device_type).model_copy(
+        update={
+            "name": "",
+            "model": "",
+            "firmware_version": "",
+            "hosted_firmware_version": "",
+            "description": "",
+            "subnet_mask": None,
+            "gateway": None,
+            "network_mode": "",
+            "interface_id": "",
+        }
     )
 
-    result = ManufacturerSyncService._update_existing_chassis(chassis, payload, set_ip=True)
+    result = WirelessChassisPersistenceService.update_from_normalized(
+        chassis=chassis,
+        payload=payload,
+        set_ip=True,
+    )
 
     assert result is chassis
     assert chassis.ip == payload.ip
@@ -949,7 +1045,10 @@ def test_update_existing_chassis_applies_nonblank_values_without_ip_change() -> 
         save=Mock(),
     )
 
-    ManufacturerSyncService._update_existing_chassis(chassis, _payload())
+    WirelessChassisPersistenceService.update_from_normalized(
+        chassis=chassis,
+        payload=_payload(),
+    )
 
     assert chassis.ip == "192.0.2.130"
     assert chassis.name == "Receiver"
@@ -976,9 +1075,9 @@ def test_update_existing_chassis_repairs_equivalent_legacy_mac_format() -> None:
         save=Mock(),
     )
 
-    ManufacturerSyncService._update_existing_chassis(
-        chassis,
-        _payload(mac_address="aabbccddeeff"),
+    WirelessChassisPersistenceService.update_from_normalized(
+        chassis=chassis,
+        payload=_payload(mac_address="aabbccddeeff"),
     )
 
     assert chassis.mac_address == "aa:bb:cc:dd:ee:ff"
@@ -1001,9 +1100,9 @@ def test_create_chassis_maps_normalized_payload(
         "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.create",
         manager_create,
     ):
-        result = ManufacturerSyncService._create_chassis(
-            _payload(device_type=device_type),
-            manufacturer,
+        result = WirelessChassisPersistenceService.create_from_normalized(
+            payload=_payload(device_type=device_type),
+            manufacturer=manufacturer,
         )
 
     assert result is created
@@ -1021,9 +1120,9 @@ def test_create_chassis_canonicalizes_mac_at_persistence_boundary() -> None:
         "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.create",
         manager_create,
     ):
-        ManufacturerSyncService._create_chassis(
-            payload,
-            object(),
+        WirelessChassisPersistenceService.create_from_normalized(
+            payload=payload,
+            manufacturer=object(),
         )
 
     assert manager_create.call_args.kwargs["mac_address"] == "aa:bb:cc:dd:ee:ff"

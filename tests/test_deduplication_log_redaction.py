@@ -14,8 +14,6 @@ from micboard.services.deduplication.check import (
     _check_by_ip,
     _check_by_mac,
     _check_by_serial,
-    check_api_id_conflicts,
-    check_cross_vendor_api_id,
 )
 
 
@@ -44,67 +42,6 @@ def _assert_private_values_absent(
 ) -> None:
     for private_value in private_values:
         assert private_value not in caplog.text
-
-
-def test_api_id_duplicate_log_excludes_identity_and_tuple_contents(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    manufacturer = _manufacturer()
-    duplicates = [
-        (42, "Secret receiver one", "192.0.2.20", "SERIAL-ONE"),
-        (43, "Secret receiver two", "192.0.2.21", "SERIAL-TWO"),
-    ]
-    queryset = MagicMock()
-    queryset.values_list.return_value = duplicates
-
-    with (
-        patch.object(WirelessChassis.objects, "filter", return_value=queryset),
-        caplog.at_level(logging.WARNING, logger="micboard.services.deduplication.check"),
-    ):
-        count, result = check_api_id_conflicts("PRIVATE-API-ID", manufacturer)
-
-    assert (count, result) == (2, duplicates)
-    assert caplog.messages == [
-        "Duplicate manufacturer API identity detected "
-        "(manufacturer=test-vendor, conflict=api_device_id, count=2, device_ids=[42, 43])"
-    ]
-    _assert_private_values_absent(
-        caplog,
-        "PRIVATE-API-ID",
-        "Secret receiver one",
-        "Secret receiver two",
-        "192.0.2.20",
-        "192.0.2.21",
-        "SERIAL-ONE",
-        "SERIAL-TWO",
-    )
-
-
-def test_cross_vendor_api_id_log_excludes_api_identity(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    current_manufacturer = _manufacturer()
-    other_manufacturer = _manufacturer(code="other-vendor", pk=9)
-    existing = _existing_chassis()
-    manufacturers = MagicMock()
-    manufacturers.exclude.return_value = [other_manufacturer]
-    duplicates = MagicMock()
-    duplicates.count.return_value = 1
-    duplicates.__iter__.return_value = iter([existing])
-
-    with (
-        patch.object(Manufacturer.objects, "filter", return_value=manufacturers),
-        patch.object(WirelessChassis.objects, "filter", return_value=duplicates),
-        caplog.at_level(logging.WARNING, logger="micboard.services.deduplication.check"),
-    ):
-        result = check_cross_vendor_api_id("PRIVATE-API-ID", current_manufacturer)
-
-    assert result == [("other-vendor", 1, [existing])]
-    assert caplog.messages == [
-        "Cross-vendor API identity detected "
-        "(manufacturer=other-vendor, conflict=cross_vendor_api_device_id, count=1)"
-    ]
-    _assert_private_values_absent(caplog, "PRIVATE-API-ID")
 
 
 def test_serial_move_log_excludes_serial_and_ip_addresses(

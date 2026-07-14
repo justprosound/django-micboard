@@ -59,7 +59,7 @@ def test_superuser_only_admin_enforces_every_permission(is_superuser: bool) -> N
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
 def test_msp_admin_definitions_delegate_counts_and_membership_authorship() -> None:
-    import micboard.multitenancy.admin as tenant_admin
+    tenant_admin = importlib.import_module("micboard.multitenancy.admin")
 
     def identity_register(*models: Any, **options: Any) -> Any:
         del models, options

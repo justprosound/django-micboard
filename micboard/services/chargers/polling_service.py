@@ -8,20 +8,16 @@ from collections.abc import Iterable, Mapping, Sequence
 from itertools import islice
 from typing import Any
 
-from django.conf import settings
-from django.core.cache import cache
-
-from pydantic import ValidationError
-
+from micboard.services.chargers.polling_cache import ChargerPollingCacheAdapter
 from micboard.services.chargers.polling_dtos import (
     ChargerInventoryPage,
-    ChargerPollingCursor,
     ChargerPollingLimits,
     ChargerPollResult,
     ChargerSlotSnapshot,
     ChargerStationSnapshot,
 )
 from micboard.services.common.base.plugin import get_manufacturer_plugin
+from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -35,13 +31,12 @@ HARD_MAX_CHARGER_SLOTS = 128
 # A full materialized inventory is fingerprinted once per page. Reject larger
 # plugin results before iteration so hashing and cursor validation remain bounded.
 HARD_MAX_CHARGER_INVENTORY_SIZE = 5_000
-CHARGER_POLL_CURSOR_TIMEOUT_SECONDS = 7 * 24 * 60 * 60
 
 CHARGING_STATION_MODELS = frozenset({"SBC250", "SBC850", "MXWNCS8", "MXWNCS4", "SBC220"})
 
 
 class ChargerPollingService:
-    """Build and cache one bounded manufacturer charger snapshot."""
+    """Build one bounded manufacturer charger snapshot."""
 
     @classmethod
     def poll(cls, manufacturer: Any) -> ChargerPollResult:
@@ -49,7 +44,7 @@ class ChargerPollingService:
         limits = cls.limits()
         plugin_class = get_manufacturer_plugin(manufacturer.code)
         plugin = plugin_class(manufacturer)
-        cursor = cls._read_cursor(manufacturer)
+        cursor = ChargerPollingCacheAdapter.read_cursor(manufacturer)
         inventory_page = cls._inventory_page(
             plugin.get_devices(),
             limits.max_devices,
@@ -120,13 +115,13 @@ class ChargerPollingService:
             for station in accumulated.values()
         ]
         if inventory_page.cycle_complete:
-            cls._finish_cycle(
+            ChargerPollingCacheAdapter.finish_cycle(
                 manufacturer,
                 stations=stations,
                 publish=not cycle_failed,
             )
         else:
-            cls._persist_continuation(
+            ChargerPollingCacheAdapter.persist_continuation(
                 manufacturer,
                 inventory_page=inventory_page,
                 stations=stations,
@@ -201,54 +196,6 @@ class ChargerPollingService:
             slot for channel in raw_channels if (slot := cls._slot_snapshot(channel)) is not None
         ]
         return slots, truncated, False
-
-    @classmethod
-    def _finish_cycle(
-        cls,
-        manufacturer: Any,
-        *,
-        stations: list[ChargerStationSnapshot],
-        publish: bool,
-    ) -> None:
-        """Publish only complete station data, then discard continuation state."""
-        if publish:
-            cls._publish_snapshot(manufacturer, stations)
-        cls._clear_cursor(manufacturer)
-
-    @classmethod
-    def _persist_continuation(
-        cls,
-        manufacturer: Any,
-        *,
-        inventory_page: ChargerInventoryPage,
-        stations: list[ChargerStationSnapshot],
-        stations_truncated: bool,
-        slots_truncated: bool,
-        cycle_failed: bool,
-    ) -> None:
-        """Persist only resumable pages while retaining the last public snapshot."""
-        if (
-            inventory_page.next_offset
-            and inventory_page.inventory_size is not None
-            and inventory_page.inventory_fingerprint is not None
-        ):
-            cls._write_cursor(
-                manufacturer,
-                ChargerPollingCursor(
-                    next_offset=inventory_page.next_offset,
-                    inventory_size=inventory_page.inventory_size,
-                    inventory_fingerprint=inventory_page.inventory_fingerprint,
-                    stations=stations,
-                    stations_truncated=stations_truncated,
-                    slots_truncated=slots_truncated,
-                    cycle_failed=cycle_failed,
-                ),
-            )
-            return
-
-        # A one-shot iterable cannot be resumed safely. Preserve the last complete
-        # public snapshot instead of replacing it with a partial first page.
-        cls._clear_cursor(manufacturer)
 
     @classmethod
     def _inventory_page(
@@ -346,74 +293,6 @@ class ChargerPollingService:
             accumulated[station.id] = station
         return accumulated, truncated
 
-    @staticmethod
-    def _cursor_key(manufacturer: Any) -> str:
-        return f"micboard:charger-poll:v1:{manufacturer.pk}:{manufacturer.code}"
-
-    @classmethod
-    def _read_cursor(cls, manufacturer: Any) -> ChargerPollingCursor:
-        """Read validated continuation state without making polling cache-dependent."""
-        try:
-            value = cache.get(cls._cursor_key(manufacturer))
-        except Exception as exc:
-            logger.exception(
-                "Could not read charger polling cursor for manufacturer %s",
-                manufacturer.pk,
-                exc_info=sanitized_exception_info(exc),
-            )
-            value = None
-        try:
-            return ChargerPollingCursor.model_validate(value)
-        except (TypeError, ValidationError):
-            return ChargerPollingCursor(next_offset=0, inventory_size=0, stations=[])
-
-    @classmethod
-    def _write_cursor(cls, manufacturer: Any, cursor: ChargerPollingCursor) -> None:
-        """Persist a partial bounded cycle while tolerating shared-cache outages."""
-        try:
-            cache.set(
-                cls._cursor_key(manufacturer),
-                cursor.model_dump(exclude_defaults=True),
-                timeout=CHARGER_POLL_CURSOR_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Could not persist charger polling cursor for manufacturer %s",
-                manufacturer.pk,
-                exc_info=sanitized_exception_info(exc),
-            )
-
-    @classmethod
-    def _clear_cursor(cls, manufacturer: Any) -> None:
-        """Clear completed continuation state without failing a successful poll."""
-        try:
-            cache.delete(cls._cursor_key(manufacturer))
-        except Exception as exc:
-            logger.exception(
-                "Could not clear charger polling cursor for manufacturer %s",
-                manufacturer.pk,
-                exc_info=sanitized_exception_info(exc),
-            )
-
-    @staticmethod
-    def _publish_snapshot(
-        manufacturer: Any,
-        stations: list[ChargerStationSnapshot],
-    ) -> None:
-        """Atomically replace the public snapshot only after a full inventory cycle."""
-        try:
-            cache.set(
-                f"charger_data_{manufacturer.code}",
-                [station.model_dump() for station in stations],
-                timeout=60,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Could not cache charger snapshot for manufacturer %s",
-                manufacturer.pk,
-                exc_info=sanitized_exception_info(exc),
-            )
-
     @classmethod
     def _is_station(cls, device: Mapping[str, Any]) -> bool:
         device_id = device.get("api_device_id")
@@ -463,7 +342,7 @@ class ChargerPollingService:
 
 
 def _bounded_setting(name: str, default: int, hard_limit: int) -> int:
-    raw_value = getattr(settings, name, default)
+    raw_value = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:

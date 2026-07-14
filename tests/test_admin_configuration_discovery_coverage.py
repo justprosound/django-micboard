@@ -153,20 +153,37 @@ def test_discovery_queue_displays_conflicts_and_actions() -> None:
         is_ip_conflict=True,
         is_duplicate_api_id=True,
         api_id_conflict_count=2,
-        check_for_duplicates=Mock(return_value={"serial": "duplicate", "empty": None}),
     )
     assert "PENDING" in model_admin.status_badge(obj)
     assert "DUPLICATE" in model_admin.conflict_indicators(obj)
-    assert model_admin.conflict_analysis(obj) == "serial: duplicate"
+    conflict = SimpleNamespace(
+        has_conflict=True,
+        conflict_type="duplicate",
+        existing_device="receiver",
+        existing_charger=None,
+    )
+    with patch(
+        "micboard.services.deduplication.queue_conflict_service."
+        "DiscoveryQueueConflictService.check",
+        return_value=conflict,
+    ):
+        assert model_admin.conflict_analysis(obj) == (
+            "conflict_type: duplicate | existing_device: receiver"
+        )
     clean = SimpleNamespace(
         status="unknown",
         is_duplicate=False,
         is_ip_conflict=False,
         is_duplicate_api_id=False,
-        check_for_duplicates=Mock(return_value={}),
     )
     assert model_admin.conflict_indicators(clean) == "—"
-    assert "No conflicts" in model_admin.conflict_analysis(clean)
+    no_conflict = SimpleNamespace(has_conflict=False)
+    with patch(
+        "micboard.services.deduplication.queue_conflict_service."
+        "DiscoveryQueueConflictService.check",
+        return_value=no_conflict,
+    ):
+        assert "No conflicts" in model_admin.conflict_analysis(clean)
 
     result = SimpleNamespace(imported_count=3)
     with (

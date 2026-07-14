@@ -57,6 +57,8 @@ def _chassis(name: str, *, model: str = "AD4Q"):
         model=model,
         location="Rack",
         band_plan_name="G50",
+        band_plan_min_mhz=470.0,
+        band_plan_max_mhz=534.0,
         save=Mock(),
     )
 
@@ -115,16 +117,27 @@ def test_regulatory_chassis_fix_mode(monkeypatch, detected: bool) -> None:
         ),
     )
     monkeypatch.setattr(regulatory_command, "apply_detected_band_plan", Mock(return_value=detected))
+    persist = Mock(return_value=chassis)
+    monkeypatch.setattr(
+        regulatory_command.WirelessChassisPersistenceService,
+        "update",
+        persist,
+    )
     output = StringIO()
     command = regulatory_command.Command(stdout=output)
 
     command.audit_chassis(True)
 
     if detected:
-        chassis.save.assert_called_once_with()
+        persist.assert_called_once()
+        write = persist.call_args.kwargs["write"]
+        assert write.band_plan_name == "G50"
+        assert write.band_plan_min_mhz == 470.0
+        assert write.band_plan_max_mhz == 534.0
+        assert persist.call_args.kwargs["save_all_fields"] is True
         assert "Auto-Fixed Band Plans: 1" in output.getvalue()
     else:
-        chassis.save.assert_not_called()
+        persist.assert_not_called()
         assert "Missing Band Plan: 1" in output.getvalue()
 
 
