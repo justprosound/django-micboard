@@ -50,8 +50,31 @@ uv run --no-sync pytest -m unit
 uv run --no-sync pytest -m integration
 ```
 
-CI enforces the current **40%** non-regression floor while coverage is ratcheted toward the
+CI enforces the current **42%** non-regression floor while coverage is ratcheted toward the
 documented 60% target.
+
+### Model Factories
+
+Import concrete factories from their domain modules when the model is known:
+
+```python
+from tests.factories.hardware import WirelessChassisFactory
+
+chassis = WirelessChassisFactory(status="online")
+```
+
+Generic test helpers can resolve a factory through the live model registry:
+
+```python
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from tests.factories.registry import factory_for
+
+unit = factory_for(WirelessUnit).create()
+```
+
+The catalog follows the installed application set, including optional multitenancy models, and
+uses the host project's configured user model. Every new concrete project model must add a
+registered factory; the factory contract test reports missing or duplicate adapters.
 
 ### Code Quality & Linting
 

@@ -10,7 +10,6 @@ The database and Django setup are handled automatically by pytest-django
 and the configuration in tests/settings.py and pyproject.toml.
 """
 
-from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
 from django.test import Client
 
@@ -22,7 +21,7 @@ STAFF_PASSWORD = "staffpass123"
 
 
 @pytest.fixture
-def admin_user(db):
+def admin_user(db, django_user_model):
     """Create a superuser for testing admin functionality.
 
     Provides a superuser with credentials:
@@ -36,7 +35,7 @@ def admin_user(db):
     Returns:
         User: The created superuser instance
     """
-    user = User.objects.create_superuser(
+    user = django_user_model.objects.create_superuser(
         username="admin",
         email="admin@example.com",
         password=ADMIN_PASSWORD,
@@ -45,7 +44,7 @@ def admin_user(db):
 
 
 @pytest.fixture
-def regular_user(db):
+def regular_user(db, django_user_model):
     """Create a regular user for testing non-admin functionality.
 
     Provides a standard user with credentials:
@@ -59,7 +58,7 @@ def regular_user(db):
     Returns:
         User: The created regular user instance
     """
-    user = User.objects.create_user(
+    user = django_user_model.objects.create_user(
         username="testuser",
         email="user@example.com",
         password=REGULAR_PASSWORD,
@@ -68,7 +67,7 @@ def regular_user(db):
 
 
 @pytest.fixture
-def staff_user(db):
+def staff_user(db, django_user_model):
     """Create a staff user (but not superuser) for testing.
 
     Provides a staff user with credentials:
@@ -82,7 +81,7 @@ def staff_user(db):
     Returns:
         User: The created staff user instance
     """
-    user = User.objects.create_user(
+    user = django_user_model.objects.create_user(
         username="staff",
         email="staff@example.com",
         password=STAFF_PASSWORD,

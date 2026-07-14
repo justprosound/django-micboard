@@ -2,11 +2,28 @@
 
 **Status:** Proposed
 **Date:** 2026-05-20
+**Updated:** 2026-07-13
 **Deciders:** (to be assigned)
+
+## Implementation Status
+
+Phase 1 was completed on 2026-07-13:
+
+- Every installed concrete project model has a domain-grouped factory.
+- A live registry contract detects missing and duplicate factory adapters.
+- Each factory creates two independently valid, persisted instances and passes `full_clean()`.
+- Core-only, optional multitenancy, and swappable-user host configurations are covered.
+- Factory Boy remains outside the base runtime dependencies, and test support is excluded from
+  wheels.
+
+Phases 2 through 4 remain tracked by issues #70 through #72. CI currently enforces a synchronized
+42% coverage floor; it will be raised toward 60% and then 80% only as measured coverage supports
+those thresholds.
 
 ## Context
 
-The test suite at `tests/` has 13 files (11 test modules + conftest + settings + urls). Coverage analysis shows:
+At the time of this decision, the test suite at `tests/` had 13 files (11 test modules plus
+configuration). Coverage analysis showed:
 
 - 33 of 38 service files have zero tests.
 - No test factories exist (raw model instances constructed inline).
@@ -31,10 +48,10 @@ This means:
      urls.py
      factories/
        __init__.py
-       hardware_factories.py
-       discovery_factories.py
-       monitoring_factories.py
-       settings_factories.py
+       hardware.py
+       discovery.py
+       monitoring.py
+       settings.py
        ...
      services/
        test_discovery_service.py
@@ -61,9 +78,12 @@ This means:
 
 - **Positive:** Refactoring becomes safe. New contributors have visible patterns for writing tests. CI catches regressions. The factory layer reduces test boilerplate by ~70%.
 - **Negative:** Adding ~300-400 tests requires dedicated sprints. Factory maintenance adds overhead when model schemas change.
-- **Migration:** Phase 1 — factories for all models. Phase 2 — service tests for discovery, hardware, monitoring domains. Phase 3 — admin E2E smoke tests. Phase 4 — integration pipeline tests.
+- **Migration:** Phase 1 — factories for all models (complete). Phase 2 — service tests for
+  discovery, hardware, monitoring domains. Phase 3 — admin E2E smoke tests. Phase 4 — integration
+  pipeline tests.
 
 ## Compliance
 
-- CI will enforce `uv run pytest --cov=micboard --cov-fail-under=60` initially, stepping to 80% over time.
+- CI enforces the synchronized 42% coverage floor today, ratcheting to 60% and then 80% as the
+  remaining phases add verified coverage.
 - New service methods require tests in the same PR.
