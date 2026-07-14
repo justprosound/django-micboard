@@ -7,7 +7,7 @@
 
 ## Implementation Status
 
-Phase 1 was completed on 2026-07-13:
+Phases 1 and 2 were completed on 2026-07-13:
 
 - Every installed concrete project model has a domain-grouped factory.
 - A live registry contract detects missing and duplicate factory adapters.
@@ -15,10 +15,14 @@ Phase 1 was completed on 2026-07-13:
 - Core-only, optional multitenancy, and swappable-user host configurations are covered.
 - Factory Boy remains outside the base runtime dependencies, and test support is excluded from
   wheels.
+- Discovery, deduplication, hardware, location, performer, alert, connection, and uptime services
+  have direct behavioral coverage at 90% or higher per targeted module.
+- Query budgets protect discovery batching, alert fanout, connection health, and connection
+  statistics from data-dependent query growth.
 
-Phases 2 through 4 remain tracked by issues #70 through #72. CI currently enforces a synchronized
-42% coverage floor; it will be raised toward 60% and then 80% only as measured coverage supports
-those thresholds.
+Phases 3 and 4 remain tracked by issues #71 and #72. CI currently enforces a synchronized 49%
+coverage floor; it will be raised toward 60% and then 80% only as measured coverage supports those
+thresholds.
 
 ## Context
 
@@ -79,11 +83,11 @@ This means:
 - **Positive:** Refactoring becomes safe. New contributors have visible patterns for writing tests. CI catches regressions. The factory layer reduces test boilerplate by ~70%.
 - **Negative:** Adding ~300-400 tests requires dedicated sprints. Factory maintenance adds overhead when model schemas change.
 - **Migration:** Phase 1 — factories for all models (complete). Phase 2 — service tests for
-  discovery, hardware, monitoring domains. Phase 3 — admin E2E smoke tests. Phase 4 — integration
-  pipeline tests.
+  discovery, hardware, monitoring domains (complete). Phase 3 — admin E2E smoke tests. Phase 4 —
+  integration pipeline tests.
 
 ## Compliance
 
-- CI enforces the synchronized 42% coverage floor today, ratcheting to 60% and then 80% as the
+- CI enforces the synchronized 49% coverage floor today, ratcheting to 60% and then 80% as the
   remaining phases add verified coverage.
 - New service methods require tests in the same PR.

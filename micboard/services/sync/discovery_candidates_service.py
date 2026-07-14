@@ -160,7 +160,7 @@ class DiscoveryCandidateService:
         if scan_fqdns:
             fqdns = [df.fqdn for df in DiscoveryFQDN.objects.filter(manufacturer=manufacturer)]
             try:
-                resolved = resolve_fqdns(fqdns)
+                resolved, _ = resolve_fqdns(fqdns)
                 for f, ips in resolved.items():
                     ips_filtered = [ip for ip in ips if isinstance(ip, str)]
                     fqdns_map[f] = ips_filtered

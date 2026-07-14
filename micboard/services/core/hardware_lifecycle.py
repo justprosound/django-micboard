@@ -145,10 +145,12 @@ class HardwareLifecycleManager:
         Returns:
             True if transition succeeded, False otherwise
         """
-        from_status = device.status
         device_type = device.__class__.__name__
 
-        # Validate transition
+        # Lock before reading state so a stale caller cannot overwrite a newer transition.
+        device = device.__class__.objects.select_for_update().get(pk=device.pk)
+        from_status = device.status
+
         if not self._is_valid_transition(from_status, to_status):
             logger.warning(
                 f"Invalid transition: {device_type} {device.pk} from {from_status} to {to_status}",
@@ -161,9 +163,6 @@ class HardwareLifecycleManager:
             )
             return False
 
-        # Lock device row for update
-        device = device.__class__.objects.select_for_update().get(pk=device.pk)
-
         # Store old values for logging
         old_values = {
             "status": from_status,
@@ -174,8 +173,13 @@ class HardwareLifecycleManager:
         device.status = to_status
         device.last_seen = timezone.now()
 
-        # Save with specific fields
-        device.save(update_fields=["status", "last_seen", "updated_at"])
+        # WirelessUnit exposes an auto-managed updated_at field; WirelessChassis does not.
+        update_fields = ["status", "last_seen"]
+        if any(
+            field.name == "updated_at" and field.concrete for field in device._meta.get_fields()
+        ):
+            update_fields.append("updated_at")
+        device.save(update_fields=update_fields)
 
         # Log the transition
         if self._logger:

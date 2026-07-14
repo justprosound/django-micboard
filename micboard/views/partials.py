@@ -53,7 +53,13 @@ def wall_section_partial(request: HttpRequest, section_id: int) -> HttpResponse:
 @login_required
 def alert_row_partial(request: HttpRequest, alert_id: int) -> HttpResponse:
     """HTMX partial: alert table row."""
-    alert = get_object_or_404(get_alerts_for_user(request.user), id=alert_id)
+    alert = get_object_or_404(
+        get_alerts_for_user(request.user).select_related(
+            "assignment__wireless_unit",
+            "channel__chassis",
+        ),
+        id=alert_id,
+    )
     return render(request, "micboard/partials/alert_row.html", {"alert": alert})
 
 

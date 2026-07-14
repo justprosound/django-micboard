@@ -43,18 +43,18 @@ class ConnectionHealthMiddleware(MiddlewareMixin):
         # Only check for API endpoints
         if request.path.startswith("/api/"):
             try:
-                unhealthy = ConnectionHealthService.get_unhealthy_connections(
-                    heartbeat_timeout_seconds=60
+                unhealthy = list(
+                    ConnectionHealthService.get_unhealthy_connections(heartbeat_timeout_seconds=60)
                 )
 
-                if unhealthy.exists():
+                if unhealthy:
                     logger.warning(
                         f"Unhealthy connections detected: "
                         f"{[c.chassis.manufacturer.code for c in unhealthy]}"
                     )
 
                     # Store in request for use in views
-                    request.unhealthy_connections = list(unhealthy)  # type: ignore[attr-defined]
+                    request.unhealthy_connections = unhealthy  # type: ignore[attr-defined]
             except Exception:
                 logger.exception("Error checking connection health")
 
