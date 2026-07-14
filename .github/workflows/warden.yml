@@ -7,7 +7,7 @@ on:
 
 permissions:
   # Warden uses this scope for GitHub's resolveReviewThread mutation.
-  contents: write
+  contents: read
   pull-requests: write
   checks: write
 

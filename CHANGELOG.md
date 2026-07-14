@@ -55,6 +55,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- **Least-privilege Warden token**: Reduce repository contents access from write to read while
+  retaining only the pull-request and check scopes required for automated review
 - **Explicit service imports**: Remove root package re-exports; import services from their owning
   domain modules
 - **Explicit domain imports**: Remove unused domain-package service and view re-exports so package
