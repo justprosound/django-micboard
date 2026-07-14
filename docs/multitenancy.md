@@ -39,9 +39,7 @@ MICBOARD_MULTI_SITE_MODE = True
 ```
 
 ```bash
-python manage.py migrate sites
-python manage.py makemigrations micboard
-python manage.py migrate micboard
+uv run --no-sync python manage.py migrate
 ```
 
 ### MSP Mode (Full Multi-Tenancy)
@@ -69,11 +67,7 @@ MIDDLEWARE = [
 ```
 
 ```bash
-python manage.py migrate sites
-python manage.py makemigrations micboard_multitenancy
-python manage.py migrate micboard_multitenancy
-python manage.py makemigrations micboard
-python manage.py migrate micboard
+uv run --no-sync python manage.py migrate
 ```
 
 ## Configuration
@@ -179,16 +173,17 @@ membership = OrganizationMembership.objects.create(
 All services accept optional tenant parameters:
 
 ```python
-from micboard.services import DeviceService, LocationService
+from micboard.services.core.hardware_query import HardwareQueryService
+from micboard.services.core.location import LocationService
 
 # Single-site mode (parameters ignored)
-receivers = DeviceService.get_active_receivers()
+chassis = HardwareQueryService.get_active_chassis()
 
 # Multi-site mode
-receivers = DeviceService.get_active_receivers(site_id=1)
+chassis = HardwareQueryService.get_active_chassis(site_id=1)
 
 # MSP mode
-receivers = DeviceService.get_active_receivers(
+chassis = HardwareQueryService.get_active_chassis(
     organization_id=org.id,
     campus_id=campus.id  # Optional
 )
@@ -205,24 +200,24 @@ All tenant parameters are optional and default to `None`. Existing code continue
 
 ```python
 # These all work identically
-receivers = DeviceService.get_active_receivers()
-receivers = DeviceService.get_active_receivers(organization_id=None)
-receivers = DeviceService.get_active_receivers(site_id=None, campus_id=None)
+chassis = HardwareQueryService.get_active_chassis()
+chassis = HardwareQueryService.get_active_chassis(organization_id=None)
+chassis = HardwareQueryService.get_active_chassis(site_id=None, campus_id=None)
 ```
 
 ## Managers & Querysets
 
-### TenantAwareManager
+### TenantOptimizedManager
 
-The `TenantAwareManager` provides consistent filtering across deployment modes:
+The `TenantOptimizedManager` provides consistent filtering across deployment modes:
 
 ```python
-from micboard.multitenancy.managers import TenantAwareManager
+from micboard.models.base_managers import TenantOptimizedManager
 
 class MyModel(models.Model):
     # ... fields
 
-    objects = TenantAwareManager()
+    objects = TenantOptimizedManager()
 
 # Usage
 queryset = MyModel.objects.for_organization(organization=org)
@@ -246,7 +241,7 @@ def my_view(request):
     campus_id = request.campus_id  # Current campus ID or None
 
     # Use in service calls
-    receivers = DeviceService.get_active_receivers(
+    chassis = HardwareQueryService.get_active_chassis(
         organization_id=org.id if org else None
     )
 ```
@@ -272,7 +267,7 @@ Apply tenant filtering in your views by accessing the organization attached to t
 ```python
 from django.http import JsonResponse
 from django.views import View
-from micboard.services import DeviceService
+from micboard.services.core.hardware_query import HardwareQueryService
 
 class ReceiverListAPIView(View):
     def get(self, request):
@@ -281,13 +276,13 @@ class ReceiverListAPIView(View):
         org_id = org.id if org else None
 
         # Filter receivers using the service layer
-        receivers = DeviceService.get_active_receivers(
+        chassis = HardwareQueryService.get_active_chassis(
             organization_id=org_id
         )
 
         # Return as JSON
         return JsonResponse({
-            "receivers": list(receivers.values())
+            "chassis": list(chassis.values())
         })
 ```
 
@@ -302,9 +297,7 @@ class ReceiverListAPIView(View):
 
 ```bash
 # settings.py: Set MICBOARD_MULTI_SITE_MODE = True
-python manage.py migrate sites
-python manage.py makemigrations micboard
-python manage.py migrate micboard
+uv run --no-sync python manage.py migrate
 ```
 
 ### From Multi-Site to MSP
@@ -317,15 +310,14 @@ python manage.py migrate micboard
 
 ```bash
 # settings.py: Set MICBOARD_MSP_ENABLED = True
-python manage.py makemigrations micboard_multitenancy
-python manage.py migrate micboard_multitenancy
-python manage.py shell
+uv run --no-sync python manage.py migrate
+uv run --no-sync python manage.py shell
 ```
 
 ```python
 # In shell
 from micboard.multitenancy.models import Organization, Campus
-from micboard.models import Building
+from micboard.models.locations.structure import Building
 
 # Create default org/campus
 org = Organization.objects.create(
@@ -341,8 +333,8 @@ campus = Campus.objects.create(
 
 # Update buildings
 Building.objects.all().update(
-    organization=org,
-    campus=campus
+    organization_id=org.pk,
+    campus_id=campus.pk,
 )
 ```
 
@@ -403,7 +395,7 @@ Test tenant isolation:
 ```python
 from django.test import TestCase
 from micboard.multitenancy.models import Organization, Campus
-from micboard.services import DeviceService
+from micboard.services.core.hardware_query import HardwareQueryService
 
 class TenantIsolationTest(TestCase):
     def test_organization_isolation(self):
@@ -414,19 +406,19 @@ class TenantIsolationTest(TestCase):
         # ... create buildings, locations, receivers
 
         # Verify isolation
-        org1_receivers = DeviceService.get_active_receivers(organization_id=org1.id)
-        org2_receivers = DeviceService.get_active_receivers(organization_id=org2.id)
+        org1_chassis = HardwareQueryService.get_active_chassis(organization_id=org1.id)
+        org2_chassis = HardwareQueryService.get_active_chassis(organization_id=org2.id)
 
-        self.assertEqual(org1_receivers.count(), 5)
-        self.assertEqual(org2_receivers.count(), 3)
+        self.assertEqual(org1_chassis.count(), 5)
+        self.assertEqual(org2_chassis.count(), 3)
 
         # Verify no cross-contamination
-        self.assertNotIn(org2_receivers[0], org1_receivers)
+        self.assertNotIn(org2_chassis[0], org1_chassis)
 ```
 
 ## Performance Considerations
 
-- **Indexes**: Added on `organization_id`, `campus_id`, `site_id` FKs
+- **Indexes**: Added on `organization_id`, `campus_id`, and `site_id`
 - **Query optimization**: Filters applied at database level
 - **Single-site overhead**: Zero - features disabled via settings checks
 - **Multi-site overhead**: Minimal - single JOIN added to queries
@@ -447,7 +439,7 @@ class TenantIsolationTest(TestCase):
 # Assign buildings to default org
 from micboard.multitenancy.models import Organization
 org = Organization.objects.first()
-Building.objects.filter(organization__isnull=True).update(organization=org)
+Building.objects.filter(organization_id__isnull=True).update(organization_id=org.pk)
 ```
 
 ### User can't see devices
@@ -475,6 +467,6 @@ print(f"MSP: {getattr(settings, 'MICBOARD_MSP_ENABLED', False)}")
 See `micboard.multitenancy` module for complete API documentation:
 
 - `models.py` - Organization, Campus, OrganizationMembership
-- `managers.py` - TenantAwareManager, TenantAwareQuerySet
+- `micboard.models.base_managers` - TenantOptimizedManager and TenantOptimizedQuerySet
 - `middleware.py` - TenantMiddleware
 - `admin.py` - Django admin interfaces

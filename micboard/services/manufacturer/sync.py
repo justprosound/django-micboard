@@ -49,8 +49,8 @@ class ManufacturerSyncService:
                 'errors': list[str]
             }
         """
-        from micboard.models import Manufacturer
-        from micboard.services.deduplication import check_device
+        from micboard.models.discovery.manufacturer import Manufacturer
+        from micboard.services.deduplication.check import check_device
 
         try:
             manufacturer = Manufacturer.objects.get(code=manufacturer_code)
@@ -90,46 +90,13 @@ class ManufacturerSyncService:
             updated_count = 0
 
             for payload in normalized_devices:
-                dedup_result = check_device(
-                    serial_number=payload.serial_number or None,
-                    mac_address=payload.mac_address or None,
-                    ip=payload.ip,
-                    api_device_id=payload.api_device_id,
-                    manufacturer=manufacturer,
+                outcome = ManufacturerSyncService._sync_normalized_device(
+                    payload, manufacturer, check_device
                 )
-
-                if dedup_result.is_conflict:
-                    continue
-
-                if dedup_result.is_moved and dedup_result.existing_device:
-                    existing = dedup_result.existing_device
-                    ManufacturerSyncService._update_existing_chassis(existing, payload, set_ip=True)
-
-                    if existing.status != "online":
-                        existing.status = "online"
-                        existing.save(update_fields=["status"])
-
-                    updated_count += 1
-                    continue
-
-                if dedup_result.is_duplicate and dedup_result.existing_device:
-                    existing = dedup_result.existing_device
-                    ManufacturerSyncService._update_existing_chassis(existing, payload)
-
-                    if existing.status not in {"online", "degraded", "maintenance"}:
-                        existing.status = "online"
-                        existing.save(update_fields=["status"])
-
-                    updated_count += 1
-                    continue
-
-                if dedup_result.is_new:
-                    chassis = ManufacturerSyncService._create_chassis(payload, manufacturer)
-
-                    chassis.status = "online"
-                    chassis.save(update_fields=["status"])
-
+                if outcome == "created":
                     created_count += 1
+                elif outcome == "updated":
+                    updated_count += 1
 
             return {
                 "success": True,
@@ -147,6 +114,45 @@ class ManufacturerSyncService:
                 "devices_removed": 0,
                 "errors": [str(e)],
             }
+
+    @staticmethod
+    def _sync_normalized_device(payload, manufacturer, check_device) -> str | None:
+        """Persist one normalized device and return its sync outcome."""
+        dedup_result = check_device(
+            serial_number=payload.serial_number or None,
+            mac_address=payload.mac_address or None,
+            ip=payload.ip,
+            api_device_id=payload.api_device_id,
+            manufacturer=manufacturer,
+        )
+        if dedup_result.is_conflict:
+            return None
+
+        if dedup_result.is_moved and dedup_result.existing_device:
+            existing = dedup_result.existing_device
+            ManufacturerSyncService._update_existing_chassis(existing, payload, set_ip=True)
+            ManufacturerSyncService._mark_chassis_online(existing)
+            return "updated"
+
+        if dedup_result.is_duplicate and dedup_result.existing_device:
+            existing = dedup_result.existing_device
+            ManufacturerSyncService._update_existing_chassis(existing, payload)
+            if existing.status not in {"online", "degraded", "maintenance"}:
+                ManufacturerSyncService._mark_chassis_online(existing)
+            return "updated"
+
+        if dedup_result.is_new:
+            chassis = ManufacturerSyncService._create_chassis(payload, manufacturer)
+            ManufacturerSyncService._mark_chassis_online(chassis)
+            return "created"
+        return None
+
+    @staticmethod
+    def _mark_chassis_online(chassis) -> None:
+        if chassis.status == "online":
+            return
+        chassis.status = "online"
+        chassis.save(update_fields=["status"])
 
     @staticmethod
     def _normalize_devices(
@@ -219,7 +225,7 @@ class ManufacturerSyncService:
     @staticmethod
     def _create_chassis(payload, manufacturer):
         """Persist a new chassis/base station from a normalized payload."""
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         role = "receiver"
         if payload.device_type and "transmitter" in payload.device_type.lower():

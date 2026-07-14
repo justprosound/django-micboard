@@ -9,6 +9,7 @@ import logging
 from typing import Any, ClassVar
 
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q
 from django.shortcuts import render
 from django.urls import path
@@ -20,6 +21,7 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.integrations import Accessory
 from micboard.models.rf_coordination.rf_channel import RFChannel
+from micboard.services.hardware.wireless_unit_service import get_battery_percentage
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,11 @@ class WirelessUnitInline(admin.StackedInline):
         "updated_at",
     )
     can_delete = False
+
+    @admin.display(description="Battery Percentage", ordering="battery")
+    def battery_percentage(self, obj: WirelessUnit) -> int | None:
+        """Expose normalized battery percentage as an inline readonly field."""
+        return get_battery_percentage(obj)
 
 
 class RFChannelInline(admin.StackedInline):
@@ -233,8 +240,12 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         Build a compact structure grouped by manufacturer and chassis IP, then
         for each chassis list channels with their current frequency (if any).
         """
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+
         chassis_qs = (
-            WirelessChassis.objects.filter(status__in=["online", "degraded", "provisioning"])
+            self.get_queryset(request)
+            .filter(status__in=["online", "degraded", "provisioning"])
             .select_related("manufacturer")
             .prefetch_related(
                 "rf_channels__active_wireless_unit",
@@ -323,7 +334,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.action(description="Mark selected chassis as online")
     def mark_online(self, request, queryset):
         """Mark selected chassis as online."""
-        from micboard.services import HardwareService
+        from micboard.services.core.hardware import HardwareService
 
         updated = 0
         for chassis in queryset:
@@ -334,7 +345,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.action(description="Mark selected chassis as offline")
     def mark_offline(self, request, queryset):
         """Mark selected chassis as offline."""
-        from micboard.services import HardwareService
+        from micboard.services.core.hardware import HardwareService
 
         updated = 0
         for chassis in queryset:
@@ -346,19 +357,17 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     def sync_from_api(self, request, queryset):
         """Sync selected chassis from manufacturer API."""
         from micboard.tasks.sync.polling import poll_manufacturer_devices
-        from micboard.utils.dependencies import HAS_DJANGO_Q
+        from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
         # If all selected chassis belong to the same manufacturer, run
         # centralized discovery sync which will import/update devices.
         manufacturers = queryset.values_list("manufacturer", flat=True).distinct()
         if manufacturers.count() == 1:
             m_id = manufacturers.first()
-            if HAS_DJANGO_Q:
+            if huey_is_configured():
                 try:
-                    from django_q.tasks import async_task
-
                     # Enqueue background task for polling
-                    async_task(poll_manufacturer_devices, m_id)
+                    enqueue_huey_task(poll_manufacturer_devices, m_id)
                     self.message_user(request, "Discovery sync enqueued for background processing")
                     return
                 except Exception as e:
@@ -384,7 +393,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
                         "firmware", chassis.firmware_version
                     )
                     # Use HardwareService for status update
-                    from micboard.services import HardwareService
+                    from micboard.services.core.hardware import HardwareService
 
                     HardwareService.sync_hardware_status(obj=chassis, online=True)
                     synced += 1
@@ -401,7 +410,9 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.display(description="Band Plan")
     def band_plan_display(self, obj):
         """Display chassis band plan information."""
-        if obj.has_band_plan():
+        from micboard.services.hardware.wireless_chassis_service import get_band_plan_status
+
+        if get_band_plan_status(obj):
             range_str = f"{obj.band_plan_min_mhz}-{obj.band_plan_max_mhz} MHz"
             if obj.band_plan_name:
                 return format_html(
@@ -416,10 +427,14 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     @admin.display(description="Band Plan Regulatory Status")
     def band_plan_regulatory_status_display(self, obj):
         """Display band plan regulatory coverage status with color coding."""
-        status = obj.get_band_plan_regulatory_status()
+        from micboard.services.hardware.chassis_regulatory_service import (
+            get_band_plan_regulatory_status,
+        )
+
+        status = get_band_plan_regulatory_status(obj)
 
         if not status["has_band_plan"]:
-            return format_html('<span style="color: gray;">ℹ️ No band plan</span>')
+            return format_html('<span style="color: gray;">No band plan</span>')
 
         if status["needs_update"]:
             return format_html(

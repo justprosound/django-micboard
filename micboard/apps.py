@@ -50,16 +50,16 @@ class MicboardConfig(AppConfig):
         # NOTE: Manufacturer-specific config is now resolved via SettingsRegistry, not here.
         return cls._resolved_config
 
-    def ready(self):
+    def ready(self) -> None:
         """Initialize app when Django starts."""
-        from django.conf import settings
+        from micboard.services.settings import settings as micboard_settings
 
-        # Merge user config with defaults without mutating settings
-        user_config = getattr(settings, "MICBOARD_CONFIG", {})
-        self._resolved_config = {**self.default_config, **user_config}
+        # Resolve configuration through the app's single settings seam.
+        resolved_config = micboard_settings.get_config_dict()
+        type(self)._resolved_config = resolved_config
 
         # Validate merged configuration
-        self._validate_configuration(self._resolved_config)
+        self._validate_configuration(resolved_config)
 
         # Register system checks
         from django.core.checks import Tags, register
@@ -68,17 +68,49 @@ class MicboardConfig(AppConfig):
 
         register(check_micboard_configuration, Tags.compatibility)
 
-        # Import health checks to trigger registration if django-health-check is present
-        try:
-            import micboard.checks  # noqa
-        except ImportError:
-            logger.debug("django-health-check not installed, skipping health check registration")
-
         # Advise about recommended middleware and context processors (do not modify settings)
         self._register_security_middleware()
         self._register_context_processors()
+        self._register_background_tasks()
 
         logger.info("Micboard app initialized (configuration validated)")
+
+    def _register_background_tasks(self) -> None:
+        """Register task entry points on the host project's native Huey queue."""
+        from micboard.utils.dependencies import huey_is_configured, register_huey_task
+
+        if not huey_is_configured():
+            return
+
+        from micboard.tasks.maintenance.charger import poll_charger_data
+        from micboard.tasks.monitoring.health import (
+            check_manufacturer_api_health,
+            check_realtime_connection_health,
+        )
+        from micboard.tasks.monitoring.sse import start_sse_subscriptions
+        from micboard.tasks.monitoring.websocket import start_shure_websocket_subscriptions
+        from micboard.tasks.sync.discovery import (
+            cache_all_discovery_candidates,
+            run_discovery_sync_task,
+            run_manufacturer_discovery_task,
+            sync_receiver_discovery,
+        )
+        from micboard.tasks.sync.polling import poll_manufacturer_devices
+
+        task_functions = (
+            poll_charger_data,
+            check_manufacturer_api_health,
+            check_realtime_connection_health,
+            start_sse_subscriptions,
+            start_shure_websocket_subscriptions,
+            cache_all_discovery_candidates,
+            run_discovery_sync_task,
+            run_manufacturer_discovery_task,
+            sync_receiver_discovery,
+            poll_manufacturer_devices,
+        )
+        for task_function in task_functions:
+            register_huey_task(task_function)
 
     def _register_context_processors(self):
         """Register context processors if not already present."""
@@ -99,10 +131,13 @@ class MicboardConfig(AppConfig):
         # Check each template backend for context processors
         missing_processors = []
         for template_config in settings.TEMPLATES:
+            if not isinstance(template_config, dict):
+                continue
             if template_config.get("BACKEND") == "django.template.backends.django.DjangoTemplates":
-                current_processors = template_config.get("OPTIONS", {}).get(
-                    "context_processors", []
-                )
+                options = template_config.get("OPTIONS", {})
+                if not isinstance(options, dict):
+                    continue
+                current_processors = options.get("context_processors", [])
                 for processor in context_processors:
                     if processor not in current_processors:
                         missing_processors.append(processor)

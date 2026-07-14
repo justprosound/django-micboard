@@ -2,47 +2,65 @@
 
 **Status:** Implemented
 **Date:** 2026-05-20
-**Updated:** 2026-05-21
+**Updated:** 2026-07-13
 **Deciders:** (to be assigned)
 
 ## Context
 
-django-micboard has two parallel settings resolution mechanisms with overlapping concerns:
+django-micboard previously had two parallel settings resolution mechanisms with overlapping
+concerns:
 
-1. **`micboard/conf.py`** (149 lines) — `MicboardSettingsProxy` reads from `django.conf.settings.MICBOARD_CONFIG` dict, merged with defaults from `AppConfig`. Provides attribute-style access (`config.msp_enabled`). Contains 18 hardcoded property getters for feature flags (msp_enabled, multi_site_mode), limits (global_device_limit), and retention (activity_log_retention_days).
+1. **The removed runtime settings proxy** read from the host `MICBOARD_CONFIG` dictionary and
+   exposed overlapping convenience properties.
 2. **`micboard/services/shared/settings_registry.py`** (292 lines) — `SettingsRegistryService` resolves DB-backed `Setting` values through a scope hierarchy (global → site → organization → manufacturer), with Django cache (TTL: 300s).
 
-Additionally, **~20 files** access `settings.MICBOARD_CONFIG` directly rather than through either proxy, scattering the reading surface across management commands, `apps.py`, `base_http_client.py`, and `services/maintenance/audit.py`.
+Additionally, **~20 files** accessed `settings.MICBOARD_CONFIG` directly rather than through
+either service, scattering the reading surface across management commands, app startup, HTTP
+clients, and maintenance services.
 
-The dual proxy causes:
-- Inconsistent access patterns across the codebase — `conf.py` uses attribute-style, `settings_registry.py` uses `.get(key)`.
-- Confusion about which proxy to use for a given setting (a feature flag vs a per-org setting).
-- Difficulty auditing where a setting is consumed — direct `settings.MICBOARD_CONFIG` accesses are invisible to both proxies.
-- Deletion test: deleting either `conf.py` or `settings_registry.py` doesn't eliminate the problem — the confusion just moves to the surviving module.
+The duplicate APIs caused:
+- Inconsistent attribute-style and `.get(key)` access patterns.
+- Confusion about which API to use for a feature flag versus a scoped setting.
+- Difficulty auditing where a setting was consumed.
+- No single module whose deletion test exposed bypassing callers.
 
 ## Decision
 
 1. **Consolidate into a single `SettingsService`** under `micboard/services/settings/settings_service.py` with a single public seam:
 
    ```python
-   SettingsService.get(key, scope_hints=None, default=None) -> Any
+   SettingsService.get(
+       key,
+       default=None,
+       *,
+       organization=None,
+       site=None,
+       manufacturer=None,
+   ) -> Any
    ```
 
-   Where `scope_hints` is an optional dict with keys `organization`, `site`, `manufacturer`. Resolution order: `scope_hints` → cache → DB Setting → `settings.MICBOARD_CONFIG` → `AppConfig` default.
+   The optional scope arguments select organization-, site-, or manufacturer-specific database
+   values. Resolution then falls back through the host configuration dictionary, feature flags,
+   app defaults, and the caller's explicit default.
 
-2. **`micboard/conf.py` feature flags become registered keys** in the unified service. Each existing property (e.g., `config.msp_enabled`) becomes a `SettingsService.get("msp_enabled")` call.
+2. **Former proxy feature flags become registered keys** in the unified service. Callers use
+   `settings.get("msp_enabled")` or the corresponding convenience property.
 
-3. **All direct `settings.MICBOARD_CONFIG` accesses** must be replaced with `SettingsService.get()`. The 18 `conf.py` properties serve as the migration checklist: each maps to a canonical key name.
+3. **All direct host configuration reads** outside `SettingsService` are replaced with
+   `SettingsService.get()` or `SettingsService.get_config_dict()`.
 
-4. **`micboard/conf.py`** becomes a thin compatibility layer delegating to `SettingsService`, then is deprecated and removed after one release cycle.
+4. **Remove the obsolete settings proxy without a compatibility layer.** All callers import the
+   public singleton or service class from `micboard.services.settings`.
 
-5. **Deprecation path:** Add a lint rule forbidding `from django.conf import settings` combined with `settings.MICBOARD_CONFIG` — force migration to the single proxy.
+5. **Enforcement:** Add a lint rule forbidding raw host configuration reads outside the unified
+   service.
 
 ## Consequences
 
 - **Positive:** Single entry point for all configuration reads — one interface to test, one file to audit. Scope semantics centralized. A caller never needs to know whether a setting comes from Django config or the database.
-- **Negative:** ~20 files need import and call-site changes. The `conf.py` → `SettingsService.get()` migration requires mapping each of the 18 properties to a canonical key.
-- **Migration:** (a) Implement the unified `SettingsService` with both backends, (b) update `micboard/conf.py` to delegate, (c) migrate all direct `settings.MICBOARD_CONFIG` readers file-by-file (track against the 18-property checklist), (d) remove `micboard/conf.py`.
+- **Negative:** Existing callers must move directly to the canonical service API.
+- **Migration:** Implement the unified service, migrate every caller, and delete the obsolete
+  proxy rather than retaining a compatibility shim.
 
 ## Compliance
 

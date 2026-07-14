@@ -34,7 +34,6 @@ class ManufacturerAPIServer(models.Model):
     # Connection
     base_url = models.URLField(help_text="API endpoint URL (e.g., https://api.shure.local:10000)")
     shared_key = models.CharField(max_length=255, help_text="API authentication key/shared secret")
-    verify_ssl = models.BooleanField(default=True, help_text="Verify SSL certificate")
 
     # Organization
     location_name = models.CharField(
@@ -86,7 +85,6 @@ class ManufacturerAPIServer(models.Model):
             "manufacturer": self.manufacturer,
             "base_url": self.base_url,
             "shared_key": self.shared_key,
-            "verify_ssl": self.verify_ssl,
             "location_name": self.location_name,
             "enabled": self.enabled,
         }

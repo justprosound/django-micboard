@@ -1,391 +1,125 @@
-# Performer & Assignment System - Quick Reference
+# Performer Assignment Quick Reference
 
-## Core Concepts
+Performers are the people using wireless units. They are separate from Django users, who are
+the operators managing those assignments.
 
-| Concept | Model | Purpose |
-|---------|-------|---------|
-| **User** | Django User + UserProfile | System operators (tech, admin) |
-| **Performer** | `Performer` | Device users (talent) |
-| **Monitoring Group** | `MonitoringGroup` | RBAC - controls user access |
-| **Assignment** | `PerformerAssignment` | Links Performer → WirelessUnit |
+## Imports
 
-## Import Statements
+Import models and services from their defining modules:
 
 ```python
-# Models
-from micboard.models import Performer, PerformerAssignment, MonitoringGroup
-
-# Services
-from micboard.services import PerformerService, PerformerAssignmentService
-
-# User access
-from django.contrib.auth.models import User
-user = User.objects.get(id=1)
-groups = user.get_monitoring_groups()
-performers = user.get_accessible_performers()
-devices = user.get_accessible_devices()
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.monitoring.performer import Performer
+from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.services.core.performer import PerformerService
+from micboard.services.core.performer_assignment import PerformerAssignmentService
 ```
 
-## Performer CRUD
+The root `micboard.models` and `micboard.services` packages do not re-export domain objects.
+
+## Create a performer
 
 ```python
-from micboard.services import PerformerService
-
-# CREATE
 performer = PerformerService.create_performer(
     name="Jane Smith",
-    title="Lead Vocals",
-    email="jane@band.com",
-    phone="+1234567890",
-    photo_file=None,  # Optional file object
-    notes="Professional session singer"
+    title="Lead vocalist",
+    email="jane@example.com",
+    role_description="Primary vocal microphone",
+    notes="Prefers a handheld transmitter",
 )
-
-# READ
-performer = PerformerService.get_performer_by_id(performer_id=1)
-performer = PerformerService.get_performer_by_name(name="Jane Smith")
-all_performers = PerformerService.get_all_performers(active_only=True)
-results = PerformerService.search_performers(query="jane", active_only=True)
-
-# UPDATE
-performer = PerformerService.update_performer(
-    performer=performer,
-    title="Co-Lead",  # Only fields to change
-    notes="Now co-lead"
-)
-
-# DEACTIVATE (soft delete)
-PerformerService.deactivate_performer(performer=performer)
-PerformerService.reactivate_performer(performer=performer)
-
-# DELETE (hard delete)
-PerformerService.delete_performer(performer=performer)
-
-# STATISTICS
-count = PerformerService.count_total_performers(active_only=True)
-with_assignments = PerformerService.get_performers_with_assignments()
 ```
 
-## Assignment Management
+Photos are model fields rather than service arguments. Assign a photo to the returned instance
+and save it with Django's normal file-field API when needed.
+
+## Create an assignment
+
+All assignment writes require the acting user and object IDs. The service resolves every object
+through that user's scope before writing:
 
 ```python
-from micboard.services import PerformerAssignmentService
-
-# CREATE
 assignment = PerformerAssignmentService.create_assignment(
-    performer=performer,
-    wireless_unit=unit,
-    monitoring_group=group,
-    priority="high",           # low, normal, high, critical
-    alert_enabled=True,
+    performer_id=performer.id,
+    unit_id=wireless_unit.id,
+    group_id=monitoring_group.id,
+    user=request.user,
+    priority="high",
     notes="Lead microphone",
-    assigned_by=tech_user
+    alert_on_battery_low=True,
+    alert_on_signal_loss=True,
+    alert_on_audio_low=False,
+    alert_on_hardware_offline=True,
 )
-
-# READ
-performer_assignments = PerformerAssignmentService.get_performer_assignments(
-    performer=performer
-)
-unit_assignments = PerformerAssignmentService.get_unit_assignments(
-    wireless_unit=unit
-)
-group_assignments = PerformerAssignmentService.get_group_assignments(
-    monitoring_group=group
-)
-
-# Assignments with alerts
-alert_assignments = PerformerAssignmentService.get_assignments_needing_alerts(
-    monitoring_group=group,
-    after=datetime.now() - timedelta(hours=1)
-)
-
-# UPDATE
-assignment = PerformerAssignmentService.update_assignment(
-    assignment=assignment,
-    priority="critical",
-    alert_enabled=True,
-    notes="Changed to critical"
-)
-
-# Alert Management
-PerformerAssignmentService.update_alert_status(
-    assignment=assignment,
-    alert_enabled=False
-)
-
-# DEACTIVATE/REACTIVATE
-PerformerAssignmentService.deactivate_assignment(assignment=assignment)
-PerformerAssignmentService.reactivate_assignment(assignment=assignment)
-
-# DELETE
-PerformerAssignmentService.delete_assignment(assignment=assignment)
-
-# STATISTICS
-total = PerformerAssignmentService.count_total_assignments()
-with_alerts = PerformerAssignmentService.count_assignments_with_alerts()
 ```
 
-## User Access Control (RBAC)
+In MSP mode, the user must have an active `operator`, `admin`, or `owner` membership covering the
+unit's organization and campus. `viewer` memberships are read-only. References outside the user's
+monitoring-group or tenant scope raise `PermissionDenied`.
+
+## Read scoped assignments
 
 ```python
-# Get user's monitoring groups
-user = User.objects.get(id=1)
-groups = user.get_monitoring_groups()  # Returns MonitoringGroup queryset
-
-# Get performers visible to user
-accessible_performers = user.get_accessible_performers()
-# Internally: Gets all performers assigned via user's MonitoringGroups
-
-# Get devices visible to user
-accessible_devices = user.get_accessible_devices()
-# Internally: Gets all WirelessUnits assigned via user's MonitoringGroups
-```
-
-## Query Optimization
-
-```python
-from micboard.models import Performer, PerformerAssignment
-
-# Optimize performer queries
-performers = Performer.objects.active().with_assignments()
-# Prefetches: assignments, assignments__wireless_unit
-
-# Optimize assignment queries
 assignments = (
-    PerformerAssignment.objects
-    .filter(monitoring_group=group)
+    PerformerAssignment.objects.for_user(user=request.user)
+    .active()
     .with_performer_and_unit()
 )
-# Selects related: performer, wireless_unit, wireless_unit__base_chassis, location
 
-# Get alert-enabled assignments
-alert_assignments = PerformerAssignment.objects.needing_alerts(
-    after=datetime.now() - timedelta(hours=24)
+performers = Performer.objects.for_user(user=request.user).active()
+units = WirelessUnit.objects.for_user(user=request.user)
+```
+
+Use `for_user()` at request and task boundaries. In single-tenant mode, an unassigned performer is
+visible so an operator can create its first assignment. In MSP mode, a performer without a
+tenant-scoped assignment fails closed.
+
+## Update or remove an assignment
+
+```python
+assignment = PerformerAssignmentService.update_assignment(
+    assignment_id=assignment.id,
+    user=request.user,
+    priority="critical",
+    alert_on_audio_low=True,
+)
+
+was_deactivated = PerformerAssignmentService.deactivate_assignment(
+    assignment_id=assignment.id,
+    user=request.user,
+)
+
+was_deleted = PerformerAssignmentService.delete_assignment(
+    assignment_id=assignment.id,
+    user=request.user,
 )
 ```
 
-## Alert Preferences
+`deactivate_assignment()` preserves history. `delete_assignment()` permanently removes the row.
+Both return `False` when the scoped assignment does not exist.
+
+## Alert preferences
+
+Alert preferences are independent flags on each assignment:
 
 ```python
-assignment = PerformerAssignment.objects.first()
-
-# Get alert prefs as dict
-alerts = assignment.get_alert_preferences()
-# Returns: {
-#     'battery_low': True,
-#     'signal_loss': True,
-#     'audio_low': False,
-#     'device_offline': True
+preferences = assignment.get_alert_preferences()
+# {
+#     "battery_low": True,
+#     "signal_loss": True,
+#     "audio_low": False,
+#     "hardware_offline": True,
 # }
-
-# Update individual alerts
-assignment.alert_on_battery_low = False
-assignment.alert_on_signal_loss = True
-assignment.save()
 ```
 
-## Common Patterns
+Use `PerformerAssignment.objects.needing_alerts()` to select active assignments with at least one
+supported alert flag enabled.
 
-### Bulk Create Performers
-```python
-performers = [
-    PerformerService.create_performer(
-        name=f"Performer {i}",
-        title="Band Member"
-    )
-    for i in range(10)
-]
-```
+## Data constraints
 
-### Assign Performers to Multiple Units
-```python
-performer = PerformerService.get_performer_by_id(1)
-for unit in WirelessUnit.objects.filter(chassis=chassis):
-    PerformerAssignmentService.create_assignment(
-        performer=performer,
-        wireless_unit=unit,
-        monitoring_group=group
-    )
-```
+- A performer and wireless unit can have only one assignment row.
+- A monitoring group owns the operational scope of an assignment.
+- `assigned_by` records the user who created the assignment.
+- Deactivated rows remain queryable but are excluded by `.active()`.
 
-### Monitor Alert-Enabled Assignments
-```python
-# Get all assignments that should generate alerts
-alert_assignments = PerformerAssignmentService.get_assignments_needing_alerts(
-    monitoring_group=stage_group
-)
-
-for assignment in alert_assignments:
-    if assignment.wireless_unit.battery_low:
-        notify_user(assignment.assigned_by,
-                    f"Low battery: {assignment.performer.name}")
-```
-
-### Disable Performer for Event
-```python
-performer = PerformerService.get_performer_by_id(1)
-PerformerService.deactivate_performer(performer=performer)
-# All assignments automatically filtered out in queries
-```
-
-### Multiple Performers Per Unit (Shared)
-```python
-# Unique constraint only on (performer, unit) pair
-# So same unit can have multiple performers at different times/events
-
-for performer in festival_headliners:
-    PerformerAssignmentService.create_assignment(
-        performer=performer,
-        wireless_unit=shared_stage_mic,
-        monitoring_group=festival_group
-    )
-```
-
-## Migration from DeviceAssignment
-
-```python
-# OLD (LEGACY - Still works but deprecated)
-from micboard.services import AssignmentService
-assignment = AssignmentService.create_assignment(
-    user=tech_user,
-    channel=rf_channel,
-    alert_enabled=True
-)
-
-# NEW (Recommended)
-from micboard.services import PerformerService, PerformerAssignmentService
-performer = PerformerService.create_performer(name="Performer Name")
-assignment = PerformerAssignmentService.create_assignment(
-    performer=performer,
-    wireless_unit=unit,
-    monitoring_group=group
-)
-```
-
-## MultiTenant Support
-
-```python
-# All new models support multi-tenancy automatically
-# No special configuration needed if settings enabled
-
-# Queries automatically filtered by organization/campus
-performers = Performer.objects.all()
-# Behind the scenes: Filters by active org/campus context
-
-assignments = PerformerAssignment.objects.all()
-# Same automatic filtering applied
-```
-
-## Soft Delete Patterns
-
-```python
-# Deactivate (soft delete)
-PerformerService.deactivate_performer(performer)
-# performer.is_active = False
-# Performer appears inactive but not deleted
-
-# Query only active
-active_performers = Performer.objects.active()
-# Uses: .filter(is_active=True)
-
-# Query all (including inactive)
-all_performers = Performer.objects.all()  # Note: _all_
-```
-
-## Audit Trail
-
-```python
-assignment = PerformerAssignment.objects.first()
-
-# Who created this?
-creator = assignment.assigned_by  # User who created assignment
-
-# When created?
-created_at = assignment.assigned_at  # Timestamp
-
-# When last updated?
-updated_at = assignment.updated_at  # Auto-updated on save
-```
-
-## Common Queries
-
-```python
-from micboard.models import Performer, PerformerAssignment
-from django.db.models import Count
-
-# Count performers per group
-group_count = (
-    Performer.objects
-    .annotate(group_count=Count('assignments__monitoring_group', distinct=True))
-)
-
-# Get performers with no assignments
-unassigned = Performer.objects.exclude(assignments__isnull=False)
-
-# Get assignments by priority
-critical = PerformerAssignment.objects.filter(priority='critical')
-
-# Get units with multiple performers
-from django.db.models import Count
-crowded = (
-    PerformerAssignment.objects
-    .values('wireless_unit')
-    .annotate(count=Count('id'))
-    .filter(count__gt=1)
-)
-
-# Get recently updated assignments
-from datetime import timedelta
-recent = (
-    PerformerAssignment.objects
-    .filter(updated_at__gte=datetime.now()-timedelta(hours=24))
-)
-```
-
-## Troubleshooting
-
-### "Performer already assigned to unit"
-```python
-# unique_together enforces one assignment per (performer, unit)
-# Solution: Delete old assignment first or reuse existing
-try:
-    assignment = PerformerAssignmentService.create_assignment(...)
-except IntegrityError:
-    assignment = PerformerAssignment.objects.get(
-        performer=performer, wireless_unit=unit
-    )
-```
-
-### "MonitoringGroup not found"
-```python
-# Check user's groups
-user = User.objects.get(id=1)
-if not user.get_monitoring_groups():
-    # User not in any monitoring groups
-    # Add via admin interface or programmatically
-    group = MonitoringGroup.objects.first()
-    group.users.add(user)
-```
-
-### Access denied (user can't see performer)
-```python
-# Check if performer is in user's accessible groups
-accessible = user.get_accessible_performers()
-if performer_id not in [p.id for p in accessible]:
-    # Performer not in user's MonitoringGroups
-    # Add assignment in correct group
-```
-
-## Performance Considerations
-
-- Use `.with_assignments()` on Performer queries
-- Use `.with_performer_and_unit()` on PerformerAssignment queries
-- Use `.needing_alerts()` for alert processing
-- Indexes exist on: performer, wireless_unit, monitoring_group, priority, is_active
-- Soft-delete doesn't reduce query load (add `active()` filter)
-
-## Related Documentation
-
-- **Full Architecture:** `micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md`
-- **Service Methods:** Docstrings in `micboard/services/performer.py` and `performer_assignment.py`
-- **Model Fields:** Docstrings in `micboard/models/monitoring/performer.py` and `performer_assignment.py`
+For the complete design and security boundaries, see
+[`micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md`](micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md).

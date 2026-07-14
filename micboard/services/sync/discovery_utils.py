@@ -10,23 +10,23 @@ from micboard.discovery.network_utils import resolve_fqdns
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.common.base import BaseAPIClient, get_manufacturer_plugin
+from micboard.services.common.base.plugin import ManufacturerPlugin, get_manufacturer_plugin
 
 logger = logging.getLogger(__name__)
 
 
-def get_manufacturer_client(manufacturer: Manufacturer) -> BaseAPIClient:
-    """Get the API client for a given manufacturer.
+def get_manufacturer_plugin_instance(manufacturer: Manufacturer) -> ManufacturerPlugin:
+    """Build the discovery-capable plugin for a manufacturer.
 
     Args:
-        manufacturer: The manufacturer to get client for
+        manufacturer: The manufacturer to build a plugin for
 
     Returns:
-        BaseAPIClient: Configured API client for the manufacturer
+        Configured manufacturer plugin
     """
     plugin_class = get_manufacturer_plugin(manufacturer.code)
     plugin = plugin_class(manufacturer)
-    return plugin.get_client()
+    return plugin
 
 
 def is_ip_managed_by_another_manufacturer(
@@ -59,13 +59,12 @@ def collect_base_candidates(manufacturer: Manufacturer) -> list[str]:
     """
     candidates = []
 
-    client = get_manufacturer_client(manufacturer)
-    if client and hasattr(client, "get_discovery_ips"):
-        try:
-            remote_ips = client.get_discovery_ips() or []
-            candidates.extend([ip for ip in remote_ips if isinstance(ip, str)])
-        except Exception:
-            logger.debug("Could not fetch remote discovery IPs for %s", manufacturer.code)
+    plugin = get_manufacturer_plugin_instance(manufacturer)
+    try:
+        remote_ips = plugin.get_discovery_ips() or []
+        candidates.extend([ip for ip in remote_ips if isinstance(ip, str)])
+    except Exception:
+        logger.debug("Could not fetch remote discovery IPs for %s", manufacturer.code)
 
     try:
         for ch in WirelessChassis.objects.filter(manufacturer=manufacturer):

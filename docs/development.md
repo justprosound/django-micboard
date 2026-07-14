@@ -6,9 +6,9 @@ Guide for developers contributing to or extending Django Micboard.
 
 ### Requirements
 
-- Python 3.9+
-- Django 4.2+ or 5.0+
-- Poetry or pip for dependency management
+- Python 3.13+
+- Django 5.1 through 6.0
+- uv for dependency and environment management
 - Git
 
 ### Local Setup
@@ -19,22 +19,14 @@ git clone https://github.com/justprosound/django-micboard.git
 cd django-micboard
 ```
 
-2. Create virtual environment:
+2. Create the managed environment and install dependencies:
 ```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or
-venv\Scripts\activate  # Windows
+uv sync --all-extras
 ```
 
-3. Install development dependencies:
+3. Run tests:
 ```bash
-uv pip install -r dev-requirements.txt
-```
-
-4. Run tests:
-```bash
-pytest tests/ -v
+uv run --no-sync pytest tests/ -v
 ```
 
 ### Demo and Local Docker
@@ -212,16 +204,16 @@ class ReceiverManager(models.Manager):
 
 ```bash
 # All tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Specific test file
-pytest tests/test_models.py -v
+uv run pytest tests/test_models.py -v
 
 # Specific test
-pytest tests/test_models.py::TestReceiver::test_mark_online -v
+uv run pytest tests/test_models.py::TestReceiver::test_mark_online -v
 
 # With coverage
-pytest tests/ --cov=micboard --cov-report=html
+uv run pytest tests/ --cov=micboard --cov-report=html
 ```
 
 ### Test Structure
@@ -249,7 +241,9 @@ Follow these conventions:
 ```python
 import pytest
 from django.test import TestCase
-from micboard.models import Receiver, RealTimeConnection
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.realtime.connection import RealTimeConnection
 
 class TestRealTimeConnection(TestCase):
     """Test RealTimeConnection model."""
@@ -288,35 +282,35 @@ class TestRealTimeConnection(TestCase):
 
 ```bash
 # Run ruff for linting
-ruff check micboard/
+uv run ruff check micboard/
 
 # Auto-fix issues
-ruff check --fix micboard/
+uv run ruff check --fix micboard/
 
 # Format code
-ruff format micboard/
+uv run ruff format micboard/
 ```
 
 ### Type Checking
 
 ```bash
 # Run mypy
-mypy micboard/
+uv run --no-sync python -m mypy micboard/
 ```
 
 ## Django Compatibility
 
 ### Supported Versions
 
-- Django 4.2 LTS
-- Django 5.0+
-- Python 3.9+
+- Django 5.1 through 6.0
+- Django 6.0
+- Python 3.13+
 
 ### No Backwards Compatibility
 
 This package targets modern Django and Python versions only. We do not maintain backwards compatibility with:
-- Django < 4.2
-- Python < 3.9
+- Django < 5.1
+- Python < 3.13
 - Deprecated Django APIs
 
 ### Migration Strategy
@@ -331,8 +325,8 @@ When Django deprecates APIs:
 ### Client Architecture
 
 The Shure System API client uses:
-- `requests.Session` for connection pooling
-- `urllib3.Retry` for automatic retries
+- `httpx.Client` for connection pooling
+- Typed retry handling around `httpx` failures and retryable status codes
 - Exponential backoff (0.5s, 1s, 2s)
 - Health tracking (consecutive failures)
 
@@ -362,11 +356,10 @@ def transform_new_type(device_data: Dict[str, Any]) -> Dict[str, Any]:
 For real-time updates from Shure devices:
 
 ```python
-from micboard.shure import ShureWebSocketClient
+from micboard.integrations.shure.client import ShureSystemAPIClient
 
-client = ShureWebSocketClient(ip='192.168.1.100')
-client.connect()
-client.subscribe_to_updates(callback=handle_update)
+client = ShureSystemAPIClient()
+await client.connect_and_subscribe("device-id", handle_update)
 ```
 
 ## Deployment
@@ -377,13 +370,10 @@ Build and publish:
 
 ```bash
 # Build package
-python -m build
-
-# Check package
-twine check dist/*
+uv build
 
 # Upload to PyPI
-twine upload dist/*
+uv publish
 ```
 
 ### Documentation
@@ -392,10 +382,10 @@ Build documentation:
 
 ```bash
 # Using MkDocs
-mkdocs build
+uv run mkdocs build
 
 # Serve locally
-mkdocs serve
+uv run mkdocs serve
 ```
 
 Deploy to Read the Docs:
@@ -411,7 +401,7 @@ Deploy to Read the Docs:
 1. Fork the repository
 2. Create feature branch: `git checkout -b feature/my-feature`
 3. Make changes with tests
-4. Run test suite: `pytest tests/`
+4. Run test suite: `uv run pytest tests/`
 5. Commit with clear messages
 6. Push and create pull request
 

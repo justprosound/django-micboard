@@ -155,7 +155,7 @@ Templates using admin URLs also work unchanged:
 ### 1. Check for Missing Namespace
 Start your Django development server and access the app:
 ```bash
-python manage.py runserver
+uv run --no-sync python manage.py runserver
 ```
 
 Visit `http://localhost:8000/micboard/` and click through all navigation links. If you see `NoReverseMatch` errors, you have URLs that need the namespace prefix.
@@ -172,15 +172,15 @@ find . -name "*.html" -type f -exec grep -l "{% url" {} \; | xargs grep -n "{% u
 ### 3. Run Django's URL Check
 ```bash
 # Verify all URL patterns resolve correctly
-python manage.py check --deploy
+uv run --no-sync python manage.py check --deploy
 ```
 
 ### 4. Run Your Test Suite
 ```bash
 # URL-related tests should catch missing namespaces
-python manage.py test
+uv run --no-sync python manage.py test
 # or
-pytest
+uv run --no-sync pytest
 ```
 
 ---

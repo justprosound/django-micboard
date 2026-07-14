@@ -151,8 +151,7 @@ discovered → provisioning → online ⟺ degraded
 Run lifecycle hook tests:
 
 ```bash
-just test-file tests/test_lifecycle_hooks.py
-pytest tests/test_lifecycle_hooks.py -vv
+uv run --no-sync pytest tests/test_lifecycle_hooks.py -vv
 ```
 
 ---
@@ -168,7 +167,7 @@ Automated code quality checks that run before each commit.
 just install
 
 # Or manually
-pre-commit install --hook-type pre-commit --hook-type commit-msg
+uv run --no-sync pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
 ### What Gets Checked
@@ -189,7 +188,7 @@ pre-commit install --hook-type pre-commit --hook-type commit-msg
 just pre-commit
 
 # Run specific hook
-pre-commit run ruff-format --all-files
+uv run --no-sync pre-commit run ruff-format --all-files
 
 # Skip hooks for emergency commits (not recommended)
 git commit --no-verify -m "..."
@@ -319,28 +318,14 @@ Most editors auto-detect and apply these settings.
 
 ## Migration from Old Patterns
 
-### Before (manual commands)
-
-```bash
-# Old way - manual commands (**FORBIDDEN – see policy below**)
-# python -m venv .venv
-# source .venv/bin/activate
-# uv pip install -e ".[dev,all]"
-pytest
-ruff format .
-ruff check --fix .
-mypy micboard
-python manage.py runserver
-```
-
-### After (just/uv commands — **MANDATORY**)
+### Required just/uv commands
 
 ```bash
 # New way - just commands (with uv for environment & install)
 just install
 just test
 just lint
-just run
+just example
 ```
 
 > **Note:** All environment and dependency management must use `uv` (see top of README, AGENTS.md, and CONTRIBUTING.md for enforcement policy). Any reference to pip, venv, poetry, or pipx should be escalated to maintainers and corrected immediately.
@@ -375,14 +360,14 @@ brew install just  # macOS
 
 ```bash
 # Update hooks
-pre-commit autoupdate
+uv run --no-sync pre-commit autoupdate
 
 # Clear cache
-pre-commit clean
+uv run --no-sync pre-commit clean
 
 # Reinstall
-pre-commit uninstall
-pre-commit install --hook-type pre-commit --hook-type commit-msg
+uv run --no-sync pre-commit uninstall
+uv run --no-sync pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
 ### Commitlint errors
@@ -399,7 +384,7 @@ cat .commitlintrc.yaml
 
 ```bash
 # Ensure dependency installed
-uv pip install django-lifecycle>=1.2.4
+uv sync --extra standard
 
 # Check model has LifecycleModelMixin
 ```

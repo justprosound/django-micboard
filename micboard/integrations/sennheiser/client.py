@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
-from micboard.services.common.base import BaseHTTPClient, BasePollingMixin
+import httpx
+
+from micboard.services.common.base.client import BaseHTTPClient
 
 from .device_client import SennheiserDeviceClient
 from .discovery_client import SennheiserDiscoveryClient
 from .exceptions import SennheiserAPIError, SennheiserAPIRateLimitError
-from .transformers import SennheiserDataTransformer
 
 logger = logging.getLogger(__name__)
 
 
-class SennheiserSystemAPIClient(BasePollingMixin, BaseHTTPClient):
+class SennheiserSystemAPIClient(BaseHTTPClient):
     """Client for interacting with Sennheiser SSCv2 API with connection pooling and retry logic."""
 
     def __init__(self):
@@ -37,31 +38,28 @@ class SennheiserSystemAPIClient(BasePollingMixin, BaseHTTPClient):
     def _configure_authentication(self, config: dict[str, Any]) -> None:
         """Configure Sennheiser API authentication with HTTP Basic Auth."""
         self.username = "api"
-        self.password = config.get("SENNHEISER_API_PASSWORD")
+        password = config.get("SENNHEISER_API_PASSWORD")
 
-        if not self.password:
+        if not isinstance(password, str) or not password:
             raise ValueError(
                 "SENNHEISER_API_PASSWORD is required for Sennheiser SSCv2 API authentication"
             )
+        self.password = password
 
         # HTTP Basic Auth
-        self.session.auth = (self.username, self.password)
+        self.client.auth = httpx.BasicAuth(self.username, self.password)
 
     def _get_health_check_endpoint(self) -> str:
         """Return health check endpoint for Sennheiser API."""
         return "/api/ssc/version"
 
-    def get_exception_class(self) -> type[Exception]:
+    def get_exception_class(self) -> type[SennheiserAPIError]:
         """Return Sennheiser-specific API exception class."""
         return SennheiserAPIError
 
-    def get_rate_limit_exception_class(self) -> type[Exception]:
+    def get_rate_limit_exception_class(self) -> type[SennheiserAPIRateLimitError]:
         """Return Sennheiser-specific rate limit exception class."""
         return SennheiserAPIRateLimitError
-
-    def _get_transformer(self) -> SennheiserDataTransformer:
-        """Return Sennheiser data transformer."""
-        return SennheiserDataTransformer()
 
     async def connect_and_subscribe(self, device_id: str, callback) -> None:
         """Establishes WebSocket connection and subscribes to device updates.
@@ -69,38 +67,3 @@ class SennheiserSystemAPIClient(BasePollingMixin, BaseHTTPClient):
         SSCv2 uses SSE for subscriptions, not WebSocket.
         """
         raise NotImplementedError("SSE subscription not yet implemented for Sennheiser")
-
-    # --- Backwards-compatible delegations
-    def get_devices(self):
-        return self.devices.get_devices()
-
-    def get_device(self, device_id: str):
-        return self.devices.get_device(device_id)
-
-    def get_device_channels(self, device_id: str):
-        return self.devices.get_device_channels(device_id)
-
-    def get_transmitter_data(self, device_id: str, channel: int):
-        return self.devices.get_transmitter_data(device_id, channel)
-
-    def get_device_identity(self, device_id: str):
-        return self.devices.get_device_identity(device_id)
-
-    def get_device_network(self, device_id: str):
-        return self.devices.get_device_network(device_id)
-
-    def get_device_status(self, device_id: str):
-        return self.devices.get_device_status(device_id)
-
-    def _enrich_device_data(self, device_id: str, device_data: dict[str, Any]):
-        return self.devices._enrich_device_data(device_id, device_data)
-
-    # Delegate discovery-related helpers to the discovery sub-client
-    def add_discovery_ips(self, ips: list[str]) -> bool:
-        return cast(bool, self.discovery.add_discovery_ips(ips))
-
-    def get_discovery_ips(self) -> list[str]:
-        return cast(list[str], self.discovery.get_discovery_ips())
-
-    def remove_discovery_ips(self, ips: list[str]) -> bool:
-        return cast(bool, self.discovery.remove_discovery_ips(ips))

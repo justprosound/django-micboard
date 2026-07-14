@@ -70,8 +70,3 @@ class WirelessUnitSample(models.Model):
 
     def __str__(self) -> str:
         return f"Sample @ {self.timestamp} for {self.session.wireless_unit}"
-
-
-# Legacy aliases for backward compatibility during migration
-TransmitterSession = WirelessUnitSession
-TransmitterSample = WirelessUnitSample

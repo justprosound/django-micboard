@@ -6,6 +6,7 @@ from typing import Any
 
 from django import forms
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 
@@ -13,7 +14,7 @@ import micboard.integrations
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.forms.settings import ManufacturerSettingsForm
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.services.sync.discovery_candidates_service import DiscoveryCandidateService
 from micboard.services.sync.discovery_service import DiscoveryService
 
@@ -25,7 +26,7 @@ class ManufacturerAdminForm(forms.ModelForm):
 
     class Meta:
         model = Manufacturer
-        fields = "__all__"
+        fields = ["name", "code", "is_active", "config"]
 
     def __init__(self, *args, **kwargs):
         """Initialize the manufacturer admin form and populate plugin choices."""
@@ -39,6 +40,7 @@ class ManufacturerAdminForm(forms.ModelForm):
                     get_manufacturer_plugin(name)
                     plugin_codes.append((name, name.capitalize()))
                 except Exception:
+                    logger.debug("Skipping unavailable manufacturer plugin %s", name, exc_info=True)
                     continue
         except Exception:
             plugin_codes = []
@@ -110,19 +112,6 @@ class ManufacturerAdmin(MicboardModelAdmin):
 
         return AdminWithSettingsForm
 
-        def save_model(self, request, obj, form, change):
-            super().save_model(request, obj, form, change)
-            # Save manufacturer settings if present
-            settings_data = {
-                k: v
-                for k, v in form.cleaned_data.items()
-                if k in ManufacturerSettingsForm.base_fields
-            }
-            if settings_data:
-                settings_form = ManufacturerSettingsForm({**settings_data, "manufacturer": obj.pk})
-                if settings_form.is_valid():
-                    settings_form.save_settings()
-
     """Admin for Manufacturer with a view to manage discovery IPs and plugin selection."""
 
     form = ManufacturerAdminForm
@@ -167,8 +156,13 @@ class ManufacturerAdmin(MicboardModelAdmin):
         GET: Show current discovery IPs.
         POST: Remove selected IP(s).
         """
+        self._check_discovery_permission(request)
+
         try:
-            manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
+            manufacturer = self._scope_queryset_for_user(
+                Manufacturer.objects.all(),
+                user=request.user,
+            ).get(pk=manufacturer_id)
         except Manufacturer.DoesNotExist:
             self.message_user(
                 request,
@@ -176,6 +170,8 @@ class ManufacturerAdmin(MicboardModelAdmin):
                 level=messages.ERROR,
             )
             return redirect("admin:micboard_manufacturer_changelist")
+
+        self._check_discovery_permission(request, manufacturer)
 
         discovery_service = DiscoveryService()
         candidate_service = DiscoveryCandidateService()
@@ -226,3 +222,15 @@ class ManufacturerAdmin(MicboardModelAdmin):
             and getattr(request.user, "is_staff", False),
         }
         return render(request, "admin/micboard/manufacturer_discovery_ips.html", context)
+
+    def _check_discovery_permission(
+        self,
+        request: Any,
+        manufacturer: Manufacturer | None = None,
+    ) -> None:
+        """Require view access for reads and change access for removals."""
+        permission_check = (
+            self.has_change_permission if request.method == "POST" else self.has_view_permission
+        )
+        if not permission_check(request, manufacturer):
+            raise PermissionDenied

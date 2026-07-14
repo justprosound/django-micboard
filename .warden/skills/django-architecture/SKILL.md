@@ -20,7 +20,7 @@ Review changed Python code against django-micboard's domain architecture rules.
 
 6. **No business logic in admin** — Admin classes (`ModelAdmin`, filters, actions, inlines) must be thin orchestration only. Delegate to services.
 
-7. **No business logic in tasks** — Celery tasks are thin wrappers around service methods. Error handling and retries live in the task layer but core behavior delegates to services.
+7. **No business logic in tasks** — Native Huey tasks are thin wrappers around service methods. Error handling and retries live in the task layer but core behavior delegates to services.
 
 8. **No business logic in serializers** — Serializers handle I/O formatting and API-contract validation. Business rules go in services.
 

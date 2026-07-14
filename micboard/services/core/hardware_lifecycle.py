@@ -16,19 +16,20 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from django.db import transaction
 from django.utils import timezone
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models import WirelessChassis, WirelessUnit
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.models.hardware.wireless_unit import WirelessUnit
 
 logger = logging.getLogger(__name__)
 
 
-class HardwareStatus(str, Enum):
+class HardwareStatus(StrEnum):
     """Device lifecycle states."""
 
     DISCOVERED = "discovered"  # Found via discovery, not yet configured
@@ -121,24 +122,6 @@ class HardwareLifecycleManager:
         except Exception:
             logger.debug("Falling back to standard logger; structured logger unavailable")
             self._logger = None
-
-    def transition(
-        self,
-        device: WirelessChassis | WirelessUnit,
-        to_status: str,
-        *,
-        reason: str = "",
-        metadata: dict[str, Any] | None = None,
-        sync_to_api: bool = False,
-    ) -> bool:
-        """Public alias for transition_device for compatibility."""
-        return self.transition_device(
-            device,
-            to_status,
-            reason=reason,
-            metadata=metadata,
-            sync_to_api=sync_to_api,
-        )
 
     @transaction.atomic
     def transition_device(
@@ -288,7 +271,7 @@ class HardwareLifecycleManager:
 
     def update_stale_devices(self, *, timeout_minutes: int = 5) -> int:
         """Mark devices offline when last_seen is older than threshold."""
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         threshold = timezone.now() - timedelta(minutes=timeout_minutes)
         stale = WirelessChassis.objects.filter(last_seen__lt=threshold).exclude(
@@ -303,7 +286,7 @@ class HardwareLifecycleManager:
 
     def create_with_state(self, manufacturer, api_data: dict[str, Any]) -> WirelessChassis | None:
         """Create a chassis with initial state from API data."""
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         ip = api_data.get("ipAddress") or api_data.get("ip") or api_data.get("ipv4")
         api_device_id = api_data.get("id") or api_data.get("api_device_id")

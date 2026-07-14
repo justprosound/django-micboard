@@ -8,8 +8,8 @@ from .performer_assignment import PerformerAssignment
 
 __all__ = [
     "Alert",
-    "UserAlertPreference",
     "MonitoringGroup",
     "Performer",
     "PerformerAssignment",
+    "UserAlertPreference",
 ]

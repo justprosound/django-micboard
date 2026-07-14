@@ -123,16 +123,18 @@ def internal_api(data, auth_token):
 
 **External Calls:**
 ```python
+import httpx
+
 # VULNERABILITY
-response = requests.get(api_url)
+response = httpx.get(api_url)
 
 # SECURE
 for attempt in range(3):
     try:
-        response = requests.get(api_url, timeout=30, verify=True)
+        response = httpx.get(api_url, timeout=30, verify=True)
         if response.status_code == 200:
             break
-    except requests.RequestException as e:
+    except httpx.HTTPError as e:
         logger.warning(f'Attempt {attempt + 1} failed: {e}')
         time.sleep(2 ** attempt)
 ```

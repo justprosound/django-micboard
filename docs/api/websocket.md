@@ -7,7 +7,7 @@ Django Micboard provides real-time updates via WebSocket connections.
 Connect to WebSocket for real-time updates:
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8000/ws/micboard/');
+const ws = new WebSocket('ws://localhost:8000/ws');
 
 ws.onmessage = function(event) {
     const data = JSON.parse(event.data);

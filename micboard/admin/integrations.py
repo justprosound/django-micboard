@@ -37,7 +37,7 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
         (
             "Connection",
             {
-                "fields": ("base_url", "shared_key", "verify_ssl"),
+                "fields": ("base_url", "shared_key"),
             },
         ),
         (
@@ -61,7 +61,7 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
     @admin.display(description="Status")
     def status_indicator(self, obj: ManufacturerAPIServer) -> str:
         """Show color-coded status indicator."""
-        colors = {
+        colors: dict[str, str] = {
             ManufacturerAPIServer.Status.ACTIVE: "green",
             ManufacturerAPIServer.Status.INACTIVE: "gray",
             ManufacturerAPIServer.Status.ERROR: "red",
@@ -100,11 +100,9 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
         for server in queryset:
             try:
                 if server.manufacturer == "shure":
-                    client = ShureSystemAPIClient(
-                        base_url=server.base_url, verify_ssl=server.verify_ssl
-                    )
+                    client = ShureSystemAPIClient(base_url=server.base_url)
                     # Try a simple health check
-                    devices = client.discovery.get_devices()
+                    devices = client.devices.get_devices()
                     server.status = ManufacturerAPIServer.Status.ACTIVE
                     server.status_message = (
                         f"✓ Connection successful ({len(devices)} devices found)"

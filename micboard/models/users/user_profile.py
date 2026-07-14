@@ -86,7 +86,8 @@ class UserProfile(models.Model):
 
     def get_accessible_performers(self):
         """Get all performers accessible through user's monitoring groups."""
-        from micboard.models import Performer, PerformerAssignment
+        from micboard.models.monitoring.performer import Performer
+        from micboard.models.monitoring.performer_assignment import PerformerAssignment
 
         performer_ids = PerformerAssignment.objects.filter(
             monitoring_group__in=self.get_monitoring_groups(), is_active=True
@@ -96,7 +97,8 @@ class UserProfile(models.Model):
 
     def get_accessible_devices(self):
         """Get all wireless units accessible through user's monitoring groups."""
-        from micboard.models import PerformerAssignment, WirelessUnit
+        from micboard.models.hardware.wireless_unit import WirelessUnit
+        from micboard.models.monitoring.performer_assignment import PerformerAssignment
 
         unit_ids = PerformerAssignment.objects.filter(
             monitoring_group__in=self.get_monitoring_groups(), is_active=True

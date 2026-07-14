@@ -8,7 +8,7 @@ from typing import Any
 
 from micboard.models.discovery import Manufacturer
 from micboard.models.hardware import WirelessChassis
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.tasks.sync.polling import _update_models_from_api_data
 
 logger = logging.getLogger(__name__)

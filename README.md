@@ -2,12 +2,12 @@
 
 **Real-time multi-manufacturer wireless microphone monitoring for Django.**
 
-django-micboard is a community-driven, production-ready Django reusable app for monitoring wireless audio systems (Shure, Sennheiser, etc.) in real-time. It provides device discovery, telemetry, alerting, performer assignment, and multi-tenant/multi-location support with a manufacturer-agnostic plugin architecture.
+django-micboard is a community-driven, pre-production Django reusable app for monitoring wireless audio systems (Shure, Sennheiser, etc.) in real-time. It provides device discovery, telemetry, alerting, performer assignment, and multi-tenant/multi-location support with a manufacturer-agnostic plugin architecture.
 
 - **License**: AGPL-3.0-or-later
-- **Status**: Beta (production-ready)
-- **Python**: 3.9+
-- **Django**: 4.2, 5.0, 5.1
+- **Status**: Beta (pre-production)
+- **Python**: 3.13+
+- **Django**: 5.1 through 6.0
 
 ## Features
 
@@ -30,37 +30,47 @@ django-micboard is a community-driven, production-ready Django reusable app for 
 Add to your Django project:
 
 ```bash
-uv pip install django-micboard
+uv add "django-micboard[standard]"
 ```
+
+Use `uv add django-micboard` instead when only the core reusable app is needed.
 
 In `settings.py`:
 
 ```python
 INSTALLED_APPS = [
     # ... Django core apps ...
-    'micboard',
+    "micboard",
 ]
 
 # Optionally, add these for enhanced features
 INSTALLED_APPS += [
-    'django.contrib.sites',  # For multi-site support
-    'unfold',  # Modern admin theme
-    'simple_history',  # Model change tracking
-    'django_q',  # Background task processing
+    "django.contrib.sites",  # For multi-site support
+    "unfold",  # Modern admin theme
+    "simple_history",  # Model change tracking
+    "huey.contrib.djhuey",  # Native Huey Django integration
 ]
+
+HUEY = {
+    "huey_class": "huey.RedisHuey",
+    "name": "micboard",
+    "connection": {
+        "url": os.environ.get("REDIS_URL", "redis://localhost:6379/1"),
+    },
+    "immediate": DEBUG,
+}
 
 # Configure Micboard
 MICBOARD_CONFIG = {
-    'SHURE_API_BASE_URL': os.environ.get('SHURE_API_BASE_URL', 'https://localhost:10000'),
-    'SHURE_API_SHARED_KEY': os.environ.get('SHURE_API_SHARED_KEY'),
-    'SHURE_API_VERIFY_SSL': False,
-    'POLL_INTERVAL': 5,  # seconds
+    "SHURE_API_BASE_URL": os.environ.get("SHURE_API_BASE_URL", "https://localhost:10000"),
+    "SHURE_API_SHARED_KEY": os.environ.get("SHURE_API_SHARED_KEY"),
+    "POLL_INTERVAL": 5,  # seconds
 }
 
 # Optional: Enable multi-tenancy
 MICBOARD_MULTI_SITE_MODE = True
 MICBOARD_MSP_ENABLED = False  # or True for full MSP mode
-MICBOARD_SITE_ISOLATION = 'site'  # or 'organization', 'campus'
+MICBOARD_SITE_ISOLATION = "site"  # or "organization", "campus"
 ```
 
 Add to your `urls.py`:
@@ -69,7 +79,7 @@ Add to your `urls.py`:
 from django.urls import include, path
 
 urlpatterns = [
-    path('micboard/', include('micboard.urls', namespace='micboard')),
+    path("micboard/", include("micboard.urls", namespace="micboard")),
     # ... other patterns ...
 ]
 ```
@@ -77,11 +87,17 @@ urlpatterns = [
 Run migrations:
 
 ```bash
-python manage.py migrate
+uv run --no-sync python manage.py migrate
 ```
 
 Note: This release prep does not modify or generate migrations. Existing migrations remain
 unchanged; host projects continue to manage database schema changes as usual.
+
+Run the native Huey consumer with:
+
+```bash
+uv run --no-sync python manage.py run_huey
+```
 
 ### For Development
 
@@ -97,32 +113,26 @@ unchanged; host projects continue to manage database schema changes as usual.
    cd django-micboard
    ```
 
-2. **Create and activate a uv-managed virtual environment**:
+2. **Create the uv-managed environment and install every supported extra**:
    ```bash
-   uv venv .venv
-   source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+   uv sync --all-extras
    ```
 
-3. **Install in editable/development mode with all dev dependencies**:
-   ```bash
-   uv pip install -e ".[dev,all]"
-   ```
-
-4. **Configure environment**:
+3. **Configure environment**:
    ```bash
    cp .env.example .env
    # Edit .env with your settings
    ```
 
-5. **Run the example project**:
+4. **Run the example project**:
    ```bash
    cd example_project
-   python manage.py migrate
-   python manage.py createsuperuser
-   python manage.py runserver
+   uv run --no-sync python manage.py migrate
+   uv run --no-sync python manage.py createsuperuser
+   uv run --no-sync python manage.py runserver
    ```
 
-6. **Access the admin**:
+5. **Access the admin**:
    - http://localhost:8000/admin
    - Login with your superuser credentials
 
@@ -136,7 +146,6 @@ Key environment variables (see `.env.example` for complete list):
 # Shure API
 MICBOARD_SHURE_API_BASE_URL=https://shure-api.example.com:10000
 MICBOARD_SHURE_API_SHARED_KEY=your-secret-key
-MICBOARD_SHURE_API_VERIFY_SSL=False
 MICBOARD_SHURE_API_TIMEOUT=10
 
 # Multi-tenancy
@@ -147,26 +156,28 @@ MICBOARD_MSP_ENABLED=False
 MICBOARD_ACTIVITY_LOG_RETENTION_DAYS=90
 ```
 
+Authenticated manufacturer connections require HTTPS or WSS, and certificate verification is
+mandatory. For an internal certificate authority, set `SSL_CERT_FILE` or `SSL_CERT_DIR` to the
+trusted CA bundle before starting Django or Huey.
+
 ### Using the Configuration API
 
 ```python
-from micboard.conf import config
+from micboard.services.settings import settings as micboard_settings
 
 # Feature flags
-if config.msp_enabled:
+if micboard_settings.msp_enabled:
     ...
 
 # Get custom settings
-timeout = config.get('SHURE_API_TIMEOUT', default=10)
+timeout = micboard_settings.get("SHURE_API_TIMEOUT", default=10)
 
-# Settings registry with scope resolution
-from micboard.services.shared.settings_registry import SettingsRegistry
-
-value = SettingsRegistry.get(
-    'CUSTOM_KEY',
+# Scoped settings use the same service
+value = micboard_settings.get(
+    "CUSTOM_KEY",
     organization=org,
     site=site,
-    default='fallback'
+    default="fallback",
 )
 ```
 
@@ -174,34 +185,54 @@ See [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for detailed architectu
 
 ## Plugin Architecture
 
-Extend Micboard with manufacturer-specific plugins:
+Extend Micboard with manufacturer-specific plugins. Put each plugin in
+`micboard/integrations/<code>/plugin.py`; `PluginRegistry` discovers it by module and class name.
+For example, `micboard/integrations/acme/plugin.py` can contain:
 
 ```python
-from micboard.integrations.common.base import ManufacturerPlugin
+from typing import Any
 
-class MyManufacturerPlugin(ManufacturerPlugin):
-    manufacturer_code = 'mymanufacturer'
+from micboard.services.common.base.plugin import ManufacturerPlugin
 
-    def get_devices(self):
-        # Fetch devices from API
-        return [...]
 
-    def poll_device(self, device_id):
-        # Poll telemetry
-        return {...}
+class AcmePlugin(ManufacturerPlugin):
+    @property
+    def name(self) -> str:
+        return "Acme"
 
-    def submit_discovery_candidate(self, ip, source='manual'):
-        # Add discovery
-        pass
+    @property
+    def code(self) -> str:
+        return "acme"
+
+    def get_client(self) -> object:
+        return object()
+
+    def get_devices(self) -> list[dict[str, Any]]:
+        return []
+
+    def get_device(self, device_id: str) -> dict[str, Any] | None:
+        return None
+
+    def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
+        return []
+
+    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
+        return dict(api_data)
+
+    def is_healthy(self) -> bool:
+        return True
+
+    def check_health(self) -> dict[str, Any]:
+        return {"status": "healthy"}
 ```
 
-Register in `micboard/integrations/common/__init__.py`:
+Load the class or an instance through the registry; no central registration file is required:
 
 ```python
-def get_manufacturer_plugin(code: str):
-    if code == 'mymanufacturer':
-        return MyManufacturerPlugin
-    raise ModuleNotFoundError(f"No plugin for {code}")
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
+
+plugin_class = PluginRegistry.get_plugin_class("acme")
+plugin = PluginRegistry.get_plugin("acme", manufacturer=manufacturer)
 ```
 
 ## Testing
@@ -210,19 +241,28 @@ Run the test suite:
 
 ```bash
 # All tests
-pytest
+uv run --no-sync pytest
 
 # Specific test file
-pytest tests/test_settings_diff_admin.py -v
+uv run --no-sync pytest tests/test_settings_diff_admin.py -v
+
+# With coverage
+just coverage
+
+# Specific markers
+uv run --no-sync pytest -m unit
+uv run --no-sync pytest -m integration
+uv run --no-sync pytest -m django_db
+```
 
 ## Linting & Pre-commit
 
 Use ruff and pre-commit to keep code quality consistent:
 
 ```bash
-ruff check .
-ruff format .
-pre-commit run --all-files
+uv run --no-sync ruff check .
+uv run --no-sync ruff format .
+uv run --no-sync pre-commit run --all-files
 ```
 
 ## Release Notes
@@ -230,16 +270,6 @@ pre-commit run --all-files
 - Update CHANGELOG.md under [Unreleased] with notable changes.
 - Build the package and publish to PyPI or your internal index.
 - Tag releases with a calendar version (e.g., v26.01.29).
-pytest tests/test_conf.py -v
-
-# With coverage
-pytest --cov=micboard --cov-report=html
-
-# Specific markers
-pytest -m unit      # Unit tests only
-pytest -m integration  # Integration tests
-pytest -m django_db  # Tests requiring database
-```
 
 ## Development Workflow
 
@@ -250,40 +280,42 @@ pytest -m django_db  # Tests requiring database
 
 1. **Install pre-commit hooks**:
    ```bash
-   pre-commit install
+   uv run --no-sync pre-commit install
    ```
 
 2. **Run linting/formatting**:
    ```bash
-   ruff check . --fix
-   ruff format .
+   uv run --no-sync ruff check . --fix
+   uv run --no-sync ruff format .
    ```
 
 3. **Type checking**:
    ```bash
-   mypy micboard
+   uv run --no-sync python -m mypy micboard
    ```
 
 4. **Run tests before committing**:
    ```bash
-   pytest
-   pre-commit run --all-files
+   uv run --no-sync pytest
+   uv run --no-sync pre-commit run --all-files
    ```
 
 5. **Security checks**:
    ```bash
-   bandit -r micboard -ll
+   uv run --no-sync bandit -r micboard -ll
    ```
 
 ## Important Notes on Migrations
 
-⚠️ **CRITICAL**: This is a reusable app with live production users. Migrations are protected:
+⚠️ **CRITICAL**: This is a pre-production reusable app, but migration history is protected:
 
 - **DO NOT** manually edit files in `micboard/migrations/`
 - **DO NOT** run `makemigrations` carelessly
 - **ONLY** create new migrations when schema changes are approved
 - **NEVER** delete or modify existing migrations
 - **ALWAYS** test migrations thoroughly before production deployment
+- **USE** `uv run --no-sync python manage.py safemigrate` in production hosts configured with
+  `django_safemigrate`
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 

@@ -11,8 +11,9 @@ from typing import Any
 from django.core.management.base import BaseCommand
 
 from micboard.integrations.shure.websocket import connect_and_subscribe
-from micboard.models import Manufacturer, WirelessChassis
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.tasks.sync.polling import _update_models_from_api_data
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,8 @@ class Command(BaseCommand):
         else:
             devices = list(
                 WirelessChassis.objects.filter(
-                    manufacturer=manufacturer, is_active=True
+                    manufacturer=manufacturer,
+                    status__in=("online", "degraded", "provisioning"),
                 ).values_list("api_device_id", flat=True)
             )
 
@@ -105,24 +107,17 @@ class Command(BaseCommand):
             # Create API client for the WebSocket connection
             from micboard.integrations.shure.client import ShureSystemAPIClient
 
-            # Construct base_url
-            scheme = (
-                "https" if getattr(receiver, "port", 443) == 443 else "http"
-            )  # Assuming 443 is HTTPS, otherwise HTTP
-            base_url = f"{scheme}://{receiver.ip}:{getattr(receiver, 'port', 443)}"
+            # Manufacturer credentials must only cross authenticated TLS.
+            base_url = f"https://{receiver.ip}:{getattr(receiver, 'port', 443)}"
 
-            client = ShureSystemAPIClient(
-                base_url=base_url, verify_ssl=getattr(receiver, "verify_ssl", True)
-            )
+            client = ShureSystemAPIClient(base_url=base_url)
 
             # Set up callback for updates
-            from asgiref.sync import async_to_sync  # Add this import
-
-            def update_callback(data: dict[str, Any]):
+            async def update_callback(data: dict[str, Any]) -> None:
                 """Handle incoming WebSocket data."""
                 self.stdout.write(f"Received update for {device_id}: {data}")
                 # Process the update data and update models
-                async_to_sync(self._process_websocket_update)(plugin, device_id, data)
+                await self._process_websocket_update(plugin, device_id, data)
 
             # Connect and subscribe using the WebSocket function
             await connect_and_subscribe(client, device_id, update_callback)

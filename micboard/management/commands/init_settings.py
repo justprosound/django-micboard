@@ -206,7 +206,7 @@ class Command(BaseCommand):
 
         created_count = 0
         for defn_data in definitions:
-            defn, created = SettingDefinition.objects.get_or_create(
+            _definition, created = SettingDefinition.objects.get_or_create(
                 key=defn_data["key"],
                 defaults=defn_data,
             )

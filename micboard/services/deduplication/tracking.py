@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 
 if TYPE_CHECKING:
-    from micboard.models import DeviceMovementLog, Manufacturer, WirelessChassis
+    from micboard.models.discovery.manufacturer import Manufacturer
+    from micboard.models.discovery.queue import DeviceMovementLog
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,7 @@ def log_device_movement(
     Returns:
         DeviceMovementLog instance
     """
-    from micboard.models import DeviceMovementLog
+    from micboard.models.discovery.queue import DeviceMovementLog
 
     movement = DeviceMovementLog.objects.create(
         device=device,
@@ -60,7 +62,7 @@ def get_unacknowledged_movements(
     manufacturer: Manufacturer | None = None,
 ) -> list[DeviceMovementLog]:
     """Get list of unacknowledged device movements."""
-    from micboard.models import DeviceMovementLog
+    from micboard.models.discovery.queue import DeviceMovementLog
 
     qs = DeviceMovementLog.objects.filter(acknowledged=False)
 

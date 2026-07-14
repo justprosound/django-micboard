@@ -4,11 +4,13 @@ from django.urls import reverse
 
 from micboard.models.settings import Setting, SettingDefinition
 
+TEST_PASSWORD = "admin123"
+
 
 class SettingsDiffAdminViewTest(TestCase):
     def setUp(self):
         self.admin = User.objects.create_superuser(
-            username="admin", email="admin@example.com", password="admin123"
+            username="admin", email="admin@example.com", password=TEST_PASSWORD
         )
         self.client = Client()
 
@@ -16,7 +18,7 @@ class SettingsDiffAdminViewTest(TestCase):
         # Not logged in: should redirect to login
         response = self.client.get(reverse("micboard:settings_diff"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin/login/", response.url)
+        self.assertIn("/admin/login/", response["Location"])
 
     def test_settings_diff_view_as_admin(self):
         definition = SettingDefinition.objects.create(
@@ -28,7 +30,7 @@ class SettingsDiffAdminViewTest(TestCase):
         Setting.objects.create(definition=definition, value="global-value")
         Setting.objects.create(definition=definition, organization_id=1, value="org-secret")
 
-        self.client.login(username="admin", password="admin123")
+        self.client.force_login(self.admin)
         response = self.client.get(reverse("micboard:settings_diff"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Settings Overrides Diff")

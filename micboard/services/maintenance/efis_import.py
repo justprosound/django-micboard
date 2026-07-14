@@ -8,20 +8,17 @@ applications (PMSE / radio microphones / ALD) into `FrequencyBand` records.
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Sequence
 from datetime import timedelta
 
 from django.utils import timezone
 
-import requests
-from requests import RequestException
+import httpx
 
-from micboard.models import (
-    ActivityLog,
-    FrequencyBand,
-    RegulatoryDomain,
-)
-from micboard.services.common.base import create_resilient_session
+from micboard.models.audit.activity_log import ActivityLog
+from micboard.models.rf_coordination.compliance import FrequencyBand, RegulatoryDomain
+from micboard.services.common.base.resilience import create_resilient_session
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +74,9 @@ class EFISImportService:
             status="success",
         )
 
-        session = create_resilient_session(max_retries=3, backoff_factor=0.5)
+        # Certificate verification is mandatory. Private CAs are supplied through
+        # SSL_CERT_FILE or SSL_CERT_DIR, both honored by httpx.
+        session = create_resilient_session(max_retries=3)
         session.headers.update({"Accept": "application/json"})
 
         domains_updated = 0
@@ -150,12 +149,12 @@ class EFISImportService:
             session.close()
 
     @classmethod
-    def _fetch_regions(cls, session: requests.Session) -> list[dict]:
+    def _fetch_regions(cls, session: httpx.Client) -> list[dict]:
         payload = cls._request_json(session=session, path="/regions/all")
         return payload.get("regions", [])
 
     @classmethod
-    def _fetch_wireless_term_ids(cls, session: requests.Session) -> set[int]:
+    def _fetch_wireless_term_ids(cls, session: httpx.Client) -> set[int]:
         payload = cls._request_json(session=session, path="/applications/terms")
         term_ids: set[int] = set()
         for term in payload.get("terms", []):
@@ -172,9 +171,9 @@ class EFISImportService:
     def _sync_region_application_bands(
         cls,
         *,
-        session: requests.Session,
+        session: httpx.Client,
         domain: RegulatoryDomain,
-        region_id: int,
+        region_id: int | None,
         region_name: str,
         wireless_term_ids: set[int],
     ) -> tuple[int, int]:
@@ -225,17 +224,24 @@ class EFISImportService:
     def _request_json(
         cls,
         *,
-        session: requests.Session,
+        session: httpx.Client,
         path: str,
         params: dict | None = None,
     ) -> dict:
         url = f"{cls.EFIS_URL}{path}"
-        try:
-            response = session.get(url, params=params, timeout=cls.REQUEST_TIMEOUT_SECONDS)
-            response.raise_for_status()
-            return response.json()
-        except RequestException as exc:  # pragma: no cover - network failures
-            raise RuntimeError(f"EFIS request failed for {url}: {exc}") from exc
+        max_retries = 3
+        backoff_factor = 0.5
+        attempt = 0
+        while True:
+            try:
+                response = session.get(url, params=params, timeout=cls.REQUEST_TIMEOUT_SECONDS)
+                response.raise_for_status()
+                return response.json()
+            except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+                if attempt >= max_retries - 1:
+                    raise RuntimeError(f"EFIS request failed for {url}: {exc}") from exc
+                attempt += 1
+                time.sleep(backoff_factor * (2**attempt))
 
     @classmethod
     def _matches_wireless_application(cls, application: dict, wireless_term_ids: set[int]) -> bool:

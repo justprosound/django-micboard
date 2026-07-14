@@ -9,9 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from django.db.models import Prefetch
-
-from micboard.models import Charger, PerformerAssignment
+from micboard.models.hardware.charger import Charger
+from micboard.models.monitoring.performer_assignment import PerformerAssignment
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,9 @@ class KioskService:
     @staticmethod
     def get_dashboard_summary() -> dict[str, Any]:
         """Get high-level summary stats for main dashboard."""
-        from micboard.models import Alert, WirelessChassis, WirelessUnit
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
+        from micboard.models.hardware.wireless_unit import WirelessUnit
+        from micboard.models.monitoring.alert import Alert
 
         return {
             "online_chassis": WirelessChassis.objects.filter(is_online=True).count(),
@@ -31,30 +32,21 @@ class KioskService:
         }
 
     @staticmethod
-    def get_charger_dashboard_data() -> dict[str, Any]:
+    def get_charger_dashboard_data(*, user) -> dict[str, Any]:
         """Compose optimized data for the charger dashboard grid."""
-        # Get active chargers with their slots
         chargers = (
-            Charger.objects.filter(is_active=True)
-            .prefetch_related(
-                Prefetch(
-                    "slots", queryset=Charger.objects.none().slots.all().order_by("slot_number")
-                )  # Fix: need proper queryset
-            )
-            .order_by("order", "name")
-        )
-
-        # Real logic for slots sorting
-        chargers = (
-            Charger.objects.filter(is_active=True)
+            Charger.objects.for_user(user=user)
+            .filter(is_active=True)
             .prefetch_related("slots")
             .order_by("order", "name")
         )
 
         # Map serials to performers
         serial_to_performer = {}
-        assignments = PerformerAssignment.objects.filter(is_active=True).select_related(
-            "performer", "wireless_unit"
+        assignments = (
+            PerformerAssignment.objects.for_user(user=user)
+            .filter(is_active=True)
+            .select_related("performer", "wireless_unit")
         )
 
         for assignment in assignments:
@@ -71,4 +63,16 @@ class KioskService:
         return {
             "chargers": chargers,
             "serial_to_performer": serial_to_performer,
+        }
+
+    @staticmethod
+    def get_section_data(*, section_id: int, user) -> dict[str, Any]:
+        """Return performer data for one display-wall section."""
+        from micboard.services.core.charger_assignment import ChargerAssignmentService
+
+        return {
+            "performers": ChargerAssignmentService.get_wall_section_performers(
+                section_id,
+                user=user,
+            )
         }

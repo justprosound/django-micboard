@@ -32,7 +32,7 @@ This repository contains a **Django reusable app** with a domain‑oriented, ser
 
 *   **Backend**
     *   Django (4.x or higher) with app code in `<app_name>/`
-    *   Optional Celery tasks if present (see `<app_name>/tasks/` or similar)
+    *   Optional native Huey tasks if present (see `<app_name>/tasks/` or similar)
 
 *   **Frontend (if present)**
     *   Use existing frontend stack (e.g., Bootstrap, Tailwind, or other) as seen in the repo.
@@ -59,25 +59,25 @@ Examples (adapt if present):
 *   **Tests**
     *   Use pytest with test settings:
         ```bash
-        pytest
+        uv run --no-sync pytest
         ```
     *   If coverage is present:
         ```bash
-        coverage run -m pytest
+        uv run --no-sync coverage run -m pytest
         ```
 
 *   **Type checking** (if configured)
     *   For example:
         ```bash
-        mypy <app_name>
+        uv run --no-sync python -m mypy <app_name>
         ```
 
-*   **Background tasks (if Celery or similar is used)**
-    *   Follow existing invocation patterns in the repo (e.g., `celery -A config.celery_app worker -l info`).
+*   **Background tasks**
+    *   Use native Huey through `huey.contrib.djhuey` and the existing task modules.
     *   Do not invent new entry points; copy existing conventions.
 
 *   **Packaging**
-    *   Respect existing build tooling (`pyproject.toml`, `setup.cfg`, `hatch`, `poetry`, etc.).
+    *   Use the existing `pyproject.toml` and uv workflows.
     *   Do not introduce a second, conflicting packaging system.
 
 ***
@@ -169,18 +169,9 @@ If different throttling is needed:
 
 Copilot must **exclusively** use `uv` for all environment creation and dependency management in this project. The use of `pip`, `venv`, `pipx`, or `poetry` is **explicitly forbidden**. Any documentation, script, or config referencing these tools must be updated or escalated for correction. See AGENTS.md and CONTRIBUTING.md for remediation policy.
 
-*   If dependencies are managed with **`uv`** and `requirements/`:
-    *   Do **not** suggest manually editing compiled `requirements/*.txt` files.
-    *   Instead:
-        *   Edit the `.in` files (e.g., `requirements/base.in`).
-        *   Then run:
-            ```bash
-            uv pip compile requirements/base.in -o requirements/base.txt
-            uv pip install -r requirements/base.txt
-            ```
-
-*   If dependencies are managed via **`pyproject.toml`** and a tool like Poetry, Hatch, or PDM:
-    *   (This pattern should not be used in this repository—see policy above.)
+*   Manage dependencies in **`pyproject.toml`** and refresh `uv.lock` with `uv lock`.
+*   Do **not** manually edit generated requirements files; regenerate them with `uv export` from
+    the locked pyproject extra.
 
 When adding optional dependencies, use the established extras or optional dependency mechanisms already in the project.
 
@@ -198,7 +189,7 @@ Copilot must preserve and respect existing integrations found in the repository.
     *   Respect local SMTP configs documented in `README` or settings.
     *   Do not hard-code host/ports beyond existing patterns.
 
-*   **Background workers** (e.g., Celery, RQ, Django-Q2)
+*   **Background workers** (native Huey)
     *   Follow existing queue/task patterns for new background work.
     *   Do not introduce a second task queue framework.
 
@@ -212,12 +203,12 @@ Copilot must preserve and respect existing integrations found in the repository.
 When suggesting new code or showing examples, Copilot should prefer these locations and patterns (adapted to this repo):
 
 *   `<app_name>/` – Main Django app (models, services, admin, serializers, tasks, etc.).
-*   `config/` or equivalent – Settings, Celery config, URLs (if present in this repo).
+*   `config/` or equivalent – Settings, Huey config, URLs (if present in this repo).
 *   `requirements/` or `pyproject.toml` – Dependency definitions, if present.
 
 Examples (for reference patterns; adjust to the actual repo):
 
-*   **Celery tasks** – See `<app_name>/tasks.py` or `<app_name>/tasks/<domain>/tasks.py`.
+*   **Huey tasks** – See `<app_name>/tasks.py` or `<app_name>/tasks/<domain>/tasks.py`.
 *   **Admin customization** – See `<app_name>/admin/`.
 *   **API views** – See `<app_name>/api_views.py` or `<app_name>/api/`.
 *   **Custom filters** – See `<app_name>/filters.py`.
@@ -354,7 +345,7 @@ Copilot must assign logic to the correct layer:
 #### Tasks Layer (`<app_name>/tasks/<domain>/`)
 
 *   Thin wrappers around domain services for background execution.
-*   Uses the project’s standard task framework (Celery, Django-Q2, RQ, etc.).
+*   Uses the project's native Huey task framework.
 *   Handles error logging/monitoring and retries, but delegates core behavior to services.
 
 ***
@@ -366,7 +357,7 @@ When moving or refactoring code, Copilot must ensure any **existing integrations
 *   Search tools (e.g., django-watson or equivalents).
 *   Advanced admin UI libraries.
 *   Object-level permission libraries (e.g., django-guardian).
-*   Background task schedulers (e.g., django-q2 or equivalents).
+*   The native Huey background task scheduler.
 *   Debugging tools (e.g., django-debug-toolbar).
 
 Rules:
@@ -444,7 +435,7 @@ Before considering a refactor “done,” Copilot should ensure:
 *   ✅ Follow existing patterns for models, views, admin, services, serializers, and tasks.
 *   ✅ Use existing local development, testing, and packaging workflows.
 *   ✅ Reference `README`, `CONTRIBUTING`, and existing modules for canonical examples.
-*   ✅ Use the project’s existing dependency management tooling (uv, Poetry, etc.).
+*   ✅ Use the project's uv dependency and environment workflows.
 *   ✅ Keep domain logic well‑structured and localized to domain folders.
 *   ✅ Use services as the central place for business logic.
 

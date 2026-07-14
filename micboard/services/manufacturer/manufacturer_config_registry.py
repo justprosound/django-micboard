@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from micboard.services.shared.settings_registry import SettingsRegistry
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
 logger = logging.getLogger(__name__)
 

@@ -186,22 +186,22 @@ All files are already created in the workspace.
 
 ### 2. Create Migration
 ```bash
-python manage.py makemigrations micboard --name "add_settings"
+uv run --no-sync python manage.py makemigrations micboard --name "add_settings"
 ```
 
 ### 3. Apply Migration
 ```bash
-python manage.py migrate
+uv run --no-sync python manage.py migrate
 ```
 
 ### 4. Initialize Settings
 ```bash
-python manage.py init_settings --manufacturer-defaults
+uv run --no-sync python manage.py init_settings --manufacturer-defaults
 ```
 
 ### 5. Run Tests
 ```bash
-python manage.py test tests.test_settings
+uv run --no-sync python manage.py test tests.test_settings
 ```
 
 ### 6. Access Admin
@@ -318,14 +318,14 @@ All test files are included and ready to run:
 
 ```bash
 # Run all settings tests
-python manage.py test tests.test_settings
+uv run --no-sync python manage.py test tests.test_settings
 
 # Run specific test class
-python manage.py test tests.test_settings.SettingsRegistryTests
+uv run --no-sync python manage.py test tests.test_settings.SettingsRegistryTests
 
 # Run with coverage
-coverage run --source='micboard.services,micboard.admin' manage.py test tests.test_settings
-coverage report
+uv run --no-sync coverage run --source='micboard.services,micboard.admin' manage.py test tests.test_settings
+uv run --no-sync coverage report
 ```
 
 ## Performance Impact

@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from django.contrib.auth.models import User
+from django.conf import settings
 
 if TYPE_CHECKING:
     from django.http import HttpRequest  # pragma: no cover - typing only
@@ -85,7 +85,7 @@ class ActivityLog(models.Model):
 
     # Actor
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -203,7 +203,7 @@ class ActivityLog(models.Model):
         *,
         operation: str,
         obj: models.Model,
-        user: User | None = None,
+        user: Any = None,
         old_values: dict[str, Any] | None = None,
         new_values: dict[str, Any] | None = None,
         request=None,
@@ -240,7 +240,7 @@ class ActivityLog(models.Model):
             extra={
                 "activity_type": cls.ACTIVITY_CRUD,
                 "operation": operation,
-                "user": user.username if user else None,
+                "user": user.get_username() if user else None,
                 "content_type": obj.__class__.__name__,
             },
         )

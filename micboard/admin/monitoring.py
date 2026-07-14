@@ -9,21 +9,29 @@ locations, and system configuration.
 from __future__ import annotations
 
 import logging
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
-from django.urls import path
+from django.urls import path, reverse
+from django.utils.decorators import method_decorator
 from django.utils.html import format_html
+from django.views.decorators.http import require_POST
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models import DiscoveredDevice, Location, MicboardConfig, MonitoringGroup
+from micboard.models.discovery.registry import DiscoveredDevice, MicboardConfig
+from micboard.models.locations.structure import Location
+from micboard.models.monitoring.group import MonitoringGroup
 from micboard.services.sync.discovered_device_service import (
     can_promote_device_to_chassis,
     get_device_communication_protocol,
     get_device_incompatibility_reason,
     is_device_manageable,
 )
+
+if TYPE_CHECKING:
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +150,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.display(description="Managed", boolean=True)
     def is_managed_display(self, obj):
         """Check if this discovered device is already managed as a chassis."""
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         return WirelessChassis.objects.filter(
             ip=obj.ip,
@@ -166,14 +174,14 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
 
         can_promote, promotion_reason = can_promote_device_to_chassis(obj)
         if not can_promote:
-            return f"ℹ️ Cannot promote: {promotion_reason}"
+            return f"Cannot promote: {promotion_reason}"
 
         return "Status unknown"
 
     @admin.display(description="Actions")
     def promotion_actions(self, obj):
         """Display promotion action buttons with status awareness."""
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         is_managed = WirelessChassis.objects.filter(
             ip=obj.ip,
@@ -193,8 +201,9 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
             return "⚠️ Not Ready (device not ready for management)"
 
         return format_html(
-            '<a class="button" href="{}">✅ Promote to Chassis</a>',
-            f"/admin/micboard/discovereddevice/{obj.pk}/promote/",
+            '<button type="submit" class="button" formmethod="post" formaction="{}">'
+            "✅ Promote to Chassis</button>",
+            reverse("admin:micboard_discoverdevice_promote", args=[obj.pk]),
         )
 
     def get_urls(self):
@@ -209,6 +218,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         ]
         return custom_urls + urls
 
+    @method_decorator(require_POST)
     def promote_device_view(self, request, pk):
         """Promote a discovered device to a managed WirelessChassis."""
         try:
@@ -217,10 +227,13 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
             messages.error(request, "Discovered device not found.")
             return redirect("..")
 
+        if not self._has_promotion_permission(request, discovered):
+            raise PermissionDenied
+
         # Call the promotion service
         success, message, chassis = self._promote_to_chassis(discovered)
 
-        if success:
+        if success and chassis is not None:
             messages.success(
                 request,
                 f"✅ Successfully promoted {discovered.ip} to managed chassis: {chassis}",
@@ -254,11 +267,14 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.action(description="Promote selected devices to managed chassis")
     def promote_to_chassis_action(self, request, queryset):
         """Bulk action to promote discovered devices to WirelessChassis."""
+        if not self._has_promotion_permission(request):
+            raise PermissionDenied
+
         promoted_count = 0
         failed_count = 0
 
         for discovered in queryset:
-            success, message, chassis = self._promote_to_chassis(discovered)
+            success, message, _chassis = self._promote_to_chassis(discovered)
             if success:
                 promoted_count += 1
                 discovered.delete()  # Clean up after promotion
@@ -281,7 +297,10 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
                 f"⚠️ Failed to promote {failed_count} device(s). Check logs for details.",
             )
 
-    @admin.action(description="Delete and remove from manufacturer API discovery list")
+    @admin.action(
+        permissions=["delete"],
+        description="Delete and remove from manufacturer API discovery list",
+    )
     def delete_and_remove_from_api(self, request, queryset):
         """Delete discovered devices and remove from remote API discovery lists."""
         from micboard.services.manufacturer.plugin_registry import PluginRegistry
@@ -300,7 +319,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
                     if plugin and hasattr(plugin, "remove_discovery_ips"):
                         plugin.remove_discovery_ips([discovered.ip])
                 except Exception as e:
-                    logger.warning(
+                    logger.exception(
                         "Failed to remove IP %s from discovery list: %s",
                         discovered.ip,
                         e,
@@ -321,12 +340,22 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
                 f"⚠️ {failed_count} device(s) could not be removed from API discovery lists.",
             )
 
-    def _promote_to_chassis(self, discovered: DiscoveredDevice) -> tuple[bool, str, object]:
+    def _promote_to_chassis(
+        self, discovered: DiscoveredDevice
+    ) -> tuple[bool, str, WirelessChassis | None]:
         """Delegate promotion to DevicePromotionService to keep admin thin and testable."""
         from micboard.services.sync.device_promotion_service import DevicePromotionService
 
         service = DevicePromotionService()
         return service.promote_discovered_device(discovered)
+
+    def _has_promotion_permission(self, request, obj=None) -> bool:
+        """Require every permission needed by the promotion transaction."""
+        return (
+            self.has_change_permission(request, obj)
+            and self.has_delete_permission(request, obj)
+            and request.user.has_perm("micboard.add_wirelesschassis")
+        )
 
 
 @admin.register(Location)

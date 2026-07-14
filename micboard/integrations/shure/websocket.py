@@ -19,7 +19,7 @@ Shure System API WebSocket Flow:
 
 Optional Dependency:
     This requires the 'websockets' package. Install with:
-    uv pip install django-micboard[websocket]
+    uv add "django-micboard[shure]"
 
 See docs/shure-integration.md for full details on Shure System API integration.
 """
@@ -28,18 +28,24 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from inspect import isawaitable
+from typing import TYPE_CHECKING, Any
+
+websockets: Any
+WebsocketClosedOKError: type[BaseException]
+WebsocketConnectionClosedError: type[BaseException]
 
 try:
-    import websockets
+    import websockets as websockets_package
     from websockets.exceptions import (
-        ConnectionClosedError as WebsocketConnectionClosedError,
-    )
-    from websockets.exceptions import (
-        ConnectionClosedOK as WebsocketClosedOKError,
+        ConnectionClosedError,
+        ConnectionClosedOK,
     )
 
+    websockets = websockets_package
+    WebsocketClosedOKError = ConnectionClosedOK
+    WebsocketConnectionClosedError = ConnectionClosedError
     HAS_WEBSOCKETS = True
 except ImportError:  # pragma: no cover - optional dependency
     websockets = None
@@ -71,33 +77,35 @@ def _parse_transport_id_from_message(message: str | bytes) -> str | None:
 
 
 def _subscribe_client_to_transport(client, device_id: str, transport_id: str) -> None:
-    from .client import ShureAPIError
+    from .exceptions import ShureAPIError
 
     subscribe_endpoint = f"/api/v1/devices/{device_id}/identify/subscription/{transport_id}"
     try:
         subscribe_response = client._make_request("POST", subscribe_endpoint)
         if subscribe_response and subscribe_response.get("status") == "success":
-            logger.info("Successfully subscribed to device %s updates", device_id)
+            logger.info("Successfully subscribed to Shure device updates")
         else:
-            logger.error(
-                "Failed to subscribe to device %s: %s",
-                device_id,
-                subscribe_response,
-            )
-            raise ShureWebSocketError(f"Failed to subscribe to device {device_id} updates")
+            logger.error("Failed to subscribe to Shure device updates")
+            raise ShureWebSocketError("Failed to subscribe to Shure device updates")
     except ShureAPIError:
-        logger.exception("Error during REST subscription for device %s", device_id)
+        logger.exception("Error during Shure REST subscription")
         raise
 
 
-async def _read_and_dispatch_messages(websocket, device_id: str, callback: Callable[[dict], None]) -> None:
+async def _read_and_dispatch_messages(
+    websocket,
+    device_id: str,
+    callback: Callable[[dict[str, Any]], Awaitable[None] | None],
+) -> None:
     async for message in websocket:
         try:
             data = json.loads(message)
-            logger.debug("Received WebSocket message for device %s", device_id)
-            callback(data)
+            logger.debug("Received Shure WebSocket message")
+            callback_result = callback(data)
+            if isawaitable(callback_result):
+                await callback_result
         except json.JSONDecodeError:
-            logger.exception("Failed to parse WebSocket message: %s", message[:200])
+            logger.exception("Failed to parse Shure WebSocket message")
             continue
         except Exception:
             logger.exception("Error processing WebSocket message")
@@ -107,7 +115,7 @@ async def _read_and_dispatch_messages(websocket, device_id: str, callback: Calla
 async def connect_and_subscribe(
     client: ShureSystemAPIClient,
     device_id: str,
-    callback: Callable[[dict], None],
+    callback: Callable[[dict[str, Any]], Awaitable[None] | None],
 ) -> None:
     """Establishes WebSocket connection and subscribes to device updates.
 
@@ -119,30 +127,34 @@ async def connect_and_subscribe(
     Raises:
         ShureWebSocketError: If connection or subscription fails
     """
-    from .client import ShureAPIError
+    from .exceptions import ShureAPIError
 
     if not HAS_WEBSOCKETS or not websockets:
-        logger.error("websockets dependency not installed; install django-micboard[websocket] to enable")
-        raise ShureWebSocketError("websockets dependency missing; install django-micboard[websocket] to enable")
+        logger.error(
+            "websockets dependency not installed; install django-micboard[websocket] to enable"
+        )
+        raise ShureWebSocketError(
+            "websockets dependency missing; install django-micboard[websocket] to enable"
+        )
 
     if not client.websocket_url:
         logger.error("Shure API WebSocket URL not configured")
         raise ShureWebSocketError("Shure API WebSocket URL not configured")
 
     try:
-        async with websockets.connect(client.websocket_url, ssl=client.verify_ssl) as websocket:
-            logger.info("Connected to Shure API WebSocket: %s", client.websocket_url)
+        async with websockets.connect(client.websocket_url) as websocket:
+            logger.info("Connected to Shure API WebSocket")
 
             # Read initial message and extract transportId
             message = await websocket.recv()
-            logger.debug("Received initial WebSocket message: %s", message[:200])
+            logger.debug("Received initial Shure WebSocket handshake")
 
             transport_id = _parse_transport_id_from_message(message)
             if not transport_id:
-                logger.error("Missing transportId in WebSocket message: %s", message[:200])
+                logger.error("Missing transport ID in Shure WebSocket handshake")
                 raise ShureWebSocketError("Failed to get transportId from WebSocket")
 
-            logger.info("Received transportId: %s", transport_id)
+            logger.info("Received Shure WebSocket transport ID")
 
             # Subscribe via REST
             _subscribe_client_to_transport(client, device_id, transport_id)
@@ -151,17 +163,14 @@ async def connect_and_subscribe(
             await _read_and_dispatch_messages(websocket, device_id, callback)
 
     except WebsocketClosedOKError:
-        logger.info("Shure API WebSocket connection closed gracefully for device %s", device_id)
+        logger.info("Shure API WebSocket connection closed gracefully")
     except WebsocketConnectionClosedError:
-        logger.exception("Shure API WebSocket connection closed with error for device %s", device_id)
-        raise ShureWebSocketError(f"WebSocket connection error for device {device_id}") from None
+        logger.exception("Shure API WebSocket connection closed with error")
+        raise ShureWebSocketError("Shure WebSocket connection error") from None
     except ShureWebSocketError:
         raise
     except ShureAPIError:
         raise
     except Exception:
-        logger.exception(
-            "Unhandled error in Shure API WebSocket connection for device %s",
-            device_id,
-        )
-        raise ShureWebSocketError(f"Unhandled WebSocket error for device {device_id}") from None
+        logger.exception("Unhandled error in Shure API WebSocket connection")
+        raise ShureWebSocketError("Unhandled Shure WebSocket error") from None

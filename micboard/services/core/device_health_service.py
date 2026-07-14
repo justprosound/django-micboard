@@ -11,7 +11,8 @@ from django.utils import timezone
 from .hardware_lifecycle import HardwareLifecycleManager, HardwareStatus
 
 if TYPE_CHECKING:
-    from micboard.models import WirelessChassis, WirelessUnit
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.models.hardware.wireless_unit import WirelessUnit
 
 logger = logging.getLogger(__name__)
 

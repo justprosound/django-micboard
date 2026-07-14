@@ -78,9 +78,9 @@ config = ManufacturerConfigRegistry.get('shure', manufacturer=shure_mfg)
 Before using the settings system, initialize the database with setting definitions:
 
 ```bash
-python manage.py init_settings
-python manage.py init_settings --manufacturer-defaults  # Also initialize defaults
-python manage.py init_settings --reset  # Clear and reinitialize
+uv run --no-sync python manage.py init_settings
+uv run --no-sync python manage.py init_settings --manufacturer-defaults  # Also initialize defaults
+uv run --no-sync python manage.py init_settings --reset  # Clear and reinitialize
 ```
 
 ### Admin Interface
@@ -219,7 +219,7 @@ Edit `micboard/management/commands/init_settings.py` and add to the `_initialize
 ### 2. Register and Run Migration
 
 ```bash
-python manage.py init_settings --reset
+uv run --no-sync python manage.py init_settings --reset
 ```
 
 ### 3. Use in Code

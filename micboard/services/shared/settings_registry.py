@@ -132,7 +132,7 @@ class SettingsRegistry:
         # Get or create setting value
         setting, created = Setting.objects.get_or_create(
             definition=definition,
-            organization_id=organization.id if organization else None,
+            organization_id=organization.pk if organization else None,
             site=site,
             manufacturer_id=manufacturer.id if manufacturer else None,
             defaults={"value": definition.serialize_value(value)},
@@ -167,7 +167,7 @@ class SettingsRegistry:
         from micboard.models.settings import Setting
 
         settings_qs = Setting.objects.filter(
-            organization_id=organization.id if organization else None,
+            organization_id=organization.pk if organization else None,
             site=site,
             manufacturer_id=manufacturer.id if manufacturer else None,
         ).select_related("definition")
@@ -241,7 +241,7 @@ class SettingsRegistry:
             try:
                 setting = Setting.objects.select_related("definition").get(
                     definition__key=key,
-                    organization_id=organization.id,
+                    organization_id=organization.pk,
                     site__isnull=True,
                     manufacturer_id__isnull=True,
                 )
@@ -286,7 +286,7 @@ class SettingsRegistry:
         manufacturer: Manufacturer | None,
     ) -> str:
         """Build cache key from setting and scopes."""
-        org_id = organization.id if organization else "g"
+        org_id = organization.pk if organization else "g"
         site_id = site.id if site else "g"
         mfg_id = manufacturer.id if manufacturer else "g"
         return f"settings:{key}:{org_id}:{site_id}:{mfg_id}"

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import ClassVar
 
 from django.db import models
@@ -62,15 +61,7 @@ class Manufacturer(models.Model):
             logger.exception("Failed to log %s activity: %s", action, e)
 
     def save(self, *args, **kwargs):
-        """Persist manufacturer data and delegate side-effects to service layer.
-
-        Deprecated: Use manufacturer.save_manufacturer() instead.
-        """
-        warnings.warn(
-            "Manufacturer.save() is deprecated, use manufacturer.save_manufacturer() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Persist manufacturer data and delegate side effects to the service layer."""
         from micboard.services.manufacturer.signals import (
             save_manufacturer as _save,
         )
@@ -78,15 +69,7 @@ class Manufacturer(models.Model):
         _save(self, *args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        """Persist deletion and delegate side-effects to service layer.
-
-        Deprecated: Use manufacturer.delete_manufacturer() instead.
-        """
-        warnings.warn(
-            "Manufacturer.delete() is deprecated, use manufacturer.delete_manufacturer() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Persist deletion and delegate side effects to the service layer."""
         from micboard.services.manufacturer.signals import (
             delete_manufacturer as _delete,
         )

@@ -35,7 +35,9 @@ Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-
 ## Design
 
 - **Plugin framework:** Extract `micboard/integrations/common/` with shared HTTP client, base plugin, base discovery client, base transformers, and exception taxonomy. Shure and Sennheiser inherit from these bases, overriding only protocol-specific details.
-- **Settings unification:** `SettingsService.get(key, scope=None, default=None)` is the single entry point. `conf.py` delegates to it, then is removed. A lint rule forbids direct `settings.MICBOARD_CONFIG` access.
+- **Settings unification:** `SettingsService.get(key, default=None, organization=None, site=None,
+  manufacturer=None)` is the single entry point. The former proxy shim is removed, and a lint
+  rule forbids direct `settings.MICBOARD_CONFIG` access.
 - **Shim removal:** Single PR — delete `micboard/manufacturers/`, update all imports to `micboard.integrations.*`, merge `base.py` into `integrations/common/`.
 
 ## Success Metrics
@@ -44,7 +46,7 @@ Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-
 - Sennheiser plugin: ≤400 lines (from ~772).
 - No imports from `micboard.manufacturers`.
 - No direct `settings.MICBOARD_CONFIG` reads outside `SettingsService`.
-- `ruff check .` and `pytest` pass.
+- `uv run ruff check .` and `uv run pytest` pass.
 
 ## Risks
 
@@ -60,7 +62,7 @@ Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-
 - #66 — chore: remove micboard/manufacturers/ compat shim
 - #67 — refactor: implement unified SettingsService
 - #68 — refactor: migrate all direct settings.MICBOARD_CONFIG reads
-- #76 — chore: deprecate and remove micboard/conf.py
+- #76 — chore: remove the obsolete settings proxy
 
 ## References
 

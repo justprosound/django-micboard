@@ -21,7 +21,42 @@ class WirelessChassisAdminForm(forms.ModelForm):
 
     class Meta:
         model = WirelessChassis
-        fields = "__all__"
+        fields = [
+            "role",
+            "manufacturer",
+            "api_device_id",
+            "serial_number",
+            "mac_address",
+            "model",
+            "name",
+            "fqdn",
+            "description",
+            "protocol_family",
+            "wmas_capable",
+            "licensed_resource_count",
+            "ip",
+            "subnet_mask",
+            "gateway",
+            "network_mode",
+            "interface_id",
+            "mac_address_secondary",
+            "ip_address_secondary",
+            "firmware_version",
+            "hosted_firmware_version",
+            "location",
+            "order",
+            "status",
+            "last_seen",
+            "is_online",
+            "last_online_at",
+            "last_offline_at",
+            "total_uptime_minutes",
+            "max_channels",
+            "dante_capable",
+            "band_plan_min_mhz",
+            "band_plan_max_mhz",
+            "band_plan_name",
+        ]
 
     def __init__(self, *args, **kwargs):
         """Initialize the form and populate dynamic band plan choices."""

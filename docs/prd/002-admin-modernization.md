@@ -35,7 +35,7 @@ Two admin modules slightly exceed the 400-line guideline:
 - `dashboard.py`: 2,431 → 399 lines (✅ routing hub, 3 views)
 - All per-domain admin modules ≤542 lines (⬇️ trending toward ≤400)
 - No `admin_urls.py` needed — URLs are per-module via `get_urls()`
-- `ruff check .` and `pytest` pass
+- `uv run ruff check .` and `uv run pytest` pass
 
 ## References
 

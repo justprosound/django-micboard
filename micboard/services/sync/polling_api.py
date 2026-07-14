@@ -15,7 +15,8 @@ from typing import Any
 
 from django.utils import timezone
 
-from micboard.models import ManufacturerAPIServer, WirelessChassis
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.integrations import ManufacturerAPIServer
 from micboard.services.core.hardware import HardwareService
 
 logger = logging.getLogger(__name__)

@@ -7,12 +7,17 @@ Checks every active WirelessChassis and RFChannel for:
 4. Regulatory Coverage for operating frequencies
 
 Usage:
-    python manage.py audit_regulatory_coverage [--fix]
+    uv run --no-sync python manage.py audit_regulatory_coverage [--fix]
 """
 
 from django.core.management.base import BaseCommand
 
-from micboard.models import RFChannel, WirelessChassis
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.rf_coordination.rf_channel import RFChannel
+from micboard.services.hardware.chassis_regulatory_service import (
+    get_band_plan_regulatory_status,
+)
+from micboard.services.hardware.wireless_chassis_service import apply_detected_band_plan
 
 
 class Command(BaseCommand):
@@ -52,7 +57,7 @@ class Command(BaseCommand):
         self.stdout.write(f"--- Auditing {total} Active Wireless Chassis ---")
 
         for chassis in chassis_qs:
-            status = chassis.get_band_plan_regulatory_status()
+            status = get_band_plan_regulatory_status(chassis)
 
             # Check Regulatory Domain
             if not status["regulatory_domain"]:
@@ -66,7 +71,7 @@ class Command(BaseCommand):
             if not status["has_band_plan"]:
                 if fix_mode:
                     # Attempt auto-detection from model
-                    if chassis.apply_detected_band_plan():
+                    if apply_detected_band_plan(chassis):
                         chassis.save()
                         self.stdout.write(
                             self.style.SUCCESS(
@@ -75,8 +80,6 @@ class Command(BaseCommand):
                             )
                         )
                         fixed_count += 1
-                        # Re-check status
-                        status = chassis.get_band_plan_regulatory_status()
                     else:
                         self.stdout.write(
                             self.style.WARNING(

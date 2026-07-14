@@ -1,7 +1,9 @@
 from django.contrib import admin
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models import Alert, Performer, PerformerAssignment, UserAlertPreference
+from micboard.models.monitoring.alert import Alert, UserAlertPreference
+from micboard.models.monitoring.performer import Performer
+from micboard.models.monitoring.performer_assignment import PerformerAssignment
 
 
 @admin.register(Performer)

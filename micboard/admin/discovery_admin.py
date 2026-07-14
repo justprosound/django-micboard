@@ -9,11 +9,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models import DeviceMovementLog, DiscoveryQueue
+from micboard.models.discovery.queue import DeviceMovementLog, DiscoveryQueue
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -164,13 +165,27 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
     @admin.action(description="Approve selected devices for import")
     def approve_devices(self, request: HttpRequest, queryset):
         """Approve devices and mark them for import."""
-        from micboard.models import Charger, WirelessChassis
+        from micboard.models.hardware.charger import Charger
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
+
+        pending_device_types = set(
+            queryset.filter(status="pending").values_list("device_type", flat=True)
+        )
+        required_permissions: set[str] = set()
+        if any(device_type.lower() == "charger" for device_type in pending_device_types):
+            required_permissions.update(("micboard.add_charger", "micboard.change_charger"))
+        if any(device_type.lower() != "charger" for device_type in pending_device_types):
+            required_permissions.update(
+                ("micboard.add_wirelesschassis", "micboard.change_wirelesschassis")
+            )
+        if not request.user.has_perms(required_permissions):
+            raise PermissionDenied
 
         count = 0
         for item in queryset.filter(status="pending"):
             if item.device_type.lower() == "charger":
                 # Create/Update Charger
-                charger, created = Charger.objects.update_or_create(
+                charger, _ = Charger.objects.update_or_create(
                     serial_number=item.serial_number,
                     defaults={
                         "manufacturer": item.manufacturer,
@@ -186,7 +201,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
                 item.existing_charger = charger
             else:
                 # Create/Update WirelessChassis
-                receiver, created = WirelessChassis.objects.update_or_create(
+                receiver, _ = WirelessChassis.objects.update_or_create(
                     serial_number=item.serial_number,
                     defaults={
                         "manufacturer": item.manufacturer,

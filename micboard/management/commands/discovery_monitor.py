@@ -25,9 +25,6 @@ class DiscoveryMonitor:
         self.start_time = datetime.now()
         base_url = settings.get("SHURE_API_BASE_URL", "https://localhost:10000")
         shared_key = settings.get("SHURE_API_SHARED_KEY")
-        verify_ssl = settings.get("SHURE_API_VERIFY_SSL", False)
-        if isinstance(verify_ssl, str):
-            verify_ssl = verify_ssl.lower() in ("true", "1", "yes")
         if not shared_key:
             raise ValueError(
                 "SHURE_API_SHARED_KEY not configured. Set MICBOARD_SHURE_API_SHARED_KEY "
@@ -40,7 +37,7 @@ class DiscoveryMonitor:
         logger.info("Started: %s", self.start_time.strftime("%Y-%m-%d %H:%M:%S"))
         logger.info("")
         try:
-            self.client = ShureSystemAPIClient(base_url=base_url, verify_ssl=verify_ssl)
+            self.client = ShureSystemAPIClient(base_url=base_url)
             logger.info("✓ Connected to Shure System API")
         except Exception as e:
             logger.error("✗ Failed to initialize API client: %s", e)
@@ -97,7 +94,7 @@ class DiscoveryMonitor:
     def print_summary(self, current_devices: dict[str, dict[str, Any]]):
         elapsed = time.time() - self.start_time.timestamp()
         elapsed_str = self._format_elapsed(elapsed)
-        state_counts = defaultdict(int)
+        state_counts: defaultdict[str, int] = defaultdict(int)
         for device in current_devices.values():
             state = device.get("state", "UNKNOWN")
             state_counts[state] += 1

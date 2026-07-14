@@ -11,7 +11,11 @@ from django.db.models import Exists, OuterRef
 from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models import RFChannel, WirelessUnit
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.rf_coordination.rf_channel import RFChannel
+from micboard.services.hardware.rf_channel_service import (
+    get_regulatory_status as get_rf_channel_regulatory_status,
+)
 from micboard.services.hardware.wireless_unit_service import (
     get_battery_health,
     get_battery_health_display_icon,
@@ -80,30 +84,22 @@ class RFChannelAdmin(MicboardModelAdmin):
         domain = building.regulatory_domain
 
         if not domain:
-            return "ℹ️ No regulatory domain"
+            return "[i] No regulatory domain"
 
         if not obj.frequency:
-            return "ℹ️ No frequency"
+            return "[i] No frequency"
 
-        # Check if covered by general domain frequency range (already in memory from select_related)
-        has_coverage = domain.min_frequency_mhz <= obj.frequency <= domain.max_frequency_mhz
+        status = get_rf_channel_regulatory_status(obj)
 
-        # Or if covered by any specific frequency band (via annotation)
-        if not has_coverage:
-            has_coverage = getattr(obj, "_has_specific_band", False)
-
-        needs_update = (obj.resource_state in ("active", "reserved")) and not has_coverage
-
-        if needs_update:
+        if status["needs_update"]:
             return format_html(
-                '<span style="color: var(--error-fg, red); '
-                'font-weight: bold;">⚠️ Missing coverage</span>'
+                '<span style="color: var(--error-fg, red); font-weight: bold;">⚠️ Missing coverage</span>'
             )
 
-        if has_coverage:
+        if status["has_coverage"]:
             return format_html(
                 '<span style="color: var(--success-fg, green);">✅ OK ({} MHz)</span>',
-                obj.frequency,
+                status["operating_frequency_mhz"],
             )
 
         return "—"
@@ -204,24 +200,20 @@ class WirelessUnitAdmin(MicboardModelAdmin):
         ),
     )
 
-    @admin.display(
-        description="Battery",
-        ordering="battery",
-    )
-    def battery_indicator(self, obj):
+    @admin.display(description="Battery", ordering="battery")
+    def battery_indicator(self, obj: WirelessUnit) -> str:
         """Display colored battery indicator."""
-        pct = get_battery_percentage(obj)
-        if pct is None:
+        percentage = get_battery_percentage(obj)
+        if percentage is None:
             return "Unknown"
 
-        # Battery bar representation
-        if pct > 50:
+        if percentage > 50:
             color = "var(--success-fg, green)"
             icon = "●●●●●"
-        elif pct > 25:
+        elif percentage > 25:
             color = "var(--warning-fg, orange)"
             icon = "●●●○○"
-        elif pct > 10:
+        elif percentage > 10:
             color = "var(--error-fg, orangered)"
             icon = "●●○○○"
         else:
@@ -232,16 +224,19 @@ class WirelessUnitAdmin(MicboardModelAdmin):
             '<span style="color: {}; font-weight: bold;">{} {}%</span>',
             color,
             icon,
-            pct,
+            percentage,
         )
 
+    @admin.display(description="Battery Percentage", ordering="battery")
+    def battery_percentage(self, obj: WirelessUnit) -> int | None:
+        """Expose normalized battery percentage as an admin-only readonly field."""
+        return get_battery_percentage(obj)
+
     @admin.display(description="Health")
-    def battery_health_display(self, obj):
+    def battery_health_display(self, obj: WirelessUnit) -> str:
         """Display battery health status with icon."""
         health = get_battery_health(obj)
         icon = get_battery_health_display_icon(obj)
-
-        # Simple color mapping
         color_map = {
             "excellent": "var(--success-fg, green)",
             "good": "var(--success-fg, green)",
@@ -250,7 +245,6 @@ class WirelessUnitAdmin(MicboardModelAdmin):
             "critical": "var(--error-fg, red)",
         }
         color = color_map.get(health, "var(--body-quiet-color, gray)")
-
         return format_html(
             '<span style="color: {};">{} {}</span>',
             color,
@@ -259,48 +253,39 @@ class WirelessUnitAdmin(MicboardModelAdmin):
         )
 
     @admin.display(description="Battery Details")
-    def battery_health_detail_display(self, obj):
+    def battery_health_detail_display(self, obj: WirelessUnit) -> str:
         """Display key battery health metrics."""
         parts = []
-
         if obj.battery_health:
             parts.append(f"Health: {obj.battery_health}")
 
-        pct = get_battery_percentage(obj)
-        if pct is not None:
-            parts.append(f"{pct}%")
-
+        percentage = get_battery_percentage(obj)
+        if percentage is not None:
+            parts.append(f"{percentage}%")
         if obj.battery_cycles:
             parts.append(f"{obj.battery_cycles} cycles")
-
         if obj.battery_temperature_c:
             parts.append(f"{obj.battery_temperature_c}°C")
-
         if obj.battery_runtime:
             parts.append(f"Runtime: {obj.battery_runtime}")
-
         return " | ".join(parts) if parts else "—"
 
     @admin.display(description="Regulatory Status")
-    def regulatory_status_display(self, obj):
+    def regulatory_status_display(self, obj: WirelessUnit) -> str:
         """Display regulatory coverage status."""
         status = get_regulatory_status(obj)
-
         if status.get("source") == "no_channel":
-            return "ℹ️ No RF channel"
-
+            return "[i] No RF channel"
         if not status["operating_frequency_mhz"]:
-            return "ℹ️ No frequency"
-
+            return "[i] No frequency"
         if status["needs_update"]:
             return format_html(
-                '<span style="color: var(--error-fg, red); font-weight: bold;">⚠️ Missing coverage</span>'
+                '<span style="color: var(--error-fg, red); '
+                'font-weight: bold;">⚠️ Missing coverage</span>'
             )
-
         if status["has_coverage"]:
             return format_html(
                 '<span style="color: var(--success-fg, green);">✅ OK ({} MHz)</span>',
                 status["operating_frequency_mhz"],
             )
-
         return "—"

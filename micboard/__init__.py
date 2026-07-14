@@ -18,7 +18,13 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "26.01.27"  # CalVer: YY.MM.DD
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("django-micboard")
+except PackageNotFoundError:
+    __version__ = "0+unknown"
+
 __license__ = "AGPL-3.0-or-later"
 
 # Modern Django automatically discovers AppConfig classes; no default_app_config needed

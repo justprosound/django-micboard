@@ -1,0 +1,93 @@
+{% extends "micboard/base.html" %}
+
+{% block title %}{% if assignment %}Edit{% else %}Create{% endif %} Assignment{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% if assignment %}Edit{% else %}Create{% endif %} Assignment</h1>
+        <a class="btn btn-outline-secondary" href="{% url 'micboard:assignments' %}">Cancel</a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" class="card card-body" aria-label="Assignment form">
+        {% csrf_token %}
+
+        {% if assignment %}
+        <dl class="row">
+            <dt class="col-sm-3">Performer</dt>
+            <dd class="col-sm-9">{{ assignment.performer.name }}</dd>
+            <dt class="col-sm-3">Wireless Unit</dt>
+            <dd class="col-sm-9">{{ assignment.wireless_unit.name }}</dd>
+            <dt class="col-sm-3">Monitoring Group</dt>
+            <dd class="col-sm-9">{{ assignment.monitoring_group.name }}</dd>
+        </dl>
+        {% else %}
+        <div class="mb-3">
+            <label for="performer-id" class="form-label">Performer</label>
+            <select name="performer_id" id="performer-id" class="form-select" required>
+                <option value="">Select performer…</option>
+                {% for performer in performers %}
+                <option value="{{ performer.pk }}">{{ performer.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="wireless-unit-id" class="form-label">Wireless Unit</label>
+            <select name="wireless_unit_id" id="wireless-unit-id" class="form-select" required>
+                <option value="">Select wireless unit…</option>
+                {% for wireless_unit in wireless_units %}
+                <option value="{{ wireless_unit.pk }}">{{ wireless_unit.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="monitoring-group-id" class="form-label">Monitoring Group</label>
+            <select name="monitoring_group_id" id="monitoring-group-id" class="form-select" required>
+                <option value="">Select monitoring group…</option>
+                {% for monitoring_group in monitoring_groups %}
+                <option value="{{ monitoring_group.pk }}">{{ monitoring_group.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        <div class="mb-3">
+            <label for="priority" class="form-label">Priority</label>
+            <select name="priority" id="priority" class="form-select">
+                {% for value, label in priority_choices %}
+                <option value="{{ value }}"{% if selected_priority == value %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea name="notes" id="notes" class="form-control" rows="3">{{ assignment.notes|default:"" }}</textarea>
+        </div>
+
+        {% if assignment %}
+        <div class="form-check mb-3">
+            <input name="is_active" id="is-active" class="form-check-input" type="checkbox"{% if assignment.is_active %} checked{% endif %}>
+            <label for="is-active" class="form-check-label">Active</label>
+        </div>
+        {% endif %}
+
+        {% for option in alert_options %}
+        <div class="form-check mb-2">
+            <input name="{{ option.name }}" id="{{ option.name }}" class="form-check-input" type="checkbox"{% if option.checked %} checked{% endif %}>
+            <label for="{{ option.name }}" class="form-check-label">{{ option.label }}</label>
+        </div>
+        {% endfor %}
+
+        <button type="submit" class="btn btn-primary mt-3">
+            {% if assignment %}Save Assignment{% else %}Create Assignment{% endif %}
+        </button>
+    </form>
+</div>
+{% endblock %}

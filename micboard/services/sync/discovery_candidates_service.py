@@ -8,28 +8,12 @@ import logging
 from django.core.cache import cache
 from django.utils import timezone
 
-from asgiref.sync import async_to_sync
-
-try:
-    from channels.layers import BaseChannelLayer, get_channel_layer
-except ImportError:
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from channels.layers import BaseChannelLayer
-
-    def get_channel_layer(alias: str = "default") -> BaseChannelLayer | None:
-        """Fallback stub when Channels is not installed."""
-        return None
-
-
 from micboard.discovery.network_utils import resolve_fqdns
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.sync.discovery_utils import (
-    get_manufacturer_client as utility_get_manufacturer_client,
-)
+from micboard.services.notification.broadcast_service import BroadcastService
+from micboard.services.sync.discovery_utils import get_manufacturer_plugin_instance
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +62,8 @@ class DiscoveryCandidateService:
         scan_cidrs: bool = False,
         scan_fqdns: bool = False,
         max_hosts: int = 1024,
+        organization_id: int | None = None,
+        campus_id: int | None = None,
     ) -> list[str]:
         """Compute discovery candidates while updating a cache-based status key.
 
@@ -100,25 +86,42 @@ class DiscoveryCandidateService:
             manufacturer, scan_cidrs, scan_fqdns, max_hosts
         )
 
-        self._init_progress_tracking(status_key, total_to_scan)
-
-        processed = self._perform_scanning_with_progress(
-            status_key, candidates, cidr_hosts_map, fqdns_map, total_to_scan
+        self._init_progress_tracking(
+            status_key,
+            total_to_scan,
+            organization_id=organization_id,
+            campus_id=campus_id,
         )
 
-        return self._finalize_candidates(status_key, candidates, total_to_scan, processed)
+        processed = self._perform_scanning_with_progress(
+            status_key,
+            candidates,
+            cidr_hosts_map,
+            fqdns_map,
+            total_to_scan,
+            organization_id=organization_id,
+            campus_id=campus_id,
+        )
+
+        return self._finalize_candidates(
+            status_key,
+            candidates,
+            total_to_scan,
+            processed,
+            organization_id=organization_id,
+            campus_id=campus_id,
+        )
 
     def _collect_base_candidates(self, manufacturer: Manufacturer) -> list[str]:
         """Collect base candidates from remote discovery IPs and local chassis."""
         candidates = []
 
-        client = utility_get_manufacturer_client(manufacturer)
-        if client and hasattr(client, "get_discovery_ips"):
-            try:
-                remote_ips = client.get_discovery_ips() or []
-                candidates.extend([ip for ip in remote_ips if isinstance(ip, str)])
-            except Exception:
-                logger.debug("Could not fetch remote discovery IPs for %s", manufacturer.code)
+        plugin = get_manufacturer_plugin_instance(manufacturer)
+        try:
+            remote_ips = plugin.get_discovery_ips() or []
+            candidates.extend([ip for ip in remote_ips if isinstance(ip, str)])
+        except Exception:
+            logger.debug("Could not fetch remote discovery IPs for %s", manufacturer.code)
 
         try:
             for ch in WirelessChassis.objects.filter(manufacturer=manufacturer):
@@ -167,7 +170,14 @@ class DiscoveryCandidateService:
 
         return cidr_hosts_map, fqdns_map, total_to_scan
 
-    def _init_progress_tracking(self, status_key: str, total_to_scan: int) -> None:
+    def _init_progress_tracking(
+        self,
+        status_key: str,
+        total_to_scan: int,
+        *,
+        organization_id: int | None = None,
+        campus_id: int | None = None,
+    ) -> None:
         """Initialize progress tracking in cache and broadcast initial status."""
         status_data = {
             "status": "running",
@@ -178,15 +188,11 @@ class DiscoveryCandidateService:
         }
         cache.set(status_key, status_data, timeout=3600)
 
-        try:
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                async_to_sync(channel_layer.group_send)(
-                    "micboard_updates",
-                    {"type": "progress_update", "status": status_data},
-                )
-        except Exception:
-            logger.debug("Channels layer not available for progress updates")
+        BroadcastService.broadcast_progress_update(
+            status=status_data,
+            organization_id=organization_id,
+            campus_id=campus_id,
+        )
 
     def _perform_scanning_with_progress(
         self,
@@ -195,10 +201,12 @@ class DiscoveryCandidateService:
         cidr_hosts_map: dict[str, list[str]],
         fqdns_map: dict[str, list[str]],
         total_to_scan: int,
+        *,
+        organization_id: int | None = None,
+        campus_id: int | None = None,
     ) -> int:
         """Perform CIDR and FQDN scanning while updating progress."""
         processed = 0
-        channel_layer = get_channel_layer()
 
         for cidr, hosts in cidr_hosts_map.items():
             self._update_progress(
@@ -210,8 +218,9 @@ class DiscoveryCandidateService:
                 processed,
                 total_to_scan,
                 status_key,
-                channel_layer,
                 cidr=cidr,
+                organization_id=organization_id,
+                campus_id=campus_id,
             )
 
         for f, ips in fqdns_map.items():
@@ -222,8 +231,9 @@ class DiscoveryCandidateService:
                 processed,
                 total_to_scan,
                 status_key,
-                channel_layer,
                 fqdn=f,
+                organization_id=organization_id,
+                campus_id=campus_id,
             )
 
         return processed
@@ -235,10 +245,11 @@ class DiscoveryCandidateService:
         processed: int,
         total_to_scan: int,
         status_key: str,
-        channel_layer,
         *,
         cidr: str | None = None,
         fqdn: str | None = None,
+        organization_id: int | None = None,
+        campus_id: int | None = None,
     ) -> int:
         """Scan a list of hosts, adding to candidates and updating progress."""
         for ip in hosts:
@@ -254,7 +265,11 @@ class DiscoveryCandidateService:
                     current_cidr=cidr,
                     current_fqdn=fqdn,
                 )
-                self._broadcast_progress(status_key, channel_layer)
+                self._broadcast_progress(
+                    status_key,
+                    organization_id=organization_id,
+                    campus_id=campus_id,
+                )
         return processed
 
     def _update_progress(
@@ -280,19 +295,29 @@ class DiscoveryCandidateService:
             status_data["current_fqdn"] = current_fqdn
         cache.set(status_key, status_data, timeout=3600)
 
-    def _broadcast_progress(self, status_key: str, channel_layer) -> None:
+    def _broadcast_progress(
+        self,
+        status_key: str,
+        *,
+        organization_id: int | None = None,
+        campus_id: int | None = None,
+    ) -> None:
         """Broadcast progress update via Channels."""
-        try:
-            if channel_layer:
-                async_to_sync(channel_layer.group_send)(
-                    "micboard_updates",
-                    {"type": "progress_update", "status": cache.get(status_key)},
-                )
-        except Exception:
-            logger.debug("Failed to send progress update")
+        BroadcastService.broadcast_progress_update(
+            status=cache.get(status_key),
+            organization_id=organization_id,
+            campus_id=campus_id,
+        )
 
     def _finalize_candidates(
-        self, status_key: str, candidates: list[str], total_to_scan: int, processed: int
+        self,
+        status_key: str,
+        candidates: list[str],
+        total_to_scan: int,
+        processed: int,
+        *,
+        organization_id: int | None = None,
+        campus_id: int | None = None,
     ) -> list[str]:
         """Finalize candidates by deduplicating and updating final status."""
         deduped = self._dedupe_preserve_order(candidates)
@@ -306,15 +331,11 @@ class DiscoveryCandidateService:
         }
         cache.set(status_key, final_status, timeout=3600)
 
-        try:
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                async_to_sync(channel_layer.group_send)(
-                    "micboard_updates",
-                    {"type": "progress_update", "status": final_status},
-                )
-        except Exception:
-            logger.debug("Failed to send final progress update")
+        BroadcastService.broadcast_progress_update(
+            status=final_status,
+            organization_id=organization_id,
+            campus_id=campus_id,
+        )
 
         return deduped
 

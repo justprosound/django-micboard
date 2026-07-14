@@ -38,17 +38,19 @@ Device status updates automatically via WebSocket connections:
 
 ## Management Commands
 
-### Continuous Polling
+### Device Polling
 
-For production monitoring, run continuous device polling:
+Run a one-shot poll directly or enqueue it through native Huey:
 
 ```bash
-# Poll Shure devices continuously
-python manage.py poll_devices --manufacturer shure --continuous
+# Poll Shure devices now
+uv run python manage.py poll_devices --manufacturer shure
 
-# Poll with custom interval (default 30 seconds)
-python manage.py poll_devices --manufacturer shure --continuous --interval 60
+# Enqueue one poll through native Huey
+uv run python manage.py poll_devices --manufacturer shure --async
 ```
+
+Use your deployment scheduler to enqueue the one-shot command at the required interval.
 
 ### Health Monitoring
 
@@ -56,10 +58,10 @@ Monitor connection health and detect issues:
 
 ```bash
 # Check all connections
-python manage.py check_connections
+uv run python manage.py realtime_status
 
 # Check specific manufacturer
-python manage.py check_connections --manufacturer shure
+uv run python manage.py realtime_status --manufacturer shure
 ```
 
 ## Alerts and Notifications
@@ -89,13 +91,15 @@ Monitor signal quality:
 Assign devices to specific users:
 
 ```python
-from micboard.services import AssignmentService
+from micboard.services.core.performer_assignment import PerformerAssignmentService
 
-# Assign device to user
-assignment = AssignmentService.create_assignment(
+# Assign a wireless unit to a performer
+assignment = PerformerAssignmentService.create_assignment(
+    performer_id=performer.id,
+    unit_id=wireless_unit.id,
+    group_id=monitoring_group.id,
     user=user,
-    device=device,
-    alert_enabled=True
+    alert_on_battery_low=True,
 )
 ```
 
@@ -104,7 +108,7 @@ assignment = AssignmentService.create_assignment(
 Track devices by location:
 
 ```python
-from micboard.services import LocationService
+from micboard.services.core.location import LocationService
 
 # Create location
 location = LocationService.create_location(
@@ -122,12 +126,12 @@ LocationService.assign_device_to_location(device, location)
 
 **Check connection status:**
 ```bash
-python manage.py check_connections --manufacturer shure
+uv run python manage.py realtime_status --manufacturer shure
 ```
 
 **Verify API access:**
 ```bash
-python manage.py poll_devices --manufacturer shure --dry-run
+uv run python manage.py diagnostic_api_health_check
 ```
 
 **Check device logs:**
@@ -145,15 +149,15 @@ python manage.py poll_devices --manufacturer shure --dry-run
 **Redis connection:**
 ```bash
 # Test Redis connectivity
-python manage.py shell -c "from channels.layers import get_channel_layer; print(get_channel_layer())"
+uv run python manage.py shell -c "from channels.layers import get_channel_layer; print(get_channel_layer())"
 ```
 
 ### Performance Issues
 
 **Monitor polling performance:**
 ```bash
-# Check polling duration
-python manage.py poll_devices --manufacturer shure --verbose
+# Run one poll and inspect its completion summary
+uv run python manage.py poll_devices --manufacturer shure
 ```
 
 **Database optimization:**
@@ -184,7 +188,7 @@ GET /api/v1/devices/
 GET /api/v1/devices/?battery_level__lt=20
 
 # Real-time updates via WebSocket
-ws://your-server/ws/devices/
+ws://your-server/ws
 ```
 
 ### Health Checks
@@ -192,9 +196,9 @@ ws://your-server/ws/devices/
 Implement health check endpoints:
 
 ```python
-from micboard.services import ConnectionHealthService
+from micboard.services.monitoring.connection import ConnectionHealthService
 
-# Check overall system health
-health = ConnectionHealthService.get_overall_health_status()
-print(f"Online devices: {health['online_receivers']}/{health['total_receivers']}")
+# Query connected hardware integrations
+active_connections = ConnectionHealthService.get_active_connections()
+print(f"Active real-time connections: {active_connections.count()}")
 ```

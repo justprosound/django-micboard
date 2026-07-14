@@ -23,7 +23,7 @@ Django Micboard integrates with Shure's System API to provide comprehensive moni
 ### Software Requirements
 
 - Shure System API enabled and configured
-- HTTPS access (self-signed certificates acceptable)
+- HTTPS access with a certificate issued by a trusted public or internal CA
 - Network access from Django application server
 
 ## API Configuration
@@ -54,10 +54,12 @@ MICBOARD_SHURE_API = {
     'BASE_URL': 'https://your-shure-system.local:443',
     'USERNAME': 'api_user',
     'PASSWORD': 'your_secure_password',
-    'VERIFY_SSL': True,  # Set False for self-signed certificates
     'TIMEOUT': 30,       # Request timeout in seconds
 }
 ```
+
+TLS certificate verification is mandatory. Trust an internal CA through `SSL_CERT_FILE` or
+`SSL_CERT_DIR` in the service environment.
 
 ## Device Discovery
 
@@ -66,11 +68,11 @@ MICBOARD_SHURE_API = {
 Configure IP ranges for device discovery:
 
 ```bash
-# Add discovery IP ranges
-python manage.py add_shure_devices --cidr 192.168.1.0/24
+# Expand CIDRs already configured in the admin discovery settings
+uv run python manage.py sync_discovery --manufacturer shure --scan-cidrs
 
 # Add specific IPs
-python manage.py add_shure_devices --ips 192.168.1.100 192.168.1.101
+uv run python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
 ```
 
 ### Manual Device Addition
@@ -103,7 +105,7 @@ Real-time updates via WebSocket:
 
 ```javascript
 // Connect to WebSocket
-const ws = new WebSocket('ws://your-server/ws/devices/');
+const ws = new WebSocket('ws://your-server/ws');
 
 // Listen for updates
 ws.onmessage = function(event) {
@@ -118,23 +120,23 @@ ws.onmessage = function(event) {
 
 ```bash
 # Poll all Shure devices once
-python manage.py poll_devices --manufacturer shure
+uv run python manage.py poll_devices --manufacturer shure
 
-# Continuous polling (recommended for production)
-python manage.py poll_devices --manufacturer shure --continuous --interval 30
+# Enqueue one poll through native Huey
+uv run python manage.py poll_devices --manufacturer shure --async
 
-# Dry run to test connectivity
-python manage.py poll_devices --manufacturer shure --dry-run
+# Run API diagnostics before polling
+uv run python manage.py diagnostic_api_health_check
 ```
 
 ### Connection Health
 
 ```bash
 # Check connection status
-python manage.py check_connections --manufacturer shure
+uv run python manage.py realtime_status --manufacturer shure
 
-# Monitor with alerts
-python manage.py check_connections --manufacturer shure --alert
+# Show detailed connection records
+uv run python manage.py realtime_status --manufacturer shure --verbose
 ```
 
 ## API Endpoints
@@ -147,26 +149,26 @@ from micboard.integrations.shure.client import ShureSystemAPIClient
 client = ShureSystemAPIClient()
 
 # Get all devices
-devices = client.get_devices()
+devices = client.devices.get_devices()
 
 # Get specific device
-device = client.get_device('device_id')
+device = client.devices.get_device("device_id")
 
 # Get device status
-status = client.get_device_status('device_id')
+status = client.devices.get_device_status("device_id")
 ```
 
 ### Discovery Management
 
 ```python
 # Get discovery IPs
-ips = client.get_discovery_ips()
+ips = client.discovery.get_discovery_ips()
 
 # Add discovery IPs
-client.add_discovery_ips(['192.168.1.100', '192.168.1.101'])
+client.discovery.add_discovery_ips(["192.168.1.100", "192.168.1.101"])
 
 # Remove discovery IPs
-client.remove_discovery_ips(['192.168.1.100'])
+client.discovery.remove_discovery_ips(["192.168.1.100"])
 ```
 
 ## Troubleshooting
@@ -212,9 +214,9 @@ client.remove_discovery_ips(['192.168.1.100'])
 Support additional Shure device types by extending the plugin:
 
 ```python
-from micboard.integrations.common.base import ManufacturerPlugin
+from micboard.services.common.base.plugin import ManufacturerPlugin
 
-class CustomShurePlugin(BaseManufacturerPlugin):
+class CustomShurePlugin(ManufacturerPlugin):
     def get_devices(self):
         # Custom device discovery logic
         pass
@@ -271,29 +273,29 @@ LOGGING = {
 
 ## Authentication
 
-### HTTP Digest Authentication
+### API Key and Optional HTTP Digest Authentication
 
-Shure System API uses HTTP Digest Authentication with a shared key.
+The integration sends the configured shared key in the `x-api-key` header. Deployments that
+require HTTP Digest Authentication can enable it in addition to the API key.
 
 **Authentication Requirements:**
-- **Method:** HTTP Digest Authentication (RFC 7616)
+- **Primary method:** `x-api-key` header
+- **Optional method:** HTTP Digest Authentication (RFC 7616)
 - **Shared Key:** Configured at system level
 - **Headers:** Include `X-Shure-Auth-Key` for enhanced security
 
-### Implementation in Python/Requests
+### Implementation with httpx
 
 ```python
-from requests.auth import HTTPDigestAuth
+import httpx
 
-# Configure authentication
-auth = HTTPDigestAuth(username="shure", password="shared_key")
-
-# Make authenticated request
-response = requests.get(
-    "https://192.168.1.100:2420/api/v1/devices",
-    auth=auth,
-    verify=False  # For self-signed certificates
-)
+with httpx.Client(
+    base_url="https://192.168.1.100:2420",
+    headers={"x-api-key": "shared_key"},
+    auth=httpx.DigestAuth("shure", "shared_key"),  # Optional
+) as client:
+    response = client.get("/api/v1/devices")
+    response.raise_for_status()
 ```
 
 ### Django Implementation
@@ -301,44 +303,10 @@ response = requests.get(
 In micboard's Shure integration:
 
 ```python
-from requests.auth import HTTPDigestAuth
+from micboard.integrations.shure.client import ShureSystemAPIClient
 
-class ShureSystemAPIClient(BaseHTTPClient):
-    def __init__(
-        self,
-        api_base_url: str,
-        shared_key: str,
-        *,
-        ssl_verify: bool = True,
-        timeout: int = 10
-    ):
-        """
-        Initialize Shure System API client.
-
-        Args:
-            api_base_url: Base URL of Shure system (e.g., https://192.168.1.100:2420)
-            shared_key: Shared authentication key from system settings
-            ssl_verify: Whether to verify SSL certificates (default: True)
-            timeout: Request timeout in seconds (default: 10)
-        """
-        self.api_base_url = api_base_url
-        self.shared_key = shared_key
-        self.ssl_verify = ssl_verify
-        self.timeout = timeout
-        self.auth = HTTPDigestAuth("shure", shared_key)
-
-    def _request(self, method: str, endpoint: str, **kwargs) -> dict:
-        """Make authenticated request to Shure system."""
-        url = f"{self.api_base_url}{endpoint}"
-        response = requests.request(
-            method,
-            url,
-            auth=self.auth,
-            verify=self.ssl_verify,
-            timeout=self.timeout,
-            **kwargs
-        )
-        return response.json()
+client = ShureSystemAPIClient()
+devices = client.devices.get_devices()
 ```
 
 ## API Endpoints
@@ -502,7 +470,6 @@ MICBOARD = {
             'enabled': True,
             'api_base_url': 'https://192.168.1.100:2420',
             'shared_key': 'your_shared_key_from_system_settings',
-            'ssl_verify': False,  # Set to True for production with proper certs
             'poll_interval': 30,  # Seconds between polls
             'timeout': 10,  # Request timeout in seconds
             'websocket_url': None,  # Auto-derived from api_base_url, or override
@@ -518,7 +485,6 @@ For production deployments:
 ```bash
 export SHURE_API_BASE_URL="https://192.168.1.100:2420"
 export SHURE_SHARED_KEY="your_shared_key"
-export SHURE_SSL_VERIFY="false"
 export SHURE_POLL_INTERVAL="30"
 ```
 
@@ -546,11 +512,10 @@ export SHURE_POLL_INTERVAL="30"
 ### SSL Certificate Verification Failed
 
 **Error:** `SSL: CERTIFICATE_VERIFY_FAILED`
-**Cause:** System uses self-signed certificate
+**Cause:** The issuing CA is not trusted by the service environment
 **Solution:**
-- For development: Set `ssl_verify: False`
-- For production: Obtain proper SSL certificates
-- Or add certificate to trusted CA store
+- Install the issuing CA in the host trust store
+- Or set `SSL_CERT_FILE`/`SSL_CERT_DIR` for both Django and Huey
 
 ### Rate Limit Exceeded
 
@@ -584,7 +549,7 @@ export SHURE_POLL_INTERVAL="30"
 
 2. **SSL/TLS**
    - Use proper SSL certificates for production
-   - Enable certificate verification (`ssl_verify: True`)
+   - Trust the issuing CA through the host store, `SSL_CERT_FILE`, or `SSL_CERT_DIR`
    - Keep certificates updated
 
 3. **Network Access**
@@ -619,10 +584,9 @@ export SHURE_POLL_INTERVAL="30"
 
 ### Django Micboard Documentation
 - [Integration Architecture](development/architecture.md)
-- [Plugin Development](archive/plugin-development.md)
-- [Rate Limiting](archive/rate-limiting.md)
+- [Adding Manufacturers](development/architecture.md#adding-new-manufacturers)
+- [Rate Limiting](#rate-limiting)
 - [Shure Troubleshooting](guides/shure-troubleshooting.md)
-- [Shure Test Suite](archive/SHURE_TEST_SUITE_COMPLETION.md)
 
 ### Common Integration Utilities
 - **Rate Limiter:** `micboard.services.common.base.rate_limiter`

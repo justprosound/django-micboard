@@ -26,7 +26,6 @@ Allows you to add and manage multiple manufacturer API servers (e.g., Shure Syst
    - **Manufacturer**: Select "Shure System API"
    - **Base URL**: Your API endpoint (e.g., `https://api.venue.local:10000`)
    - **Shared Key**: Your API authentication key
-   - **Verify SSL**: Check/uncheck based on your setup
    - **Location**: Physical location name (optional, for reference)
    - **Enabled**: Toggle to enable/disable
 3. Click **Save**
@@ -210,7 +209,6 @@ MANUFACTURER_API_SERVERS = {
         "manufacturer": "shure",
         "base_url": "https://api.main.local:10000",
         "shared_key": "YOUR_SHARED_KEY_HERE",
-        "verify_ssl": False,
         "location_name": "Main Venue - Stage",
         "enabled": True,
     },
@@ -218,7 +216,6 @@ MANUFACTURER_API_SERVERS = {
         "manufacturer": "shure",
         "base_url": "https://api.backup.local:10000",
         "shared_key": "YOUR_BACKUP_KEY_HERE",
-        "verify_ssl": False,
         "location_name": "Backup Venue - Archive",
         "enabled": False,
     },
@@ -229,10 +226,10 @@ MANUFACTURER_API_SERVERS = {
 
 ```bash
 # Import from a specific server
-python manage.py import_shure_devices --server-id main_venue --full
+uv run --no-sync python manage.py import_devices --server-id main_venue --full
 
 # Dry run to preview first
-python manage.py import_shure_devices --server-id main_venue --dry-run
+uv run --no-sync python manage.py import_devices --server-id main_venue --dry-run
 ```
 
 ---
@@ -248,7 +245,7 @@ python manage.py import_shure_devices --server-id main_venue --dry-run
 
 2. **Import Devices** (Management Command)
    ```bash
-   python manage.py import_shure_devices --server-id venue_name --full
+   uv run --no-sync python manage.py import_devices --server-id venue_name --full
    ```
 
 3. **Review Imports** (Admin > Wireless Chassis)
@@ -296,7 +293,7 @@ python manage.py import_shure_devices --server-id main_venue --dry-run
 ## Troubleshooting
 
 **Server Connection Test Fails:**
-- Verify SSL certificate if `verify_ssl=True`
+- Install the issuing CA in the host trust store or configure `SSL_CERT_FILE`/`SSL_CERT_DIR`
 - Check shared key matches what API expects
 - Confirm API endpoint is accessible from server
 - Check firewall rules
@@ -307,7 +304,7 @@ python manage.py import_shure_devices --server-id main_venue --dry-run
 - Check for FK errors in database
 
 **Gap Analysis Missing Data:**
-- Run `python manage.py check` to verify schema
+- Run `uv run --no-sync python manage.py check` to verify schema
 - Ensure devices have been imported
 - Check that nullable fields are actually NULL (not empty string)
 
@@ -317,13 +314,13 @@ python manage.py import_shure_devices --server-id main_venue --dry-run
 
 ```bash
 # Check overall system health
-python manage.py check
+uv run --no-sync python manage.py check
 
 # Import Shure devices
-python manage.py import_shure_devices --full
+uv run --no-sync python manage.py import_devices --full
 
 # Create new API server config
-python manage.py
+uv run --no-sync python manage.py
 
 # View accessory report
 # (Go to /admin/integrations/accessory/)

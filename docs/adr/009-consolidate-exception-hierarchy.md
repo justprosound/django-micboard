@@ -11,7 +11,7 @@ django-micboard has three exception files across three layers, each defining its
 | File | Lines | Content |
 |------|-------|---------|
 | `micboard/exceptions.py` | 161 | Root hierarchy: `MicboardError(Exception)` → 6 subclasses (`ManufacturerNotSupportedError`, `HardwareNotFoundError`, `HardwareValidationError`, `APIError`, `LocationNotFoundError`, `ServiceError`). Each includes `message`, `code`, `details`. |
-| `services/shared/exceptions.py` | 39 | Re-exports with aliases: `MicboardServiceError = MicboardError`, `ConnectionError = APIError` (shadows Python built-in), `ManufacturerPluginError = ManufacturerNotSupportedError`. Plus two new placeholders: `DiscoveryError`, `LocationAlreadyExistsError`. |
+| `services/shared/exceptions.py` | 39 | Historical re-export facade over root exceptions, plus two new placeholders: `DiscoveryError`, `LocationAlreadyExistsError`. |
 | `integrations/common/exceptions.py` | 71 | Integration-layer: `APIError`, `APIRateLimitError`, `APIAuthenticationError`, `APITimeoutError`. |
 
 Additionally, each manufacturer plugin has its own 25-line `exceptions.py` inheriting from the integration common ones (`ShureAPIError(APIError)`, `SennheiserAPIError(APIError)`).

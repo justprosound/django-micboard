@@ -2,7 +2,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.views import View
 
-from micboard.models import UserView
+from micboard.models.users.user_views import UserView
 
 
 class RecordUserView(View):

@@ -5,15 +5,16 @@ Used for device assignment, movement tracking, and spatial organization.
 
 Optional multi-tenancy support:
 - MICBOARD_MULTI_SITE_MODE: Adds site FK to Building
-- MICBOARD_MSP_ENABLED: Adds organization and campus FKs to Building
+- MICBOARD_MSP_ENABLED: Uses indexed organization and campus identifiers on Building
 """
 
 from __future__ import annotations
 
-import warnings
 from typing import ClassVar
 
+from django.apps import apps
 from django.contrib.sites.models import Site
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -22,8 +23,8 @@ class Building(models.Model):
 
     Multi-tenancy support:
     - site: Optional Django Site FK (when MICBOARD_MULTI_SITE_MODE=True)
-    - organization: Optional Organization FK (when MICBOARD_MSP_ENABLED=True)
-    - campus: Optional Campus FK (when MICBOARD_MSP_ENABLED=True)
+    - organization_id: Optional Organization identifier (when MICBOARD_MSP_ENABLED=True)
+    - campus_id: Optional Campus identifier (when MICBOARD_MSP_ENABLED=True)
     """
 
     name = models.CharField(max_length=100, help_text="Name of the building")
@@ -55,22 +56,18 @@ class Building(models.Model):
         help_text="Django Site this building belongs to (optional)",
     )
 
-    # organization = models.ForeignKey(
-    #     "micboard_multitenancy.Organization",
-    #     on_delete=models.CASCADE,
-    #     null=True,
-    #     blank=True,
-    #     related_name="buildings",
-    #     help_text="Organization this building belongs to (optional)",
-    # )
-    # campus = models.ForeignKey(
-    #     "micboard_multitenancy.Campus",
-    #     on_delete=models.SET_NULL,
-    #     null=True,
-    #     blank=True,
-    #     related_name="buildings",
-    #     help_text="Campus this building belongs to (optional)",
-    # )
+    organization_id = models.PositiveBigIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Organization identifier for optional MSP isolation",
+    )
+    campus_id = models.PositiveBigIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Campus identifier for optional MSP isolation",
+    )
 
     class Meta:
         verbose_name = "Building"
@@ -80,16 +77,28 @@ class Building(models.Model):
     def __str__(self) -> str:
         return str(self.name)
 
-    def save(self, *args, **kwargs) -> None:
-        """Auto-assign regulatory domain based on country if not set.
+    def clean(self) -> None:
+        """Require a campus to belong to the selected organization."""
+        super().clean()
+        if self.campus_id is not None and self.organization_id is None:
+            raise ValidationError(
+                {"organization_id": "Organization is required when campus is set."}
+            )
+        if self.campus_id is None or self.organization_id is None:
+            return
+        if not apps.is_installed("micboard.multitenancy"):
+            raise ValidationError({"campus_id": "The multitenancy app is not installed."})
 
-        Deprecated: Use structure_service.save_building() instead.
-        """
-        warnings.warn(
-            "Building.save() is deprecated, use structure_service.save_building() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        from micboard.multitenancy.models import Campus
+
+        if not Campus._default_manager.filter(
+            pk=self.campus_id,
+            organization_id=self.organization_id,
+        ).exists():
+            raise ValidationError({"campus_id": "Campus must belong to the selected organization."})
+
+    def save(self, *args, **kwargs) -> None:
+        """Persist the building after service-layer regulatory-domain preparation."""
         from micboard.services.locations.structure_service import (
             save_building as _save,
         )

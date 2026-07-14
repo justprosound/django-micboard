@@ -10,8 +10,9 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
-from micboard.models import Manufacturer, WirelessChassis
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.tasks.sync.polling import _update_models_from_api_data
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,8 @@ class Command(BaseCommand):
         else:
             devices = list(
                 WirelessChassis.objects.filter(
-                    manufacturer=manufacturer, is_active=True
+                    manufacturer=manufacturer,
+                    status__in=("online", "degraded", "provisioning"),
                 ).values_list("api_device_id", flat=True)
             )
 

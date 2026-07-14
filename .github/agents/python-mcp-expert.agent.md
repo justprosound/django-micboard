@@ -157,15 +157,10 @@ async def tool_with_context(input: ToolInput, ctx: Context) -> str:
 
 ### 1. Project Setup
 ```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-
-# Install FastMCP
-uv pip install fastmcp
-
-# Install dev dependencies
-uv pip install pytest pytest-asyncio httpx
+# Create a uv-managed project and add dependencies
+uv init --bare
+uv add fastmcp
+uv add --dev pytest pytest-asyncio httpx
 ```
 
 ### 2. Development Structure

@@ -38,6 +38,9 @@ nav:
       - Real-time Updates: guides/realtime-updates.md
       - Multitenancy: multitenancy.md
       - Multitenancy Quickref: multitenancy-quickref.md
+      - API Band-plan Detection: guides/api-band-plan-detection.md
+      - Band-plan Auto-population: guides/band-plan-auto-population.md
+      - Regulatory Coverage: guides/regulatory-coverage-monitoring.md
   - Shure Integration:
       - Shure System API: shure-integration.md
       - Device Discovery: integration/discovery-workflow.md
@@ -55,9 +58,29 @@ nav:
       - Architecture: development/architecture.md
       - Python API: development/api-reference.md
       - Dependencies: development/dependency-management.md
+      - Agent Guidance:
+          - Domain Context: agents/domain.md
+          - Issue Tracker: agents/issue-tracker.md
+          - Triage Labels: agents/triage-labels.md
+      - Architecture Decisions:
+          - ADR 001 - Service Layer Decomposition: adr/001-service-layer-decomposition.md
+          - ADR 002 - Extract Model Business Logic: adr/002-extract-model-business-logic.md
+          - ADR 003 - Admin Dashboard Modularization: adr/003-admin-dashboard-modularization.md
+          - ADR 004 - Standardize Manufacturer Plugins: adr/004-standardize-manufacturer-plugins.md
+          - ADR 005 - Unify Settings Proxy: adr/005-unify-settings-proxy.md
+          - ADR 006 - Test Infrastructure Overhaul: adr/006-test-infrastructure-overhaul.md
+          - ADR 007 - API Layer Introduction: adr/007-api-layer-introduction.md
+          - ADR 008 - Remove Compatibility Shim: adr/008-remove-compat-shim.md
+          - ADR 009 - Consolidate Exception Hierarchy: adr/009-consolidate-exception-hierarchy.md
+          - ADR 010 - Split Base HTTP Client: adr/010-split-base-http-client.md
+          - ADR 011 - Introduce Event Bus: adr/011-introduce-eventbus.md
+      - Product Requirements:
+          - PRD 001 - Service Architecture: prd/001-service-architecture-refinement.md
+          - PRD 002 - Admin Modernization: prd/002-admin-modernization.md
+          - PRD 003 - Plugin Infrastructure: prd/003-plugin-standardization-infrastructure.md
+          - PRD 004 - Quality and API Documentation: prd/004-quality-api-documentation.md
   - About:
       - Changelog: changelog.md
-      - Archive: archive/INDEX.md
 
 plugins:
   - search

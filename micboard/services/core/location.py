@@ -166,11 +166,6 @@ class LocationService:
         return device
 
     @staticmethod
-    def list_all_locations() -> QuerySet[Location]:
-        """Get all locations (alias for get_all_locations)."""
-        return LocationService.get_all_locations()
-
-    @staticmethod
     def get_location_by_id(location_id: int) -> Location | None:
         """Get a location by its ID."""
         try:
@@ -212,15 +207,15 @@ class LocationService:
         )
 
     @staticmethod
-    async def alist_all_locations():
-        """Async: Get all locations.
+    async def aget_all_locations() -> QuerySet[Location]:
+        """Get all locations asynchronously.
 
         Returns:
             QuerySet of all Location instances
         """
         from asgiref.sync import sync_to_async
 
-        return await sync_to_async(LocationService.list_all_locations)()
+        return await sync_to_async(LocationService.get_all_locations)()
 
     @staticmethod
     async def aassign_device_to_location(*, device, location):

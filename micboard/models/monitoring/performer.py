@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from django.db import models
 
@@ -11,6 +11,30 @@ from micboard.models.base_managers import TenantOptimizedManager, TenantOptimize
 
 class PerformerQuerySet(TenantOptimizedQuerySet):
     """Query helpers for performers with tenant awareness."""
+
+    def for_user(self, *, user) -> PerformerQuerySet:
+        """Return performers managed by one of the user's active monitoring groups.
+
+        In single-tenant mode, unassigned performers remain available so an
+        operator can create their first assignment. MSP mode cannot safely
+        expose a tenantless performer, so it only returns performers already
+        linked through a tenant-scoped assignment.
+        """
+        tenant_scope = cast(PerformerQuerySet, super().for_user(user=user))
+        if not user.is_authenticated:
+            return tenant_scope
+        if user.is_superuser:
+            return tenant_scope
+
+        from django.conf import settings
+
+        from micboard.models.monitoring.performer_assignment import PerformerAssignment
+
+        visible_assignments = PerformerAssignment.objects.for_user(user=user)
+        visibility = models.Q(assignments__in=visible_assignments)
+        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+            visibility |= models.Q(assignments__isnull=True)
+        return tenant_scope.filter(visibility).distinct()
 
     def active(self) -> PerformerQuerySet:
         """Get all active performers."""
@@ -33,6 +57,10 @@ class PerformerManager(TenantOptimizedManager):
 
     def active(self) -> PerformerQuerySet:
         return self.get_queryset().active()
+
+    def for_user(self, *, user) -> PerformerQuerySet:
+        """Return performers visible to the user."""
+        return self.get_queryset().for_user(user=user)
 
     def with_assignments(self) -> PerformerQuerySet:
         return self.get_queryset().with_assignments()
@@ -119,7 +147,7 @@ class Performer(models.Model):
 
     def get_assigned_units(self):
         """Get all wireless units assigned to this performer."""
-        from micboard.models import WirelessUnit
+        from micboard.models.hardware.wireless_unit import WirelessUnit
 
         return WirelessUnit.objects.filter(
             performer_assignments__performer=self,

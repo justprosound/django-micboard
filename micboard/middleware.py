@@ -12,7 +12,7 @@ from collections.abc import Callable
 from django.http import HttpRequest, HttpResponse
 from django.utils.deprecation import MiddlewareMixin
 
-from micboard.services import ConnectionHealthService
+from micboard.services.monitoring.connection import ConnectionHealthService
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ class UserActivityMiddleware:
         if request.user.is_authenticated:
             from django.utils import timezone
 
-            from micboard.models import UserProfile
+            from micboard.models.users.user_profile import UserProfile
 
             # Throttle updates to avoid high DB churn (e.g., once every 5 mins)
             # Use cache or session to check last update

@@ -6,13 +6,11 @@ Provides PaginatedResult, paginate_queryset, and filter_by_search for paginating
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
-
-T = TypeVar("T")
+from typing import Any
 
 
 @dataclass
-class PaginatedResult(Generic[T]):
+class PaginatedResult[T]:
     """Result container for paginated queries."""
 
     items: list[T]

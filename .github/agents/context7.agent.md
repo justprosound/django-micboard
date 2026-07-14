@@ -100,7 +100,7 @@ mcp_context7_get-library-docs({
 
 1. **Identify current version** in user's workspace:
    - **JavaScript/Node.js**: Read `package.json`, `package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`
-   - **Python**: Read `requirements.txt`, `pyproject.toml`, `Pipfile`, or `poetry.lock`
+   - **Python**: Read `pyproject.toml` and `uv.lock`
    - **Ruby**: Read `Gemfile` or `Gemfile.lock`
    - **Go**: Read `go.mod` or `go.sum`
    - **Rust**: Read `Cargo.toml` or `Cargo.lock`
@@ -114,8 +114,7 @@ mcp_context7_get-library-docs({
    package.json → "react": "^18.3.1"
 
    # Python
-   requirements.txt → django==4.2.0
-   pyproject.toml → django = "^4.2.0"
+   pyproject.toml → `dependencies = ["Django==4.2.0"]`
 
    # Ruby
    Gemfile → gem 'rails', '~> 7.0.8'
@@ -220,7 +219,7 @@ Step 3: Call mcp_context7_get-library-docs
 Step 4: Check dependency file for current version
 → Detect language/ecosystem from workspace
 → JavaScript: read/readFile "frontend/package.json" → "express": "^4.21.2"
-→ Python: read/readFile "requirements.txt" → "flask==2.3.0"
+→ Python: read/readFile "pyproject.toml" and "uv.lock" → "flask==2.3.0"
 → Ruby: read/readFile "Gemfile" → gem 'sinatra', '~> 3.0.0'
 → Current version: 4.21.2 (Express example)
 
@@ -367,7 +366,7 @@ Your workflow:
 **MANDATORY - ALWAYS check workspace version FIRST:**
 
 1. **Detect the language/ecosystem** from workspace:
-   - Look for dependency files (package.json, requirements.txt, Gemfile, etc.)
+   - Look for dependency files (`package.json`, `pyproject.toml`, `Gemfile`, etc.)
    - Check file extensions (.js, .py, .rb, .go, .rs, .php, .java, .cs)
    - Examine project structure
 
@@ -381,16 +380,8 @@ Your workflow:
 
    **Python**:
    ```
-   read/readFile on "requirements.txt"
-   Extract: django==4.2.0 → Current version is 4.2.0
-
-   # OR pyproject.toml
-   [tool.poetry.dependencies]
-   django = "^4.2.0"
-
-   # OR Pipfile
-   [packages]
-   django = "==4.2.0"
+   read/readFile on "pyproject.toml" and "uv.lock"
+   Extract: `dependencies = ["Django==4.2.0"]` → Current version is 4.2.0
    ```
 
    **Ruby**:
@@ -431,7 +422,7 @@ Your workflow:
 
 3. **Check lockfiles for exact version** (optional, for precision):
    - **JavaScript**: `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
-   - **Python**: `poetry.lock`, `Pipfile.lock`
+   - **Python**: `uv.lock`
    - **Ruby**: `Gemfile.lock`
    - **Go**: `go.sum`
    - **Rust**: `Cargo.lock`
@@ -453,7 +444,7 @@ Your workflow:
    Status: Upgrade available! (1 major version behind)
 
    # Python Example
-   📦 Current: Django 4.2.0 (from your requirements.txt)
+   📦 Current: Django 4.2.0 (from pyproject.toml and uv.lock)
    🆕 Latest:  Django 5.0.0 (from PyPI)
    Status: Upgrade available! (1 major version behind)
 
@@ -535,8 +526,8 @@ get-library-docs({
    2. **Database**: Minimum PostgreSQL version is now 12
 
     ### Migration Steps:
-    1. Update requirements.txt: django==5.0.0
-    2. Run: uv pip install -U django
+    1. Update the Django constraint in `pyproject.toml`
+    2. Run: `uv lock --upgrade-package django && uv sync --locked`
     3. Update deprecated function calls
     4. Run migrations: python manage.py migrate
 
@@ -553,8 +544,8 @@ get-library-docs({
    - Dependency requirement changes
 
     ### Migration Steps:
-    1. Update dependency file ({package.json|requirements.txt|Gemfile|etc})
-    2. Install/update: {npm install|uv pip install|bundle update|etc}
+    1. Update dependency file ({package.json|pyproject.toml|Gemfile|etc})
+    2. Install/update with the project's native package manager and lockfile workflow
     3. Code changes required
     4. Test thoroughly
 
@@ -637,19 +628,19 @@ get-library-docs({
 **Django**:
 - **Key topics**: models, views, templates, ORM, middleware, admin
 - **Common questions**: Authentication, migrations, REST API (DRF), deployment
-- **Dependency file**: requirements.txt, pyproject.toml
+- **Dependency files**: `pyproject.toml`, `uv.lock`
 - **Registry**: PyPI (https://pypi.org/pypi/django/json)
 
 **Flask**:
 - **Key topics**: routing, blueprints, templates, extensions, SQLAlchemy
 - **Common questions**: REST API, authentication, app factory pattern
-- **Dependency file**: requirements.txt
+- **Dependency files**: `pyproject.toml`, `uv.lock`
 - **Registry**: PyPI
 
 **FastAPI**:
 - **Key topics**: async, type-hints, automatic-docs, dependency-injection
 - **Common questions**: OpenAPI, async database, validation, testing
-- **Dependency file**: requirements.txt, pyproject.toml
+- **Dependency files**: `pyproject.toml`, `uv.lock`
 - **Registry**: PyPI
 
 ### Ruby Ecosystem

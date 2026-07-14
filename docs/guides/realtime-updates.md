@@ -12,11 +12,9 @@ Shure System API → Django Micboard → WebSocket → Frontend
    Device Polling    Database Updates   Live Updates
 ```
 
-### WebSocket Endpoints
+### WebSocket Endpoint
 
-- **Device Updates**: `ws://your-server/ws/devices/`
-- **Connection Status**: `ws://your-server/ws/connections/`
-- **System Health**: `ws://your-server/ws/health/`
+Device, connection, alert, and system-health events share the authenticated `/ws` endpoint.
 
 ## Real-time Data Types
 
@@ -92,7 +90,7 @@ class MicboardWebSocket {
     }
 
     connect() {
-        this.ws = new WebSocket('ws://your-server/ws/devices/');
+        this.ws = new WebSocket('ws://your-server/ws');
 
         this.ws.onopen = () => {
             console.log('Connected to Micboard WebSocket');
@@ -173,7 +171,7 @@ function DeviceMonitor({ deviceId }) {
     const [connectionStatus, setConnectionStatus] = useState('disconnected');
 
     useEffect(() => {
-        const ws = new WebSocket('ws://your-server/ws/devices/');
+        const ws = new WebSocket('ws://your-server/ws');
 
         ws.onopen = () => setConnectionStatus('connected');
 
@@ -232,49 +230,49 @@ CHANNEL_LAYERS = {
 
 **asgi.py:**
 ```python
+import os
+
+from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
-from micboard.routing import websocket_urlpatterns
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "your_project.settings")
+django_asgi_app = get_asgi_application()
+
+from micboard.websockets.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
-    'http': get_asgi_application(),
-    'websocket': URLRouter(websocket_urlpatterns),
+    "http": django_asgi_app,
+    "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
 })
 ```
 
-### WebSocket Consumers
+### Initial Hardware Queries
+
+The bundled `MicboardConsumer` handles authenticated WebSocket updates. Use the hardware query
+service when a view needs an initial snapshot:
 
 ```python
-# micboard/consumers.py
-from channels.generic.websocket import JsonWebsocketConsumer
-from micboard.services import DeviceService
+from micboard.services.core.hardware_query import HardwareQueryService
 
-class DeviceConsumer(JsonWebsocketConsumer):
-    def connect(self):
-        self.accept()
-        # Send initial device data
-        devices = DeviceService.get_all_devices()
-        self.send_json({
-            'type': 'initial_data',
-            'devices': devices
-        })
-
-    def disconnect(self, close_code):
-        pass
-
-    def device_update(self, event):
-        # Send device update to WebSocket
-        self.send_json(event['data'])
+chassis = HardwareQueryService.get_active_chassis(
+    organization_id=organization_id,
+    campus_id=campus_id,
+)
+snapshot = list(chassis.values("id", "name", "status"))
 ```
 
 ## Data Synchronization
 
 ### Polling Strategy
 
-**Continuous Polling:**
+**Queued Polling:**
 ```bash
-# Poll every 30 seconds
-python manage.py poll_devices --manufacturer shure --continuous --interval 30
+# Enqueue one poll through native Huey
+uv run python manage.py poll_devices --manufacturer shure --async
 ```
+
+Use your deployment scheduler to enqueue this one-shot command at the required interval.
 
 **Adaptive Polling:**
 - Normal devices: 30-second intervals

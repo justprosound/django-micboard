@@ -225,11 +225,11 @@ class StructuredLogger:
         sync_type: str = "full",
         *,
         extra: dict[str, Any] | None = None,
-    ) -> ServiceSyncLog:
+    ) -> ServiceSyncLog | None:
         """Log sync start."""
         from django.utils import timezone
 
-        from micboard.models import Manufacturer
+        from micboard.models.discovery.manufacturer import Manufacturer
 
         manufacturer = Manufacturer.objects.filter(code=service_code).first()
         if not manufacturer:

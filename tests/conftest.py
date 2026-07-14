@@ -16,6 +16,10 @@ from django.test import Client
 
 import pytest
 
+ADMIN_PASSWORD = "admin123"
+REGULAR_PASSWORD = "testpass123"
+STAFF_PASSWORD = "staffpass123"
+
 
 @pytest.fixture
 def admin_user(db):
@@ -35,7 +39,7 @@ def admin_user(db):
     user = User.objects.create_superuser(
         username="admin",
         email="admin@example.com",
-        password="admin123",
+        password=ADMIN_PASSWORD,
     )
     return user
 
@@ -58,7 +62,7 @@ def regular_user(db):
     user = User.objects.create_user(
         username="testuser",
         email="user@example.com",
-        password="testpass123",
+        password=REGULAR_PASSWORD,
     )
     return user
 
@@ -81,7 +85,7 @@ def staff_user(db):
     user = User.objects.create_user(
         username="staff",
         email="staff@example.com",
-        password="staffpass123",
+        password=STAFF_PASSWORD,
         is_staff=True,
     )
     return user
@@ -110,7 +114,7 @@ def authenticated_client(django_client, regular_user):
     Returns:
         Client: Django test client authenticated as regular_user.
     """
-    django_client.login(username="testuser", password="testpass123")
+    django_client.force_login(regular_user)
     return django_client
 
 
@@ -127,7 +131,7 @@ def admin_client(django_client, admin_user):
     Returns:
         Client: Django test client authenticated as admin_user.
     """
-    django_client.login(username="admin", password="admin123")
+    django_client.force_login(admin_user)
     return django_client
 
 

@@ -12,7 +12,6 @@ import pytest
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.rf_coordination.rf_channel import RFChannel
 
 
 @pytest.fixture
@@ -39,14 +38,13 @@ def wireless_chassis(db, manufacturer):
 @pytest.fixture
 def rf_channel(db, wireless_chassis):
     """Create a test RF channel."""
-    return RFChannel.objects.create(
-        chassis=wireless_chassis,
-        channel_number=1,
-        link_direction="receive",
-        protocol_family="ulxd",
-        resource_state="free",
-        enabled=True,
-    )
+    channel = wireless_chassis.rf_channels.get(channel_number=1)
+    channel.link_direction = "receive"
+    channel.protocol_family = "ulxd"
+    channel.resource_state = "free"
+    channel.enabled = True
+    channel.save()
+    return channel
 
 
 class TestRFChannelResourceStateTransitions:
@@ -178,7 +176,7 @@ class TestRFChannelAutoDisableLogic:
 class TestRFChannelAuditLogging:
     """Test audit logging integration via lifecycle hooks."""
 
-    @patch("micboard.models.rf_coordination.rf_channel.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_resource_state_change_logged_to_audit(self, mock_log, rf_channel):
         """Test that resource state changes are logged to audit service."""
         rf_channel.resource_state = "active"
@@ -192,7 +190,7 @@ class TestRFChannelAuditLogging:
         assert call_args[1]["old_values"]["resource_state"] == "free"
         assert call_args[1]["new_values"]["resource_state"] == "active"
 
-    @patch("micboard.models.rf_coordination.rf_channel.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_no_audit_log_when_state_unchanged(self, mock_log, rf_channel):
         """Test that audit log is not triggered if resource_state doesn't change."""
         rf_channel.frequency = 500.0
@@ -210,7 +208,7 @@ class TestRFChannelAuditLogging:
 class TestRFChannelComplexWorkflows:
     """Test complex multi-step workflows."""
 
-    @patch("micboard.models.rf_coordination.rf_channel.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_full_lifecycle_workflow(self, mock_log, rf_channel):
         """Test complete lifecycle: free → reserved → active → free."""
         # Step 1: Reserve
@@ -234,7 +232,7 @@ class TestRFChannelComplexWorkflows:
         # Verify audit logs for each transition
         assert mock_log.call_count >= 3
 
-    @patch("micboard.models.rf_coordination.rf_channel.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_degraded_recovery_workflow(self, mock_log, rf_channel):
         """Test degraded state recovery: active → degraded → active."""
         rf_channel.resource_state = "active"
@@ -253,7 +251,7 @@ class TestRFChannelComplexWorkflows:
         # Verify all transitions logged
         assert mock_log.call_count >= 3
 
-    @patch("micboard.models.rf_coordination.rf_channel.AuditService.log_activity")
+    @patch("micboard.services.maintenance.audit.AuditService.log_activity")
     def test_disable_and_reenable_workflow(self, mock_log, rf_channel):
         """Test disable and re-enable workflow."""
         rf_channel.resource_state = "active"
@@ -288,13 +286,10 @@ class TestRFChannelLinkDirections:
 
     def test_receive_link_state_transitions(self, wireless_chassis):
         """Test state transitions work for receive-direction links."""
-        rf_channel = RFChannel.objects.create(
-            chassis=wireless_chassis,
-            channel_number=1,
-            link_direction="receive",
-            protocol_family="ulxd",
-            resource_state="free",
-        )
+        rf_channel = wireless_chassis.rf_channels.get(channel_number=1)
+        rf_channel.link_direction = "receive"
+        rf_channel.protocol_family = "ulxd"
+        rf_channel.save()
 
         rf_channel.resource_state = "active"
         rf_channel.save()
@@ -303,13 +298,10 @@ class TestRFChannelLinkDirections:
 
     def test_send_link_state_transitions(self, wireless_chassis):
         """Test state transitions work for send-direction links."""
-        rf_channel = RFChannel.objects.create(
-            chassis=wireless_chassis,
-            channel_number=2,
-            link_direction="send",
-            protocol_family="iem",
-            resource_state="free",
-        )
+        rf_channel = wireless_chassis.rf_channels.get(channel_number=2)
+        rf_channel.link_direction = "send"
+        rf_channel.protocol_family = "iem"
+        rf_channel.save()
 
         rf_channel.resource_state = "active"
         rf_channel.save()
@@ -318,13 +310,10 @@ class TestRFChannelLinkDirections:
 
     def test_bidirectional_link_state_transitions(self, wireless_chassis):
         """Test state transitions work for bidirectional links."""
-        rf_channel = RFChannel.objects.create(
-            chassis=wireless_chassis,
-            channel_number=3,
-            link_direction="bidirectional",
-            protocol_family="wmas",
-            resource_state="free",
-        )
+        rf_channel = wireless_chassis.rf_channels.get(channel_number=3)
+        rf_channel.link_direction = "bidirectional"
+        rf_channel.protocol_family = "wmas"
+        rf_channel.save()
 
         rf_channel.resource_state = "active"
         rf_channel.save()

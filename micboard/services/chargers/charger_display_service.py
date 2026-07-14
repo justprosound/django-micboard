@@ -1,17 +1,25 @@
 """Service for assembling charger display data."""
 
+from typing import Any
+
 from django.templatetags.static import static
 
 from micboard.models.hardware.charger import Charger
 
 
-def get_charging_stations_data():
-    chargers = Charger.objects.filter(is_active=True).order_by("order").prefetch_related("slots")
-    charging_stations_data = []
+def get_charging_stations_data(*, user) -> list[dict[str, Any]]:
+    """Return charging-station data limited to the user's location scope."""
+    chargers = (
+        Charger.objects.for_user(user=user)
+        .filter(is_active=True)
+        .order_by("order")
+        .prefetch_related("slots")
+    )
+    charging_stations_data: list[dict[str, Any]] = []
     for charger in chargers:
-        station_slots = []
-        for slot in charger.slots.all().order_by("slot_number"):
-            slot_data = {
+        station_slots: list[dict[str, Any]] = []
+        for slot in charger.slots.all():
+            slot_data: dict[str, Any] = {
                 "slot_number": slot.slot_number,
                 "image": None,
             }

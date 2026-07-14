@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 
-from micboard.models import RealTimeConnection
+from micboard.models.realtime.connection import RealTimeConnection
 from micboard.tasks.monitoring.health import get_realtime_connection_status
 
 
@@ -39,7 +39,16 @@ class Command(BaseCommand):
         if "error" in summary and isinstance(summary["error"], str):
             self.stderr.write(self.style.ERROR(f"Error getting status: {summary['error']}"))
             return
+        self._write_summary(summary)
 
+        connections = self._get_connections(manufacturer_code, status_filter)
+        if not connections.exists():
+            self.stdout.write("\nNo connections found matching the criteria.")
+            return
+        if verbose:
+            self._write_verbose_connections(connections)
+
+    def _write_summary(self, summary) -> None:
         self.stdout.write("Real-Time Connection Status Summary:")
         self.stdout.write("-" * 40)
         self.stdout.write(f"Total connections: {summary['total']}")
@@ -50,54 +59,43 @@ class Command(BaseCommand):
         self.stdout.write(f"Stopped: {summary['stopped']}")
         self.stdout.write(f"Healthy: {summary['healthy_percentage']:.1f}%")
 
-        # Get detailed connections
-        connections = RealTimeConnection.objects.select_related(
-            "receiver", "receiver__manufacturer"
-        )
-
+    @staticmethod
+    def _get_connections(manufacturer_code, status_filter):
+        connections = RealTimeConnection.objects.select_related("chassis", "chassis__manufacturer")
         if manufacturer_code:
-            connections = connections.filter(receiver__manufacturer__code=manufacturer_code)
-
+            connections = connections.filter(chassis__manufacturer__code=manufacturer_code)
         if status_filter:
             connections = connections.filter(status=status_filter)
+        return connections.order_by("chassis__manufacturer__name", "chassis__name")
 
-        connections = connections.order_by("receiver__manufacturer__name", "receiver__name")
+    def _write_verbose_connections(self, connections) -> None:
+        self.stdout.write("\nDetailed Connection Status:")
+        self.stdout.write("-" * 80)
+        for connection in connections:
+            self._write_connection(connection)
 
-        if not connections.exists():
-            self.stdout.write("\nNo connections found matching the criteria.")
-            return
+    def _write_connection(self, connection) -> None:
+        styled_status = self._style_status(connection.status)
+        self.stdout.write(
+            f"{connection.chassis.manufacturer.name} - {connection.chassis.name}: {styled_status}"
+        )
+        details = (
+            ("Connected", connection.connected_at),
+            ("Last message", connection.last_message_at),
+            ("Error", connection.error_message),
+            ("Duration", connection.connection_duration),
+        )
+        for label, value in details:
+            if value:
+                self.stdout.write(f"  {label}: {value}")
+        self.stdout.write("")
 
-        if verbose:
-            self.stdout.write("\nDetailed Connection Status:")
-            self.stdout.write("-" * 80)
-
-            for conn in connections:
-                status_color = self._get_status_color(conn.status)
-                self.stdout.write(
-                    f"{conn.receiver.manufacturer.name} - {conn.receiver.name}: "
-                    f"{status_color}{conn.status.upper()}{self.style.RESET_ALL}"
-                )
-
-                if conn.connected_at:
-                    self.stdout.write(f"  Connected: {conn.connected_at}")
-                if conn.last_message_at:
-                    self.stdout.write(f"  Last message: {conn.last_message_at}")
-                if conn.error_message:
-                    self.stdout.write(f"  Error: {conn.error_message}")
-                if conn.connection_duration:
-                    duration = conn.connection_duration
-                    self.stdout.write(f"  Duration: {duration}")
-                self.stdout.write("")  # Empty line between connections
-
-    def _get_status_color(self, status):
-        """Get color styling for connection status."""
-        if status == "connected":
-            return self.style.SUCCESS
-        elif status == "connecting":
-            return self.style.WARNING
-        elif status == "error":
-            return self.style.ERROR
-        elif status == "disconnected":
-            return self.style.WARNING
-        else:
-            return self.style.RESET_ALL
+    def _style_status(self, status: str) -> str:
+        """Apply command-line styling to a connection status."""
+        label = status.upper()
+        return {
+            "connected": self.style.SUCCESS,
+            "connecting": self.style.WARNING,
+            "disconnected": self.style.WARNING,
+            "error": self.style.ERROR,
+        }.get(status, lambda value: value)(label)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
+from django.conf import settings
 from django.db import models
 
 
@@ -90,7 +91,7 @@ class DiscoveryQueue(models.Model):
         help_text="When this device was reviewed by admin",
     )
     reviewed_by = models.ForeignKey(
-        "auth.User",
+        settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -167,32 +168,32 @@ class DiscoveryQueue(models.Model):
         if self.serial_number:
             # Check Chassis
             try:
-                existing = WirelessChassis.objects.get(serial_number=self.serial_number)
+                existing_chassis = WirelessChassis.objects.get(serial_number=self.serial_number)
                 result["is_duplicate"] = True
-                result["existing_device"] = existing
-                result["conflict_type"] = "moved" if existing.ip != self.ip else "duplicate"
+                result["existing_device"] = existing_chassis
+                result["conflict_type"] = "moved" if existing_chassis.ip != self.ip else "duplicate"
                 return result
             except WirelessChassis.DoesNotExist:
                 pass
 
             # Check Charger
             try:
-                existing = Charger.objects.get(serial_number=self.serial_number)
+                existing_charger = Charger.objects.get(serial_number=self.serial_number)
                 result["is_duplicate"] = True
-                result["existing_charger"] = existing
-                result["conflict_type"] = "moved" if existing.ip != self.ip else "duplicate"
+                result["existing_charger"] = existing_charger
+                result["conflict_type"] = "moved" if existing_charger.ip != self.ip else "duplicate"
                 return result
             except Charger.DoesNotExist:
                 pass
 
         # Check for IP conflict (different device, same IP)
         try:
-            existing = WirelessChassis.objects.get(ip=self.ip)
+            existing_chassis = WirelessChassis.objects.get(ip=self.ip)
             result["is_ip_conflict"] = True
-            result["existing_device"] = existing
+            result["existing_device"] = existing_chassis
             result["conflict_type"] = (
                 "ip_conflict"
-                if self.serial_number and existing.serial_number != self.serial_number
+                if self.serial_number and existing_chassis.serial_number != self.serial_number
                 else "metadata_update"
             )
             return result
@@ -200,12 +201,12 @@ class DiscoveryQueue(models.Model):
             pass
 
         try:
-            existing = Charger.objects.get(ip=self.ip)
+            existing_charger = Charger.objects.get(ip=self.ip)
             result["is_ip_conflict"] = True
-            result["existing_charger"] = existing
+            result["existing_charger"] = existing_charger
             result["conflict_type"] = (
                 "ip_conflict"
-                if self.serial_number and existing.serial_number != self.serial_number
+                if self.serial_number and existing_charger.serial_number != self.serial_number
                 else "metadata_update"
             )
             return result
@@ -284,7 +285,7 @@ class DeviceMovementLog(models.Model):
         help_text="When movement was acknowledged",
     )
     acknowledged_by = models.ForeignKey(
-        "auth.User",
+        settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,

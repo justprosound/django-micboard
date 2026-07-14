@@ -534,7 +534,7 @@ existing = Receiver.objects.filter(
 Run the deduplication test suite:
 
 ```bash
-python scripts/test_deduplication.py
+uv run python scripts/test_deduplication.py
 ```
 
 **Tests**:
@@ -637,7 +637,7 @@ def get_devices(self):
 
 ## References
 
-- [Plugin Development](../archive/plugin-development.md) - Implementing manufacturer-specific extractors
+- [Adding New Manufacturers](../development/architecture.md#adding-new-manufacturers) - Implementing manufacturer-specific extractors
 - [Integration Architecture](../development/architecture.md) - System design and services
-- [Rate Limiting](../archive/rate-limiting.md) - API polling rate limits
+- [Rate Limiting](integration-references.md#shared-rate-limiter) - API polling rate limits
 - [Integration References](integration-references.md) - API client configuration
