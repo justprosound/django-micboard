@@ -30,9 +30,7 @@ def is_device_manageable(device: DiscoveredDevice) -> bool:
     """
     if device.status != DiscoveredDevice.STATUS_READY:
         return False
-    if not device.api_device_id:
-        return False
-    return True
+    return bool(device.api_device_id)
 
 
 def get_device_incompatibility_reason(device: DiscoveredDevice) -> str | None:
@@ -75,7 +73,7 @@ def can_promote_device_to_chassis(device: DiscoveredDevice) -> tuple[bool, str]:
     Returns:
         Tuple of (can_promote: bool, reason: str)
     """
-    from micboard.models import WirelessChassis
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
 
     if WirelessChassis.objects.filter(ip=device.ip, manufacturer=device.manufacturer).exists():
         return (False, "Device is already managed as WirelessChassis")

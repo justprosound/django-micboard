@@ -4,17 +4,17 @@ This command provides a thin CLI wrapper around DeviceProbeService,
 allowing network administrators to discover devices via IP scanning.
 
 Examples:
-    python manage.py device_discovery discover --ips "192.168.1.1,192.168.1.2"
-    python manage.py device_discovery discover --file ips.txt
-    python manage.py device_discovery discover --env
-    python manage.py device_discovery test --ip 192.168.1.100
+    uv run --no-sync python manage.py device_discovery discover --ips "192.168.1.1,192.168.1.2"
+    uv run --no-sync python manage.py device_discovery discover --file ips.txt
+    uv run --no-sync python manage.py device_discovery discover --env
+    uv run --no-sync python manage.py device_discovery test --ip 192.168.1.100
 """
 
 import json
 
 from django.core.management.base import BaseCommand
 
-from micboard.services import DeviceAPIHealthChecker, DeviceProbeService
+from micboard.services.sync.device_probe_service import DeviceAPIHealthChecker, DeviceProbeService
 
 
 class Command(BaseCommand):
@@ -55,11 +55,6 @@ class Command(BaseCommand):
             default=5,
             help="Request timeout in seconds (default: 5)",
         )
-        discover_parser.add_argument(
-            "--verify-ssl",
-            action="store_true",
-            help="Verify SSL certificates (default: False)",
-        )
 
         # Test subcommand
         test_parser = subparsers.add_parser(
@@ -76,11 +71,6 @@ class Command(BaseCommand):
             type=int,
             default=5,
             help="Request timeout in seconds (default: 5)",
-        )
-        test_parser.add_argument(
-            "--verify-ssl",
-            action="store_true",
-            help="Verify SSL certificates (default: False)",
         )
 
         # Health check subcommand
@@ -115,10 +105,7 @@ class Command(BaseCommand):
     def _handle_discover(self, options):
         """Handle device discovery command."""
         # Initialize service
-        service = DeviceProbeService(
-            timeout=options["timeout"],
-            verify_ssl=options["verify_ssl"],
-        )
+        service = DeviceProbeService(timeout=options["timeout"])
 
         # Determine IP source
         if options.get("file"):
@@ -157,10 +144,7 @@ class Command(BaseCommand):
 
     def _handle_test(self, options):
         """Handle device connectivity test command."""
-        service = DeviceProbeService(
-            timeout=options["timeout"],
-            verify_ssl=options["verify_ssl"],
-        )
+        service = DeviceProbeService(timeout=options["timeout"])
 
         self.stdout.write(f"Testing device at {options['ip']}...")
         device = service.probe_device(options["ip"])

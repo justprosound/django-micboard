@@ -12,15 +12,17 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import DetailView, ListView
 
-from micboard.models import DisplayWall, WallSection
+from micboard.models.hardware.display_wall import DisplayWall, WallSection
 from micboard.services.core.charger_assignment import ChargerAssignmentService
 from micboard.services.monitoring.connection_validation import ConnectionValidationService
+from micboard.services.monitoring.monitoring_access import MonitoringService
 
 logger = logging.getLogger(__name__)
 
 
+@method_decorator(login_required, name="dispatch")
 class KioskAuthView(View):
-    """Authenticate kiosk by ID (no user login required for remote displays)."""
+    """Display an active kiosk within the authenticated user's location scope."""
 
     def get(self, request: HttpRequest, kiosk_id: str) -> HttpResponse:
         """Get kiosk display page by ID.
@@ -32,16 +34,17 @@ class KioskAuthView(View):
         Returns:
             Kiosk display HTML or 404
         """
-        wall = get_object_or_404(DisplayWall, kiosk_id=kiosk_id, is_active=True)
-
-        # Update heartbeat
-        from django.utils import timezone
-
-        wall.last_heartbeat = timezone.now()
-        wall.save(update_fields=["last_heartbeat"])
+        wall = get_object_or_404(
+            MonitoringService.get_accessible_display_walls(request.user),
+            kiosk_id=kiosk_id,
+            is_active=True,
+        )
 
         # Get display data
-        display_data = ChargerAssignmentService.get_display_wall_data(wall.id)
+        display_data = ChargerAssignmentService.get_display_wall_data(
+            wall.id,
+            user=request.user,
+        )
 
         context = {
             "wall": display_data.get("wall", {}),
@@ -56,7 +59,10 @@ class KioskAuthView(View):
         from django.utils import timezone
 
         try:
-            wall = DisplayWall.objects.get(kiosk_id=kiosk_id, is_active=True)
+            wall = MonitoringService.get_accessible_display_walls(request.user).get(
+                kiosk_id=kiosk_id,
+                is_active=True,
+            )
             wall.last_heartbeat = timezone.now()
             wall.save(update_fields=["last_heartbeat"])
             return JsonResponse({"status": "ok", "message": "Heartbeat received"})
@@ -75,7 +81,11 @@ class DisplayWallListView(ListView):
 
     def get_queryset(self):
         """Get display walls for user's location."""
-        return DisplayWall.objects.filter(is_active=True).order_by("location__name", "name")
+        return (
+            MonitoringService.get_accessible_display_walls(self.request.user)
+            .filter(is_active=True)
+            .order_by("location__name", "name")
+        )
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """Add health check data."""
@@ -91,27 +101,11 @@ class DisplayWallDetailView(DetailView):
     template_name = "micboard/kiosk/wall_detail.html"
     context_object_name = "wall"
 
-    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
-        """Add performance data and health checks."""
-        context = super().get_context_data(**kwargs)
-        wall = self.get_object()
-
-        # Get display data
-        display_data = ChargerAssignmentService.get_display_wall_data(wall.id)
-        context["display_data"] = display_data
-
-        # Get health checks for all chargers in sections
-        charger_health = []
-        for section in wall.sections.filter(is_active=True):
-            for charger in section.chargers.all():
-                health = ConnectionValidationService.check_charger_health(charger.id)
-                charger_health.append(health)
-        context["charger_health"] = charger_health
-
-        # Kiosk URLs
-        context["kiosk_url"] = f"/kiosk/{wall.kiosk_id}/"
-
-        return context
+    def get_queryset(self):
+        """Limit wall lookup to the authenticated user's locations."""
+        return MonitoringService.get_accessible_display_walls(self.request.user).filter(
+            is_active=True
+        )
 
 
 @method_decorator(login_required, name="dispatch")
@@ -126,13 +120,23 @@ class WallSectionListView(ListView):
     def get_queryset(self):
         """Get sections for specified wall."""
         wall_id = self.kwargs.get("wall_id")
-        return WallSection.objects.filter(wall_id=wall_id, is_active=True).order_by("display_order")
+        return (
+            MonitoringService.get_accessible_wall_sections(self.request.user)
+            .filter(
+                wall_id=wall_id,
+                is_active=True,
+            )
+            .order_by("display_order")
+        )
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """Add wall context."""
         context = super().get_context_data(**kwargs)
         wall_id = self.kwargs.get("wall_id")
-        context["wall"] = get_object_or_404(DisplayWall, id=wall_id)
+        context["wall"] = get_object_or_404(
+            MonitoringService.get_accessible_display_walls(self.request.user),
+            id=wall_id,
+        )
         return context
 
 
@@ -153,11 +157,17 @@ class KioskDataView(View):
             JSON with performer and charger data
         """
         try:
-            wall = DisplayWall.objects.get(id=wall_id, is_active=True)
+            wall = MonitoringService.get_accessible_display_walls(request.user).get(
+                id=wall_id,
+                is_active=True,
+            )
         except DisplayWall.DoesNotExist:
             return JsonResponse({"error": "Wall not found"}, status=404)
 
-        display_data = ChargerAssignmentService.get_display_wall_data(wall.id)
+        display_data = ChargerAssignmentService.get_display_wall_data(
+            wall.id,
+            user=request.user,
+        )
 
         return JsonResponse(
             {
@@ -183,15 +193,18 @@ class KioskHealthView(View):
             JSON with health status for each charger
         """
         try:
-            wall = DisplayWall.objects.prefetch_related("sections__chargers").get(
-                id=wall_id, is_active=True
+            wall = (
+                MonitoringService.get_accessible_display_walls(request.user)
+                .prefetch_related("sections__chargers")
+                .get(id=wall_id, is_active=True)
             )
         except DisplayWall.DoesNotExist:
             return JsonResponse({"error": "Wall not found"}, status=404)
 
         charger_health = []
+        accessible_chargers = MonitoringService.get_accessible_chargers(request.user)
         for section in wall.sections.filter(is_active=True):
-            for charger in section.chargers.all():
+            for charger in section.chargers.filter(pk__in=accessible_chargers):
                 health = ConnectionValidationService.check_charger_health(charger.id)
                 charger_health.append(health)
 

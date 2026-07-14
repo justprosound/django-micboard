@@ -44,8 +44,6 @@ Architecture & Future-Proofing Notes:
 
 from __future__ import annotations
 
-import warnings
-from datetime import datetime
 from typing import ClassVar
 
 from django.db import models
@@ -371,173 +369,32 @@ class WirelessChassis(models.Model):
         )
 
     def save(self, *args, **kwargs) -> None:
-        """Sync specs from device_specifications registry on save.
-
-        Deprecated: Use wireless_chassis_service.prepare_chassis_for_save() instead.
-        """
-        warnings.warn(
-            "WirelessChassis.save() is deprecated, "
-            "use wireless_chassis_service.prepare_chassis_for_save() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Persist the chassis through the service-backed lifecycle hooks."""
         from micboard.services.hardware.wireless_chassis_service import (
-            prepare_chassis_for_save as _prep,
+            finalize_chassis_save,
+            prepare_chassis_for_save,
         )
 
-        prep_result = _prep(chassis=self)
+        prep_result = prepare_chassis_for_save(chassis=self)
+
+        if update_fields := kwargs.get("update_fields"):
+            kwargs["update_fields"] = set(update_fields) | prep_result["update_fields"]
 
         super().save(*args, **kwargs)
+
+        finalize_chassis_save(chassis=self, context=prep_result)
 
         from micboard.services.core.hardware import HardwareService
 
         HardwareService.handle_chassis_save(chassis=self, created=prep_result["created"])
 
     def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
-        """Handle side effects before deletion."""
-        warnings.warn(
-            "WirelessChassis.delete() is deprecated, "
-            "use HardwareService.handle_chassis_delete() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        """Persist deletion after service-layer lifecycle handling."""
         from micboard.services.core.hardware import HardwareService
 
         HardwareService.handle_chassis_delete(chassis=self)
         return super().delete(*args, **kwargs)
 
-    def is_active_at_time(self, at_time: datetime | None = None) -> bool:
-        """Check if device is active at given time (or now).
-
-        Deprecated: Use wireless_chassis_service.is_active_at_time() instead.
-        """
-        warnings.warn(
-            "WirelessChassis.is_active_at_time() is deprecated, "
-            "use wireless_chassis_service.is_active_at_time() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.wireless_chassis_service import (
-            is_active_at_time as _is_active,
-        )
-
-        return _is_active(chassis=self, at_time=at_time)
-
     def get_expected_channel_count(self) -> int:
         """Get expected number of channels based on device model."""
         return self.max_channels
-
-    def get_regulatory_domain(self):
-        """Get the applicable regulatory domain for this chassis.
-
-        Deprecated: Use chassis_regulatory_service.get_regulatory_domain() instead.
-        """
-        from micboard.services.hardware.chassis_regulatory_service import (
-            get_regulatory_domain as _get_regulatory_domain,
-        )
-
-        return _get_regulatory_domain(chassis=self)
-
-    def has_band_plan(self) -> bool:
-        """Check if this chassis has band plan information configured.
-
-        Deprecated: Use wireless_chassis_service.get_band_plan_status() instead.
-        """
-        warnings.warn(
-            "WirelessChassis.has_band_plan() is deprecated, "
-            "use wireless_chassis_service.get_band_plan_status() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.wireless_chassis_service import (
-            get_band_plan_status as _has_bp,
-        )
-
-        return _has_bp(chassis=self)
-
-    def get_available_band_plans(self) -> list[tuple[str, str]]:
-        """Get list of available band plans for this chassis's manufacturer.
-
-        Deprecated: Use wireless_chassis_service.get_available_band_plans() instead.
-        """
-        warnings.warn(
-            "WirelessChassis.get_available_band_plans() is deprecated, "
-            "use wireless_chassis_service.get_available_band_plans() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.wireless_chassis_service import (
-            get_available_band_plans as _get_plans,
-        )
-
-        return _get_plans(chassis=self)
-
-    def detect_band_plan_from_api_data(
-        self, *, api_band_value: str | None
-    ) -> dict[str, str | float | None]:
-        """Detect band plan from Shure/Sennheiser API frequencyBand value.
-
-        Deprecated: Use wireless_chassis_service.detect_band_plan_from_api_data() instead.
-        """
-        warnings.warn(
-            "WirelessChassis.detect_band_plan_from_api_data() is deprecated, "
-            "use wireless_chassis_service.detect_band_plan_from_api_data() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.wireless_chassis_service import (
-            detect_band_plan_from_api_data as _detect,
-        )
-
-        return _detect(chassis=self, api_band_value=api_band_value)
-
-    def apply_detected_band_plan(self, *, api_band_value: str | None = None) -> bool:
-        """Auto-detect and apply band plan information to this chassis.
-
-        Deprecated: Use wireless_chassis_service.apply_detected_band_plan() instead.
-        """
-        warnings.warn(
-            "WirelessChassis.apply_detected_band_plan() is deprecated, "
-            "use wireless_chassis_service.apply_detected_band_plan() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from micboard.services.hardware.wireless_chassis_service import (
-            apply_detected_band_plan as _apply,
-        )
-
-        return _apply(chassis=self, api_band_value=api_band_value)
-
-    def has_band_plan_regulatory_coverage(self) -> bool:
-        """Check if this chassis's band plan has regulatory coverage.
-
-        Deprecated: Use chassis_regulatory_service.has_band_plan_regulatory_coverage() instead.
-        """
-        from micboard.services.hardware.chassis_regulatory_service import (
-            has_band_plan_regulatory_coverage as _has_coverage,
-        )
-
-        return _has_coverage(chassis=self)
-
-    @property
-    def needs_band_plan_regulatory_update(self) -> bool:
-        """Flag indicating admin needs to update regulatory information for band plan.
-
-        Deprecated: Use chassis_regulatory_service.get_needs_band_plan_regulatory_update() instead.
-        """
-        from micboard.services.hardware.chassis_regulatory_service import (
-            get_needs_band_plan_regulatory_update as _needs_update,
-        )
-
-        return _needs_update(chassis=self)
-
-    def get_band_plan_regulatory_status(self) -> dict[str, str | bool | None]:
-        """Get comprehensive regulatory status for this chassis's band plan.
-
-        Deprecated: Use chassis_regulatory_service.get_band_plan_regulatory_status() instead.
-        """
-        from micboard.services.hardware.chassis_regulatory_service import (
-            get_band_plan_regulatory_status as _get_status,
-        )
-
-        return _get_status(chassis=self)

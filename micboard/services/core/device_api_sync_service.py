@@ -14,7 +14,8 @@ from .hardware_lifecycle import (
 )
 
 if TYPE_CHECKING:
-    from micboard.models import WirelessChassis, WirelessUnit
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.models.hardware.wireless_unit import WirelessUnit
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +223,7 @@ class DeviceAPISyncService:
         Returns:
             Count of successfully synced chassis
         """
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         serials = list(api_states.keys())
         updated = 0
@@ -243,7 +244,7 @@ class DeviceAPISyncService:
         Returns:
             Count of successfully marked chassis
         """
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         updated = 0
         for chassis in WirelessChassis.objects.filter(pk__in=chassis_ids):

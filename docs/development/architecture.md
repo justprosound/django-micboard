@@ -102,19 +102,19 @@ class ManufacturerPlugin(ABC):
 - Easy extensibility for new manufacturers
 
 ### 2. Polling Service (`poll_devices.py`)
-**Purpose**: Background service that continuously fetches data from multiple manufacturers
+**Purpose**: One-shot command and service that fetch data from multiple manufacturers
 
 **Workflow**:
 1. Iterate through configured manufacturers
 2. Load appropriate plugin for each manufacturer
-3. Poll manufacturer API at regular intervals
+3. Poll each manufacturer API once per invocation
 4. Transform and validate data using plugin
 5. Update Django models with manufacturer relationships
 6. Broadcast updates via WebSocket to connected clients
 7. Cache data for quick API responses
 
 **Configuration**:
-- Per-manufacturer polling intervals
+- Deployment-controlled polling intervals
 - Manufacturer-specific settings
 - WebSocket broadcasting enable/disable
 - Logging and error handling
@@ -225,8 +225,8 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 **Device Polling** (`poll_devices`):
 - Poll manufacturer APIs for device data
 - Update models and broadcast via WebSocket
-- Start real-time subscriptions after polling
-- Support for async execution with Django-Q
+- Start real-time subscriptions after queued polling
+- Support for async execution with native Huey
 
 ### 6. Admin Interface
 
@@ -261,7 +261,7 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 
 ### Normal Operation (Polling)
 ```
-1. poll_devices timer triggers
+1. A deployment scheduler invokes poll_devices --async
 2. For each configured manufacturer:
    a. Load manufacturer plugin
    b. Call plugin.get_devices()
@@ -269,12 +269,12 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
    d. Update Django models with manufacturer relationships
 3. Cache manufacturer-filtered data
 4. Broadcast updates to WebSocket clients
-5. Sleep until next interval
+5. Exit; the deployment scheduler controls the next interval
 ```
 
 ### Real-time Updates (WebSocket + SSE)
 ```
-1. poll_devices triggers manufacturer polling
+1. poll_devices --async enqueues manufacturer polling
 2. After polling completes, start real-time subscriptions:
    a. For Shure: Start WebSocket subscriptions
    b. For Sennheiser: Start SSE subscriptions
@@ -351,7 +351,7 @@ manufacturer = Manufacturer.objects.create(
     code='shure',
     name='Shure Incorporated',
     config={
-        'api_url': 'http://shure-api.example.com',
+        'api_url': 'https://shure-api.example.com',
         'api_key': 'your-api-key',
         'timeout': 30,
         'polling_interval': 10,
@@ -378,7 +378,7 @@ export SENNHEISER_API_KEY="another-secret"
 ```
 Single Machine:
 - Django runserver
-- poll_devices in separate terminal
+- poll_devices for one-shot device refreshes
 - In-memory channel layer
 - SQLite database
 ```
@@ -388,7 +388,8 @@ Single Machine:
 Multi-Process:
 - Nginx (reverse proxy, static files)
 - Daphne (ASGI server for WebSockets)
-- poll_devices (systemd service)
+- Native Huey consumer
+- Deployment scheduler invoking poll_devices --async
 - Redis (channel layer, caching)
 - PostgreSQL (database)
 - Supervisor/systemd (process management)
@@ -398,7 +399,7 @@ Multi-Process:
 
 ### Horizontal Scaling
 - Multiple Daphne workers for WebSocket connections
-- Multiple poll_devices instances (with leader election)
+- Huey workers consuming queued polling tasks
 - Load balancer for HTTP traffic
 - Redis for shared state
 
@@ -515,13 +516,13 @@ Multi-Process:
 Comprehensive integration documentation for supported manufacturers:
 
 ### Shure System API
-- **Guide:** [Shure Integration Guide](./shure-integration.md)
+- **Guide:** [Shure Integration Guide](../shure-integration.md)
 - **Contents:** Authentication, API endpoints, configuration, troubleshooting
 - **API Reference:** https://www.shure.com/en-US/products/software/systemapi
 - **Status:** Production ready with comprehensive test suite
 
 ### Sennheiser SSCv2 API
-- **Guide:** [Sennheiser Integration Guide](./sennheiser-integration.md)
+- **Guide:** [Sennheiser Integration Reference](../integration/integration-references.md#sennheiser-sound-control-protocol)
 - **Contents:** Device configuration, authentication, API operations, security
 - **API Reference:** https://docs.cloud.sennheiser.com/en-us/api-docs/
 - **Status:** Integration ready
@@ -538,8 +539,8 @@ Comprehensive integration documentation for supported manufacturers:
 
 ### Micboard Documentation
 - **Development Guide**: [development.md](../development.md)
-- **Plugin Development**: [plugin-development.md](../archive/plugin-development.md)
-- **Rate Limiting**: [rate-limiting.md](../archive/rate-limiting.md)
+- **Plugin Development**: [Adding New Manufacturers](#adding-new-manufacturers)
+- **Rate Limiting**: [Shared Rate Limiter](../integration/integration-references.md#shared-rate-limiter)
 - **Integration References**: [integration-references.md](../integration/integration-references.md)
 - **Original Micboard**: https://github.com/mikecentral/micboard
 

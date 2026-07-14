@@ -7,7 +7,8 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models import ConfigurationAuditLog, ManufacturerConfiguration
+from micboard.models.audit.configuration_log import ConfigurationAuditLog
+from micboard.models.discovery.configuration import ManufacturerConfiguration
 from micboard.services.manufacturer.config import (
     apply_manufacturer_config,
     validate_manufacturer_config,

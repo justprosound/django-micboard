@@ -25,8 +25,10 @@ The main device list (`/admin/micboard/device/`) shows all discovered devices:
 
 **Automatic Discovery:**
 ```bash
-python manage.py add_shure_devices --cidr 192.168.1.0/24
+uv run python manage.py sync_discovery --manufacturer shure --scan-cidrs
 ```
+
+Configure CIDR ranges in the admin discovery settings before running the sync.
 
 **Manual Addition:**
 1. Click "Add Device" in admin
@@ -57,14 +59,15 @@ Navigate to `/admin/micboard/assignment/` to manage device assignments:
 ### Assignment Features
 
 ```python
-from micboard.services import AssignmentService
+from micboard.services.core.performer_assignment import PerformerAssignmentService
 
-# Create assignment with alerts
-assignment = AssignmentService.create_assignment(
+# Create a performer-to-wireless-unit assignment
+assignment = PerformerAssignmentService.create_assignment(
+    performer_id=performer.id,
+    unit_id=wireless_unit.id,
+    group_id=monitoring_group.id,
     user=user,
-    device=device,
-    alert_enabled=True,
-    alert_battery_threshold=20
+    alert_on_battery_low=True,
 )
 ```
 
@@ -101,10 +104,10 @@ Monitor WebSocket and API connections at `/admin/micboard/realtimeconnection/`:
 
 ```bash
 # Check all connections
-python manage.py check_connections
+uv run python manage.py realtime_status
 
-# Monitor continuously
-python manage.py check_connections --continuous
+# Show detailed connection records
+uv run python manage.py realtime_status --verbose
 ```
 
 ## Manufacturer Management
@@ -165,13 +168,17 @@ To extend the admin interface with custom fields:
 ```python
 # custom_admin.py
 from django.contrib import admin
-from micboard.models import Receiver
+from micboard.admin.receivers import WirelessChassisAdmin
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-@admin.register(Receiver)
-class CustomReceiverAdmin(admin.ModelAdmin):
-    list_display = ['name', 'api_device_id', 'ip', 'is_online']
-    search_fields = ['name', 'api_device_id', 'serial_number']
-    list_filter = ['manufacturer', 'is_online', 'location']
+admin.site.unregister(WirelessChassis)
+
+
+@admin.register(WirelessChassis)
+class CustomWirelessChassisAdmin(WirelessChassisAdmin):
+    list_display = ("name", "api_device_id", "ip", "status")
+    search_fields = ("name", "api_device_id", "serial_number")
+    list_filter = ("manufacturer", "status", "location")
 ```
 
 ## Security and Permissions
@@ -229,27 +236,14 @@ MICBOARD_API_PERMISSIONS = {
 
 ## Advanced Features
 
-### Custom Dashboard Widgets
+### Service Integration
 
-Add custom admin dashboard widgets:
-
-```python
-from django.contrib.admin import site
-from micboard.admin.widgets import BatteryHealthWidget
-
-site.add_action(BatteryHealthWidget())
-```
-
-### API Integration
-
-Use admin data in custom applications:
+Use the public service layer in host-project views and admin extensions:
 
 ```python
-# Get admin data via API
-import requests
+from micboard.services.core.hardware_query import HardwareQueryService
 
-response = requests.get('/api/v1/devices/', auth=('user', 'pass'))
-devices = response.json()
+active_chassis = HardwareQueryService.get_active_chassis()
 ```
 
 ### Export and Reporting

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.db import models
 
 from micboard.models.discovery.configuration import ManufacturerConfiguration
@@ -42,7 +42,7 @@ class ConfigurationAuditLog(models.Model):
 
     # Who and when
     created_by = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

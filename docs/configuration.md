@@ -20,10 +20,9 @@ INSTALLED_APPS = [
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `SHURE_API_BASE_URL` | The base URL of the Shure System API (required) | `"http://localhost:8080"` |
+| `SHURE_API_BASE_URL` | The HTTPS base URL of the Shure System API (required) | `"https://localhost:10000"` |
 | `SHURE_API_SHARED_KEY` | The shared secret API key for Shure System API | `None` |
 | `SHURE_API_TIMEOUT` | Timeout in seconds for API requests | `10` |
-| `SHURE_API_VERIFY_SSL` | Whether to verify SSL certificates | `True` |
 | `SHURE_API_MAX_RETRIES` | Maximum number of retries for failed requests | `3` |
 | `SHURE_API_RETRY_BACKOFF` | Backoff factor for retries (seconds) | `0.5` |
 | `SHURE_API_RETRY_STATUS_CODES` | HTTP status codes to retry | `[429, 500, 502, 503, 504]` |
@@ -41,7 +40,7 @@ Configure the shared secret in your settings:
 
 ```python
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": "http://my-shure-api.local:10000",
+    "SHURE_API_BASE_URL": "https://my-shure-api.local:10000",
     "SHURE_API_SHARED_KEY": "your-shared-secret-here",
 }
 ```
@@ -55,26 +54,20 @@ C:\ProgramData\Shure\SystemAPI\Standalone\Security\sharedkey.txt
 
 ## SSL/TLS Configuration
 
-The Shure System API supports both HTTP and HTTPS connections. When using HTTPS, SSL certificate verification is enabled by default for security.
+Micboard requires HTTPS for authenticated Shure System API connections. Certificate verification
+is mandatory.
 
 ### Self-Signed Certificates
 
-⚠️ **Security Warning**: If your Shure System API uses self-signed certificates, you must disable SSL verification. This reduces security but is necessary for self-signed certificates.
-
-To disable SSL verification:
-
-```python
-MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": "https://my-shure-api.local:10000",
-    "SHURE_API_VERIFY_SSL": False,  # ⚠️ Only use with self-signed certificates
-}
-```
+Install the issuing certificate authority in the host trust store, or set `SSL_CERT_FILE` to a CA
+bundle (or `SSL_CERT_DIR` to a CA directory) before starting Django and Huey. Verification cannot
+be disabled through Micboard settings or client arguments.
 
 ### Production Recommendations
 
 For production deployments:
 - Use valid SSL certificates from a trusted Certificate Authority
-- Keep `SHURE_API_VERIFY_SSL: True` (default)
+- Keep the host CA trust store current
 - Consider using mutual TLS authentication if supported by your Shure System API
 
 Example with HTTPS:
@@ -82,7 +75,6 @@ Example with HTTPS:
 ```python
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": "https://my-shure-api.local:10000",
-    "SHURE_API_VERIFY_SSL": True,  # Recommended for production
     "SHURE_API_TIMEOUT": 15,
     "POLL_INTERVAL": 10,
 }
@@ -94,7 +86,7 @@ Configure device polling frequency and behavior:
 
 ```python
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": "http://my-shure-api.local:10000",
+    "SHURE_API_BASE_URL": "https://my-shure-api.local:10000",
     "POLL_INTERVAL": 10,  # Poll every 10 seconds
     "CACHE_TIMEOUT": 60,  # Cache responses for 60 seconds
     "TRANSMITTER_INACTIVITY_SECONDS": 30,  # Mark transmitters inactive after 30s
@@ -167,22 +159,22 @@ The app provides several management commands for device management and monitorin
 
 ```bash
 # Poll devices from manufacturers
-python manage.py poll_devices
+uv run python manage.py poll_devices
 
 # Sync discovery results
-python manage.py sync_discovery
+uv run python manage.py sync_discovery
 
-# Add Shure devices manually
-python manage.py add_shure_devices
+# Add Shure device IPs manually (comma-separated)
+uv run python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
 
 # Subscribe to real-time status
-python manage.py realtime_status
+uv run python manage.py realtime_status
 
 # WebSocket subscriptions
-python manage.py websocket_subscribe
+uv run python manage.py websocket_subscribe
 
 # Server-Sent Events subscription
-python manage.py sse_subscribe
+uv run python manage.py sse_subscribe
 ```
 
 See [API Reference](api/management.md) for detailed command documentation.

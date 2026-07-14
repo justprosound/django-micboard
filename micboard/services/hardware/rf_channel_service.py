@@ -7,16 +7,25 @@ reporting for RF channels, separated from the model layer per ADR-002.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from micboard.models.rf_coordination import RegulatoryDomain as _RegulatoryDomain
+    from micboard.models.locations.structure import Location
+    from micboard.models.rf_coordination.compliance import RegulatoryDomain
     from micboard.models.rf_coordination.rf_channel import RFChannel
 
 logger = logging.getLogger(__name__)
 
+_VALID_RESOURCE_STATE_TRANSITIONS: dict[str, set[str]] = {
+    "free": {"reserved", "active", "disabled"},
+    "reserved": {"free", "active", "disabled"},
+    "active": {"free", "degraded", "disabled"},
+    "degraded": {"free", "active", "disabled"},
+    "disabled": {"free"},
+}
 
-def get_regulatory_domain_for_location(location) -> _RegulatoryDomain | None:
+
+def get_regulatory_domain_for_location(location: Location | None) -> RegulatoryDomain | None:
     """Get the applicable regulatory domain for a geographic location.
 
     This is the single source of truth for location → regulatory domain
@@ -38,14 +47,14 @@ def get_regulatory_domain_for_location(location) -> _RegulatoryDomain | None:
         return building.regulatory_domain
 
     if building.country:
-        from micboard.models.rf_coordination import RegulatoryDomain
+        from micboard.models.rf_coordination.compliance import RegulatoryDomain
 
         return RegulatoryDomain.objects.filter(country_code=building.country.upper()).first()
 
     return None
 
 
-def get_regulatory_domain(channel: RFChannel):
+def get_regulatory_domain(channel: RFChannel) -> RegulatoryDomain | None:
     """Get the applicable regulatory domain for an RF channel.
 
     Delegates to get_regulatory_domain_for_location for the actual resolution.
@@ -67,7 +76,7 @@ def has_regulatory_coverage(channel: RFChannel) -> bool:
     if domain.min_frequency_mhz <= channel.frequency <= domain.max_frequency_mhz:
         return True
 
-    from micboard.models.rf_coordination import FrequencyBand
+    from micboard.models.rf_coordination.compliance import FrequencyBand
 
     return FrequencyBand.objects.filter(
         regulatory_domain=domain,
@@ -130,12 +139,36 @@ def is_send_channel(channel: RFChannel) -> bool:
     return channel.link_direction in ("send", "bidirectional")
 
 
-def validate_and_save_channel(channel: RFChannel, *args, **kwargs) -> None:
+def validate_and_save_channel(channel: RFChannel, *args: Any, **kwargs: Any) -> None:
     """Validate channel numbering and save.
 
     Allows WMAS-capable chassis to exceed static channel counts.
     """
     from django.core.exceptions import ValidationError
+
+    context: dict[str, Any] = {
+        "old_resource_state": None,
+        "state_changed": False,
+        "update_fields": set(),
+    }
+    if not channel._state.adding:
+        previous = type(channel).objects.only("resource_state", "enabled").get(pk=channel.pk)
+        context["old_resource_state"] = previous.resource_state
+
+        if previous.enabled and not channel.enabled:
+            channel.resource_state = "disabled"
+            context["update_fields"].add("resource_state")
+
+        if previous.resource_state != channel.resource_state:
+            allowed = _VALID_RESOURCE_STATE_TRANSITIONS.get(previous.resource_state, set())
+            if channel.resource_state not in allowed:
+                allowed_label = ", ".join(sorted(allowed)) if allowed else "none (terminal state)"
+                raise ValueError(
+                    "Invalid resource_state transition: "
+                    f"{previous.resource_state} → {channel.resource_state}. "
+                    f"Allowed: {allowed_label}"
+                )
+            context["state_changed"] = True
 
     expected_count = channel.chassis.get_expected_channel_count()
     if not channel.chassis.wmas_capable and channel.channel_number > expected_count:
@@ -146,6 +179,24 @@ def validate_and_save_channel(channel: RFChannel, *args, **kwargs) -> None:
     if channel.channel_number < 1:
         raise ValidationError("Channel number must be at least 1")
 
+    if update_fields := kwargs.get("update_fields"):
+        kwargs["update_fields"] = set(update_fields) | context["update_fields"]
+
     from micboard.models.rf_coordination.rf_channel import RFChannel as _RFChannel
 
     super(_RFChannel, channel).save(*args, **kwargs)
+
+    if context["state_changed"]:
+        from micboard.services.maintenance.audit import AuditService
+
+        AuditService.log_activity(
+            activity_type="rf_channel",
+            operation="resource_state_change",
+            summary=(
+                "RF channel resource state changed: "
+                f"{context['old_resource_state']} → {channel.resource_state}"
+            ),
+            obj=channel,
+            old_values={"resource_state": context["old_resource_state"]},
+            new_values={"resource_state": channel.resource_state},
+        )

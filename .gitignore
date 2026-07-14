@@ -102,3 +102,4 @@ scripts/*_local.py
 # AI Agent session and cache
 .gemini/
 .agents/
+.warden/logs/

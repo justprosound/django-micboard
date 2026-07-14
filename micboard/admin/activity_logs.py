@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models import ActivityLog, ServiceSyncLog
+from micboard.models.audit.activity_log import ActivityLog, ServiceSyncLog
 
 
 @admin.register(ActivityLog)

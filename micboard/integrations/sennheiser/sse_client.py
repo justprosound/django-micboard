@@ -4,19 +4,26 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, Protocol
 
-import requests
-
-from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
+import httpx
 
 logger = logging.getLogger(__name__)
 
 
+class SSEClient(Protocol):
+    base_url: str
+    password: str
+
+    def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any: ...
+
+
 async def connect_and_subscribe(
-    client: SennheiserSystemAPIClient, device_id: str, callback: Callable[[dict[str, Any]], None]
-):
+    client: SSEClient,
+    device_id: str,
+    callback: Callable[[dict[str, Any]], Awaitable[None]],
+) -> None:
     """Establish SSE connection and subscribe to Sennheiser device updates.
 
     Args:
@@ -36,7 +43,7 @@ async def connect_and_subscribe(
             logger.error("No sessionUUID in subscription response")
             return
 
-        logger.info("Started subscription with sessionUUID: %s", session_uuid)
+        logger.info("Started Sennheiser event subscription")
 
         # Subscribe to device resources
         resources = [f"/api/devices/{device_id}"]
@@ -46,27 +53,31 @@ async def connect_and_subscribe(
         sse_url = f"{client.base_url}/api/ssc/state/subscriptions/{session_uuid}"
         headers = {"Authorization": f"Bearer {client.password}"}
 
-        # Use requests with stream=True for SSE
-        with requests.get(
-            sse_url, headers=headers, stream=True, verify=client.verify_ssl
-        ) as response:  # nosec B113 - timeout not applicable for SSE streaming
-            if response.status_code != 200:
-                logger.error("SSE connection failed with status %d", response.status_code)
+        timeout = httpx.Timeout(connect=10, read=None, write=10, pool=10)
+        async with (
+            httpx.AsyncClient(
+                headers=headers,
+                timeout=timeout,
+            ) as stream_client,
+            stream_client.stream("GET", sse_url) as stream_response,
+        ):
+            if stream_response.status_code != 200:
+                logger.error(
+                    "SSE connection failed with status %d",
+                    stream_response.status_code,
+                )
                 return
 
-            for line in response.iter_lines():
-                if line:
-                    line_str = line.decode("utf-8")
-                    if line_str.startswith("data: "):
-                        data_str = line_str[6:]  # Remove 'data: ' prefix
-                        try:
-                            data = json.loads(data_str)
-                            await callback(data)
-                        except json.JSONDecodeError:
-                            logger.debug("Invalid JSON in SSE data: %s", data_str)
-            return
+            async for line in stream_response.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
 
-    except Exception as e:
-        logger.exception("Error in SSE subscription: %s", e)
-    return
-    return
+                data_str = line[6:]
+                try:
+                    data = json.loads(data_str)
+                    await callback(data)
+                except json.JSONDecodeError:
+                    logger.debug("Invalid JSON in SSE event data")
+
+    except Exception:
+        logger.error("Sennheiser event subscription failed")

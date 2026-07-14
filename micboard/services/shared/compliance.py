@@ -92,15 +92,14 @@ class ComplianceService:
             pass
 
         # 1. Check Exclusion Zones
-        exclusion_zones = ExclusionZone.objects.filter(
+        zone = ExclusionZone.objects.filter(
             regulatory_domain=domain,
             is_active=True,
             start_frequency_mhz__lte=frequency_mhz,
             end_frequency_mhz__gte=frequency_mhz,
-        )
+        ).first()
 
-        if exclusion_zones.exists():
-            zone = exclusion_zones.first()
+        if zone:
             return {
                 "is_compliant": False,
                 "status": "excluded",

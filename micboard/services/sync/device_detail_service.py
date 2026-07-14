@@ -3,7 +3,7 @@
 import logging
 
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.services.common.base import get_manufacturer_plugin
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 
 logger = logging.getLogger(__name__)
 

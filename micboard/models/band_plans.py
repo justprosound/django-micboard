@@ -153,6 +153,35 @@ def _extract_freq_range(val: str) -> tuple[float, float] | None:
         return None
 
 
+def _find_plan_by_code(band_plans: dict[str, dict], api_band_value: str) -> str | None:
+    code = _extract_band_code(api_band_value)
+    if not code:
+        return None
+    for registry_key, plan_data in band_plans.items():
+        if registry_key.startswith(code):
+            return plan_data.get("name")
+    return None
+
+
+def _find_plan_by_frequency_range(band_plans: dict[str, dict], api_band_value: str) -> str | None:
+    frequency_range = _extract_freq_range(api_band_value)
+    if not frequency_range:
+        return None
+    api_min, api_max = frequency_range
+    for plan_data in band_plans.values():
+        if plan_data.get("min_mhz") == api_min and plan_data.get("max_mhz") == api_max:
+            return plan_data.get("name")
+    return None
+
+
+def _find_plan_by_partial_key(band_plans: dict[str, dict], api_band_value: str) -> str | None:
+    normalized_value = _normalize_band_key(api_band_value)
+    for registry_key, plan_data in band_plans.items():
+        if normalized_value in registry_key or registry_key in normalized_value:
+            return plan_data.get("name")
+    return None
+
+
 def detect_band_plan_from_api_string(
     *, api_band_value: str | None, manufacturer: str | None = "shure"
 ) -> str | None:
@@ -178,30 +207,11 @@ def detect_band_plan_from_api_string(
     if plan:
         return plan.get("name")
 
-    # Strategy 2: Match by leading code (e.g., "G50")
-    code = _extract_band_code(api_band_value)
-    if code:
-        for registry_key, plan_data in band_plans.items():
-            if registry_key.startswith(code):
-                return plan_data.get("name")
-
-    # Strategy 3: Exact frequency range match
-    freq = _extract_freq_range(api_band_value)
-    if freq:
-        api_min, api_max = freq
-        for plan_data in band_plans.values():
-            plan_min = plan_data.get("min_mhz") or 0
-            plan_max = plan_data.get("max_mhz") or 0
-            if plan_min == api_min and plan_max == api_max:
-                return plan_data.get("name")
-
-    # Strategy 4: Partial string matching as a fallback
-    api_normalized = api_band_value.lower().replace(" ", "_").replace("-", "_")
-    for registry_key, plan_data in band_plans.items():
-        if api_normalized in registry_key or registry_key in api_normalized:
-            return plan_data.get("name")
-
-    return None
+    return (
+        _find_plan_by_code(band_plans, api_band_value)
+        or _find_plan_by_frequency_range(band_plans, api_band_value)
+        or _find_plan_by_partial_key(band_plans, api_band_value)
+    )
 
 
 def get_band_plan_from_model_code(*, manufacturer: str | None, model: str | None) -> str | None:

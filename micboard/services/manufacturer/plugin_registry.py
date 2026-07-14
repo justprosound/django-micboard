@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.services.common.base import ManufacturerPlugin
+    from micboard.services.common.base.plugin import ManufacturerPlugin
 
 logger = logging.getLogger(__name__)
 _plugin_cache: dict[str, type[ManufacturerPlugin]] = {}
@@ -39,7 +39,7 @@ class PluginRegistry:
 
         # Load plugin
         try:
-            from micboard.services.common.base import get_manufacturer_plugin
+            from micboard.services.common.base.plugin import get_manufacturer_plugin
 
             plugin_class = get_manufacturer_plugin(manufacturer_code)
             _plugin_cache[manufacturer_code] = plugin_class
@@ -67,7 +67,7 @@ class PluginRegistry:
 
             # If no manufacturer provided, try to get from database
             if manufacturer is None:
-                from micboard.models import Manufacturer
+                from micboard.models.discovery.manufacturer import Manufacturer
 
                 try:
                     manufacturer = Manufacturer.objects.get(code=manufacturer_code)
@@ -93,7 +93,7 @@ class PluginRegistry:
         Returns:
             List of plugin instances for active manufacturers.
         """
-        from micboard.models import Manufacturer
+        from micboard.models.discovery.manufacturer import Manufacturer
 
         plugins = []
         for manufacturer in Manufacturer.objects.filter(is_active=True):

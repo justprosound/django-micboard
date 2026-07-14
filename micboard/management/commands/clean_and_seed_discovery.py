@@ -3,22 +3,20 @@ import logging
 import re
 
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import models, transaction
 
-from micboard.models import (
-    Building,
-    Charger,
-    ChargerSlot,
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.discovery.queue import DiscoveryQueue
+from micboard.models.discovery.registry import (
     DiscoveredDevice,
     DiscoveryCIDR,
     DiscoveryFQDN,
     DiscoveryJob,
-    DiscoveryQueue,
-    Location,
-    Manufacturer,
-    WirelessChassis,
-    WirelessUnit,
 )
+from micboard.models.hardware.charger import Charger, ChargerSlot
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.locations.structure import Building, Location
 
 logger = logging.getLogger("clean_seed")
 
@@ -48,7 +46,7 @@ class Command(BaseCommand):
 
     def clean_db(self):
         logger.info("Cleaning database of all existing devices and discovery logs...")
-        models_to_clear = [
+        models_to_clear: list[type[models.Model]] = [
             WirelessUnit,
             ChargerSlot,
             Charger,
@@ -60,7 +58,7 @@ class Command(BaseCommand):
             DiscoveryFQDN,
         ]
         for model in models_to_clear:
-            count = model.objects.all().delete()[0]
+            count = model._default_manager.all().delete()[0]
             logger.info("  Deleted %s records from %s", count, model._meta.verbose_name)
 
     def seed_data(self):

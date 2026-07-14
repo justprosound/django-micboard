@@ -3,50 +3,35 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
-from requests.auth import HTTPDigestAuth
+import httpx
 
-from micboard.services.common.base import (
-    APIError,
-    APIRateLimitError,
-    BaseHTTPClient,
-    BasePollingMixin,
-)
+from micboard.services.common.base.client import BaseHTTPClient
 
 from .device_client import ShureDeviceClient
 from .discovery_client import ShureDiscoveryClient
-from .transformers import ShureDataTransformer
-
-
-class ShureAPIError(APIError):
-    """Shure System API error exception."""
-
-    pass
-
-
-class ShureAPIRateLimitError(ShureAPIError, APIRateLimitError):
-    """Shure System API rate limit error exception."""
-
-    pass
-
+from .exceptions import ShureAPIError, ShureAPIRateLimitError
 
 logger = logging.getLogger(__name__)
 
 
-class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
+class ShureSystemAPIClient(BaseHTTPClient):
     """Client for interacting with Shure System API with connection pooling and retry logic."""
 
-    def __init__(self, base_url: str | None = None, verify_ssl: bool | None = None):
+    def __init__(self, base_url: str | None = None):
         """Initialize Shure API client, configure auth, and compose sub-clients."""
-        super().__init__(base_url, verify_ssl)
-        from micboard.apps import MicboardConfig
+        from micboard.services.settings import settings
 
-        config = MicboardConfig.get_config()
+        config = settings.get_config_dict()
+        explicit_ws = config.get("SHURE_API_WEBSOCKET_URL") if config is not None else None
+        if explicit_ws is not None:
+            self._validate_websocket_url(explicit_ws)
+
+        super().__init__(base_url)
 
         # Respect an explicit websocket URL from config; store it on a
         # private attribute because `websocket_url` is a read-only property.
-        explicit_ws = config.get("SHURE_API_WEBSOCKET_URL") if config is not None else None
         # Track whether an explicit websocket URL was provided (even if None)
         if "SHURE_API_WEBSOCKET_URL" in config:
             self._explicit_websocket_set = True
@@ -80,33 +65,33 @@ class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
             raise ValueError("SHURE_API_SHARED_KEY is required for Shure System API authentication")
 
         # Prefer x-api-key per Swagger 'SharedSecret' security scheme
-        self.session.headers.update({"x-api-key": str(self.shared_key)})
+        self.client.headers.update({"x-api-key": str(self.shared_key)})
 
         # Optional: enable HTTP Digest if explicitly configured
         use_digest = bool(config.get("SHURE_API_USE_DIGEST", False))
         if use_digest:
             try:
-                self.session.auth = HTTPDigestAuth(username="shure", password=self.shared_key)
+                self.client.auth = httpx.DigestAuth(
+                    username="shure",
+                    password=str(self.shared_key),
+                )
             except Exception as e:
                 logger.warning(
-                    f"HTTP Digest Auth setup failed: {e}. Continuing with x-api-key header only"
+                    "HTTP Digest Auth setup failed: %s. Continuing with x-api-key header only",
+                    e,
                 )
 
     def _get_health_check_endpoint(self) -> str:
         """Return health check endpoint for Shure API."""
         return "/api/v1/devices"
 
-    def get_exception_class(self) -> type[APIError]:
+    def get_exception_class(self) -> type[ShureAPIError]:
         """Return Shure-specific API exception class."""
         return ShureAPIError
 
-    def get_rate_limit_exception_class(self) -> type[APIRateLimitError]:
+    def get_rate_limit_exception_class(self) -> type[ShureAPIRateLimitError]:
         """Return Shure-specific rate limit exception class."""
         return ShureAPIRateLimitError
-
-    def _get_transformer(self) -> ShureDataTransformer:
-        """Return Shure data transformer."""
-        return ShureDataTransformer()
 
     @property
     def websocket_url(self) -> str | None:
@@ -132,8 +117,21 @@ class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
         This writes to a private attribute which the property prefers when
         present.
         """
+        if value is not None:
+            self._validate_websocket_url(value)
         self._explicit_websocket_url = value
         self._explicit_websocket_set = True
+
+    @staticmethod
+    def _validate_websocket_url(value: str) -> None:
+        """Reject malformed or cleartext manufacturer WebSocket URLs."""
+        try:
+            parsed_url = httpx.URL(value)
+        except (TypeError, httpx.InvalidURL) as exc:
+            raise ValueError("SHURE_API_WEBSOCKET_URL must be an absolute WSS URL") from exc
+
+        if parsed_url.scheme != "wss" or not parsed_url.host:
+            raise ValueError("SHURE_API_WEBSOCKET_URL must be an absolute WSS URL")
 
     async def connect_and_subscribe(self, device_id: str, callback) -> None:
         """Establishes WebSocket connection and subscribes to device updates.
@@ -148,39 +146,3 @@ class ShureSystemAPIClient(BasePollingMixin, BaseHTTPClient):
         from .websocket import connect_and_subscribe
 
         return await connect_and_subscribe(self, device_id, callback)
-
-    # --- Backwards-compatible delegations (tests expect these on top-level client)
-    # Delegate device-related helpers to the device sub-client
-    def get_devices(self):
-        return self.devices.get_devices()
-
-    def get_device(self, device_id: str):
-        return self.devices.get_device(device_id)
-
-    def get_device_channels(self, device_id: str):
-        return self.devices.get_device_channels(device_id)
-
-    def get_transmitter_data(self, device_id: str, channel: int):
-        return self.devices.get_transmitter_data(device_id, channel)
-
-    def get_device_identity(self, device_id: str):
-        return self.devices.get_device_identity(device_id)
-
-    def get_device_network(self, device_id: str):
-        return self.devices.get_device_network(device_id)
-
-    def get_device_status(self, device_id: str):
-        return self.devices.get_device_status(device_id)
-
-    def _enrich_device_data(self, device_id: str, device_data: dict[str, Any]):
-        return self.devices._enrich_device_data(device_id, device_data)
-
-    # Delegate discovery-related helpers to the discovery sub-client
-    def add_discovery_ips(self, ips: list[str]) -> bool:
-        return cast(bool, self.discovery.add_discovery_ips(ips))
-
-    def get_discovery_ips(self) -> list[str]:
-        return cast(list[str], self.discovery.get_discovery_ips())
-
-    def remove_discovery_ips(self, ips: list[str]) -> bool:
-        return cast(bool, self.discovery.remove_discovery_ips(ips))

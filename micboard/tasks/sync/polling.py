@@ -1,14 +1,10 @@
-"""Polling-related background tasks for the micboard app.
-
-NOTE: This module is being refactored to use the new service layer.
-New code should use PollingService directly. These tasks are maintained
-for backwards compatibility with existing celery/django-q configurations.
-"""
+"""Native Huey task entry points and polling update helpers."""
 
 # Polling-related background tasks for the micboard app.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from django.utils import timezone
 
@@ -23,26 +19,21 @@ from micboard.services.monitoring.alerts import (
 logger = logging.getLogger(__name__)
 
 
-def poll_manufacturer_devices(manufacturer_id: int):
-    """Task to poll devices for a specific manufacturer and update models.
-
-    NOTE: This is a legacy task wrapper. New code should use:
-        from micboard.services import PollingService
-        service = PollingService()
-        service.poll_manufacturer(manufacturer)
-    """
+def poll_manufacturer_devices(manufacturer_id: int) -> dict[str, Any] | None:
+    """Poll one manufacturer through the service layer and run follow-up work."""
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
 
         # Use the new PollingService for clean service-based approach
-        from micboard.services import PollingService
+        from micboard.services.sync.polling_service import PollingService
 
         service = PollingService()
         result = service.poll_manufacturer(manufacturer)
 
-        # Run alerts after polling
-        check_hardware_offline_alerts()
-        check_transmitter_alerts()
+        # Run alerts for each unit after polling.
+        for unit in WirelessUnit.objects.filter(manufacturer=manufacturer):
+            check_hardware_offline_alerts(unit)
+            check_transmitter_alerts(unit)
 
         logger.info(
             "Polling task complete for %s: %d devices created/updated, %d transmitters",
@@ -62,6 +53,7 @@ def poll_manufacturer_devices(manufacturer_id: int):
         )
     except Exception as e:
         logger.exception("Error polling devices for manufacturer ID %s: %s", manufacturer_id, e)
+    return None
 
 
 def _update_models_from_api_data(api_data, manufacturer, plugin):
@@ -253,37 +245,38 @@ def _mark_offline_receivers(manufacturer, active_receiver_ids):
     if offline_count > 0:
         logger.warning("Marked %d receivers as offline for %s", offline_count, manufacturer.name)
 
-        # Check for offline alerts on all channels of offline receivers
+        # Check for offline alerts on field units attached to offline chassis.
         offline_receivers_refreshed = WirelessChassis.objects.filter(
             manufacturer=manufacturer, status="offline"
         )
         for receiver in offline_receivers_refreshed:
-            for channel in receiver.rf_channels.all():
-                check_hardware_offline_alerts(channel)
+            for unit in receiver.field_units.all():
+                check_hardware_offline_alerts(unit)
 
 
 def _start_realtime_subscriptions(manufacturer):
     """Start real-time subscriptions for a manufacturer."""
-    from micboard.utils.dependencies import HAS_DJANGO_Q
+    from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
-    if not HAS_DJANGO_Q:
-        logger.debug("Django-Q not installed; skipping real-time subscription background tasks")
+    if not huey_is_configured():
+        logger.debug(
+            "Native Huey is unavailable or unconfigured; "
+            "skipping real-time subscription background tasks"
+        )
         return
 
     try:
-        from django_q.tasks import async_task
-
         if manufacturer.code == "shure":
             # Start WebSocket subscriptions for Shure
             from micboard.tasks.monitoring.websocket import start_shure_websocket_subscriptions
 
-            async_task(start_shure_websocket_subscriptions)
+            enqueue_huey_task(start_shure_websocket_subscriptions)
             logger.info("Started WebSocket subscriptions for %s", manufacturer.name)
         elif manufacturer.code == "sennheiser":
             # Start SSE subscriptions for Sennheiser
             from micboard.tasks.monitoring.sse import start_sse_subscriptions
 
-            async_task(start_sse_subscriptions, manufacturer.id)
+            enqueue_huey_task(start_sse_subscriptions, manufacturer.id)
             logger.info("Started SSE subscriptions for %s", manufacturer.name)
         else:
             logger.debug("No real-time subscriptions available for %s", manufacturer.code)

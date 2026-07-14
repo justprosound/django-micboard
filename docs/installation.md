@@ -1,11 +1,6 @@
 # Installation Guide
 
-> **CRITICAL INSTALLATION & RESEARCH POLICY**
->
-> - All environments and dependencies must **only** be managed via [`uv`](https://github.com/astral-sh/uv). Any reference to `pip`, `venv`, `pipx`, or `poetry` in these docs is legacy, must be migrated, and is forbidden for all development, CI, and automation. If you encounter legacy/forbidden guidance, escalate to project maintainers and see README/CONTRIBUTING.md for escalation.
-> - **Agent/Developer Quick Reference:**
->   - When searching docs, use `context7` tools.
->   - If unsure how to use a library or API, use `gh_grep` for up-to-date GitHub code examples.
+> All environments and dependencies must be managed with [`uv`](https://github.com/astral-sh/uv).
 
 Complete installation instructions for django-micboard.
 
@@ -13,15 +8,15 @@ Complete installation instructions for django-micboard.
 
 ### Minimum Requirements
 
-- **Python**: 3.9 or higher
-- **Django**: 4.2 or higher (5.0+ recommended)
+- **Python**: 3.13 or higher
+- **Django**: 5.1 through 6.0
 - **Database**: PostgreSQL, MySQL, or SQLite
 - **Memory**: 512MB RAM minimum
 - **Storage**: 100MB free space
 
 ### Recommended Setup
 
-- **Python**: 3.11+
+- **Python**: 3.13+
 - **Database**: PostgreSQL 13+
 - **Redis**: 6.0+ (for WebSocket support)
 - **Memory**: 1GB+ RAM
@@ -29,41 +24,30 @@ Complete installation instructions for django-micboard.
 
 ## Installation Methods
 
-### Method 1: UV Install (REQUIRED)
+### Method 1: Add to a Host Project
 
 ```bash
-# Create a new virtual environment with uv
-uv venv .venv
-source .venv/bin/activate
-
-# Install from PyPI
-uv pip install django-micboard
+# Add the package and common integrations to the host project's lockfile
+uv add "django-micboard[standard,tasks]"
 
 # Or for latest development version
-uv pip install git+https://github.com/justprosound/django-micboard.git
+uv add "django-micboard @ git+https://github.com/justprosound/django-micboard.git"
 ```
-
-**Note:** You must use `uv` for all dependency installation. Direct usage of `pip`, `poetry`, or `venv` is strictly forbidden by project policy.
 
 
 ### Method 2: From Source with UV (RECOMMENDED)
 
 ```bash
 # Clone repository
-uv venv .venv
-source .venv/bin/activate
-
 git clone https://github.com/justprosound/django-micboard.git
 cd django-micboard
 
-# Install in development mode
-uv pip install -e "[dev,all]"
+# Install the project and every supported optional integration
+uv sync --locked --all-extras
 
 # To install optional extras only
-uv pip install -e ".[channels,tasks,observability]"
+uv sync --locked --extra realtime --extra tasks --extra standard
 ```
-
-**IMPORTANT:** Never use `pip install`, `poetry`, or standard `venv` for this step. Always use `uv pip install` and `uv venv`.
 
 ### Method 3: Docker Installation
 
@@ -154,7 +138,6 @@ MICBOARD_SHURE_API = {
     'BASE_URL': 'https://your-shure-system.local',
     'USERNAME': 'api_user',
     'PASSWORD': 'secure_password',
-    'VERIFY_SSL': True,
     'TIMEOUT': 30,
 }
 
@@ -247,19 +230,20 @@ Update your `asgi.py`:
 ```python
 # asgi.py
 import os
-import django
+
+from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
-django.setup()
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myproject.settings")
+django_asgi_app = get_asgi_application()
 
 # Import micboard WebSocket routes
-from micboard.routing import websocket_urlpatterns
+from micboard.websockets.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
-    'http': get_asgi_application(),
-    'websocket': URLRouter(websocket_urlpatterns),
+    "http": django_asgi_app,
+    "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
 })
 ```
 
@@ -298,30 +282,30 @@ DATABASES = {
 
 ```bash
 # Apply database migrations
-python manage.py migrate
+uv run python manage.py migrate
 
 # Create superuser
-python manage.py createsuperuser
+uv run python manage.py createsuperuser
 ```
 
 ### Collect Static Files
 
 ```bash
 # Collect static files for production
-python manage.py collectstatic --noinput
+uv run python manage.py collectstatic --noinput
 ```
 
 ### Verify Installation
 
 ```bash
 # Run tests
-python manage.py test micboard
+uv run python manage.py test micboard
 
 # Check system health
-python manage.py check
+uv run python manage.py check
 
 # Test Shure API connection (if configured)
-python manage.py shell -c "
+uv run python manage.py shell -c "
 from micboard.integrations.shure.client import ShureSystemAPIClient
 client = ShureSystemAPIClient()
 print('API Health:', client.check_health())
@@ -334,11 +318,9 @@ print('API Health:', client.check_health())
 
 **Install dependencies:**
 ```bash
-uv pip install gunicorn
+uv add gunicorn
 sudo apt install nginx
 ```
-
-> **NOTE:** Only use `uv pip install` for Python dependencies on all platforms.
 **Gunicorn configuration:**
 ```bash
 # Create systemd service
@@ -354,16 +336,16 @@ After=network.target
 User=www-data
 Group=www-data
 WorkingDirectory=/var/www/micboard
-Environment="PATH=/var/www/micboard/.venv/bin"
 Environment="DJANGO_SETTINGS_MODULE=myproject.settings"
-ExecStart=/var/www/micboard/.venv/bin/gunicorn --workers 3 --bind unix:/var/www/micboard/micboard.sock myproject.asgi:application
+ExecStart=/usr/local/bin/uv run --no-sync gunicorn --workers 3 --bind unix:/var/www/micboard/micboard.sock myproject.asgi:application
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-> **NOTE:** All virtual environments in this project must be created with `uv venv`. Ensure all systemd and PATH/environment references use `.venv` by default, rather than generic `venv` or ambiguous paths.
+> **NOTE:** All virtual environments in this project must be created with `uv`. Set
+> `ExecStart` to the absolute path returned by `command -v uv` on the deployment host.
 
 **Nginx configuration:**
 ```nginx
@@ -388,7 +370,7 @@ server {
     }
 
     # WebSocket support
-    location /ws/ {
+    location = /ws {
         proxy_pass http://unix:/var/www/micboard/micboard.sock;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -414,23 +396,26 @@ sudo systemctl start micboard
 
 **Dockerfile:**
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.13-slim-trixie
+
+COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install uv && uv pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-install-project
 
 COPY . .
+RUN uv sync --locked
 
-RUN python manage.py collectstatic --noinput
+RUN uv run --no-sync python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "myproject.asgi:application"]
+CMD ["uv", "run", "--no-sync", "gunicorn", "--bind", "0.0.0.0:8000", "myproject.asgi:application"]
 ```
 
-> **NOTE:** We permanently require `uv` for installing all Python dependencies in Dockerfiles. Replace any occurrence of `pip install ...` with either `uv pip install ...` or add `pip install uv` first, then use `uv pip install ...`. If/when the official Python images offer uv as a base, switch to those.
+> **NOTE:** The image copies a pinned binary from Astral's official uv image and installs the locked project with `uv sync`.
 
 **Build and run:**
 ```bash
@@ -443,21 +428,21 @@ docker run -p 8000:8000 micboard
 ### Device Discovery
 
 ```bash
-# Add IP ranges for device discovery
-python manage.py add_shure_devices --cidr 192.168.1.0/24
+# Expand CIDRs already configured in the admin discovery settings
+uv run python manage.py sync_discovery --manufacturer shure --scan-cidrs
 
 # Or add specific devices
-python manage.py add_shure_devices --ips 192.168.1.100 192.168.1.101
+uv run --no-sync python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
 ```
 
 ### Start Monitoring
 
 ```bash
 # Initial device poll
-python manage.py poll_devices --manufacturer shure
+uv run --no-sync python manage.py poll_devices --manufacturer shure
 
-# Start continuous monitoring
-python manage.py poll_devices --manufacturer shure --continuous
+# Enqueue one poll through native Huey
+uv run --no-sync python manage.py poll_devices --manufacturer shure --async
 ```
 
 ### Admin Configuration
@@ -473,23 +458,23 @@ python manage.py poll_devices --manufacturer shure --continuous
 
 **Module not found:**
 ```bash
-# Ensure all dependencies are installed (using uv)
-uv pip install -r requirements.txt
+# Ensure the lockfile and environment are synchronized
+uv sync --locked --all-extras
 
 # Check Python path
-python -c "import micboard; print(micboard.__file__)"
+uv run --no-sync python -c "import micboard; print(micboard.__file__)"
 ```
 
-> **Never use `pip install -r requirements.txt`. Always use `uv pip install -r requirements.txt`. If you encounter docs or scripts recommending direct pip usage, escalate it for policy remediation.
+> Use `uv sync` with the project lockfile. Do not install this project from ad hoc requirement files.
 ### Database Errors
 
 **Migration failures:**
 ```bash
 # Reset migrations (development only)
-python manage.py migrate --run-syncdb
+uv run --no-sync python manage.py migrate --run-syncdb
 
 # Check database connectivity
-python manage.py dbshell
+uv run --no-sync python manage.py dbshell
 ```
 
 ### Permission Errors
@@ -509,7 +494,7 @@ sudo chmod -R 755 /var/www/micboard/
 redis-cli ping
 
 # Verify ASGI configuration
-python manage.py check
+uv run python manage.py check
 ```
 
 ## Next Steps

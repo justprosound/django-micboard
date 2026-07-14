@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Any, cast
 
 from django import forms
+from django.apps import apps
 from django.contrib.sites.models import Site
 from django.core.exceptions import ValidationError
 
 from micboard.models.settings import Setting, SettingDefinition
-from micboard.multitenancy.models import Organization
 from micboard.services.shared.settings_registry import SettingsRegistry
 
 
@@ -31,8 +31,8 @@ class BulkSettingConfigForm(forms.Form):
         help_text="Select where these settings should apply",
     )
 
-    organization = forms.ModelChoiceField(
-        queryset=Organization.objects.all(),
+    organization: forms.ModelChoiceField = forms.ModelChoiceField(
+        queryset=None,
         required=False,
         label="Organization",
         help_text="Only shown for organization-scoped settings",
@@ -55,6 +55,20 @@ class BulkSettingConfigForm(forms.Form):
     def __init__(self, *args, **kwargs):
         """Initialize the bulk settings form and dynamically add fields for active definitions."""
         super().__init__(*args, **kwargs)
+
+        if apps.is_installed("micboard.multitenancy"):
+            from micboard.multitenancy.models import Organization
+
+            organization_selector = cast(forms.ModelChoiceField, self.fields["organization"])
+            organization_selector.queryset = Organization._default_manager.all()
+        else:
+            self.fields.pop("organization")
+            scope_selector = cast(forms.ChoiceField, self.fields["scope"])
+            scope_selector.choices = [
+                choice
+                for choice in self.SCOPE_CHOICES
+                if choice[0] != SettingDefinition.SCOPE_ORGANIZATION
+            ]
 
         # Populate manufacturer choices
         from micboard.models.discovery import Manufacturer
@@ -91,7 +105,7 @@ class BulkSettingConfigForm(forms.Form):
                 choices_dict = defn.choices_json or {}
                 choices = [(k, v) for k, v in choices_dict.items()]
                 self.fields[field_name] = forms.ChoiceField(
-                    choices=[("", "---")] + choices,
+                    choices=[("", "---"), *choices],
                     required=False,
                     label=defn.label,
                     help_text=help_text,
@@ -110,6 +124,8 @@ class BulkSettingConfigForm(forms.Form):
 
         # Validate scope-specific fields
         if scope == SettingDefinition.SCOPE_ORGANIZATION:
+            if not apps.is_installed("micboard.multitenancy"):
+                raise ValidationError("Organization scope requires the micboard.multitenancy app")
             if not cleaned_data.get("organization"):
                 raise ValidationError("Organization is required for organization-scoped settings")
         elif scope == SettingDefinition.SCOPE_SITE:
@@ -148,13 +164,13 @@ class BulkSettingConfigForm(forms.Form):
                 serialized = defn.serialize_value(value)
 
                 # Get or create Setting
-                setting, created = Setting.objects.update_or_create(
+                Setting.objects.update_or_create(
                     definition=defn,
-                    organization=organization
+                    organization_id=getattr(organization, "pk", None)
                     if scope == SettingDefinition.SCOPE_ORGANIZATION
                     else None,
                     site=site if scope == SettingDefinition.SCOPE_SITE else None,
-                    manufacturer=manufacturer
+                    manufacturer_id=getattr(manufacturer, "pk", None)
                     if scope == SettingDefinition.SCOPE_MANUFACTURER
                     else None,
                     defaults={"value": serialized},
@@ -280,8 +296,8 @@ class ManufacturerSettingsForm(forms.Form):
                 # Save
                 Setting.objects.update_or_create(
                     definition=defn,
-                    manufacturer=manufacturer,
-                    organization=None,
+                    manufacturer_id=manufacturer.pk,
+                    organization_id=None,
                     site=None,
                     defaults={"value": serialized},
                 )

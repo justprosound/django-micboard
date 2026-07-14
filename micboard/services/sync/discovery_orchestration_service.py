@@ -46,7 +46,7 @@ class DiscoveryOrchestrationService:
             Mapping: {manufacturer_code: {status, count, devices/error}}
         """
         from micboard.models.discovery import Manufacturer
-        from micboard.services.common.base import get_manufacturer_plugin
+        from micboard.services.common.base.plugin import get_manufacturer_plugin
         from micboard.services.sync.hardware_sync_service import HardwareSyncService
 
         results: dict[str, Any] = {}
@@ -73,7 +73,10 @@ class DiscoveryOrchestrationService:
 
                     # Emit broadcast signal (minimal)
                     DiscoveryOrchestrationService._emit_refresh_broadcast(
-                        mfg, devices_data, organization_id
+                        mfg,
+                        devices_data,
+                        organization_id,
+                        campus_id,
                     )
 
                     results[mfg.code] = {
@@ -111,7 +114,7 @@ class DiscoveryOrchestrationService:
             {manufacturer_code: {status, device}} or {error: msg}
         """
         from micboard.models.discovery import Manufacturer
-        from micboard.services.common.base import get_manufacturer_plugin
+        from micboard.services.common.base.plugin import get_manufacturer_plugin
 
         if not device_id:
             return {"status": "error", "error": "device_id required"}
@@ -287,20 +290,17 @@ class DiscoveryOrchestrationService:
         manufacturer: Manufacturer,
         devices_data: list[dict[str, Any]],
         organization_id: int | None = None,
+        campus_id: int | None = None,
     ) -> None:
         """Broadcast refresh update (replacing signals)."""
         try:
-            from channels.layers import get_channel_layer
+            from micboard.services.notification.broadcast_service import BroadcastService
 
-            if get_channel_layer():
-                from micboard.services.notification.broadcast_service import BroadcastService
-
-                BroadcastService.broadcast_device_update(
-                    manufacturer=manufacturer,
-                    data={
-                        "device_count": len(devices_data),
-                        "organization_id": organization_id,
-                    },
-                )
+            BroadcastService.broadcast_device_update(
+                manufacturer=manufacturer,
+                data={"device_count": len(devices_data)},
+                organization_id=organization_id,
+                campus_id=campus_id,
+            )
         except Exception as e:
             logger.debug("Failed to broadcast refresh update: %s", e)

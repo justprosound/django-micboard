@@ -1,3 +1,4 @@
+{% load micboard_tags %}
 <div class="channel-card" id="channel-{{ channel.id }}" role="region" aria-label="Channel {{ channel.channel_number }}" style="background-color:#fff;color:#111;border:2px solid #111;padding:1rem;">
   <div class="card" style="background-color:#fff;color:#111;">
     <div class="card-header" style="background-color:#fff;color:#111;">
@@ -8,7 +9,7 @@
       {% if channel.active_wireless_unit %}
         <div class="unit-info" aria-label="Active wireless unit {{ channel.active_wireless_unit.name }}">
           <p><strong style="color:#111;">{{ channel.active_wireless_unit.name }}</strong></p>
-          <p style="color:#444;">Battery: <span aria-label="Battery level">{{ channel.active_wireless_unit.battery_percentage|default:"--" }}%</span></p>
+          <p style="color:#444;">Battery: <span aria-label="Battery level">{{ channel.active_wireless_unit|wireless_battery_percentage|default:"--" }}%</span></p>
           <p style="color:#444;">RF: <span aria-label="RF signal strength">{{ channel.rf_signal_strength|default:"--" }} dB</span></p>
           <p style="color:#444;">Audio: <span aria-label="Audio level">{{ channel.audio_level|default:"--" }} dB</span></p>
         </div>

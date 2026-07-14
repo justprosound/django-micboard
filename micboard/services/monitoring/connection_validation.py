@@ -33,7 +33,7 @@ class ConnectionValidationService:
         Returns:
             Dict with connection status and details
         """
-        result = {
+        result: dict[str, Any] = {
             "slot_id": slot.id,
             "slot_number": slot.slot_number,
             "charger_id": slot.charger_id,
@@ -103,20 +103,20 @@ class ConnectionValidationService:
             }
 
         now = timezone.now()
-        time_since_heartbeat = (
-            (now - charger.last_seen).total_seconds() if charger.last_seen else float("inf")
+        heartbeat_age_seconds = (
+            int((now - charger.last_seen).total_seconds()) if charger.last_seen else None
         )
-
         charger_connected = (
-            time_since_heartbeat <= ConnectionValidationService.HEARTBEAT_TIMEOUT_SECONDS
+            heartbeat_age_seconds is not None
+            and heartbeat_age_seconds <= ConnectionValidationService.HEARTBEAT_TIMEOUT_SECONDS
         )
 
-        slots_data = []
+        slots_data: list[dict[str, Any]] = []
         occupied_count = 0
         connected_count = 0
         issues_count = 0
 
-        for slot in charger.slots.all().order_by("slot_number"):
+        for slot in charger.slots.all():
             slot_check = ConnectionValidationService.check_slot_connection(slot)
             slots_data.append(slot_check)
 
@@ -146,7 +146,7 @@ class ConnectionValidationService:
             },
             "health": health,
             "connected": charger_connected,
-            "last_heartbeat_seconds_ago": int(time_since_heartbeat),
+            "last_heartbeat_seconds_ago": heartbeat_age_seconds,
             "occupied_slots": occupied_count,
             "connected_slots": connected_count,
             "total_slots": charger.slot_count,
@@ -166,7 +166,7 @@ class ConnectionValidationService:
         """
         chargers = Charger.objects.filter(location_id=location_id, is_active=True)
 
-        health_data = {
+        health_data: dict[str, Any] = {
             "location_id": location_id,
             "charger_count": chargers.count(),
             "overall_health": "unknown",
@@ -176,7 +176,7 @@ class ConnectionValidationService:
         if chargers.count() == 0:
             return health_data
 
-        charger_healths = []
+        charger_healths: list[str] = []
         for charger in chargers:
             check = ConnectionValidationService.check_charger_health(charger.id)
             health_data["chargers"].append(check)
@@ -185,7 +185,7 @@ class ConnectionValidationService:
         # Overall health is worst of all chargers
         health_priority = {"offline": 0, "degraded": 1, "idle": 2, "healthy": 3}
         worst_health = min((health_priority.get(h, -1) for h in charger_healths), default=-1)
-        overall = [k for k, v in health_priority.items() if v == worst_health][0]
+        overall = next(key for key, priority in health_priority.items() if priority == worst_health)
 
         health_data["overall_health"] = overall
 

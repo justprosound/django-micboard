@@ -16,13 +16,13 @@ from .registry import (
 )
 
 __all__ = [
-    "Manufacturer",
-    "ManufacturerConfiguration",
-    "MicboardConfig",
+    "DeviceMovementLog",
+    "DiscoveredDevice",
     "DiscoveryCIDR",
     "DiscoveryFQDN",
     "DiscoveryJob",
-    "DiscoveredDevice",
     "DiscoveryQueue",
-    "DeviceMovementLog",
+    "Manufacturer",
+    "ManufacturerConfiguration",
+    "MicboardConfig",
 ]

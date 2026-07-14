@@ -4,6 +4,7 @@ import os
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import wraps
 
 from django.core.management.base import BaseCommand
 from django.db import connections
@@ -18,6 +19,22 @@ SQL_PREVIEW_LEN = 150
 TUPLE_LEN = 2
 MIN_FIELDSETS_FOR_TABS = 2
 MIN_TABS_FOR_GROUPING = 5
+
+
+def restore_debug_setting(func):
+    """Restore ``settings.DEBUG`` after every command exit path."""
+
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        from django.conf import settings
+
+        original_debug = settings.DEBUG
+        try:
+            return func(*args, **kwargs)
+        finally:
+            settings.DEBUG = original_debug
+
+    return wrapped
 
 
 def run_audit_worker(model, model_admin, options):
@@ -63,8 +80,6 @@ def run_audit_worker(model, model_admin, options):
         stats["models_scanned"] = 1
 
         # Setup user and request
-
-        cmd.admin_user = None  # Ensure it is initialized
 
         if not cmd._setup_audit_environment(create_clients=False):
             return (
@@ -179,6 +194,7 @@ class Command(BaseCommand):
             help="Number of threads for parallel auditing (default: CPUs * 4)",
         )
 
+    @restore_debug_setting
     def handle(self, *args, **options):
         self.errors_only = options.get("errors_only")
         self.quick_mode = options.get("quick")
@@ -401,9 +417,8 @@ class Command(BaseCommand):
         if target_app and app_label != target_app:
             return True
 
-        if target_exclude:
-            if model_name in target_exclude or full_name in target_exclude:
-                return True
+        if target_exclude and (model_name in target_exclude or full_name in target_exclude):
+            return True
 
         if target_models:
             match = model_name in target_models or full_name in target_models
@@ -506,16 +521,18 @@ class Command(BaseCommand):
                 if field.is_relation and (field.many_to_one or field.one_to_one):
                     relational_fields_in_list.append(field_name)
             except Exception:
+                logger.debug("Skipping non-model admin display field %s", field_name)
                 continue
 
-        if relational_fields_in_list:
-            if not list_select_related and not list_prefetch_related:
-                self.log(
-                    f"  [PERF] Relational fields in list_display {relational_fields_in_list} but NO optimization set.",
-                    style=self.style.WARNING,
-                )
+        if relational_fields_in_list and not list_select_related and not list_prefetch_related:
+            self.log(
+                f"  [PERF] Relational fields in list_display {relational_fields_in_list} but NO optimization set.",
+                style=self.style.WARNING,
+            )
 
     def check_runtime_performance(self, model, model_admin, stats):
+        from django.db import connection, reset_queries
+        from django.test.utils import CaptureQueriesContext
         from django.urls import reverse
 
         app_label = model._meta.app_label
@@ -523,9 +540,6 @@ class Command(BaseCommand):
 
         try:
             url = reverse(f"admin:{app_label}_{model_name}_changelist")
-            from django.db import connection, reset_queries
-            from django.test.utils import CaptureQueriesContext
-
             with CaptureQueriesContext(connection) as ctx:
                 resp = self.client.get(url)
 
@@ -583,12 +597,20 @@ class Command(BaseCommand):
             template_name = getattr(model_admin, attr, None)
             if template_name:
                 # SKIP: adminsortable2 templates when Unfold is active (known conflict)
-                if HAS_UNFOLD and HAS_ADMIN_SORTABLE and isinstance(template_name, (list, tuple)):
-                    if any("adminsortable2" in str(t) for t in template_name):
-                        continue
-                if HAS_UNFOLD and HAS_ADMIN_SORTABLE and isinstance(template_name, str):
-                    if "adminsortable2" in template_name:
-                        continue
+                if (
+                    HAS_UNFOLD
+                    and HAS_ADMIN_SORTABLE
+                    and isinstance(template_name, (list, tuple))
+                    and any("adminsortable2" in str(t) for t in template_name)
+                ):
+                    continue
+                if (
+                    HAS_UNFOLD
+                    and HAS_ADMIN_SORTABLE
+                    and isinstance(template_name, str)
+                    and "adminsortable2" in template_name
+                ):
+                    continue
 
                 # Handle lists/tuples of templates (Django supports fallbacks)
                 templates = (
@@ -600,7 +622,8 @@ class Command(BaseCommand):
                         get_template(t)
                         found = True
                         break
-                    except (TemplateDoesNotExist, Exception):
+                    except TemplateDoesNotExist:
+                        logger.debug("Admin template candidate not found: %s", t)
                         continue
 
                 if not found:

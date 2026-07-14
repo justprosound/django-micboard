@@ -1,5 +1,5 @@
 {% extends "admin/change_form.html" %}
-{% load admin_urls static %}
+{% load admin_urls micboard_tags static %}
 
 {% block content %}
 <div id="content-main">
@@ -41,12 +41,12 @@
                                         <span class="label">Name:</span>
                                         <span class="value">{{ channel.transmitter.name|default:"Unnamed" }}</span>
                                     </div>
-                                    <div class="detail-row">
+                                    {% with battery=channel.transmitter|wireless_battery_percentage %}<div class="detail-row">
                                         <span class="label">Battery:</span>
-                                        <span class="value battery-{{ channel.transmitter.battery_percentage|default:0|floatformat:0 }}">
-                                            {{ channel.transmitter.battery_percentage|default:"?" }}%
+                                        <span class="value battery-{{ battery|default:0|floatformat:0 }}">
+                                            {{ battery|default:"?" }}%
                                         </span>
-                                    </div>
+                                    </div>{% endwith %}
                                     <div class="detail-row">
                                         <span class="label">Audio Level:</span>
                                         <span class="value">{{ channel.transmitter.audio_level }} dB</span>

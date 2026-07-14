@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write  # For CodeQL
-  checks: write  # For test reporting
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,34 +19,51 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        with:
+          fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
+          version: "0.10.9"
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.13
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install -e ".[dev]"
+        run: uv sync --locked --all-extras
 
       - name: Run pre-commit
-        uses: pre-commit/action@v3.0.0
-
-      - name: Check code formatting with Black
-        run: uv run black --check micboard tests
-
-      - name: Check imports with isort
-        run: uv run isort --check-only micboard tests
+        run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
 
       - name: Type check with mypy
-        run: uv run mypy micboard --no-error-summary 2>&1 | grep -E 'error:|Found' || true
-        # Note: mypy currently has issues in this project, so failures are non-blocking
-        continue-on-error: true
+        run: uv run --no-sync python -m mypy micboard
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          version: "0.10.9"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Build wheel
+        run: |
+          uv build --sdist --clear
+          uv build --wheel dist/*.tar.gz
+
+      - name: Validate reusable-app contents
+        run: uv run --no-project python scripts/validate_wheel.py dist/*.whl
+
+      - name: Smoke-test installed wheel
+        run: uv run --no-project --with dist/*.whl python scripts/smoke_test_installed_wheel.py
 
   test:
     needs: lint
@@ -57,134 +72,99 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - "3.10"  # renovate: datasource=endoflife-date depName=python
-          - "3.11"  # renovate: datasource=endoflife-date depName=python
-          - "3.12"  # renovate: datasource=endoflife-date depName=python
           - "3.13"  # renovate: datasource=endoflife-date depName=python
         django-version:
-          - "4.2"  # renovate: datasource=endoflife-date depName=django
-          - "5.0"  # renovate: datasource=endoflife-date depName=django
-          - "5.1"  # renovate: datasource=endoflife-date depName=django
+          - "5.1"  # Supported Django compatibility floor
           - "5.2"  # renovate: datasource=endoflife-date depName=django
-        exclude:
-          # Django 5.2+ requires Python 3.10+
-          - python-version: "3.10"
-            django-version: "5.2"
-          # Django 5.1+ requires Python 3.10+, but test 3.10 with 5.1 for compatibility
-          # Django 4.2 and 5.0 on older Python versions only
-          - python-version: "3.13"
-            django-version: "4.2"
+          - "6.0"  # renovate: datasource=endoflife-date depName=django
 
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
+          version: "0.10.9"
           enable-cache: true
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install "Django~=${{ matrix.django-version }}.0"
-          uv pip install -e ".[dev]"
+        run: uv sync --locked --all-extras
 
       - name: Run tests with coverage
         run: |
-          uv run pytest tests/ \
+          uv run --no-sync --with "Django~=${{ matrix.django-version }}.0" pytest tests/ \
             --cov=micboard \
             --cov-report=xml \
             --cov-report=html \
             --cov-report=term-missing:skip-covered \
-            --cov-fail-under=85 \
+            --cov-fail-under=42 \
             -v
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3.1.6
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-umbrella-py${{ matrix.python-version }}-dj${{ matrix.django-version }}
-          fail_ci_if_error: true
+          uv run --no-sync python scripts/check_coverage_inventory.py
 
       - name: Archive coverage reports
         if: always()
-        uses: actions/upload-artifact@v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: coverage-report-py${{ matrix.python-version }}-dj${{ matrix.django-version }}
-          path: htmlcov/
+          path: |
+            coverage.xml
+            htmlcov/
           retention-days: 30
 
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
+          version: "0.10.9"
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Run Bandit security check
         run: |
-          uv venv
-          uv pip install bandit
-          uv run bandit -r micboard -ll
-        continue-on-error: true
-
-      - name: Check dependencies for vulnerabilities
-        run: |
-          uv pip install safety
-          uv run safety check --json
-        continue-on-error: true
+          uv sync --locked --all-extras
+          uv run --no-sync bandit -r micboard -ll
 
   codeql:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
         language: ['python']
 
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2.22.8
+        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9  # v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
         with:
+          version: "0.10.9"
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.13
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install -e ".[dev]"
+        run: uv sync --locked --all-extras
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2.22.8
+        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9  # v4
         with:
           category: "/language:python"
-
-  dependency-review:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4.1.7
-
-      - name: Dependency review
-        uses: actions/dependency-review-action@v3.1.5

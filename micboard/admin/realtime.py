@@ -1,19 +1,17 @@
 """Admin interface for real-time connection monitoring."""
 
-from typing import ClassVar
-
 from django.contrib import admin
 from django.utils import timezone
 from django.utils.html import format_html
 
-from micboard.models import RealTimeConnection
+from micboard.models.realtime.connection import RealTimeConnection
 
 
 @admin.register(RealTimeConnection)
 class RealTimeConnectionAdmin(admin.ModelAdmin):
     """Admin interface for RealTimeConnection model."""
 
-    list_display: ClassVar[list[str]] = [
+    list_display = [
         "chassis",
         "connection_type",
         "status_colored",
@@ -23,7 +21,7 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
         "error_count",
     ]
 
-    list_filter: ClassVar[list[str]] = [
+    list_filter = [
         "connection_type",
         "status",
         "connected_at",
@@ -31,14 +29,14 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
         "error_count",
     ]
 
-    search_fields: ClassVar[list[str]] = [
+    search_fields = [
         "chassis__name",
         "chassis__ip",
         "chassis__manufacturer__name",
         "error_message",
     ]
 
-    readonly_fields: ClassVar[list[str]] = [
+    readonly_fields = [
         "created_at",
         "updated_at",
         "connected_at",
@@ -49,7 +47,7 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
         "time_since_last_message",
     ]
 
-    fieldsets: ClassVar[tuple] = (
+    fieldsets = (
         ("Device Information", {"fields": ("receiver", "connection_type")}),
         (
             "Connection Status",
@@ -60,7 +58,7 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
         ("Timestamps", {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
     )
 
-    actions: ClassVar[list[str]] = [
+    actions = [
         "mark_connected",
         "mark_disconnected",
         "reset_error_count",

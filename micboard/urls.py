@@ -61,7 +61,7 @@ urlpatterns = [
     path("assignments/<int:pk>/delete/", delete_assignment, name="delete_assignment"),
     # Kiosk/Display Wall
     # Admin: Settings diff
-    path("admin/settings-diff/", settings_diff_view, name="settings_diff"),
+    path("settings-diff/", settings_diff_view, name="settings_diff"),
     path("walls/", DisplayWallListView.as_view(), name="display_wall_list"),
     path("walls/<int:pk>/", DisplayWallDetailView.as_view(), name="display_wall_detail"),
     path("walls/<int:wall_id>/sections/", WallSectionListView.as_view(), name="wall_section_list"),

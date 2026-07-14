@@ -8,7 +8,8 @@ Attaches organization context to requests based on:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from contextlib import suppress
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.utils.functional import SimpleLazyObject
@@ -29,12 +30,12 @@ def _get_org_from_session(request: HttpRequest):
         return None
 
     try:
-        org = Organization.objects.get(pk=org_id, is_active=True)
+        org = Organization._default_manager.get(pk=org_id, is_active=True)
         # Verify user still has access
         if request.user.is_authenticated:
             if (
                 request.user.is_superuser
-                or OrganizationMembership.objects.filter(
+                or OrganizationMembership._default_manager.filter(
                     user=request.user, organization=org, is_active=True
                 ).exists()
             ):
@@ -43,10 +44,8 @@ def _get_org_from_session(request: HttpRequest):
             del request.session["current_organization_id"]
     except Organization.DoesNotExist:
         # Organization deleted, clear session
-        try:
+        with suppress(Exception):
             del request.session["current_organization_id"]
-        except Exception:
-            pass
     return None
 
 
@@ -66,7 +65,7 @@ def _get_org_from_membership(request: HttpRequest):
     from micboard.multitenancy.models import OrganizationMembership
 
     membership = (
-        OrganizationMembership.objects.filter(user=request.user, is_active=True)
+        OrganizationMembership._default_manager.filter(user=request.user, is_active=True)
         .select_related("organization")
         .order_by("-created_at")
         .first()
@@ -93,7 +92,7 @@ def _get_org_from_subdomain(request: HttpRequest):
     from micboard.multitenancy.models import Organization
 
     try:
-        return Organization.objects.get(slug=subdomain, is_active=True)
+        return Organization._default_manager.get(slug=subdomain, is_active=True)
     except Organization.DoesNotExist:
         return None
 
@@ -152,9 +151,10 @@ def get_current_campus(request: HttpRequest) -> int | None:
 
     # Check user's membership campus restriction
     if request.user.is_authenticated and hasattr(request, "organization"):
-        org = request.organization
+        tenant_request: Any = request
+        org = tenant_request.organization
         if org:
-            membership = OrganizationMembership.objects.filter(
+            membership = OrganizationMembership._default_manager.filter(
                 user=request.user, organization=org, is_active=True
             ).first()
 
@@ -178,11 +178,12 @@ class TenantMiddleware:
 
     def __call__(self, request: HttpRequest):
         """Populate request with tenant context before dispatching."""
+        tenant_request: Any = request
         # Attach organization as lazy object (evaluated on access)
-        request.organization = SimpleLazyObject(lambda: get_current_organization(request))
+        tenant_request.organization = SimpleLazyObject(lambda: get_current_organization(request))
 
         # Attach campus ID (also lazy)
-        request.campus_id = SimpleLazyObject(lambda: get_current_campus(request))
+        tenant_request.campus_id = SimpleLazyObject(lambda: get_current_campus(request))
 
         response = self.get_response(request)
         return response

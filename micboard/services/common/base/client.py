@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
 import logging
 import time
 from abc import ABC, abstractmethod
+from json import JSONDecodeError
 from typing import Any
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import httpx
+from httpx import RequestError, TimeoutException
 
 from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
 
@@ -28,24 +27,12 @@ class BaseAPIClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def add_discovery_ips(self, ips: list[str]) -> bool:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def remove_discovery_ips(self, ips: list[str]) -> bool:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def get_discovery_ips(self) -> list[str]:
-        raise NotImplementedError()
-
-    @abstractmethod
     def _make_request(self, *args, **kwargs) -> Any:
         raise NotImplementedError()
 
 
 class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
-    def __init__(self, base_url: str | None = None, verify_ssl: bool | None = None):
+    def __init__(self, base_url: str | None = None):
         from micboard.services.settings import settings
 
         config_dict = settings.get_config_dict()
@@ -56,11 +43,8 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
             if base_url is not None
             else config_dict.get(f"{prefix}_BASE_URL", self._get_default_base_url()).rstrip("/")
         )
+        self._validate_base_url(prefix)
         self.timeout = config_dict.get(f"{prefix}_TIMEOUT", 10)
-        self.verify_ssl = (
-            verify_ssl if verify_ssl is not None else config_dict.get(f"{prefix}_VERIFY_SSL", True)
-        )
-
         self.max_retries = config_dict.get(f"{prefix}_MAX_RETRIES", 3)
         self.retry_backoff = config_dict.get(f"{prefix}_RETRY_BACKOFF", 0.5)
         self.retry_status_codes = config_dict.get(
@@ -71,16 +55,9 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         self._consecutive_failures = 0
         self._is_healthy = True
 
-        self.session = requests.Session()
-
-        adapter = HTTPAdapter(
-            max_retries=self._create_retry_strategy(),
-            pool_connections=10,
-            pool_maxsize=20,
-            pool_block=False,
-        )
-        self.session.mount("http://", adapter)
-        self.session.mount("https://", adapter)
+        # httpx verifies certificates by default and honors SSL_CERT_FILE / SSL_CERT_DIR
+        # for private certificate authorities. Certificate verification is mandatory.
+        self.client = httpx.Client(timeout=self.timeout)
 
         failure_threshold = config_dict.get(f"{prefix}_CIRCUIT_FAILURE_THRESHOLD", 5)
         recovery_timeout = config_dict.get(f"{prefix}_CIRCUIT_RECOVERY_TIMEOUT", 60)
@@ -89,6 +66,16 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         )
 
         self._configure_authentication(config_dict)
+
+    def _validate_base_url(self, prefix: str) -> None:
+        """Reject malformed or cleartext URLs before credentials are configured."""
+        try:
+            parsed_url = httpx.URL(self.base_url)
+        except (TypeError, httpx.InvalidURL) as exc:
+            raise ValueError(f"{prefix}_BASE_URL must be an absolute HTTPS URL") from exc
+
+        if parsed_url.scheme != "https" or not parsed_url.host:
+            raise ValueError(f"{prefix}_BASE_URL must be an absolute HTTPS URL")
 
     @abstractmethod
     def _get_config_prefix(self) -> str:
@@ -114,14 +101,15 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
     def get_rate_limit_exception_class(self) -> type[APIRateLimitError]:
         raise NotImplementedError()
 
-    def _create_retry_strategy(self) -> Retry:
-        return Retry(
-            total=self.max_retries,
-            backoff_factor=self.retry_backoff,
-            status_forcelist=self.retry_status_codes,
-            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
-            raise_on_status=False,
-        )
+    def _create_retry_strategy(self) -> dict[str, Any]:
+        """Return retry configuration for manual retry loop."""
+        return {
+            "total": self.max_retries,
+            "backoff_factor": self.retry_backoff,
+            "status_forcelist": self.retry_status_codes,
+            "allowed_methods": ["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
+            "raise_on_status": False,
+        }
 
     def is_healthy(self) -> bool:
         return self._is_healthy and self._consecutive_failures < 5
@@ -129,10 +117,9 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
     def check_health(self) -> dict[str, Any]:
         try:
             endpoint = self._get_health_check_endpoint()
-            response = self.session.get(
+            response = self.client.get(
                 f"{self.base_url}{endpoint}",
                 timeout=5,
-                verify=self.verify_ssl,
             )
 
             is_healthy = response.status_code == 200
@@ -150,7 +137,8 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
                 details=details,
             )
 
-        except requests.RequestException as e:
+        except RequestError as e:
+            logger.exception("Health check request failed for %s", self.base_url)
             return self._standardize_health_response(
                 status="error",
                 error=f"Health check failed: {e}",
@@ -160,7 +148,6 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         url = f"{self.base_url}{endpoint}"
         logger.debug("Making %s request to %s", method, url)
         kwargs.setdefault("timeout", self.timeout)
-        kwargs.setdefault("verify", self.verify_ssl)
 
         if getattr(self, "_circuit", None) and not self._circuit.allow_request():
             logger.error(
@@ -171,58 +158,77 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
             )
             raise CircuitOpenError(f"Circuit open for {self._get_config_prefix()}")
 
-        try:
-            response = self.session.request(method, url, **kwargs)
+        retry_strategy = self._create_retry_strategy()
+        max_retries = retry_strategy["total"]
+        retry_status_codes = set(retry_strategy["status_forcelist"])
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.client.request(method, url, **kwargs)
+            except RequestError as exc:
+                self._record_request_failure()
+                if attempt < max_retries:
+                    logger.exception(
+                        "API request failed; retrying attempt %d/%d: %s %s",
+                        attempt + 1,
+                        max_retries,
+                        method,
+                        url,
+                    )
+                    self._sleep_before_retry(attempt)
+                    continue
+
+                api_exc = self.get_exception_class()
+                if isinstance(exc, TimeoutException):
+                    logger.exception("API timeout error: %s %s", method, url)
+                    raise api_exc(f"Timeout error for {url}", response=None) from exc
+
+                logger.exception("API connection error: %s %s", method, url)
+                raise api_exc(f"Connection error to {url}", response=None) from exc
+            except Exception as exc:
+                self._record_request_failure()
+                logger.exception("API request failed: %s %s", method, url)
+                api_exc = self.get_exception_class()
+                raise api_exc(f"Unknown request error for {url}", response=None) from exc
+
+            if response.status_code in retry_status_codes and attempt < max_retries:
+                self._record_request_failure()
+                self._sleep_before_retry(attempt, response=response)
+                continue
+
+            # Keep response handling outside the request exception block. This preserves
+            # canonical API/rate-limit exceptions raised by `_handle_response`.
             return self._handle_response(response, method, url)
-        except requests.exceptions.HTTPError as e:
-            if getattr(self, "_circuit", None):
-                try:
-                    self._circuit.record_failure()
-                except Exception:
-                    logger.debug("Circuit record_failure failed", exc_info=True)
-            self._handle_http_error(e, method, url)
-        except requests.exceptions.ConnectionError as e:
-            if getattr(self, "_circuit", None):
-                try:
-                    self._circuit.record_failure()
-                except Exception:
-                    logger.debug("Circuit record_failure failed", exc_info=True)
-            self._handle_connection_error(e, method, url)
-        except requests.exceptions.Timeout as e:
-            if getattr(self, "_circuit", None):
-                try:
-                    self._circuit.record_failure()
-                except Exception:
-                    logger.debug("Circuit record_failure failed", exc_info=True)
-            self._handle_timeout_error(e, method, url)
-        except requests.RequestException as e:
-            if getattr(self, "_circuit", None):
-                try:
-                    self._circuit.record_failure()
-                except Exception:
-                    logger.debug("Circuit record_failure failed", exc_info=True)
-            self._handle_request_error(e, method, url)
-        except json.JSONDecodeError as e:
-            if getattr(self, "_circuit", None):
-                try:
-                    self._circuit.record_failure()
-                except Exception:
-                    logger.debug("Circuit record_failure failed", exc_info=True)
-            self._handle_json_error(e, method, url)
-        return None
 
-    def _handle_response(self, response: requests.Response, method: str, url: str) -> Any | None:
-        status = getattr(response, "status_code", None)
+        raise RuntimeError("HTTP retry loop exited without returning or raising")
 
-        if status is not None and status >= 400:
-            if getattr(self, "_circuit", None) and (status >= 500 or status == 429):
-                try:
-                    self._circuit.record_failure()
-                except Exception:
-                    logger.debug("Circuit record_failure failed", exc_info=True)
+    def _record_request_failure(self) -> None:
+        """Record one failed transport attempt."""
+        self._consecutive_failures += 1
+        self._is_healthy = False
+        if getattr(self, "_circuit", None):
+            try:
+                self._circuit.record_failure()
+            except Exception:
+                logger.exception("Circuit record_failure failed")
 
-            self._consecutive_failures += 1
-            self._is_healthy = False if status >= 500 else self._is_healthy
+    def _sleep_before_retry(
+        self,
+        attempt: int,
+        *,
+        response: httpx.Response | None = None,
+    ) -> None:
+        """Wait before a retry, honoring Retry-After when the server provides it."""
+        retry_after = self._extract_retry_after(response) if response is not None else None
+        delay = float(retry_after) if retry_after is not None else self.retry_backoff * (2**attempt)
+        if delay > 0:
+            time.sleep(delay)
+
+    def _handle_response(self, response: httpx.Response, method: str, url: str) -> Any | None:
+        status = response.status_code
+
+        if status >= 400:
+            self._record_request_failure()
 
             if status == 429:
                 retry_after = self._extract_retry_after(response)
@@ -239,7 +245,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
                 method,
                 url,
                 status,
-                getattr(response, "text", "")[:200],
+                response.text[:200],
             )
             api_exc = self.get_exception_class()
             raise api_exc(
@@ -256,100 +262,37 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
             try:
                 self._circuit.record_success()
             except Exception:
-                logger.debug("Circuit record_success failed", exc_info=True)
+                logger.exception("Circuit record_success failed")
 
-        result = response.json() if response.content else None
+        try:
+            result = response.json() if response.content else None
+        except JSONDecodeError as exc:
+            self._record_request_failure()
+            logger.exception("Failed to parse JSON response from %s %s", method, url)
+            api_exc = self.get_exception_class()
+            raise api_exc(
+                message=f"Invalid JSON response from {url}",
+                response=response,
+            ) from exc
         logger.debug("Request successful: %s %s", method, url)
         return result
 
-    def _extract_retry_after(self, response: requests.Response) -> int | None:
+    def _extract_retry_after(self, response: httpx.Response) -> int | None:
         try:
             retry_after_header = response.headers.get("Retry-After")
             if retry_after_header is not None:
                 return int(retry_after_header)
         except ValueError:
+            logger.exception("Invalid Retry-After header in API response")
             return None
         return None
 
-    def _handle_http_error(self, e: requests.exceptions.HTTPError, method: str, url: str) -> None:
-        status_code = getattr(e.response, "status_code", None)
-        if (
-            getattr(self, "_circuit", None)
-            and status_code is not None
-            and (status_code >= 500 or status_code == 429)
-        ):
-            try:
-                self._circuit.record_failure()
-            except Exception:
-                logger.debug("Circuit record_failure failed", exc_info=True)
+    def close(self) -> None:
+        """Close the underlying HTTP connection pool."""
+        self.client.close()
 
-        self._consecutive_failures += 1
-        if status_code == 429:
-            rate_limit_exc = self.get_rate_limit_exception_class()
-            raise rate_limit_exc(
-                message=f"Rate limit exceeded for {method} {url}", response=e.response
-            ) from e
-        logger.error(
-            "API HTTP error: %s %s - Status %d: %s",
-            method,
-            url,
-            status_code,
-            e.response.text[:200],
-        )
-        api_exc = self.get_exception_class()
-        raise api_exc(
-            message=f"HTTP error for {method} {url}",
-            status_code=status_code,
-            response=e.response,
-        ) from e
+    def __enter__(self) -> BaseHTTPClient:
+        return self
 
-    def _handle_connection_error(
-        self, e: requests.exceptions.ConnectionError, method: str, url: str
-    ) -> None:
-        if getattr(self, "_circuit", None):
-            try:
-                self._circuit.record_failure()
-            except Exception:
-                logger.debug("Circuit record_failure failed", exc_info=True)
-
-        self._consecutive_failures += 1
-        self._is_healthy = False
-        logger.error("API connection error: %s %s - %s", method, url, e)
-        api_exc = self.get_exception_class()
-        raise api_exc(f"Connection error to {url}", response=None) from e
-
-    def _handle_timeout_error(self, e: requests.exceptions.Timeout, method: str, url: str) -> None:
-        if getattr(self, "_circuit", None):
-            try:
-                self._circuit.record_failure()
-            except Exception:
-                logger.debug("Circuit record_failure failed", exc_info=True)
-
-        self._consecutive_failures += 1
-        logger.error("API timeout error: %s %s - %s", method, url, e)
-        api_exc = self.get_exception_class()
-        raise api_exc(f"Timeout error for {url}", response=None) from e
-
-    def _handle_request_error(self, e: requests.RequestException, method: str, url: str) -> None:
-        if getattr(self, "_circuit", None):
-            try:
-                self._circuit.record_failure()
-            except Exception:
-                logger.debug("Circuit record_failure failed", exc_info=True)
-
-        self._consecutive_failures += 1
-        logger.error("API request failed: %s %s - %s", method, url, e)
-        api_exc = self.get_exception_class()
-        raise api_exc(f"Unknown request error for {url}", response=None) from e
-
-    def _handle_json_error(self, e: json.JSONDecodeError, method: str, url: str) -> None:
-        if getattr(self, "_circuit", None):
-            try:
-                self._circuit.record_failure()
-            except Exception:
-                logger.debug("Circuit record_failure failed", exc_info=True)
-
-        self._consecutive_failures += 1
-        logger.error("Failed to parse JSON response from %s %s: %s", method, url, e)
-        api_exc = self.get_exception_class()
-        raise api_exc(f"Invalid JSON response from {url}", response=None) from e
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()

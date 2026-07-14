@@ -85,10 +85,11 @@ class HardwareSyncService:
         if not chassis.manufacturer or not chassis.model:
             return
 
-        if hasattr(chassis.manufacturer, "code"):
-            mfg_code = chassis.manufacturer.code.lower()
-        else:
-            mfg_code = "unknown"
+        mfg_code = (
+            chassis.manufacturer.code.lower()
+            if hasattr(chassis.manufacturer, "code")
+            else "unknown"
+        )
 
         old_channels = chassis.max_channels
         old_dante = chassis.dante_capable

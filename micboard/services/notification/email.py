@@ -15,7 +15,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models import Alert
+    from micboard.models.monitoring.alert import Alert
 
 logger = logging.getLogger(__name__)
 

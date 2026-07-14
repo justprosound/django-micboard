@@ -46,10 +46,11 @@ def check_rate_limit(cache_key, max_requests, window_seconds):
 def get_client_ip(request):
     """Extract client IP address from request, considering proxies."""
     x_forwarded_for = request.headers.get("x-forwarded-for")
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(",")[0].strip()
-    else:
-        ip = request.META.get("REMOTE_ADDR", "unknown")
+    ip = (
+        x_forwarded_for.split(",")[0].strip()
+        if x_forwarded_for
+        else request.META.get("REMOTE_ADDR", "unknown")
+    )
     return ip
 
 

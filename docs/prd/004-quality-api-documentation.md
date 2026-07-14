@@ -39,13 +39,13 @@ django-micboard has no automated test safety net — 33 of 38 service files are 
 
 - **Factories:** One `factory_boy` factory per model under `tests/factories/`. Inline model construction is replaced across all existing tests.
 - **Test structure:** Restructure from flat `tests/` to domain-aligned: `tests/services/`, `tests/models/`, `tests/admin/`, `tests/integration/`.
-- **Coverage targets:** `pytest --cov=micboard --cov-fail-under=60` initially, stepping to 80%.
+- **Coverage targets:** `uv run pytest --cov=micboard --cov-fail-under=60` initially, stepping to 80%.
 - **API v1:** DRF ViewSets at `micboard/api/v1/` with GET-only endpoints for chassis, wireless units, RF channels, discovery status, monitoring state, and settings. Read-only avoids write-side validation complexity.
 - **CI gates:** pre-commit hooks (ruff, mypy, bandit). GitHub Actions run lint, type-check, test (with coverage), and security scan on every PR.
 
 ## Success Metrics
 
-- `pytest --cov=micboard --cov-fail-under=60` passes.
+- `uv run pytest --cov=micboard --cov-fail-under=60` passes.
 - Integration tests for discovery pipeline and sync lifecycle.
 - Admin E2E tests for 5 critical flows (chassis CRUD, discovery approval, monitoring).
 - API v1 serves GET endpoints for core models with DRF browsable docs.

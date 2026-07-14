@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.contrib import admin
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models import DisplayWall, WallSection
+from micboard.models.hardware.display_wall import DisplayWall, WallSection
 
 
 class WallSectionInline(admin.TabularInline):

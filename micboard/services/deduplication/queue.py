@@ -8,7 +8,8 @@ from django.db import transaction
 from micboard.services.deduplication.result import DeduplicationResult
 
 if TYPE_CHECKING:
-    from micboard.models import DiscoveryQueue, Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
+    from micboard.models.discovery.queue import DiscoveryQueue
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def queue_for_approval(
     Returns:
         DiscoveryQueue instance
     """
-    from micboard.models import DiscoveryQueue
+    from micboard.models.discovery.queue import DiscoveryQueue
 
     serial_number = api_data.get("serial_number") or api_data.get("serialNumber") or ""
     api_device_id = api_data.get("id") or api_data.get("api_device_id") or ""
@@ -75,7 +76,7 @@ def get_pending_approvals(
     manufacturer: Manufacturer | None = None,
 ) -> list[DiscoveryQueue]:
     """Get list of devices pending approval."""
-    from micboard.models import DiscoveryQueue
+    from micboard.models.discovery.queue import DiscoveryQueue
 
     qs = DiscoveryQueue.objects.filter(status="pending")
 

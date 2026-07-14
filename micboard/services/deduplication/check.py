@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from micboard.models import WirelessChassis
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.deduplication.result import DeduplicationResult
 
 if TYPE_CHECKING:
-    from micboard.models import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +97,11 @@ def check_api_id_conflicts(api_device_id: str, manufacturer: Manufacturer) -> tu
 
     if len(duplicates) > 1:
         logger.warning(
-            "API ID DUPLICATE: %s:%s in %d receivers: %s",
+            "Duplicate manufacturer API identity detected "
+            "(manufacturer=%s, conflict=api_device_id, count=%d, device_ids=%s)",
             manufacturer.code,
-            api_device_id,
             len(duplicates),
-            [f"{name}@{ip}" for _, name, ip, _ in duplicates],
+            [device_id for device_id, *_ in duplicates],
         )
 
     return len(duplicates), list(duplicates)
@@ -119,7 +119,7 @@ def check_cross_vendor_api_id(
     Returns:
         List of tuples (manufacturer_code, count, devices)
     """
-    from micboard.models import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
     results: list[tuple[str, int, list]] = []
     exclude_id = current_manufacturer.id if current_manufacturer else -1
@@ -133,8 +133,8 @@ def check_cross_vendor_api_id(
 
         if cross_vendor_count > 0:
             logger.warning(
-                "CROSS-VENDOR API ID: %s also in %s (%d devices)",
-                api_device_id,
+                "Cross-vendor API identity detected "
+                "(manufacturer=%s, conflict=cross_vendor_api_device_id, count=%d)",
                 mfg.code,
                 cross_vendor_count,
             )
@@ -152,10 +152,10 @@ def _check_by_serial(
 
         if existing.ip != ip:
             logger.info(
-                "Device %s moved: %s -> %s",
-                serial_number,
-                existing.ip,
-                ip,
+                "Device moved after deduplication match "
+                "(device_id=%s, manufacturer=%s, match_type=serial_number)",
+                existing.pk,
+                manufacturer.code,
             )
             return DeduplicationResult(
                 is_moved=True,
@@ -177,8 +177,10 @@ def _check_by_serial(
             )
 
         logger.warning(
-            "Serial %s exists for different mfg: %s vs %s",
-            serial_number,
+            "Device identity conflict during deduplication "
+            "(device_id=%s, existing_manufacturer=%s, new_manufacturer=%s, "
+            "match_type=serial_number, conflict=manufacturer_mismatch)",
+            existing.pk,
             existing.manufacturer.code,
             manufacturer.code,
         )
@@ -208,10 +210,10 @@ def _check_by_mac(
 
         if existing.ip != ip:
             logger.info(
-                "Device with MAC %s moved: %s -> %s",
-                mac_address,
-                existing.ip,
-                ip,
+                "Device moved after deduplication match "
+                "(device_id=%s, manufacturer=%s, match_type=mac_address)",
+                existing.pk,
+                manufacturer.code,
             )
             return DeduplicationResult(
                 is_moved=True,
@@ -249,10 +251,10 @@ def _check_by_ip(
 
         if serial_number and existing.serial_number != serial_number:
             logger.warning(
-                "IP conflict at %s: %s vs %s",
-                ip,
-                existing.serial_number,
-                serial_number,
+                "Device identity conflict during deduplication "
+                "(device_id=%s, manufacturer=%s, match_type=ip, identity=serial_number)",
+                existing.pk,
+                manufacturer.code,
             )
             return DeduplicationResult(
                 is_conflict=True,
@@ -269,10 +271,10 @@ def _check_by_ip(
 
         if mac_address and existing.mac_address != mac_address:
             logger.warning(
-                "IP conflict at %s: MAC %s vs %s",
-                ip,
-                existing.mac_address,
-                mac_address,
+                "Device identity conflict during deduplication "
+                "(device_id=%s, manufacturer=%s, match_type=ip, identity=mac_address)",
+                existing.pk,
+                manufacturer.code,
             )
             return DeduplicationResult(
                 is_conflict=True,
@@ -310,10 +312,10 @@ def _check_by_api_id(
 
         if existing.ip != ip:
             logger.info(
-                "Device %s moved: %s -> %s",
-                api_device_id,
-                existing.ip,
-                ip,
+                "Device moved after deduplication match "
+                "(device_id=%s, manufacturer=%s, match_type=api_device_id)",
+                existing.pk,
+                manufacturer.code,
             )
             return DeduplicationResult(
                 is_moved=True,

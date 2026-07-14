@@ -18,7 +18,7 @@ Monitoring groups/location scoping | No | Yes | Keep; use in filters/services.
 Regulatory/rf bands | No | Yes (rf_coordination models) | Keep and surface via rf service.
 Charger dashboard / kiosk | Basic TV view | Yes (charger dashboard, display wall) | Convert updates to HTMX polling partials.
 Audit/activity logging | No | Yes | Add archiving + verbosity modes.
-Background tasks | No | Optional (django-q2) | Keep optional; invoke services.
+Background tasks | No | Optional (native Huey) | Keep optional; invoke services.
 DRF API | No | No (and must stay absent) | Ensure no DRF deps.
 
 ## New Domain Model Definitions (field-level; no code)
@@ -274,7 +274,7 @@ Notes:
    - Implement Django views for device lists/detail, assignments CRUD, alerts actions, connection health, and charger dashboard. Return HTML; support HTMX via partial templates and `HX-Request` checks; return JSON only where strictly useful.
 5. Update `INSTALLED_APPS` and dependencies:
    - Remove DRF from installed apps and `pyproject.toml` dependencies.
-   - Keep optional `channels`, `django-q`, `websockets`, `prometheus-client` off by default; code degrades gracefully if not installed.
+   - Keep optional `channels`, native `huey`, and `websockets` off by default; code degrades gracefully if not installed.
 6. Remove signals:
    - Delete device/user signal modules; remove remaining `signals/__init__.py` if no references.
    - Add simple middleware (`UserActivityMiddleware`) to update `UserProfile.last_login` for authenticated users once per session window.

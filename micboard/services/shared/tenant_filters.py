@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
-from typing import TypeVar
-
 from django.db.models import Model, QuerySet
 
 from micboard.services.settings import settings
 
-_ModelT = TypeVar("_ModelT", bound=Model)
 
-
-def apply_tenant_filters(
-    qs: QuerySet[_ModelT],
+def apply_tenant_filters[ModelT: Model](
+    qs: QuerySet[ModelT],
     *,
     organization_id: int | None = None,
     campus_id: int | None = None,
     site_id: int | None = None,
     building_path: str = "location__building",
-) -> QuerySet[_ModelT]:
+) -> QuerySet[ModelT]:
     """Apply tenant/site filters to a queryset using configured mode.
 
     Args:

@@ -18,7 +18,7 @@ from micboard.services.manufacturer.sync import ManufacturerSyncService
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models import Location
+    from micboard.models.locations.structure import Location
 
 
 class HardwareSyncService:
@@ -80,7 +80,7 @@ class HardwareSyncService:
         Returns:
             QuerySet of offline chassis.
         """
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         cutoff_time = timezone.now() - timedelta(seconds=timeout_seconds)
 

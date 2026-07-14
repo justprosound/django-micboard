@@ -7,11 +7,10 @@ management command to make it reusable and easier to test.
 from __future__ import annotations
 
 import logging
-from typing import Tuple
 
 from django.db import transaction
 
-from micboard.models import WirelessChassis
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,7 @@ class ImportService:
         server_id: str | None = None,
         dry_run: bool = False,
         full: bool = False,
-    ) -> Tuple[bool, bool]:
+    ) -> tuple[bool, bool]:
         """Import or update a single device.
 
         Returns a tuple (created: bool, updated: bool).
@@ -36,9 +35,10 @@ class ImportService:
         model = device.get("model") or device.get("deviceType")
         ip = device.get("ip") or device.get("ipAddress")
         mac = device.get("mac") or device.get("macAddress")
+        api_device_id = device.get("id") or device.get("deviceId")
         device_type = device.get("type", "UNKNOWN")
 
-        if not serial:
+        if not serial or not ip or api_device_id is None:
             return False, False
 
         if dry_run:
@@ -55,18 +55,18 @@ class ImportService:
             role = "transceiver"
 
         with transaction.atomic():
-            chassis, created = WirelessChassis.objects.update_or_create(
-                serial_number=serial,
+            _chassis, created = WirelessChassis.objects.update_or_create(
+                serial_number=str(serial),
                 defaults={
                     "manufacturer": manufacturer,
                     "model": model or "Unknown",
                     "role": role,
-                    "ip": ip,
+                    "ip": str(ip),
                     "mac_address": mac,
                     "location": location,
                     "status": (device.get("state") or "unknown").lower(),
                     "is_online": device.get("state") == "ONLINE",
-                    "api_device_id": device.get("id") or device.get("deviceId"),
+                    "api_device_id": str(api_device_id),
                 },
             )
 
@@ -88,7 +88,7 @@ class ImportService:
             Tuple of (total_discovered, total_imported, total_updated)
         """
         from micboard.integrations.shure.client import ShureSystemAPIClient
-        from micboard.models import Location
+        from micboard.models.locations.structure import Location
 
         total_discovered = 0
         total_imported = 0
@@ -96,10 +96,7 @@ class ImportService:
 
         for server_id, server_config in api_servers.items():
             try:
-                client = ShureSystemAPIClient(
-                    base_url=server_config["base_url"],
-                    verify_ssl=server_config.get("verify_ssl", False),
-                )
+                client = ShureSystemAPIClient(base_url=server_config["base_url"])
 
                 devices = client.devices.get_devices()
                 total_discovered += len(devices) if devices else 0

@@ -26,8 +26,9 @@ class Command(BaseCommand):
         mode = options["mode"]
         duration = options.get("duration")
 
-        result = LoggingModeService.set_mode(mode, duration_minutes=duration)
+        ttl_seconds = duration * 60 if duration is not None else None
+        LoggingModeService.set_mode(mode, ttl_seconds=ttl_seconds)
 
-        self.stdout.write(self.style.SUCCESS(f"Logging mode set to: {result['mode']}"))
-        if result.get("expiry"):
-            self.stdout.write(f"  Expiry: {result['expiry']}")
+        self.stdout.write(self.style.SUCCESS(f"Logging mode set to: {mode}"))
+        if duration is not None:
+            self.stdout.write(f"  Duration: {duration} minute(s)")

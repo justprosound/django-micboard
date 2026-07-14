@@ -17,15 +17,12 @@ class IPConfigManager:
         """Initialize IP configuration manager and connect to Shure API client."""
         base_url = settings.get("SHURE_API_BASE_URL", "https://localhost:10000")
         shared_key = settings.get("SHURE_API_SHARED_KEY")
-        verify_ssl = settings.get("SHURE_API_VERIFY_SSL", False)
-        if isinstance(verify_ssl, str):
-            verify_ssl = verify_ssl.lower() in ("true", "1", "yes")
         if not shared_key:
             raise ValueError(
                 "SHURE_API_SHARED_KEY not configured. Set MICBOARD_SHURE_API_SHARED_KEY "
                 "environment variable or update MICBOARD_CONFIG in Django settings."
             )
-        self.client = ShureSystemAPIClient(base_url=base_url, verify_ssl=verify_ssl)
+        self.client = ShureSystemAPIClient(base_url=base_url)
         logger.info("Connected to Shure System API: %s", base_url)
 
     def validate_ip(self, ip: str) -> bool:
@@ -113,7 +110,7 @@ class IPConfigManager:
         logger.info("=" * 70)
         logger.info("Total discovery IPs: %s", len(current))
         if current:
-            subnets = {}
+            subnets: dict[str, int] = {}
             for ip in current:
                 subnet = ".".join(ip.split(".")[:3])
                 subnets[subnet] = subnets.get(subnet, 0) + 1

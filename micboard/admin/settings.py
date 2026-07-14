@@ -30,12 +30,13 @@ class SettingDefinitionForm(ModelForm):
         ]
 
     def clean(self) -> dict[str, Any]:
-        cleaned_data = super().clean()
+        cleaned_data = super().clean() or {}
 
         # Validate choices for TYPE_CHOICES
-        if cleaned_data.get("setting_type") == SettingDefinition.TYPE_CHOICES:
-            if not cleaned_data.get("choices_json"):
-                self.add_error("setting_type", "Choices JSON is required for dropdown type")
+        if cleaned_data.get(
+            "setting_type"
+        ) == SettingDefinition.TYPE_CHOICES and not cleaned_data.get("choices_json"):
+            self.add_error("setting_type", "Choices JSON is required for dropdown type")
 
         return cleaned_data
 
@@ -154,7 +155,7 @@ class SettingValueForm(ModelForm):
                 self.fields["value"].help_text = f"Choose from: {choices}"
 
     def clean(self) -> dict[str, Any]:
-        cleaned_data = super().clean()
+        cleaned_data = super().clean() or {}
         definition = cleaned_data.get("definition")
         value = cleaned_data.get("value")
 
@@ -252,7 +253,7 @@ class SettingAdmin(MicboardModelAdmin):
         """Display the parsed value."""
         try:
             parsed = obj.get_parsed_value()
-            return f"<code>{repr(parsed)}</code>"
+            return f"<code>{parsed!r}</code>"
         except Exception as e:
             return format_html("<em style='color: red;'>Parse Error: {}</em>", e)
 

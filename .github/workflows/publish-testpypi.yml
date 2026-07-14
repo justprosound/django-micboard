@@ -3,7 +3,6 @@ name: Publish to TestPyPI
 
 on:
   push:
-    branches: [main]
     tags:
       - 'test-*'
   workflow_dispatch:
@@ -18,32 +17,34 @@ jobs:
       name: testpypi
       url: https://test.pypi.org/p/django-micboard
     permissions:
+      contents: read
       id-token: write  # Required for trusted publishing
 
     steps:
-    - uses: actions/checkout@v4.1.7
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v2
+      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
       with:
+        version: "0.10.9"
         enable-cache: true
 
     - name: Set up Python
-      run: uv python install 3.11
+      run: uv python install 3.13
 
-    - name: Install build tools
-      run: |
-        uv venv
-        uv pip install build twine
+    - name: Install dependencies
+      run: uv sync --locked --all-extras
 
     - name: Build package
-      run: uv run python -m build
+      run: |
+        uv build --sdist --clear
+        uv build --wheel dist/*.tar.gz
 
     - name: Check package
-      run: uv run twine check dist/*
+      run: uvx --from twine twine check dist/*
 
     - name: Publish to TestPyPI using trusted publishing
-      uses: pypa/gh-action-pypi-publish@release/v1.8.12
+      uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b  # release/v1
       with:
         repository-url: https://test.pypi.org/legacy/
         print-hash: true

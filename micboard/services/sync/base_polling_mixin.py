@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from django.utils import timezone
 
 if TYPE_CHECKING:  # pragma: no cover
-    from micboard.models import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class PollingMixin:
     def poll_all_manufacturers_with_handler(
         self,
         *,
-        on_manufacturer_polled: Callable[[Any, Manufacturer], dict[str, Any]] | None = None,
+        on_manufacturer_polled: Callable[[Manufacturer], dict[str, Any]] | None = None,
         on_error: Callable[[Manufacturer, Exception], None] | None = None,
         on_complete: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
@@ -47,7 +47,7 @@ class PollingMixin:
         Returns:
             Aggregated polling results
         """
-        from micboard.models import Manufacturer
+        from micboard.models.discovery.manufacturer import Manufacturer
 
         manufacturers = Manufacturer.objects.filter(is_active=True)
 
@@ -68,7 +68,7 @@ class PollingMixin:
             try:
                 # Invoke handler to perform actual polling
                 if on_manufacturer_polled:
-                    mfr_result = on_manufacturer_polled(self, manufacturer)
+                    mfr_result = on_manufacturer_polled(manufacturer)
                 else:
                     # Default: call poll_manufacturer if it exists
                     if not hasattr(self, "poll_manufacturer"):
@@ -277,53 +277,6 @@ class PollSequenceExecutor:
             "total_steps": len(self.steps),
             "completed_steps": len(self.results),
         }
-
-
-def create_polling_error_handler(
-    *,
-    log_to_db: bool = False,
-    alert_on_error: bool = False,
-) -> Callable[[Manufacturer, Exception], None]:
-    """Create an error handler for polling failures.
-
-    Args:
-        log_to_db: If True, log errors to database
-        alert_on_error: If True, create alerts on error
-
-    Returns:
-        Error handler function
-    """
-
-    def handler(manufacturer: Manufacturer, error: Exception) -> None:
-        """Handle polling error."""
-        logger.error(
-            "Polling error for %s (%s): %s",
-            manufacturer.name,
-            manufacturer.code,
-            error,
-        )
-
-        if log_to_db:
-            try:
-                from micboard.models import PollingError
-
-                PollingError.objects.create(
-                    manufacturer=manufacturer,
-                    error_type=type(error).__name__,
-                    error_message=str(error),
-                )
-            except Exception:
-                logger.exception("Failed to log polling error to database")
-
-        if alert_on_error:
-            try:
-                from micboard.services.monitoring.alerts import create_polling_alert
-
-                create_polling_alert(manufacturer, str(error))
-            except Exception:
-                logger.exception("Failed to create alert for polling error")
-
-    return handler
 
 
 def create_polling_complete_callback(

@@ -6,7 +6,8 @@ The app keeps a reusable Django package layout with a configuration registry, ma
 
 ## Components
 
-- Configuration access: `micboard/conf.py` for feature flags + `micboard/services/settings_registry.py` for scoped settings.
+- Configuration access: `micboard/services/settings` for feature flags, host configuration, app
+  defaults, and scoped settings.
 - Manufacturer registry: `micboard/services/plugin_registry.py` and `micboard/services/manufacturer_config_registry.py`.
 - Tenant scoping: tenant-aware QuerySet/Manager helpers and middleware that attaches request context.
 - Admin overrides view: admin-facing UI showing differences between scoped settings and global defaults.
@@ -45,3 +46,7 @@ The app keeps a reusable Django package layout with a configuration registry, ma
 - Unit tests for settings resolution order and required behavior.
 - Tests for tenant-scoped query helpers used by services.
 - Tests for admin settings diff view rendering and access controls.
+
+## Upcoming Resources
+
+- [Hummingbird Project](https://hummingbird-project.io/) - Core design inspiration for scalable, observable Django applications

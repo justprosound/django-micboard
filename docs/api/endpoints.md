@@ -1,99 +1,42 @@
-# REST API Endpoints
+# HTTP Endpoints
 
-This section documents the REST API endpoints provided by Django Micboard.
+django-micboard does not currently ship a general-purpose REST API. The reusable app exposes
+HTML/HTMX views, authenticated kiosk-support JSON responses, and the service layer documented
+below. A stable REST API remains tracked in
+[GitHub issue #74](https://github.com/justprosound/django-micboard/issues/74).
 
-## Data Endpoints
+## Host URL Configuration
 
-### GET /api/data.json
+Mount the app's URL configuration in the host project:
 
-Returns complete device data including receivers, channels, transmitters, and configuration.
+```python
+from django.urls import include, path
 
-**Response:**
-```json
-{
-  "receivers": [
-    {
-      "id": 1,
-      "name": "ULX-D Receiver 1",
-      "device_type": "ulxd",
-      "ip": "192.168.1.100",
-      "channels": [
-        {
-          "channel": 1,
-          "transmitter": {
-            "slot": 1,
-            "battery": 75,
-            "audio_level": -10,
-            "rf_level": -50,
-            "frequency": "540.000",
-            "name": "Wireless Mic 1"
-          }
-        }
-      ]
-    }
-  ],
-  "discovered": [...],
-  "config": {...},
-  "groups": [...]
-}
+urlpatterns = [
+    path("micboard/", include("micboard.urls")),
+]
 ```
 
-**Rate Limit:** 120 requests per 60 seconds (2 req/sec)
+The concrete routes and names are defined in `micboard.urls`. Use Django's `reverse()` rather
+than hard-coding paths.
 
-### GET /api/receivers/
+## Service-Layer Queries
 
-List all receivers with summary information.
+Host-project views can build their own API using the typed service layer:
 
-### GET /api/receivers/{id}/
+```python
+from micboard.services.core.hardware_query import HardwareQueryService
 
-Get detailed information for a specific receiver.
-
-## Health & Status
-
-### GET /api/health/
-
-Check API and Shure System API health status.
-
-## Device Discovery
-
-### POST /api/discover/
-
-Discover new Shure devices on the network.
-
-### POST /api/refresh/
-
-Force refresh device data from Shure System API.
-
-## Configuration
-
-### GET /api/config/
-
-Get current configuration settings.
-
-### POST /api/config/
-
-Update configuration settings.
-
-## Groups
-
-### PUT /api/groups/{id}/
-
-Update group configuration.
-
-## Error Responses
-
-All endpoints return standard HTTP status codes and JSON error responses:
-
-```json
-{
-  "error": "Error message",
-  "status": 400,
-  "details": "Optional detailed information"
-}
+chassis = HardwareQueryService.get_active_chassis(
+    organization_id=organization_id,
+    campus_id=campus_id,
+)
+payload = list(chassis.values("id", "name", "status"))
 ```
 
-## Rate Limiting
+Apply authentication, authorization, pagination, throttling, and serialization in the host
+project. Do not expose an unscoped queryset directly.
 
-All API endpoints have built-in rate limiting (120 requests per 60 seconds by default).
+## WebSocket API
 
-See the [Rate Limiting Guide](../rate-limiting.md) for details.
+For authenticated real-time events, see the [WebSocket API](websocket.md).

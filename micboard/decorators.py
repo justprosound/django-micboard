@@ -2,7 +2,11 @@ from functools import wraps
 
 from django.http import JsonResponse
 
-from micboard.services.shared import rate_limiting
+from micboard.services.shared.rate_limiting import (
+    check_rate_limit,
+    get_client_ip,
+    get_user_cache_key,
+)
 
 
 def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=None):
@@ -14,12 +18,10 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
             if key_func:
                 cache_key = key_func(request)
             else:
-                ip = rate_limiting.get_client_ip(request)
+                ip = get_client_ip(request)
                 cache_key = f"rate_limit_{view_func.__name__}_{ip}"
 
-            allowed, retry_after, _ = rate_limiting.check_rate_limit(
-                cache_key, max_requests, window_seconds
-            )
+            allowed, retry_after, _ = check_rate_limit(cache_key, max_requests, window_seconds)
             if not allowed:
                 return JsonResponse(
                     {
@@ -37,14 +39,10 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
     return decorator
 
 
-# Alias for external usage (no local body required)
-get_client_ip = rate_limiting.get_client_ip
-
-
 def rate_limit_user(max_requests: int = 100, window_seconds: int = 60):
     """Rate limit decorator for authenticated users (delegates to service for cache key)."""
 
     def key_func(request):
-        return rate_limiting.get_user_cache_key(request, view_func_name="user_view")
+        return get_user_cache_key(request, view_func_name="user_view")
 
     return rate_limit_view(max_requests, window_seconds, key_func)

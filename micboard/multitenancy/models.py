@@ -107,9 +107,11 @@ class Organization(models.Model):
 
     def get_device_count(self) -> int:
         """Get total number of devices for this organization."""
-        from micboard.models import WirelessChassis
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-        return WirelessChassis.objects.filter(location__building__site=self.site).count()
+        return WirelessChassis.objects.filter(
+            location__building__organization_id=self.pk,
+        ).count()
 
     def is_at_device_limit(self) -> bool:
         """Check if organization has reached device limit."""
@@ -241,7 +243,7 @@ class OrganizationMembership(models.Model):
     def __str__(self) -> str:
         """Return a readable membership summary string."""
         campus_str = f" ({self.campus})" if self.campus else ""
-        role_display = self.get_role_display()
+        role_display = dict(self.ROLE_CHOICES).get(self.role, self.role)
         return f"{self.user.username} - {self.organization.name}{campus_str} [{role_display}]"
 
     def can_manage_users(self) -> bool:

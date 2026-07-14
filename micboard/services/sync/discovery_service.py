@@ -4,32 +4,23 @@ import logging
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.common.base import BaseAPIClient, get_manufacturer_plugin
+from micboard.services.common.base.plugin import ManufacturerPlugin
 from micboard.services.sync.discovery_utils import (
     collect_base_candidates,
     dedupe_preserve_order,
+    get_manufacturer_plugin_instance,
     is_ip_managed_by_another_manufacturer,
     prepare_scanning_data,
-)
-from micboard.services.sync.discovery_utils import (
-    get_manufacturer_client as utility_get_manufacturer_client,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def get_manufacturer_client(manufacturer: Manufacturer) -> BaseAPIClient:
-    """Get the API client for a given manufacturer."""
-    plugin_class = get_manufacturer_plugin(manufacturer.code)
-    plugin = plugin_class(manufacturer)
-    return plugin.get_client()
-
-
 class DiscoveryService:
     """Manages network discovery across all configured manufacturers."""
 
-    def _get_manufacturer_client(self, manufacturer: Manufacturer) -> BaseAPIClient:
-        return utility_get_manufacturer_client(manufacturer)
+    def _get_manufacturer_plugin(self, manufacturer: Manufacturer) -> ManufacturerPlugin:
+        return get_manufacturer_plugin_instance(manufacturer)
 
     def _is_ip_managed_by_another_manufacturer(
         self, ip_address: str, current_manufacturer: Manufacturer
@@ -49,9 +40,11 @@ class DiscoveryService:
                 ip_address,
                 manufacturer.code,
             )
-        client = self._get_manufacturer_client(manufacturer)
+            return False
+
+        plugin = self._get_manufacturer_plugin(manufacturer)
         try:
-            success = client.add_discovery_ips([ip_address])
+            success = plugin.add_discovery_ips([ip_address])
             if success:
                 logger.info(
                     "Successfully added IP %s to %s discovery list (source: %s).",
@@ -68,7 +61,7 @@ class DiscoveryService:
                 )
             return success
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "Error adding IP %s to %s discovery list (source: %s): %s",
                 ip_address,
                 manufacturer.code,
@@ -83,9 +76,9 @@ class DiscoveryService:
         manufacturer: Manufacturer,
     ) -> bool:
         """Removes an IP address from a manufacturer's discovery list."""
-        client = self._get_manufacturer_client(manufacturer)
+        plugin = self._get_manufacturer_plugin(manufacturer)
         try:
-            success = client.remove_discovery_ips([ip_address])
+            success = plugin.remove_discovery_ips([ip_address])
             if success:
                 logger.info(
                     "Successfully removed IP %s from %s discovery list.",
@@ -121,18 +114,16 @@ class DiscoveryService:
     def trigger_manufacturer_discovery(
         manufacturer_pk: int, scan_cidrs: bool = True, scan_fqdns: bool = True
     ) -> None:
-        from micboard.utils.dependencies import HAS_DJANGO_Q
+        from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
         if not manufacturer_pk:
             return
 
-        if HAS_DJANGO_Q:
+        if huey_is_configured():
             try:
-                from django_q.tasks import async_task
-
                 from micboard.tasks.sync.discovery import run_manufacturer_discovery_task
 
-                async_task(
+                enqueue_huey_task(
                     run_manufacturer_discovery_task,
                     manufacturer_pk,
                     scan_cidrs,
@@ -187,10 +178,10 @@ class DiscoveryService:
             len(unique_candidate_ips),
         )
 
-        client = self._get_manufacturer_client(manufacturer)
+        plugin = self._get_manufacturer_plugin(manufacturer)
         existing_discovery_ips = []
         try:
-            existing_discovery_ips = client.get_discovery_ips()
+            existing_discovery_ips = plugin.get_discovery_ips()
         except Exception as e:
             logger.warning(
                 "Could not retrieve existing discovery IPs for %s: %s",

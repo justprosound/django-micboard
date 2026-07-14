@@ -212,7 +212,7 @@ class PerformanceMonitor:
             name: Name of the monitored operation.
         """
         self.name = name
-        self.start_time = None
+        self.start_time: float | None = None
 
     def __enter__(self):
         """Start monitoring."""
