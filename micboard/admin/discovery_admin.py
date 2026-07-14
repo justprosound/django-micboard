@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from django.contrib import admin, messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ValidationError
 from django.utils import timezone
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.discovery.queue import DeviceMovementLog, DiscoveryQueue
@@ -47,7 +47,6 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         "serial_number",
         "api_device_id",
         "ip",
-        "mac_address",
     )
     readonly_fields = (
         "discovered_at",
@@ -66,7 +65,6 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
                     "manufacturer",
                     "api_device_id",
                     "serial_number",
-                    "mac_address",
                     "name",
                     "fqdn",
                     "device_type",
@@ -77,13 +75,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         ),
         (
             "Network Information",
-            {
-                "fields": (
-                    "ip",
-                    "subnet_mask",
-                    "gateway",
-                )
-            },
+            {"fields": ("ip",)},
         ),
         (
             "Review Status",
@@ -133,21 +125,29 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         badges = []
         if obj.is_duplicate:
             badges.append(
-                '<span style="background-color: #ffcc00; color: black; padding: 3px 8px; '
-                'border-radius: 3px; font-weight: bold;">⚠ DUPLICATE</span>'
+                format_html(
+                    '<span style="background-color: #ffcc00; color: black; padding: 3px 8px; '
+                    'border-radius: 3px; font-weight: bold;">{}</span>',
+                    "⚠ DUPLICATE",
+                )
             )
         if obj.is_ip_conflict:
             badges.append(
-                '<span style="background-color: #ff3333; color: white; padding: 3px 8px; '
-                'border-radius: 3px; font-weight: bold;">⛔ IP CONFLICT</span>'
+                format_html(
+                    '<span style="background-color: #ff3333; color: white; padding: 3px 8px; '
+                    'border-radius: 3px; font-weight: bold;">{}</span>',
+                    "⛔ IP CONFLICT",
+                )
             )
         if obj.is_duplicate_api_id:
             badges.append(
-                f'<span style="background-color: #ff6600; color: white; padding: 3px 8px; '
-                f'border-radius: 3px; font-weight: bold;">'
-                f"🚨 {obj.api_id_conflict_count} API IDs</span>"
+                format_html(
+                    '<span style="background-color: #ff6600; color: white; padding: 3px 8px; '
+                    'border-radius: 3px; font-weight: bold;">🚨 {} API IDs</span>',
+                    obj.api_id_conflict_count,
+                )
             )
-        return format_html(" ".join(badges)) if badges else "—"
+        return format_html_join(" ", "{}", ((badge,) for badge in badges)) if badges else "—"
 
     @admin.display(description="Conflict Analysis")
     def conflict_analysis(self, obj: DiscoveryQueue) -> str:
@@ -162,75 +162,26 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
                 parts.append(f"{key}: {value}")
         return " | ".join(parts)
 
-    @admin.action(description="Approve selected devices for import")
+    @admin.action(permissions=["change"], description="Approve selected devices for import")
     def approve_devices(self, request: HttpRequest, queryset):
-        """Approve devices and mark them for import."""
-        from micboard.models.hardware.charger import Charger
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
+        """Delegate approval to the atomic discovery service."""
+        from micboard.services.sync.discovery_approval_service import DiscoveryApprovalService
 
-        pending_device_types = set(
-            queryset.filter(status="pending").values_list("device_type", flat=True)
-        )
-        required_permissions: set[str] = set()
-        if any(device_type.lower() == "charger" for device_type in pending_device_types):
-            required_permissions.update(("micboard.add_charger", "micboard.change_charger"))
-        if any(device_type.lower() != "charger" for device_type in pending_device_types):
-            required_permissions.update(
-                ("micboard.add_wirelesschassis", "micboard.change_wirelesschassis")
+        try:
+            result = DiscoveryApprovalService().approve(
+                queryset=queryset,
+                reviewer=request.user,
             )
-        if not request.user.has_perms(required_permissions):
-            raise PermissionDenied
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+            return
 
-        count = 0
-        for item in queryset.filter(status="pending"):
-            if item.device_type.lower() == "charger":
-                # Create/Update Charger
-                charger, _ = Charger.objects.update_or_create(
-                    serial_number=item.serial_number,
-                    defaults={
-                        "manufacturer": item.manufacturer,
-                        "ip": item.ip,
-                        "name": item.name,
-                        "fqdn": item.fqdn,
-                        "model": item.model,
-                        "firmware_version": item.firmware_version,
-                        "status": "online",
-                        "is_active": True,
-                    },
-                )
-                item.existing_charger = charger
-            else:
-                # Create/Update WirelessChassis
-                receiver, _ = WirelessChassis.objects.update_or_create(
-                    serial_number=item.serial_number,
-                    defaults={
-                        "manufacturer": item.manufacturer,
-                        "api_device_id": item.api_device_id,
-                        "mac_address": item.mac_address,
-                        "ip": item.ip,
-                        "name": item.name,
-                        "fqdn": item.fqdn,
-                        "model": item.model,
-                        "role": item.device_type,  # Map device_type to role
-                        "firmware_version": item.firmware_version,
-                        "subnet_mask": item.subnet_mask,
-                        "gateway": item.gateway,
-                        "is_online": True,
-                        "status": "online",
-                    },
-                )
-                item.existing_device = receiver
+        messages.success(
+            request,
+            f"Approved and imported {result.imported_count} device(s).",
+        )
 
-            # Update discovery queue status
-            item.status = "imported"
-            item.reviewed_at = timezone.now()
-            item.reviewed_by = request.user
-            item.save()
-            count += 1
-
-        messages.success(request, f"Approved and imported {count} device(s).")
-
-    @admin.action(description="Reject selected devices")
+    @admin.action(permissions=["change"], description="Reject selected devices")
     def reject_devices(self, request: HttpRequest, queryset):
         """Reject devices and prevent import."""
         count = queryset.filter(status="pending").update(
@@ -240,7 +191,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         )
         messages.success(request, f"Rejected {count} device(s).")
 
-    @admin.action(description="Mark as duplicate (no import)")
+    @admin.action(permissions=["change"], description="Mark as duplicate (no import)")
     def mark_as_duplicate(self, request: HttpRequest, queryset):
         """Mark devices as duplicates without importing."""
         count = queryset.filter(status="pending").update(
@@ -351,7 +302,7 @@ class DeviceMovementLogAdmin(MicboardModelAdmin):
         if not parts:
             return "No changes detected"
 
-        return format_html(" | ".join(parts))
+        return " | ".join(parts)
 
     @admin.display(description="Status")
     def acknowledged_badge(self, obj: DeviceMovementLog) -> str:
@@ -359,11 +310,13 @@ class DeviceMovementLogAdmin(MicboardModelAdmin):
         if obj.acknowledged:
             return format_html(
                 '<span style="background-color: green; color: white; padding: 3px 8px; '
-                'border-radius: 3px; font-weight: bold;">✓ ACKNOWLEDGED</span>'
+                'border-radius: 3px; font-weight: bold;">{}</span>',
+                "✓ ACKNOWLEDGED",
             )
         return format_html(
             '<span style="background-color: orange; color: white; padding: 3px 8px; '
-            'border-radius: 3px; font-weight: bold;">⚠ PENDING</span>'
+            'border-radius: 3px; font-weight: bold;">{}</span>',
+            "⚠ PENDING",
         )
 
     @admin.display(description="Movement Type")
@@ -378,7 +331,7 @@ class DeviceMovementLogAdmin(MicboardModelAdmin):
         icon = icons.get(obj.movement_type, "")
         return f"{icon} {obj.movement_type.replace('_', ' ').title()}"
 
-    @admin.action(description="Acknowledge selected movements")
+    @admin.action(permissions=["change"], description="Acknowledge selected movements")
     def acknowledge_movements(self, request: HttpRequest, queryset):
         """Mark movements as acknowledged by admin."""
         count = queryset.filter(acknowledged=False).update(

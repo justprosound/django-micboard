@@ -1,13 +1,10 @@
-"""Settings registry service for accessing configuration values with scope resolution.
-
-Provides a unified interface for getting settings with fallback through scope hierarchy:
-Global → Organization → Site → Manufacturer
-"""
+"""Settings registry service for accessing typed, explicitly scoped values."""
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeVar
+import secrets
+from typing import TYPE_CHECKING, Any
 
 from django.core.cache import cache
 
@@ -19,8 +16,6 @@ from django.contrib.sites.models import Site
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
-
 
 class SettingNotFoundError(Exception):
     """Raised when a required setting cannot be resolved."""
@@ -29,10 +24,12 @@ class SettingNotFoundError(Exception):
 
 
 class SettingsRegistry:
-    """Centralized settings accessor with scope-aware fallback."""
+    """Centralized settings accessor honoring each definition's declared scope."""
 
     CACHE_TTL = 300  # 5 minutes
-    _setting_definitions_cache: dict[str, Any] = {}
+    _GLOBAL_VERSION_CACHE_KEY = "settings-version:all"
+    _GLOBAL_DEFINITION_VERSION_CACHE_KEY = "settings-definition-version:all"
+    _setting_definitions_cache: dict[str, tuple[str, Any]] = {}
 
     @staticmethod
     def get(
@@ -43,16 +40,15 @@ class SettingsRegistry:
         site: Site | None = None,
         manufacturer: Manufacturer | None = None,
         required: bool = False,
+        include_definition_default: bool = True,
     ) -> Any:
-        """Get a setting value with scope-aware fallback.
+        """Get a setting value at its definition's declared scope.
 
         Resolution order:
-        1. Specific scope (org/site/manufacturer)
-        2. Move up hierarchy
-        3. Global default
-        4. SettingDefinition default
-        5. User-provided default
-        6. Raise if required
+        1. Stored value at the definition's exact scope
+        2. SettingDefinition default, when requested
+        3. User-provided default
+        4. Raise if required
 
         Args:
             key: Setting key
@@ -61,6 +57,7 @@ class SettingsRegistry:
             site: Site for scope (multi-site mode)
             manufacturer: Manufacturer for scope
             required: Raise error if not found
+            include_definition_default: Whether to use the registered definition default
 
         Returns:
             Resolved setting value
@@ -68,26 +65,32 @@ class SettingsRegistry:
         Raises:
             SettingNotFoundError: If required=True and not found
         """
-        cache_key = SettingsRegistry._build_cache_key(key, organization, site, manufacturer)
+        cache_key = SettingsRegistry._build_cache_key(
+            key,
+            organization,
+            site,
+            manufacturer,
+            include_definition_default=include_definition_default,
+        )
 
         # Try cache first
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
-        # Try to get from database with scope hierarchy
+        # Try the one database scope declared by the setting definition.
         value = SettingsRegistry._resolve_scoped_value(key, organization, site, manufacturer)
 
         if value is not None:
             cache.set(cache_key, value, SettingsRegistry.CACHE_TTL)
             return value
 
-        # Try to get definition default
-        definition = SettingsRegistry._get_definition(key)
-        if definition and definition.default_value:
-            parsed = definition.parse_value(definition.default_value)
-            cache.set(cache_key, parsed, SettingsRegistry.CACHE_TTL)
-            return parsed
+        if include_definition_default:
+            not_found = object()
+            parsed = SettingsRegistry.get_definition_default(key, default=not_found)
+            if parsed is not not_found:
+                cache.set(cache_key, parsed, SettingsRegistry.CACHE_TTL)
+                return parsed
 
         # Use provided default
         if default is not None:
@@ -99,6 +102,14 @@ class SettingsRegistry:
             raise SettingNotFoundError(f"Required setting '{key}' not found")
 
         return None
+
+    @staticmethod
+    def get_definition_default(key: str, *, default: Any = None) -> Any:
+        """Return the typed definition default without consulting stored values."""
+        definition = SettingsRegistry._get_definition(key)
+        if definition is None or not definition.default_value:
+            return default
+        return definition.parse_value(definition.default_value)
 
     @staticmethod
     def set(
@@ -125,9 +136,27 @@ class SettingsRegistry:
             key=key,
             defaults={
                 "label": key.replace("_", " ").title(),
-                "scope": SettingDefinition.SCOPE_GLOBAL,
+                "scope": "global",
             },
         )
+
+        from micboard.services.settings.visibility_service import settings_visibility
+
+        target = {
+            "organization_id": organization.pk if organization else None,
+            "site_id": site.pk if site else None,
+            "manufacturer_id": manufacturer.pk if manufacturer else None,
+        }
+        target_scope = settings_visibility.resolve_scope(**target)
+        if target_scope is None:
+            raise ValueError("A setting value must target exactly one scope")
+        if created and definition.scope != target_scope:
+            definition.scope = target_scope
+            definition.save(update_fields=["scope"])
+        elif definition.scope != target_scope:
+            raise ValueError(
+                f"Setting {key!r} requires {definition.scope!r} scope, not {target_scope!r}"
+            )
 
         # Get or create setting value
         setting, created = Setting.objects.get_or_create(
@@ -142,10 +171,8 @@ class SettingsRegistry:
             setting.set_value(value)
             setting.save()
 
-        # Clear cache
-        cache_key = SettingsRegistry._build_cache_key(key, organization, site, manufacturer)
-        cache.delete(cache_key)
-        logger.info("Set setting %s = %s", key, value)
+        SettingsRegistry.invalidate_cache(key)
+        logger.info("Set setting %s", key)
 
     @staticmethod
     def get_all_for_scope(
@@ -186,12 +213,38 @@ class SettingsRegistry:
             key: Specific key to invalidate, or None for all
         """
         if key:
-            # Note: cache.delete_pattern may not be available on all backends
-            # This is a simplified version; in production use cache.clear() or Redis
-            cache.delete(SettingsRegistry._build_cache_key(key, None, None, None))
+            cache.set(
+                SettingsRegistry._version_cache_key(key),
+                secrets.token_hex(8),
+                timeout=None,
+            )
         else:
-            # Clear all settings-related cache
-            cache.clear()
+            cache.set(
+                SettingsRegistry._GLOBAL_VERSION_CACHE_KEY,
+                secrets.token_hex(8),
+                timeout=None,
+            )
+            SettingsRegistry._setting_definitions_cache.clear()
+
+    @staticmethod
+    def invalidate_definition(key: str | None = None) -> None:
+        """Invalidate cached definition metadata and all values derived from it."""
+        if key is None:
+            cache.set(
+                SettingsRegistry._GLOBAL_DEFINITION_VERSION_CACHE_KEY,
+                secrets.token_hex(8),
+                timeout=None,
+            )
+            SettingsRegistry._setting_definitions_cache.clear()
+            SettingsRegistry.invalidate_cache()
+            return
+        SettingsRegistry._setting_definitions_cache.pop(key, None)
+        cache.set(
+            SettingsRegistry._definition_version_cache_key(key),
+            secrets.token_hex(8),
+            timeout=None,
+        )
+        SettingsRegistry.invalidate_cache(key)
 
     @staticmethod
     def _resolve_scoped_value(
@@ -200,80 +253,53 @@ class SettingsRegistry:
         site: Site | None,
         manufacturer: Manufacturer | None,
     ) -> Any | None:
-        """Resolve setting value through scope hierarchy.
+        """Resolve only the value matching the definition's declared scope."""
+        from micboard.models.settings.registry import Setting, SettingDefinition
 
-        Resolution order:
-        1. Specific scope (org/site/manufacturer)
-        2. Site-wide (if not already site-specific)
-        3. Organization-wide (if not already org-specific)
-        4. Global
-        """
-        from micboard.models.settings import Setting
+        definition = SettingsRegistry._get_definition(key)
+        if definition is None:
+            return None
 
-        # Try manufacturer scope
-        if manufacturer:
-            try:
-                setting = Setting.objects.select_related("definition").get(
-                    definition__key=key,
-                    manufacturer_id=manufacturer.id,
-                    organization_id__isnull=True,
-                    site__isnull=True,
-                )
-                return setting.get_parsed_value()
-            except Setting.DoesNotExist:
-                pass
+        filters: dict[str, Any] = {
+            "definition": definition,
+            "organization_id": None,
+            "site_id": None,
+            "manufacturer_id": None,
+        }
+        if definition.scope == SettingDefinition.SCOPE_ORGANIZATION:
+            if organization is None:
+                return None
+            filters["organization_id"] = organization.pk
+        elif definition.scope == SettingDefinition.SCOPE_SITE:
+            if site is None:
+                return None
+            filters["site_id"] = site.pk
+        elif definition.scope == SettingDefinition.SCOPE_MANUFACTURER:
+            if manufacturer is None:
+                return None
+            filters["manufacturer_id"] = manufacturer.pk
+        elif definition.scope != SettingDefinition.SCOPE_GLOBAL:
+            return None
 
-        # Try site scope
-        if site:
-            try:
-                setting = Setting.objects.select_related("definition").get(
-                    definition__key=key,
-                    site=site,
-                    organization_id__isnull=True,
-                    manufacturer_id__isnull=True,
-                )
-                return setting.get_parsed_value()
-            except Setting.DoesNotExist:
-                pass
-
-        # Try organization scope
-        if organization:
-            try:
-                setting = Setting.objects.select_related("definition").get(
-                    definition__key=key,
-                    organization_id=organization.pk,
-                    site__isnull=True,
-                    manufacturer_id__isnull=True,
-                )
-                return setting.get_parsed_value()
-            except Setting.DoesNotExist:
-                pass
-
-        # Try global scope
         try:
-            setting = Setting.objects.select_related("definition").get(
-                definition__key=key,
-                organization_id__isnull=True,
-                site__isnull=True,
-                manufacturer_id__isnull=True,
-            )
-            return setting.get_parsed_value()
+            setting = Setting.objects.get(**filters)
         except Setting.DoesNotExist:
-            pass
-
-        return None
+            return None
+        return setting.get_parsed_value()
 
     @staticmethod
     def _get_definition(key: str) -> Any | None:
         """Get setting definition by key (with caching)."""
         from micboard.models.settings import SettingDefinition
 
-        if key in SettingsRegistry._setting_definitions_cache:
-            return SettingsRegistry._setting_definitions_cache[key]
+        version = SettingsRegistry._definition_version(key)
+        cached = SettingsRegistry._setting_definitions_cache.get(key)
+        if cached is not None and cached[0] == version:
+            return cached[1]
 
         try:
             definition = SettingDefinition.objects.get(key=key)
-            SettingsRegistry._setting_definitions_cache[key] = definition
+            SettingsRegistry._setting_definitions_cache[key] = (version, definition)
             return definition
         except SettingDefinition.DoesNotExist:
             return None
@@ -284,9 +310,50 @@ class SettingsRegistry:
         organization: Organization | None,
         site: Site | None,
         manufacturer: Manufacturer | None,
+        *,
+        include_definition_default: bool = True,
     ) -> str:
         """Build cache key from setting and scopes."""
+        global_version = cache.get(SettingsRegistry._GLOBAL_VERSION_CACHE_KEY)
+        if global_version is None:
+            cache.add(SettingsRegistry._GLOBAL_VERSION_CACHE_KEY, "0", timeout=None)
+            global_version = cache.get(SettingsRegistry._GLOBAL_VERSION_CACHE_KEY, "0")
+        version_key = SettingsRegistry._version_cache_key(key)
+        version = cache.get(version_key)
+        if version is None:
+            cache.add(version_key, "0", timeout=None)
+            version = cache.get(version_key, "0")
         org_id = organization.pk if organization else "g"
         site_id = site.id if site else "g"
         mfg_id = manufacturer.id if manufacturer else "g"
-        return f"settings:{key}:{org_id}:{site_id}:{mfg_id}"
+        default_mode = "definition" if include_definition_default else "stored"
+        return (
+            f"settings:{global_version}:{key}:{version}:{default_mode}:{org_id}:{site_id}:{mfg_id}"
+        )
+
+    @staticmethod
+    def _version_cache_key(key: str) -> str:
+        """Return the shared generation key used to invalidate every scoped cache entry."""
+        return f"settings-version:{key}"
+
+    @staticmethod
+    def _definition_version_cache_key(key: str) -> str:
+        """Return the shared generation key for one definition's metadata."""
+        return f"settings-definition-version:{key}"
+
+    @staticmethod
+    def _definition_version(key: str) -> str:
+        """Return shared global and per-definition metadata generations."""
+        global_version = cache.get(SettingsRegistry._GLOBAL_DEFINITION_VERSION_CACHE_KEY)
+        if global_version is None:
+            cache.add(SettingsRegistry._GLOBAL_DEFINITION_VERSION_CACHE_KEY, "0", timeout=None)
+            global_version = cache.get(
+                SettingsRegistry._GLOBAL_DEFINITION_VERSION_CACHE_KEY,
+                "0",
+            )
+        version_key = SettingsRegistry._definition_version_cache_key(key)
+        version = cache.get(version_key)
+        if version is None:
+            cache.add(version_key, "0", timeout=None)
+            version = cache.get(version_key, "0")
+        return f"{global_version}:{version}"

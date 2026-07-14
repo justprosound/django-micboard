@@ -19,7 +19,7 @@ class DevicePollingService:
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 class DevicePollingService:
     def poll(self, organization):
@@ -68,7 +68,7 @@ class BatteryHealthMonitor:
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 class BatteryHealthMonitor:
     def check_battery_status(self, device):
@@ -164,7 +164,7 @@ class DiscoveryService:
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 class DiscoveryService:
     def discover(self, manufacturer):
@@ -202,7 +202,7 @@ class HealthCheckService:
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 class HealthCheckService:
     def schedule_health_checks(self, organization):
@@ -245,7 +245,7 @@ def get_roles_for_status(manufacturer, status):
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 import json
 
 def get_roles_for_status(manufacturer, status):
@@ -275,8 +275,8 @@ def get_device_specs(manufacturer_code):
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
-from micboard.services.device_specs import DeviceSpecService
+from micboard.services.core.device_specs import DeviceSpecService
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 # Single unified caching approach
 specs_cache_ttl = SettingsRegistry.get(
@@ -306,7 +306,7 @@ class APIClient:
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 import logging
 
 logger = logging.getLogger(__name__)
@@ -342,7 +342,7 @@ if ENABLE_DISCOVERY:
 
 ### After
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 # Single unified configuration
 discovery_enabled = SettingsRegistry.get(
@@ -444,7 +444,7 @@ Setting.objects.filter(definition__key='battery_low_level')
 
 ### Debug Scope Resolution
 ```python
-from micboard.services.settings_registry import SettingsRegistry
+from micboard.services.shared.settings_registry import SettingsRegistry
 
 # Check what value is being used
 value = SettingsRegistry.get(

@@ -14,8 +14,10 @@ from django.db.models import F, Q
 
 from micboard.services.notification.realtime_routing_service import (
     GLOBAL_UPDATES_GROUP,
+    RealtimeRoutingService,
     campus_updates_group,
     organization_updates_group,
+    site_updates_group,
 )
 from micboard.utils.dependencies import HAS_CHANNELS
 
@@ -57,6 +59,8 @@ class MicboardConsumer(AsyncWebsocketConsumer):
             .values_list("organization_id", "campus_id")
             .order_by("organization_id", "campus_id")
         )
+        if getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+            memberships = memberships.filter(organization__site_id=settings.SITE_ID)
 
         return tuple(
             campus_updates_group(organization_id, campus_id)
@@ -71,6 +75,15 @@ class MicboardConsumer(AsyncWebsocketConsumer):
 
         return await database_sync_to_async(self._membership_group_names)(user_id)
 
+    @staticmethod
+    async def _can_receive_global_updates(user: Any) -> bool:
+        """Check explicit global-stream permission without blocking the event loop."""
+        from channels.db import database_sync_to_async
+
+        return await database_sync_to_async(
+            RealtimeRoutingService.can_receive_global_updates,
+        )(user)
+
     async def connect(self) -> None:
         """Handle WebSocket connection."""
         self.room_group_names: tuple[str, ...] = ()
@@ -81,9 +94,7 @@ class MicboardConsumer(AsyncWebsocketConsumer):
             await self.close(code=UNAUTHENTICATED_CLOSE_CODE)
             return
 
-        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
-            self.room_group_names = (GLOBAL_UPDATES_GROUP,)
-        else:
+        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
             # Superusers intentionally follow the same membership rules. A global
             # MSP bypass would expose every tenant over a single connection.
             if user.pk is not None:
@@ -96,6 +107,18 @@ class MicboardConsumer(AsyncWebsocketConsumer):
                 )
                 await self.close(code=UNAUTHORIZED_CLOSE_CODE)
                 return
+        elif getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+            self.room_group_names = (site_updates_group(settings.SITE_ID),)
+        else:
+            if not await self._can_receive_global_updates(user):
+                logger.warning(
+                    "Rejected single-site WebSocket connection without global view permission: "
+                    "user_id=%s",
+                    user.pk,
+                )
+                await self.close(code=UNAUTHORIZED_CLOSE_CODE)
+                return
+            self.room_group_names = (GLOBAL_UPDATES_GROUP,)
 
         for group_name in self.room_group_names:
             await self.channel_layer.group_add(group_name, self.channel_name)
@@ -140,3 +163,28 @@ class MicboardConsumer(AsyncWebsocketConsumer):
     async def progress_update(self, event: dict[str, Any]) -> None:
         """Send progress update to WebSocket client."""
         await self.send(text_data=json.dumps({"type": "progress", "status": event.get("status")}))
+
+    async def _forward_event(self, event: dict[str, Any]) -> None:
+        """Forward a typed Channels event without its internal dispatch key."""
+        payload = {key: value for key, value in event.items() if key != "type"}
+        await self.send(text_data=json.dumps({"type": event["type"], **payload}))
+
+    async def api_health_update(self, event: dict[str, Any]) -> None:
+        """Forward a manufacturer API health update."""
+        await self._forward_event(event)
+
+    async def device_status_update(self, event: dict[str, Any]) -> None:
+        """Forward a persisted hardware status update."""
+        await self._forward_event(event)
+
+    async def sync_completed(self, event: dict[str, Any]) -> None:
+        """Forward a service synchronization result."""
+        await self._forward_event(event)
+
+    async def discovery_approved(self, event: dict[str, Any]) -> None:
+        """Forward a discovery approval result."""
+        await self._forward_event(event)
+
+    async def error_notification(self, event: dict[str, Any]) -> None:
+        """Forward a bounded error notification."""
+        await self._forward_event(event)

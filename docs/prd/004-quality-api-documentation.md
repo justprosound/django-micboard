@@ -50,7 +50,7 @@ django-micboard has no automated test safety net — 33 of 38 service files are 
 - Admin E2E tests for 5 critical flows (chassis CRUD, discovery approval, monitoring).
 - API v1 serves GET endpoints for core models with DRF browsable docs.
 - Pre-commit hooks block lint/type/security violations before commit.
-- Plugin development guide exists at `docs/guides/plugin-development.md`.
+- Plugin development guide exists at `docs/plugin-development.md`.
 
 ## Risks
 

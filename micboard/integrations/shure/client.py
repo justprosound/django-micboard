@@ -19,10 +19,11 @@ logger = logging.getLogger(__name__)
 class ShureSystemAPIClient(BaseHTTPClient):
     """Client for interacting with Shure System API with connection pooling and retry logic."""
 
-    def __init__(self, base_url: str | None = None):
+    def __init__(self, base_url: str | None = None, *, shared_key: str | None = None):
         """Initialize Shure API client, configure auth, and compose sub-clients."""
-        from micboard.services.settings import settings
+        from micboard.services.settings.settings_service import settings
 
+        self._shared_key_override = shared_key
         config = settings.get_config_dict()
         explicit_ws = config.get("SHURE_API_WEBSOCKET_URL") if config is not None else None
         if explicit_ws is not None:
@@ -60,7 +61,11 @@ class ShureSystemAPIClient(BaseHTTPClient):
         2. HTTP Digest Authentication (RFC 7616) - optional, controlled by config
         3. Bearer token - in Authorization header (reserved)
         """
-        self.shared_key = config.get("SHURE_API_SHARED_KEY")
+        self.shared_key = (
+            self._shared_key_override
+            if self._shared_key_override is not None
+            else config.get("SHURE_API_SHARED_KEY")
+        )
         if not self.shared_key:
             raise ValueError("SHURE_API_SHARED_KEY is required for Shure System API authentication")
 

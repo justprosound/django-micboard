@@ -41,7 +41,7 @@ The Settings system allows you to configure how django-micboard behaves **withou
 
 For faster setup of multiple manufacturer settings:
 
-1. Go to **Admin → Settings → Bulk Configuration** (or `/admin/settings/bulk/`)
+1. Go to `/settings/bulk/`
 2. Select the **Scope** (usually "Manufacturer")
 3. Select the manufacturer to configure
 4. Fill in the fields you want to change

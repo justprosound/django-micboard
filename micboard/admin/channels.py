@@ -12,6 +12,7 @@ from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.rf_coordination.compliance import FrequencyBand
 from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.hardware.rf_channel_service import (
     get_regulatory_status as get_rf_channel_regulatory_status,
@@ -50,8 +51,6 @@ class RFChannelAdmin(MicboardModelAdmin):
     )
 
     def get_queryset(self, request):
-        from micboard.models.rf_coordination import FrequencyBand
-
         qs = super().get_queryset(request)
 
         # Subquery to check for specific frequency band coverage
@@ -93,7 +92,8 @@ class RFChannelAdmin(MicboardModelAdmin):
 
         if status["needs_update"]:
             return format_html(
-                '<span style="color: var(--error-fg, red); font-weight: bold;">⚠️ Missing coverage</span>'
+                '<span style="color: var(--error-fg, red); font-weight: bold;">{}</span>',
+                "⚠️ Missing coverage",
             )
 
         if status["has_coverage"]:
@@ -280,8 +280,8 @@ class WirelessUnitAdmin(MicboardModelAdmin):
             return "[i] No frequency"
         if status["needs_update"]:
             return format_html(
-                '<span style="color: var(--error-fg, red); '
-                'font-weight: bold;">⚠️ Missing coverage</span>'
+                '<span style="color: var(--error-fg, red); font-weight: bold;">{}</span>',
+                "⚠️ Missing coverage",
             )
         if status["has_coverage"]:
             return format_html(

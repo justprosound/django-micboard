@@ -19,12 +19,13 @@ from datetime import timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from django.db import transaction
+from django.db import DEFAULT_DB_ALIAS, transaction
 from django.utils import timezone
 
 if TYPE_CHECKING:  # pragma: no cover
     from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.models.hardware.wireless_unit import WirelessUnit
+    from micboard.services.maintenance.logging import StructuredLogger
 
 logger = logging.getLogger(__name__)
 
@@ -108,8 +109,8 @@ class HardwareLifecycleManager:
         self,
         service_code: str | None = None,
         *,
-        structured_logger=None,
-    ):
+        structured_logger: StructuredLogger | None = None,
+    ) -> None:
         """Initialize lifecycle manager.
 
         Args:
@@ -117,13 +118,8 @@ class HardwareLifecycleManager:
             structured_logger: Optional structured logger instance for consistent event formatting
         """
         self.service_code = service_code
-        try:
-            self._logger = structured_logger or get_structured_logger()
-        except Exception:
-            logger.debug("Falling back to standard logger; structured logger unavailable")
-            self._logger = None
+        self._logger = structured_logger or get_structured_logger()
 
-    @transaction.atomic
     def transition_device(
         self,
         device: WirelessChassis | WirelessUnit,
@@ -132,6 +128,28 @@ class HardwareLifecycleManager:
         reason: str = "",
         metadata: dict[str, Any] | None = None,
         sync_to_api: bool = False,
+    ) -> bool:
+        """Transition a device on the database that supplied the instance."""
+        using = device._state.db or DEFAULT_DB_ALIAS
+        with transaction.atomic(using=using):
+            return self._transition_device(
+                device,
+                to_status,
+                reason=reason,
+                metadata=metadata,
+                sync_to_api=sync_to_api,
+                using=using,
+            )
+
+    def _transition_device(
+        self,
+        device: WirelessChassis | WirelessUnit,
+        to_status: str,
+        *,
+        reason: str = "",
+        metadata: dict[str, Any] | None = None,
+        sync_to_api: bool = False,
+        using: str = DEFAULT_DB_ALIAS,
     ) -> bool:
         """Transition device to new status with validation and logging.
 
@@ -148,7 +166,9 @@ class HardwareLifecycleManager:
         device_type = device.__class__.__name__
 
         # Lock before reading state so a stale caller cannot overwrite a newer transition.
-        device = device.__class__.objects.select_for_update().get(pk=device.pk)
+        device = (
+            device.__class__._default_manager.using(using).select_for_update().get(pk=device.pk)
+        )
         from_status = device.status
 
         if not self._is_valid_transition(from_status, to_status):
@@ -179,7 +199,7 @@ class HardwareLifecycleManager:
             field.name == "updated_at" and field.concrete for field in device._meta.get_fields()
         ):
             update_fields.append("updated_at")
-        device.save(update_fields=update_fields)
+        device.save(update_fields=update_fields, using=using)
 
         # Log the transition
         if self._logger:
@@ -190,6 +210,7 @@ class HardwareLifecycleManager:
                     "status": to_status,
                     "last_seen": device.last_seen,
                 },
+                using=using,
             )
 
         logger.info(
@@ -356,9 +377,9 @@ def map_api_state_to_status(api_state: str, current_status: str) -> str:
     return state_mapping.get(api_state, current_status)
 
 
-def get_structured_logger() -> Any:
-    """Get structured logger instance."""
-    from micboard.services.logging import get_structured_logger
+def get_structured_logger() -> StructuredLogger:
+    """Get the maintenance service's structured audit logger."""
+    from micboard.services.maintenance.logging import get_structured_logger
 
     return get_structured_logger()
 

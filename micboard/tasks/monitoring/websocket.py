@@ -8,6 +8,8 @@ import asyncio
 import logging
 from typing import Any
 
+from asgiref.sync import sync_to_async
+
 from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.tasks.sync.polling import _update_models_from_api_data
@@ -15,7 +17,7 @@ from micboard.tasks.sync.polling import _update_models_from_api_data
 logger = logging.getLogger(__name__)
 
 
-def start_shure_websocket_subscriptions():
+def start_shure_websocket_subscriptions() -> None:
     """Start WebSocket subscriptions for all active Shure devices.
 
     This task runs in the background and maintains WebSocket connections
@@ -68,22 +70,32 @@ def start_shure_websocket_subscriptions():
         logger.exception("Error starting Shure WebSocket subscriptions: %s", e)
 
 
-async def _start_receiver_websocket_async(plugin, chassis):
+def _get_or_create_websocket_connection(chassis: Any) -> Any:
+    """Create connection tracking in Django's synchronous database context."""
+    from micboard.models.realtime import RealTimeConnection
+
+    connection, created = RealTimeConnection.objects.get_or_create(
+        chassis=chassis,
+        defaults={"connection_type": "websocket"},
+    )
+    if not created:
+        connection.connection_type = "websocket"
+        connection.save(update_fields=["connection_type", "updated_at"])
+    connection.mark_connecting()
+    return connection
+
+
+async def _start_receiver_websocket_async(plugin: Any, chassis: Any) -> None:
     """Start WebSocket subscription for a single receiver."""
+    client = None
+    connection = None
     try:
         logger.info("Starting WebSocket subscription for Shure receiver: %s", chassis.name)
 
-        # Get or create connection tracking
-        from micboard.models.realtime import RealTimeConnection
-
-        connection, created = RealTimeConnection.objects.get_or_create(
-            chassis=chassis, defaults={"connection_type": "websocket"}
-        )
-        if not created:
-            connection.connection_type = "websocket"
-            connection.save()
-
-        connection.mark_connecting()
+        connection = await sync_to_async(
+            _get_or_create_websocket_connection,
+            thread_sensitive=True,
+        )(chassis)
 
         # Create API client for the WebSocket connection
         from micboard.integrations.shure.client import ShureSystemAPIClient
@@ -91,23 +103,39 @@ async def _start_receiver_websocket_async(plugin, chassis):
         # Manufacturer credentials must only cross authenticated TLS.
         base_url = f"https://{chassis.ip}:{getattr(chassis, 'port', 443)}"
 
-        client = ShureSystemAPIClient(base_url=base_url)
+        client = await sync_to_async(
+            ShureSystemAPIClient,
+            thread_sensitive=True,
+        )(base_url=base_url)
 
         # Set up callback for updates
         async def update_callback(data: dict[str, Any]) -> None:
-            connection.received_message()
+            await sync_to_async(connection.received_message, thread_sensitive=True)()
             await _process_websocket_update_async(plugin, chassis.api_device_id, data)
 
         # Connect and subscribe using the WebSocket function
         await connect_and_subscribe(client, chassis.api_device_id, update_callback)
 
-    except Exception as e:
-        logger.exception("Error in WebSocket subscription for chassis %s: %s", chassis.name, e)
-        if "connection" in locals():
-            connection.mark_error(str(e))
+    except Exception as exc:
+        logger.exception("Error in WebSocket subscription for chassis %s", chassis.name)
+        if connection is not None:
+            error_status = f"WebSocket subscription failed: {type(exc).__name__}"[:160]
+            await sync_to_async(connection.mark_error, thread_sensitive=True)(error_status)
+    finally:
+        if client is not None:
+            try:
+                await sync_to_async(client.close, thread_sensitive=True)()
+            except Exception:
+                logger.exception(
+                    "Failed to close WebSocket API client for chassis %s", chassis.name
+                )
 
 
-async def _process_websocket_update_async(plugin, device_id: str, data: dict[str, Any]):
+async def _process_websocket_update_async(
+    plugin: Any,
+    device_id: str,
+    data: dict[str, Any],
+) -> None:
     """Process WebSocket update data asynchronously."""
     try:
         manufacturer = plugin.manufacturer
@@ -121,7 +149,10 @@ async def _process_websocket_update_async(plugin, device_id: str, data: dict[str
             if api_device_id:
                 # Create a single-device API data list for the update function
                 api_data = [data]  # Raw API data
-                updated_count = _update_models_from_api_data(api_data, manufacturer, plugin)
+                updated_count = await sync_to_async(
+                    _update_models_from_api_data,
+                    thread_sensitive=True,
+                )(api_data, manufacturer, plugin)
                 if updated_count > 0:
                     logger.info(
                         "Updated %d device(s) from WebSocket for %s", updated_count, device_id
@@ -136,48 +167,55 @@ async def _process_websocket_update_async(plugin, device_id: str, data: dict[str
         else:
             logger.debug("Could not transform WebSocket data for %s", device_id)
 
-    except Exception as e:
-        logger.exception("Error processing WebSocket update for %s: %s", device_id, e)
+    except Exception:
+        logger.exception("Error processing WebSocket update for %s", device_id)
 
 
-async def _broadcast_websocket_update_async(manufacturer, device_data: dict[str, Any]):
-    """Broadcast WebSocket update via BroadcastService."""
+def _broadcast_websocket_update(manufacturer: Any, api_device_id: str) -> None:
+    """Resolve and broadcast one device entirely in synchronous context."""
+    from micboard.models.hardware import WirelessChassis
+    from micboard.services.notification.broadcast_service import BroadcastService
+
+    chassis = WirelessChassis.objects.get(
+        manufacturer=manufacturer,
+        api_device_id=api_device_id,
+    )
+    serialized_data = {
+        "receivers": [
+            {
+                "id": chassis.id,
+                "api_device_id": chassis.api_device_id,
+                "name": chassis.name,
+                "ip": str(chassis.ip) if chassis.ip else None,
+                "status": chassis.status,
+                "model": chassis.model,
+            }
+        ]
+    }
+    BroadcastService.broadcast_device_update(
+        manufacturer=manufacturer,
+        data=serialized_data,
+    )
+
+
+async def _broadcast_websocket_update_async(
+    manufacturer: Any,
+    device_data: dict[str, Any],
+) -> None:
+    """Broadcast a WebSocket update without synchronous work on the event loop."""
+    from micboard.models.hardware import WirelessChassis
+
+    api_device_id = device_data.get("api_device_id")
+    if not api_device_id:
+        return
+
     try:
-        from micboard.services.notification.broadcast_service import BroadcastService
-
-        # Get the updated chassis data
-        api_device_id = device_data.get("api_device_id")
-        if api_device_id:
-            from micboard.models.hardware import WirelessChassis
-
-            try:
-                chassis = WirelessChassis.objects.get(
-                    manufacturer=manufacturer, api_device_id=api_device_id
-                )
-                serialized_data = {
-                    "receivers": [
-                        {
-                            "id": chassis.id,
-                            "api_device_id": chassis.api_device_id,
-                            "name": chassis.name,
-                            "ip": str(chassis.ip) if chassis.ip else None,
-                            "status": chassis.status,
-                            "model": chassis.model,
-                        }
-                    ]
-                }
-
-                # Broadcast update
-                BroadcastService.broadcast_device_update(
-                    manufacturer=manufacturer, data=serialized_data
-                )
-
-                logger.debug("Broadcasted WebSocket update for device %s", api_device_id)
-
-            except WirelessChassis.DoesNotExist:
-                logger.warning(
-                    "Wireless chassis not found for WebSocket broadcast: %s", api_device_id
-                )
-
-    except Exception as e:
-        logger.exception("Error broadcasting WebSocket update: %s", e)
+        await sync_to_async(_broadcast_websocket_update, thread_sensitive=True)(
+            manufacturer,
+            api_device_id,
+        )
+        logger.debug("Broadcasted WebSocket update for device %s", api_device_id)
+    except WirelessChassis.DoesNotExist:
+        logger.warning("Wireless chassis not found for WebSocket broadcast: %s", api_device_id)
+    except Exception:
+        logger.exception("Error broadcasting WebSocket update")

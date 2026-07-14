@@ -234,20 +234,27 @@ class ConnectionHealthService:
     # Async methods (Django 4.2+ async view support)
 
     @staticmethod
-    async def aget_unhealthy_connections(*, heartbeat_timeout_seconds: int = 60) -> QuerySet:
-        """Async: Get unhealthy connections.
+    async def aget_unhealthy_connections(
+        *, heartbeat_timeout_seconds: int = 60
+    ) -> list[RealTimeConnection]:
+        """Return unhealthy connections materialized safely for async callers.
 
         Args:
             heartbeat_timeout_seconds: Timeout threshold in seconds
 
         Returns:
-            QuerySet of unhealthy RealTimeConnection instances
+            List of unhealthy RealTimeConnection instances.
         """
         from asgiref.sync import sync_to_async
 
-        return await sync_to_async(ConnectionHealthService.get_unhealthy_connections)(
-            heartbeat_timeout_seconds=heartbeat_timeout_seconds
-        )
+        return await sync_to_async(
+            lambda: list(
+                ConnectionHealthService.get_unhealthy_connections(
+                    heartbeat_timeout_seconds=heartbeat_timeout_seconds
+                )
+            ),
+            thread_sensitive=True,
+        )()
 
     @staticmethod
     async def arecord_heartbeat(*, connection: RealTimeConnection) -> None:

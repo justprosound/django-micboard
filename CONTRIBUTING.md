@@ -119,7 +119,7 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
 
 1. **Use the unified settings service**, not direct Django settings reads:
    ```python
-   from micboard.services.settings import settings as micboard_settings
+   from micboard.services.settings.settings_service import settings as micboard_settings
 
    if micboard_settings.msp_enabled:
        ...

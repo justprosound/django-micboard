@@ -10,6 +10,8 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
+from asgiref.sync import sync_to_async
+
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.common.base.plugin import get_manufacturer_plugin
@@ -112,9 +114,9 @@ class Command(BaseCommand):
 
         try:
             await plugin.connect_and_subscribe(device_id, update_callback)
-        except Exception as e:
-            logger.exception("Error subscribing to device %s: %s", device_id, e)
-            self.stderr.write(self.style.ERROR(f"Failed to subscribe to {device_id}: {e}"))
+        except Exception:
+            logger.exception("Error subscribing to device %s", device_id)
+            self.stderr.write(self.style.ERROR(f"Failed to subscribe to {device_id}"))
 
     async def _process_sse_update(self, plugin, device_id: str, data: dict[str, Any]):
         """Process SSE update data and update models."""
@@ -131,7 +133,10 @@ class Command(BaseCommand):
             if transformed_data:
                 # Update the specific device
                 api_data = [data]  # Wrap in list for the update function
-                updated_count = _update_models_from_api_data(api_data, manufacturer, plugin)
+                updated_count = await sync_to_async(
+                    _update_models_from_api_data,
+                    thread_sensitive=True,
+                )(api_data, manufacturer, plugin)
                 if updated_count > 0:
                     self.stdout.write(f"Updated {updated_count} device(s) from SSE for {device_id}")
                 else:
@@ -139,6 +144,6 @@ class Command(BaseCommand):
             else:
                 logger.debug("Could not transform SSE data for %s", device_id)
 
-        except Exception as e:
-            logger.exception("Error processing SSE update for %s: %s", device_id, e)
-            self.stderr.write(self.style.ERROR(f"Error processing SSE update for {device_id}: {e}"))
+        except Exception:
+            logger.exception("Error processing SSE update for %s", device_id)
+            self.stderr.write(self.style.ERROR(f"Error processing SSE update for {device_id}"))

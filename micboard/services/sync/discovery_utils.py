@@ -30,7 +30,10 @@ def get_manufacturer_plugin_instance(manufacturer: Manufacturer) -> Manufacturer
 
 
 def is_ip_managed_by_another_manufacturer(
-    ip_address: str, current_manufacturer: Manufacturer
+    ip_address: str,
+    current_manufacturer: Manufacturer,
+    *,
+    using: str = "default",
 ) -> bool:
     """Check if an IP address is already managed by another manufacturer.
 
@@ -42,7 +45,8 @@ def is_ip_managed_by_another_manufacturer(
         bool: True if IP is managed by another manufacturer, False otherwise
     """
     return (
-        WirelessChassis.objects.filter(ip=ip_address)
+        WirelessChassis.objects.using(using)
+        .filter(ip=ip_address)
         .exclude(manufacturer=current_manufacturer)
         .exists()
     )

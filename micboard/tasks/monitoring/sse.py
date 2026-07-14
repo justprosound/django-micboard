@@ -6,6 +6,8 @@ import asyncio
 import logging
 from typing import Any
 
+from asgiref.sync import sync_to_async
+
 from micboard.models.discovery import Manufacturer
 from micboard.models.hardware import WirelessChassis
 from micboard.services.common.base.plugin import get_manufacturer_plugin
@@ -14,7 +16,7 @@ from micboard.tasks.sync.polling import _update_models_from_api_data
 logger = logging.getLogger(__name__)
 
 
-def start_sse_subscriptions(manufacturer_id: int):
+def start_sse_subscriptions(manufacturer_id: int) -> None:
     """Start SSE subscriptions for all active devices of a manufacturer.
 
     This runs indefinitely until stopped.
@@ -48,13 +50,11 @@ def start_sse_subscriptions(manufacturer_id: int):
 
     except Manufacturer.DoesNotExist:
         logger.error("Manufacturer with ID %s not found for SSE subscriptions", manufacturer_id)
-    except Exception as e:
-        logger.exception(
-            "Error in SSE subscriptions for manufacturer ID %s: %s", manufacturer_id, e
-        )
+    except Exception:
+        logger.exception("Error in SSE subscriptions for manufacturer ID %s", manufacturer_id)
 
 
-async def _run_sse_subscriptions_async(plugin, device_ids: list[str]):
+async def _run_sse_subscriptions_async(plugin: Any, device_ids: list[str]) -> None:
     """Run SSE subscriptions asynchronously."""
     tasks = []
 
@@ -66,46 +66,63 @@ async def _run_sse_subscriptions_async(plugin, device_ids: list[str]):
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def _subscribe_device_async(plugin, device_id: str):
+def _get_or_create_sse_connection(plugin: Any, device_id: str) -> Any:
+    """Create connection tracking in Django's synchronous database context."""
+    from micboard.models.realtime import RealTimeConnection
+
+    chassis = WirelessChassis.objects.get(
+        manufacturer=plugin.manufacturer,
+        api_device_id=device_id,
+    )
+    connection, created = RealTimeConnection.objects.get_or_create(
+        chassis=chassis,
+        defaults={"connection_type": "sse"},
+    )
+    if not created:
+        connection.connection_type = "sse"
+        connection.save(update_fields=["connection_type", "updated_at"])
+    connection.mark_connecting()
+    return connection
+
+
+async def _subscribe_device_async(plugin: Any, device_id: str) -> None:
     """Subscribe to a single device asynchronously."""
     logger.info("Starting SSE subscription for device: %s", device_id)
 
-    # Get receiver for connection tracking
-    from micboard.models.hardware import WirelessChassis
-    from micboard.models.realtime import RealTimeConnection
-
     connection = None
     try:
-        chassis = WirelessChassis.objects.get(
-            manufacturer=plugin.manufacturer, api_device_id=device_id
+        connection = await sync_to_async(
+            _get_or_create_sse_connection,
+            thread_sensitive=True,
+        )(
+            plugin,
+            device_id,
         )
-        connection, created = RealTimeConnection.objects.get_or_create(
-            chassis=chassis, defaults={"connection_type": "sse"}
-        )
-        if not created:
-            connection.connection_type = "sse"
-            connection.save()
-        connection.mark_connecting()
     except WirelessChassis.DoesNotExist:
         logger.warning("Receiver not found for SSE subscription: %s", device_id)
         connection = None
 
-    async def update_callback(data: dict[str, Any]):
+    async def update_callback(data: dict[str, Any]) -> None:
         """Handle SSE update data."""
         if connection:
-            connection.received_message()
+            await sync_to_async(connection.received_message, thread_sensitive=True)()
         logger.info("SSE update for %s: %s", device_id, data)
         await _process_sse_update_async(plugin, device_id, data)
 
     try:
         await plugin.connect_and_subscribe(device_id, update_callback)
-    except Exception as e:
-        logger.exception("Error subscribing to device %s: %s", device_id, e)
+    except Exception as exc:
+        logger.exception("Error subscribing to device %s", device_id)
         if connection:
-            connection.mark_error(str(e))
+            error_status = f"SSE subscription failed: {type(exc).__name__}"[:160]
+            await sync_to_async(connection.mark_error, thread_sensitive=True)(error_status)
 
 
-async def _process_sse_update_async(plugin, device_id: str, data: dict[str, Any]):
+async def _process_sse_update_async(
+    plugin: Any,
+    device_id: str,
+    data: dict[str, Any],
+) -> None:
     """Process SSE update data asynchronously."""
     try:
         manufacturer = plugin.manufacturer
@@ -119,7 +136,10 @@ async def _process_sse_update_async(plugin, device_id: str, data: dict[str, Any]
             if api_device_id:
                 # Create a single-device API data list for the update function
                 api_data = [data]  # Raw API data
-                updated_count = _update_models_from_api_data(api_data, manufacturer, plugin)
+                updated_count = await sync_to_async(
+                    _update_models_from_api_data,
+                    thread_sensitive=True,
+                )(api_data, manufacturer, plugin)
                 if updated_count > 0:
                     logger.info("Updated %d device(s) from SSE for %s", updated_count, device_id)
 
@@ -132,46 +152,52 @@ async def _process_sse_update_async(plugin, device_id: str, data: dict[str, Any]
         else:
             logger.debug("Could not transform SSE data for %s", device_id)
 
-    except Exception as e:
-        logger.exception("Error processing SSE update for %s: %s", device_id, e)
+    except Exception:
+        logger.exception("Error processing SSE update for %s", device_id)
 
 
-async def _broadcast_sse_update_async(manufacturer, device_data: dict[str, Any]):
-    """Broadcast SSE update via BroadcastService."""
+def _broadcast_sse_update(manufacturer: Any, api_device_id: str) -> None:
+    """Resolve and broadcast one device entirely in synchronous context."""
+    from micboard.services.notification.broadcast_service import BroadcastService
+
+    chassis = WirelessChassis.objects.get(
+        manufacturer=manufacturer,
+        api_device_id=api_device_id,
+    )
+    serialized_data = {
+        "receivers": [
+            {
+                "id": chassis.id,
+                "api_device_id": chassis.api_device_id,
+                "name": chassis.name,
+                "ip": str(chassis.ip) if chassis.ip else None,
+                "status": chassis.status,
+                "model": chassis.model,
+            }
+        ]
+    }
+    BroadcastService.broadcast_device_update(
+        manufacturer=manufacturer,
+        data=serialized_data,
+    )
+
+
+async def _broadcast_sse_update_async(
+    manufacturer: Any,
+    device_data: dict[str, Any],
+) -> None:
+    """Broadcast an SSE update without running synchronous services on the event loop."""
+    api_device_id = device_data.get("api_device_id")
+    if not api_device_id:
+        return
+
     try:
-        from micboard.services.notification.broadcast_service import BroadcastService
-
-        # Get the updated receiver data
-        api_device_id = device_data.get("api_device_id")
-        if api_device_id:
-            from micboard.models.hardware import WirelessChassis
-
-            try:
-                chassis = WirelessChassis.objects.get(
-                    manufacturer=manufacturer, api_device_id=api_device_id
-                )
-                serialized_data = {
-                    "receivers": [
-                        {
-                            "id": chassis.id,
-                            "api_device_id": chassis.api_device_id,
-                            "name": chassis.name,
-                            "ip": str(chassis.ip) if chassis.ip else None,
-                            "status": chassis.status,
-                            "model": chassis.model,
-                        }
-                    ]
-                }
-
-                # Broadcast update
-                BroadcastService.broadcast_device_update(
-                    manufacturer=manufacturer, data=serialized_data
-                )
-
-                logger.debug("Broadcasted SSE update for device %s", api_device_id)
-
-            except WirelessChassis.DoesNotExist:
-                logger.warning("Receiver not found for SSE broadcast: %s", api_device_id)
-
-    except Exception as e:
-        logger.exception("Error broadcasting SSE update: %s", e)
+        await sync_to_async(_broadcast_sse_update, thread_sensitive=True)(
+            manufacturer,
+            api_device_id,
+        )
+        logger.debug("Broadcasted SSE update for device %s", api_device_id)
+    except WirelessChassis.DoesNotExist:
+        logger.warning("Receiver not found for SSE broadcast: %s", api_device_id)
+    except Exception:
+        logger.exception("Error broadcasting SSE update")

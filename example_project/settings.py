@@ -53,12 +53,17 @@ INSTALLED_APPS = [
 ]
 
 # Optional admin enhancements (only if installed)
-if _is_package_installed("unfold"):
+_has_unfold = _is_package_installed("unfold")
+_has_import_export = _is_package_installed("import_export")
+
+if _has_unfold:
     INSTALLED_APPS.insert(0, "unfold")
     INSTALLED_APPS.insert(1, "unfold.contrib.filters")
+
+if _has_unfold and _has_import_export:
     INSTALLED_APPS.insert(2, "unfold.contrib.import_export")
 
-if _is_package_installed("import_export"):
+if _has_import_export:
     INSTALLED_APPS.append("import_export")
 
 if _is_package_installed("adminsortable2"):
@@ -143,6 +148,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Sites framework
 SITE_ID = 1
+
+# Exact hosts that persisted Manufacturer API Server rows may contact. Keep
+# this explicit so an editable admin URL cannot become a credential-bearing
+# server-side request to an arbitrary destination.
+MICBOARD_API_SERVER_ALLOWED_HOSTS = tuple(
+    host.strip()
+    for host in os.environ.get("MICBOARD_API_SERVER_ALLOWED_HOSTS", "localhost").split(",")
+    if host.strip()
+)
 
 LOGIN_REDIRECT_URL = "/admin/"
 # Optional Micboard-specific config

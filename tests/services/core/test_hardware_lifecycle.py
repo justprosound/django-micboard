@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
 import pytest
 
+from micboard.models.audit.activity_log import ActivityLog
 from micboard.services.core.hardware_lifecycle import (
     HardwareLifecycleManager,
     HardwareStatus,
     get_lifecycle_manager,
     map_api_state_to_status,
 )
+from micboard.services.maintenance.logging import StructuredLogger
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
 
@@ -54,6 +57,91 @@ def test_valid_transition_persists_and_emits_structured_context() -> None:
     assert structured_logger.log_crud_update.call_args.kwargs["new_values"]["status"] == (
         "provisioning"
     )
+
+
+@pytest.mark.django_db
+def test_default_lifecycle_audit_uses_maintenance_structured_logger() -> None:
+    """A manager without injected test doubles must execute the real audit seam."""
+    unit = WirelessUnitFactory(status="discovered", last_seen=None)
+
+    with patch.object(StructuredLogger, "log_crud_update") as log_update:
+        manager = HardwareLifecycleManager()
+        assert manager.transition_device(unit, HardwareStatus.PROVISIONING) is True
+
+    logged_device = log_update.call_args.args[0]
+    assert logged_device.pk == unit.pk
+    assert log_update.call_args.kwargs["old_values"]["status"] == "discovered"
+    assert log_update.call_args.kwargs["new_values"]["status"] == "provisioning"
+    assert log_update.call_args.kwargs["using"] == "default"
+
+
+def test_lifecycle_audit_threads_the_instance_database_alias() -> None:
+    """Carry a non-default device alias through the complete structured audit seam."""
+    unit = WirelessUnitFactory.build(id=17, status="discovered", last_seen=None)
+    unit._state.db = "inventory"
+    alias_queryset = Mock()
+    alias_queryset.select_for_update.return_value.get.return_value = unit
+    audit_log = Mock()
+
+    with (
+        patch.object(type(unit)._default_manager, "using", return_value=alias_queryset) as using,
+        patch("micboard.services.core.hardware_lifecycle.transaction.atomic") as atomic,
+        patch.object(unit, "save"),
+        patch.object(ActivityLog, "log_crud", return_value=audit_log) as log_crud,
+    ):
+        manager = HardwareLifecycleManager(structured_logger=StructuredLogger())
+        assert manager.transition_device(unit, HardwareStatus.PROVISIONING) is True
+
+    atomic.assert_called_once_with(using="inventory")
+    using.assert_called_once_with("inventory")
+    assert log_crud.call_args.kwargs["using"] == "inventory"
+
+
+def test_crud_audit_binds_content_type_lookup_and_write_to_database_alias() -> None:
+    """Persist both halves of a generic audit relation on one connection."""
+    unit = WirelessUnitFactory.build(id=17)
+    content_type = ContentType(app_label="micboard", model="wirelessunit")
+    content_types = Mock()
+    content_types.get_for_model.return_value = content_type
+
+    with (
+        patch.object(ContentType.objects, "db_manager", return_value=content_types) as db_manager,
+        patch.object(ActivityLog, "save") as save,
+    ):
+        audit_log = ActivityLog.log_crud(
+            operation=ActivityLog.UPDATE,
+            obj=unit,
+            old_values={"status": "discovered"},
+            new_values={"status": "provisioning"},
+            using="inventory",
+        )
+
+    db_manager.assert_called_once_with("inventory")
+    content_types.get_for_model.assert_called_once_with(unit)
+    save.assert_called_once_with(using="inventory")
+    assert audit_log.content_type is content_type
+
+
+def test_crud_audit_normalizes_django_native_values_for_json_storage() -> None:
+    """Lifecycle timestamps must not make otherwise valid audit writes fail."""
+    unit = WirelessUnitFactory.build(id=17)
+    changed_at = datetime(2026, 7, 13, 12, 30, tzinfo=UTC)
+    content_type = ContentType(app_label="micboard", model="wirelessunit")
+    content_types = Mock()
+    content_types.get_for_model.return_value = content_type
+
+    with (
+        patch.object(ContentType.objects, "db_manager", return_value=content_types),
+        patch.object(ActivityLog, "save"),
+    ):
+        audit_log = ActivityLog.log_crud(
+            operation=ActivityLog.UPDATE,
+            obj=unit,
+            old_values={"last_seen": None},
+            new_values={"last_seen": changed_at},
+        )
+
+    assert audit_log.new_values == {"last_seen": "2026-07-13T12:30:00Z"}
 
 
 @pytest.mark.django_db

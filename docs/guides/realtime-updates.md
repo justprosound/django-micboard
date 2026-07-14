@@ -269,7 +269,7 @@ snapshot = list(chassis.values("id", "name", "status"))
 **Queued Polling:**
 ```bash
 # Enqueue one poll through native Huey
-uv run python manage.py poll_devices --manufacturer shure --async
+uv run --no-sync python manage.py poll_devices --manufacturer shure --async
 ```
 
 Use your deployment scheduler to enqueue this one-shot command at the required interval.

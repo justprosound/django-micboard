@@ -18,6 +18,10 @@ from django.utils import timezone
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.integrations import ManufacturerAPIServer
 from micboard.services.core.hardware import HardwareService
+from micboard.services.integrations.api_server_service import (
+    APIServerConnectionService,
+    sanitized_api_exception_info,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +48,12 @@ class APIServerPollingService:
             try:
                 APIServerPollingService.poll_server_devices(server)
                 results["success"] += 1
-            except Exception as e:
-                logger.error("Failed to poll API server %s: %s", server.name, e)
+            except Exception as exc:
+                logger.exception(
+                    "Failed to poll API server %s",
+                    server.pk,
+                    exc_info=sanitized_api_exception_info(exc),
+                )
                 results["failed"] += 1
 
         return results
@@ -60,22 +68,18 @@ class APIServerPollingService:
         Raises:
             Exception: If poll fails (sets server status to ERROR)
         """
-        from micboard.services.manufacturer.plugin_registry import PluginRegistry
-
-        # Get manufacturer plugin for this server
-        try:
-            plugin = PluginRegistry.get_plugin(server.manufacturer)
-        except Exception as e:
-            logger.debug("Plugin not found for %s: %s", server.manufacturer, e)
+        if server.manufacturer != ManufacturerAPIServer.Manufacturer.SHURE:
+            logger.debug(
+                "Skipping unsupported API server manufacturer %s for server %s",
+                server.manufacturer,
+                server.pk,
+            )
             return
 
-        if not plugin:
-            logger.error("Plugin not available for %s", server.manufacturer)
-            return
-
-        # Get current state from API
         try:
-            api_devices = plugin.get_devices()
+            api_devices = APIServerConnectionService.fetch_server_devices(server)
+            if api_devices is None:
+                return
 
             for dev_data in api_devices:
                 serial = dev_data.get("serial") or dev_data.get("serialNumber")
@@ -96,12 +100,13 @@ class APIServerPollingService:
 
             # Update server health
             server.status = ManufacturerAPIServer.Status.ACTIVE
+            server.status_message = ""
             server.last_health_check = timezone.now()
-            server.save(update_fields=["status", "last_health_check"])
+            server.save(update_fields=["status", "status_message", "last_health_check"])
 
-        except Exception as e:
+        except Exception as exc:
             server.status = ManufacturerAPIServer.Status.ERROR
-            server.status_message = str(e)[:200]
+            server.status_message = f"Polling failed ({type(exc).__name__})"
             server.save(update_fields=["status", "status_message"])
             raise
 

@@ -87,8 +87,11 @@ class ImportService:
         Returns:
             Tuple of (total_discovered, total_imported, total_updated)
         """
-        from micboard.integrations.shure.client import ShureSystemAPIClient
         from micboard.models.locations.structure import Location
+        from micboard.services.integrations.api_server_service import (
+            APIServerConnectionService,
+            sanitized_api_exception_info,
+        )
 
         total_discovered = 0
         total_imported = 0
@@ -96,9 +99,19 @@ class ImportService:
 
         for server_id, server_config in api_servers.items():
             try:
-                client = ShureSystemAPIClient(base_url=server_config["base_url"])
+                server_manufacturer = str(server_config.get("manufacturer", "shure")).lower()
+                if server_manufacturer != "shure":
+                    logger.info(
+                        "Skipping unsupported manufacturer %s for server %s",
+                        server_manufacturer,
+                        server_id,
+                    )
+                    continue
 
-                devices = client.devices.get_devices()
+                devices = APIServerConnectionService.fetch_shure_devices(
+                    base_url=server_config["base_url"],
+                    shared_key=server_config["shared_key"],
+                )
                 total_discovered += len(devices) if devices else 0
 
                 # Resolve location if provided on server config
@@ -123,12 +136,20 @@ class ImportService:
                             total_imported += 1
                         if updated:
                             total_updated += 1
-                    except Exception:
-                        logger.exception("Error importing device from %s", server_id)
+                    except Exception as exc:
+                        logger.exception(
+                            "Error importing device from %s",
+                            server_id,
+                            exc_info=sanitized_api_exception_info(exc),
+                        )
                         continue
 
-            except Exception:
-                logger.exception("Failed to connect to server %s", server_id)
+            except Exception as exc:
+                logger.exception(
+                    "Failed to connect to server %s",
+                    server_id,
+                    exc_info=sanitized_api_exception_info(exc),
+                )
                 continue
 
         return total_discovered, total_imported, total_updated

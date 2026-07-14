@@ -4,11 +4,12 @@ from django.contrib import admin
 from django.utils import timezone
 from django.utils.html import format_html
 
+from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.realtime.connection import RealTimeConnection
 
 
 @admin.register(RealTimeConnection)
-class RealTimeConnectionAdmin(admin.ModelAdmin):
+class RealTimeConnectionAdmin(MicboardModelAdmin):
     """Admin interface for RealTimeConnection model."""
 
     list_display = [
@@ -48,7 +49,7 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
     ]
 
     fieldsets = (
-        ("Device Information", {"fields": ("receiver", "connection_type")}),
+        ("Device Information", {"fields": ("chassis", "connection_type")}),
         (
             "Connection Status",
             {"fields": ("status", "connected_at", "last_message_at", "disconnected_at")},
@@ -101,7 +102,7 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
             return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
         return "-"
 
-    @admin.action(description="Mark as connected")
+    @admin.action(permissions=["change"], description="Mark as connected")
     def mark_connected(self, request, queryset):
         """Mark selected connections as connected."""
         updated = queryset.update(
@@ -113,19 +114,19 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f"Marked {updated} connection(s) as connected.")
 
-    @admin.action(description="Mark as disconnected")
+    @admin.action(permissions=["change"], description="Mark as disconnected")
     def mark_disconnected(self, request, queryset):
         """Mark selected connections as disconnected."""
         updated = queryset.update(status="disconnected", disconnected_at=timezone.now())
         self.message_user(request, f"Marked {updated} connection(s) as disconnected.")
 
-    @admin.action(description="Reset error count")
+    @admin.action(permissions=["change"], description="Reset error count")
     def reset_error_count(self, request, queryset):
         """Reset error count for selected connections."""
         updated = queryset.update(error_count=0, error_message="")
         self.message_user(request, f"Reset error count for {updated} connection(s).")
 
-    @admin.action(description="Stop connections")
+    @admin.action(permissions=["change"], description="Stop connections")
     def stop_connections(self, request, queryset):
         """Stop selected connections."""
         updated = queryset.update(status="stopped", disconnected_at=timezone.now())
@@ -133,4 +134,4 @@ class RealTimeConnectionAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """Optimize queryset with select_related."""
-        return super().get_queryset(request).select_related("receiver", "receiver__manufacturer")
+        return super().get_queryset(request).select_related("chassis", "chassis__manufacturer")

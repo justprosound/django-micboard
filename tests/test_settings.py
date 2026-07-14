@@ -1,9 +1,12 @@
 """Tests for settings management system."""
 
 from django.contrib.sites.models import Site
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.test import TestCase
 
+from micboard.forms.settings import BulkSettingConfigForm
 from micboard.models.discovery import Manufacturer
 from micboard.models.settings import Setting, SettingDefinition
 from micboard.multitenancy.models import Organization
@@ -106,6 +109,125 @@ class SettingDefinitionTests(TestCase):
         )
         self.assertEqual(defn.serialize_value(True), "true")
         self.assertEqual(defn.serialize_value(False), "false")
+
+    def test_clean_accepts_well_typed_defaults(self):
+        """Every structured definition type accepts a matching default."""
+        definitions = (
+            SettingDefinition(
+                key="valid_integer_default",
+                label="Valid integer",
+                setting_type=SettingDefinition.TYPE_INTEGER,
+                default_value="-12",
+            ),
+            SettingDefinition(
+                key="valid_boolean_default",
+                label="Valid boolean",
+                setting_type=SettingDefinition.TYPE_BOOLEAN,
+                default_value="off",
+            ),
+            SettingDefinition(
+                key="valid_json_default",
+                label="Valid JSON",
+                setting_type=SettingDefinition.TYPE_JSON,
+                default_value='{"enabled": true, "levels": [1, 2]}',
+            ),
+            SettingDefinition(
+                key="valid_choice_default",
+                label="Valid choice",
+                setting_type=SettingDefinition.TYPE_CHOICES,
+                default_value="safe",
+                choices_json={"safe": "Safe", "fast": "Fast"},
+            ),
+        )
+
+        for definition in definitions:
+            with self.subTest(setting_type=definition.setting_type):
+                definition.full_clean()
+
+    def test_clean_rejects_defaults_that_do_not_match_declared_type(self):
+        """Invalid integer, boolean, JSON, and choice defaults fail validation."""
+        definitions = (
+            SettingDefinition(
+                key="invalid_integer_default",
+                label="Invalid integer",
+                setting_type=SettingDefinition.TYPE_INTEGER,
+                default_value="12.5",
+            ),
+            SettingDefinition(
+                key="invalid_boolean_default",
+                label="Invalid boolean",
+                setting_type=SettingDefinition.TYPE_BOOLEAN,
+                default_value="sometimes",
+            ),
+            SettingDefinition(
+                key="invalid_json_default",
+                label="Invalid JSON",
+                setting_type=SettingDefinition.TYPE_JSON,
+                default_value="{broken",
+            ),
+            SettingDefinition(
+                key="invalid_choice_default",
+                label="Invalid choice",
+                setting_type=SettingDefinition.TYPE_CHOICES,
+                default_value="missing",
+                choices_json={"known": "Known"},
+            ),
+        )
+
+        for definition in definitions:
+            with self.subTest(setting_type=definition.setting_type):
+                with self.assertRaises(ValidationError) as raised:
+                    definition.full_clean()
+                self.assertIn("default_value", raised.exception.message_dict)
+
+    def test_clean_requires_choice_mapping(self):
+        """Choice definitions require a non-empty object mapping."""
+        definition = SettingDefinition(
+            key="missing_choice_mapping",
+            label="Missing choice mapping",
+            setting_type=SettingDefinition.TYPE_CHOICES,
+            default_value="choice",
+            choices_json=[],
+        )
+
+        with self.assertRaises(ValidationError) as raised:
+            definition.full_clean()
+
+        self.assertIn("choices_json", raised.exception.message_dict)
+
+    def test_clean_rejects_incompatible_existing_overrides(self):
+        """Scope and type changes cannot strand stored values."""
+        definition = SettingDefinition.objects.create(
+            key="existing_override_contract",
+            label="Existing override contract",
+            scope=SettingDefinition.SCOPE_GLOBAL,
+            setting_type=SettingDefinition.TYPE_STRING,
+            default_value="text",
+        )
+        Setting.objects.create(definition=definition, value="not-an-integer")
+        definition.scope = SettingDefinition.SCOPE_SITE
+        definition.setting_type = SettingDefinition.TYPE_INTEGER
+        definition.default_value = "1"
+
+        with self.assertRaises(ValidationError) as raised:
+            definition.full_clean()
+
+        self.assertIn("scope", raised.exception.message_dict)
+        self.assertIn("setting_type", raised.exception.message_dict)
+
+    def test_clean_allows_compatible_type_transition(self):
+        """A definition may change type when every stored value remains valid."""
+        definition = SettingDefinition.objects.create(
+            key="compatible_override_contract",
+            label="Compatible override contract",
+            scope=SettingDefinition.SCOPE_GLOBAL,
+            setting_type=SettingDefinition.TYPE_STRING,
+            default_value="1",
+        )
+        Setting.objects.create(definition=definition, value="42")
+        definition.setting_type = SettingDefinition.TYPE_INTEGER
+
+        definition.full_clean()
 
 
 class SettingTests(TestCase):
@@ -223,31 +345,39 @@ class SettingsRegistryTests(TestCase):
         value = SettingsRegistry.get("db_test", organization=self.org)
         self.assertEqual(value, 200)
 
-    def test_scope_fallback_chain(self):
-        """Test fallback through scope hierarchy."""
+    def test_definition_scope_selects_only_its_exact_override(self):
+        """Unrelated scope hints must not select values outside the declared scope."""
         defn = SettingDefinition.objects.create(
-            key="fallback_test",
-            label="Fallback Test",
+            key="exact_scope_test",
+            label="Exact Scope Test",
             setting_type=SettingDefinition.TYPE_INTEGER,
             scope=SettingDefinition.SCOPE_MANUFACTURER,
             default_value="10",
         )
 
-        # Create org-level override
         Setting.objects.create(
             definition=defn,
-            organization_id=self.org.id,
-            value="20",
+            manufacturer_id=self.mfg.pk,
+            value="30",
         )
 
-        # Get with organization and site - should fall back to org
-        value = SettingsRegistry.get(
-            "fallback_test",
-            organization=self.org,
-            site=self.site,
-            required=False,
+        self.assertEqual(
+            SettingsRegistry.get(
+                "exact_scope_test",
+                organization=self.org,
+                site=self.site,
+                manufacturer=self.mfg,
+            ),
+            30,
         )
-        self.assertEqual(value, 20)
+        self.assertEqual(
+            SettingsRegistry.get(
+                "exact_scope_test",
+                organization=self.org,
+                site=self.site,
+            ),
+            10,
+        )
 
     def test_required_setting_not_found(self):
         """Test that required setting raises error if not found."""
@@ -305,6 +435,87 @@ class SettingsRegistryTests(TestCase):
         # Note: This should now return 100 (default) since no org specified
         self.assertEqual(value3, 100)
 
+    def test_scoped_cache_invalidation_clears_fallback_entries(self):
+        """One key invalidation must retire every scoped cache variant."""
+        definition = SettingDefinition.objects.create(
+            key="scoped_cache_test",
+            label="Scoped Cache Test",
+            setting_type=SettingDefinition.TYPE_INTEGER,
+            scope=SettingDefinition.SCOPE_ORGANIZATION,
+            default_value="100",
+        )
+        setting = Setting.objects.create(
+            definition=definition,
+            organization_id=self.org.pk,
+            value="200",
+        )
+        self.assertEqual(
+            SettingsRegistry.get(
+                "scoped_cache_test",
+                organization=self.org,
+                site=self.site,
+            ),
+            200,
+        )
+
+        setting.value = "300"
+        setting.save(update_fields=["value", "updated_at"])
+        SettingsRegistry.invalidate_cache("scoped_cache_test")
+
+        self.assertEqual(
+            SettingsRegistry.get(
+                "scoped_cache_test",
+                organization=self.org,
+                site=self.site,
+            ),
+            300,
+        )
+
+    def test_definition_invalidation_refreshes_cached_metadata(self):
+        """Definition edits must replace cached type/default metadata immediately."""
+        definition = SettingDefinition.objects.create(
+            key="definition_cache_test",
+            label="Definition Cache Test",
+            setting_type=SettingDefinition.TYPE_INTEGER,
+            default_value="10",
+        )
+        self.assertEqual(SettingsRegistry.get("definition_cache_test"), 10)
+
+        SettingDefinition.objects.filter(pk=definition.pk).update(default_value="20")
+        SettingsRegistry.invalidate_definition("definition_cache_test")
+
+        self.assertEqual(SettingsRegistry.get("definition_cache_test"), 20)
+
+    def test_shared_definition_generation_refreshes_process_local_metadata(self):
+        """Another worker's generation bump must retire local definition metadata."""
+        key = "cross_worker_definition_cache_test"
+        definition = SettingDefinition.objects.create(
+            key=key,
+            label="Cross-worker Definition Cache Test",
+            setting_type=SettingDefinition.TYPE_INTEGER,
+            default_value="10",
+        )
+        self.addCleanup(SettingsRegistry._setting_definitions_cache.pop, key, None)
+        self.assertEqual(SettingsRegistry.get_definition_default(key), 10)
+
+        SettingDefinition.objects.filter(pk=definition.pk).update(default_value="20")
+        cache.set(
+            SettingsRegistry._definition_version_cache_key(key),
+            "remote-worker-generation",
+            timeout=None,
+        )
+
+        self.assertIn(key, SettingsRegistry._setting_definitions_cache)
+        self.assertEqual(SettingsRegistry.get_definition_default(key), 20)
+
+    def test_global_settings_invalidation_preserves_unrelated_host_cache(self):
+        """Clearing registry generations must not flush the host application's cache."""
+        cache.set("host-application-key", "preserved", timeout=None)
+
+        SettingsRegistry.invalidate_cache()
+
+        self.assertEqual(cache.get("host-application-key"), "preserved")
+
     def test_get_all_for_scope(self):
         """Test bulk retrieval for a scope."""
         defn1 = SettingDefinition.objects.create(
@@ -329,6 +540,31 @@ class SettingsRegistryTests(TestCase):
         self.assertEqual(all_settings["bulk_test_2"], 42)
 
 
+class SettingsFormTests(TestCase):
+    """Bulk settings forms must preserve each declared value type."""
+
+    def test_bulk_json_value_round_trips_as_structured_data(self):
+        """JSON text must be parsed before model serialization, not encoded twice."""
+        definition = SettingDefinition.objects.create(
+            key="json_form_test",
+            label="JSON Form Test",
+            setting_type=SettingDefinition.TYPE_JSON,
+            scope=SettingDefinition.SCOPE_GLOBAL,
+            default_value="{}",
+        )
+        form = BulkSettingConfigForm(
+            data={
+                "scope": SettingDefinition.SCOPE_GLOBAL,
+                f"setting_{definition.pk}": '{"enabled": true, "levels": [1, 2]}',
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.save_settings(), {"saved": 1, "errors": []})
+        setting = Setting.objects.get(definition=definition)
+        self.assertEqual(setting.get_parsed_value(), {"enabled": True, "levels": [1, 2]})
+
+
 class ManufacturerConfigRegistryTests(TestCase):
     """Test ManufacturerConfigRegistry service."""
 
@@ -345,25 +581,47 @@ class ManufacturerConfigRegistryTests(TestCase):
 
     def test_override_with_database_setting(self):
         """Test that database settings override defaults."""
-        # Create override
         defn = SettingDefinition.objects.create(
-            key="shure_battery_thresholds",
-            label="Battery Thresholds",
-            setting_type=SettingDefinition.TYPE_JSON,
+            key="battery_good_level",
+            label="Battery Good Level",
+            setting_type=SettingDefinition.TYPE_INTEGER,
             scope=SettingDefinition.SCOPE_MANUFACTURER,
-            default_value='{"good": 90, "low": 20, "critical": 0}',
+            default_value="90",
         )
 
         Setting.objects.create(
             definition=defn,
             manufacturer_id=self.mfg.id,
-            value='{"good": 95, "low": 20, "critical": 0}',
+            value="95",
         )
 
         config = ManufacturerConfigRegistry.get("shure", manufacturer=self.mfg)
 
         # Should use override, not default
         self.assertEqual(config.battery_thresholds["good"], 95)
+
+    def test_set_override_round_trips_canonical_key_without_mutating_defaults(self):
+        """Canonical manufacturer keys apply only to the requested config copy."""
+        SettingDefinition.objects.create(
+            key="api_timeout",
+            label="API Timeout",
+            setting_type=SettingDefinition.TYPE_INTEGER,
+            scope=SettingDefinition.SCOPE_MANUFACTURER,
+            default_value="30",
+        )
+
+        ManufacturerConfigRegistry.set_override(
+            "shure",
+            "api_timeout",
+            45,
+            manufacturer=self.mfg,
+        )
+
+        self.assertEqual(
+            ManufacturerConfigRegistry.get("shure", manufacturer=self.mfg).api_timeout,
+            45,
+        )
+        self.assertEqual(ManufacturerConfigRegistry.get("shure").api_timeout, 30)
 
     def test_missing_manufacturer(self):
         """Test behavior for unknown manufacturer."""

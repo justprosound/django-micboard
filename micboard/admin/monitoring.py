@@ -221,9 +221,8 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @method_decorator(require_POST)
     def promote_device_view(self, request, pk):
         """Promote a discovered device to a managed WirelessChassis."""
-        try:
-            discovered = DiscoveredDevice.objects.get(pk=pk)
-        except DiscoveredDevice.DoesNotExist:
+        discovered = self.get_object(request, str(pk))
+        if discovered is None:
             messages.error(request, "Discovered device not found.")
             return redirect("..")
 
@@ -245,7 +244,10 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
             messages.error(request, f"❌ Failed to promote device: {message}")
             return redirect("..")
 
-    @admin.action(description="Refresh device data from manufacturer API")
+    @admin.action(
+        permissions=["change"],
+        description="Refresh device data from manufacturer API",
+    )
     def refresh_from_api(self, request, queryset):
         """Refresh discovered device data from manufacturer API."""
         from micboard.services.sync.device_refresh_service import DeviceRefreshService
@@ -264,7 +266,10 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
                 f"⚠️ {failed} device(s) could not be refreshed. Check logs for details.",
             )
 
-    @admin.action(description="Promote selected devices to managed chassis")
+    @admin.action(
+        permissions=["change"],
+        description="Promote selected devices to managed chassis",
+    )
     def promote_to_chassis_action(self, request, queryset):
         """Bulk action to promote discovered devices to WirelessChassis."""
         if not self._has_promotion_permission(request):

@@ -5,7 +5,7 @@ from django.conf import settings as django_settings
 from django.core.management.base import BaseCommand
 
 from micboard.integrations.shure.client import ShureSystemAPIClient
-from micboard.services.settings import settings as app_settings
+from micboard.services.settings.settings_service import settings as app_settings
 
 logger = logging.getLogger(__name__)
 

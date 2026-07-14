@@ -14,6 +14,7 @@ from django.conf import settings
 def main() -> int:
     """Start Django and import representative modules from the installed wheel."""
     settings.configure(
+        DEBUG=True,
         SECRET_KEY="wheel-smoke",
         INSTALLED_APPS=[
             "django.contrib.admin",

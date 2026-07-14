@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from django.db import DEFAULT_DB_ALIAS
+
 from micboard.models.device_specs import (
     get_channel_count,
     get_dante_support,
@@ -44,7 +46,11 @@ class HardwareSyncService:
             unit.save(update_fields=["battery", "updated_at"])
 
     @staticmethod
-    def ensure_channel_count(*, chassis: WirelessChassis) -> tuple[int, int]:
+    def ensure_channel_count(
+        *,
+        chassis: WirelessChassis,
+        using: str = DEFAULT_DB_ALIAS,
+    ) -> tuple[int, int]:
         """Ensure RFChannel rows for a chassis match its model capacity.
 
         Returns (created_count, deleted_count).
@@ -52,7 +58,10 @@ class HardwareSyncService:
         from micboard.models.rf_coordination import RFChannel
 
         expected = chassis.get_expected_channel_count()
-        current_channels = set(chassis.rf_channels.values_list("channel_number", flat=True))
+        channels = RFChannel.objects.using(using)
+        current_channels = set(
+            channels.filter(chassis_id=chassis.pk).values_list("channel_number", flat=True)
+        )
         expected_channels = set(range(1, expected + 1))
 
         created_count = 0
@@ -66,15 +75,15 @@ class HardwareSyncService:
             else:
                 link_direction = "bidirectional"
 
-            RFChannel.objects.create(
-                chassis=chassis,
+            channels.create(
+                chassis_id=chassis.pk,
                 channel_number=ch_num,
                 link_direction=link_direction,
             )
             created_count += 1
 
         for ch_num in sorted(current_channels - expected_channels):
-            chassis.rf_channels.filter(channel_number=ch_num).delete()
+            channels.filter(chassis_id=chassis.pk, channel_number=ch_num).delete()
             deleted_count += 1
 
         return (created_count, deleted_count)

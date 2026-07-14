@@ -1,510 +1,155 @@
-# Troubleshooting
+# Shure troubleshooting
 
-All Python environment and dependency management for django-micboard uses
-[`uv`](https://github.com/astral-sh/uv).
+Use these checks to separate configuration, transport, discovery, polling, and queue failures.
+Run project commands through the locked uv environment.
 
-Common issues and solutions for django-micboard with Shure wireless microphone systems.
+## 1. Verify Django configuration
 
-## Connection Issues
-
-### Shure API Connection Failed
-
-**Symptoms:**
-- "Connection refused" errors
-- Authentication failures
-- SSL certificate errors
-
-**Solutions:**
-
-1. **Verify API Configuration:**
-   ```python
-   # Check settings.py
-   MICBOARD_SHURE_API = {
-       'BASE_URL': 'https://your-shure-system.local',
-       'USERNAME': 'admin',
-       'PASSWORD': 'correct-password',
-   }
-   ```
-
-2. **Test API Access:**
-   ```bash
-   # Test with curl
-   curl --cacert /path/to/internal-ca.pem -u admin:password \
-     https://your-shure-system.local/api/v1
-   ```
-
-3. **Check Network Connectivity:**
-   ```bash
-   # Ping the Shure system
-   ping your-shure-system.local
-
-   # Test port connectivity
-   nc -zv your-shure-system.local 443
-   ```
-
-4. **Review Shure System Logs:**
-   - Access Shure web interface
-   - Check System → Logs
-   - Look for API authentication attempts
-
-### Device Discovery Problems
-
-**Symptoms:**
-- No devices found during discovery
-- Devices appear offline
-- Incomplete device information
-
-**Solutions:**
-
-1. **Verify Discovery IPs:**
-   ```bash
-   # Check configured IPs
-   uv run python manage.py shell -c "from micboard.models.discovery.registry import DiscoveredDevice; print(list(DiscoveredDevice.objects.values_list('ip', flat=True)))"
-   ```
-
-2. **Add Device IPs Manually:**
-   ```bash
-   # Add specific IPs
-   uv run python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
-   ```
-
-3. **Check Device Network Configuration:**
-   - Ensure devices are on the same network
-   - Verify IP addresses are static
-   - Check DHCP reservations
-
-4. **Test Individual Device Access:**
-   ```python
-   from micboard.integrations.shure.client import ShureSystemAPIClient
-   client = ShureSystemAPIClient()
-   try:
-       devices = client.devices.get_devices()
-       print(f"Found {len(devices)} devices")
-   except Exception as e:
-       print(f"Error: {e}")
-   ```
-
-## Data Synchronization Issues
-
-### Stale Device Data
-
-**Symptoms:**
-- Battery levels not updating
-- RF signals show old values
-- Device status incorrect
-
-**Solutions:**
-
-1. **Check Polling Status:**
-   ```bash
-   # Run manual poll
-   uv run python manage.py poll_devices --manufacturer shure
-   ```
-
-2. **Verify Polling Process:**
-   ```bash
-   # Check running processes
-   ps aux | grep poll_devices
-
-   # Kill stuck processes
-   pkill -f poll_devices
-   ```
-
-3. **Review Polling Logs:**
-   ```python
-   # Check Django logs
-   import logging
-   logger = logging.getLogger('micboard')
-   # Ensure log level is DEBUG
-   ```
-
-4. **Test API Response Times:**
-   ```python
-   import time
-   from micboard.integrations.shure.client import ShureSystemAPIClient
-
-   client = ShureSystemAPIClient()
-   start = time.time()
-   devices = client.devices.get_devices()
-   print(f"API call took {time.time() - start:.2f} seconds")
-   ```
-
-### WebSocket Connection Problems
-
-**Symptoms:**
-- Real-time updates not working
-- WebSocket connection errors
-- Frontend shows stale data
-
-**Solutions:**
-
-1. **Verify ASGI Configuration:**
-   ```python
-   # asgi.py should include authentication and micboard's actual routing module:
-   from channels.auth import AuthMiddlewareStack
-   from micboard.websockets.routing import websocket_urlpatterns
-
-   application = ProtocolTypeRouter({
-       "http": get_asgi_application(),
-       "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
-   })
-   ```
-
-2. **Check Redis Connectivity:**
-   ```bash
-   # Test Redis
-   redis-cli ping
-
-   # Check Redis logs
-   tail -f /var/log/redis/redis-server.log
-   ```
-
-3. **Test WebSocket Connection:**
-   ```javascript
-   // Browser console
-   const ws = new WebSocket('ws://your-server/ws');
-   ws.onopen = () => console.log('Connected');
-   ws.onerror = (e) => console.error('Error:', e);
-   ```
-
-4. **Monitor Channel Layer:**
-   ```python
-   from channels.layers import get_channel_layer
-   channel_layer = get_channel_layer()
-   print(f"Channel layer: {channel_layer}")
-   ```
-
-## Performance Issues
-
-### Slow Page Loads
-
-**Symptoms:**
-- Admin interface loads slowly
-- API responses delayed
-- High server resource usage
-
-**Solutions:**
-
-1. **Optimize Database Queries:**
-   ```python
-   # Use select_related for foreign keys
-   devices = Device.objects.select_related('manufacturer', 'location').all()
-   ```
-
-2. **Implement Caching:**
-   ```python
-   from django.core.cache import cache
-
-   # Cache device data
-   devices = cache.get('devices')
-   if not devices:
-       devices = Device.objects.all()
-       cache.set('devices', devices, 300)  # 5 minutes
-   ```
-
-3. **Check Database Indexes:**
-   ```sql
-   -- Ensure indexes on frequently queried fields
-   CREATE INDEX CONCURRENTLY idx_device_manufacturer ON micboard_device(manufacturer_id);
-   CREATE INDEX CONCURRENTLY idx_device_last_updated ON micboard_device(last_updated);
-   ```
-
-4. **Monitor Query Performance:**
-   ```python
-   from django.db import connection
-   from django.conf import settings
-
-   settings.DEBUG = True
-   # Run queries and check connection.queries
-   ```
-
-### High Memory Usage
-
-**Symptoms:**
-- Server memory consumption increasing
-- Application crashes with OOM errors
-- Slow response times
-
-**Solutions:**
-
-1. **Implement Pagination:**
-   ```python
-   from django.core.paginator import Paginator
-
-   devices = Device.objects.all()
-   paginator = Paginator(devices, 50)  # 50 per page
-   page = paginator.page(1)
-   ```
-
-2. **Use Iterators for Large Queries:**
-   ```python
-   # Instead of loading all objects
-   for device in Device.objects.iterator():
-       process_device(device)
-   ```
-
-3. **Configure Connection Pooling:**
-   ```python
-   # settings.py
-   DATABASES = {
-       'default': {
-           'ENGINE': 'django.db.backends.postgresql',
-           'CONN_MAX_AGE': 60,  # Keep connections alive
-           'OPTIONS': {
-               'pool': {
-                   'minconn': 1,
-                   'maxconn': 20,
-               }
-           }
-       }
-   }
-   ```
-
-4. **Monitor Memory Usage:**
-   ```python
-   import psutil
-   import os
-
-   process = psutil.Process(os.getpid())
-   print(f"Memory usage: {process.memory_info().rss / 1024 / 1024:.2f} MB")
-   ```
-
-## Authentication and Permissions
-
-### API Authentication Errors
-
-**Symptoms:**
-- 401 Unauthorized responses
-- Authentication failed messages
-
-**Solutions:**
-
-1. **Verify Credentials:**
-   ```python
-   # Test authentication
-   from micboard.integrations.shure.client import ShureSystemAPIClient
-   client = ShureSystemAPIClient()
-   try:
-       client._make_request('GET', '/api/v1')
-       print("Authentication successful")
-   except Exception as e:
-       print(f"Authentication failed: {e}")
-   ```
-
-2. **Check Credential Storage:**
-   ```python
-   # Ensure credentials are properly set
-   from django.conf import settings
-   api_config = getattr(settings, 'MICBOARD_SHURE_API', {})
-   print("API Config:", {k: '***' if 'password' in k.lower() else v for k, v in api_config.items()})
-   ```
-
-3. **Review Shure System Authentication:**
-   - Check user permissions in Shure interface
-   - Verify API user has necessary permissions
-   - Reset API password if needed
-
-### Permission Errors
-
-**Symptoms:**
-- Access denied to admin functions
-- API endpoints return 403 Forbidden
-
-**Solutions:**
-
-1. **Check Django Permissions:**
-   ```python
-   # Verify user permissions
-   user = User.objects.get(username='admin')
-   print("Is staff:", user.is_staff)
-   print("Is superuser:", user.is_superuser)
-   ```
-
-2. **Review Object Permissions:**
-   ```python
-   from guardian.shortcuts import get_objects_for_user
-   devices = get_objects_for_user(user, 'micboard.view_device')
-   print(f"User can view {len(devices)} devices")
-   ```
-
-3. **Configure Admin Permissions:**
-   ```python
-   # settings.py
-   MICBOARD_ADMIN_PERMISSIONS = {
-       'restrict_by_location': True,
-       'require_change_approval': False,
-   }
-   ```
-
-## Device-Specific Issues
-
-### Battery Level Problems
-
-**Symptoms:**
-- Battery levels not updating
-- Incorrect battery percentages
-- Charging status wrong
-
-**Solutions:**
-
-1. **Check Device Firmware:**
-   - Ensure devices run compatible firmware
-   - Update firmware if necessary
-   - Check Shure release notes
-
-2. **Verify Battery Reporting:**
-   ```python
-   # Test battery API
-   from micboard.integrations.shure.client import ShureSystemAPIClient
-   client = ShureSystemAPIClient()
-   device = client.devices.get_device("device_id")
-   print(f"Battery: {device.get('battery_level')}")
-   ```
-
-3. **Calibrate Battery Sensors:**
-   - Some Shure devices require battery calibration
-   - Follow device-specific calibration procedures
-
-### RF Signal Issues
-
-**Symptoms:**
-- RF signal strength incorrect
-- Interference not detected
-- Channel changes not reflected
-
-**Solutions:**
-
-1. **Check Antenna Configuration:**
-   - Verify antenna connections
-   - Check antenna placement
-   - Test antenna signal strength
-
-2. **Review Frequency Settings:**
-   ```python
-   # Check device frequency
-   device = Device.objects.get(device_id='SHURE001')
-   print(f"Frequency: {device.frequency}")
-   ```
-
-3. **Monitor Interference:**
-   - Use spectrum analyzer tools
-   - Check for local interference sources
-   - Adjust channel assignments
-
-## Logging and Debugging
-
-### Enable Debug Logging
+Shure values belong in `MICBOARD_CONFIG`; `MICBOARD_SHURE_API` is not a supported Django
+setting.
 
 ```python
-# settings.py
+import os
+
+MICBOARD_CONFIG = {
+    "SHURE_API_BASE_URL": os.environ.get(
+        "MICBOARD_SHURE_API_BASE_URL", "https://shure-system.example.com:10000"
+    ),
+    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
+}
+```
+
+The package does not read environment variables directly. Verify the host settings module maps
+them and that Django starts cleanly:
+
+```bash
+uv run --no-sync python manage.py check
+uv run --no-sync python manage.py shell -c \
+  'from micboard.services.settings.settings_service import settings; print(settings.get("SHURE_API_BASE_URL")); print(bool(settings.get("SHURE_API_SHARED_KEY")))'
+```
+
+The second command prints only whether a key exists, never its value.
+
+## 2. Verify HTTPS and trust
+
+Manufacturer clients reject cleartext URLs. If the endpoint uses an internal CA, install that CA
+in the host trust store or set `SSL_CERT_FILE`/`SSL_CERT_DIR` for Django and Huey.
+
+```bash
+curl --fail --show-error --cacert /path/to/internal-ca.pem \
+  https://shure-system.example.com:10000/api/v1/devices
+```
+
+An HTTP authentication response still proves DNS, routing, TCP, and TLS are working. Avoid
+putting the shared key on a shell command line or in shell history.
+
+## 3. Run the built-in diagnostic
+
+```bash
+uv run --no-sync python manage.py diagnostic_api_health_check
+```
+
+Common outcomes:
+
+- `SHURE_API_SHARED_KEY not configured`: fix the host settings mapping.
+- certificate verification error: install the issuing CA; do not disable verification.
+- connection refused or timeout: check endpoint, route, firewall, and System API process.
+- HTTP 401/403: confirm the shared key belongs to this endpoint.
+
+## 4. Check discovery inventory
+
+Confirm an active manufacturer with code `shure` exists. Add bounded candidates explicitly:
+
+```bash
+uv run --no-sync python manage.py discovery_add_devices \
+  --manufacturer shure \
+  --ips 192.168.1.100,192.168.1.101
+```
+
+Inspect candidates without exposing credentials:
+
+```bash
+uv run --no-sync python manage.py shell -c \
+  'from micboard.models.discovery.registry import DiscoveredDevice; print(list(DiscoveredDevice.objects.values_list("ip", "status")))'
+```
+
+Synchronize existing discovery records first:
+
+```bash
+uv run --no-sync python manage.py sync_discovery --manufacturer shure
+```
+
+Only use `--scan-cidrs` after configuring CIDRs in admin. Keep `--max-hosts` bounded.
+
+## 5. Separate polling from Huey
+
+Run one synchronous poll:
+
+```bash
+uv run --no-sync python manage.py poll_devices --manufacturer shure
+```
+
+If it succeeds, test queue dispatch:
+
+```bash
+uv run --no-sync python manage.py poll_devices --manufacturer shure --async
+```
+
+Queued work requires `huey.contrib.djhuey` in `INSTALLED_APPS`, a dictionary at
+`settings.HUEY`, and a running consumer:
+
+```bash
+uv run --no-sync python manage.py run_huey
+```
+
+## 6. Inspect connection state
+
+```bash
+uv run --no-sync python manage.py realtime_status --manufacturer shure --verbose
+```
+
+For backend Shure WebSocket subscriptions, install the `shure` extra and confirm the derived
+URL is `wss://`. Browser-facing Channels routing is a separate connection path.
+
+## 7. Enable focused logs
+
+Configure the host project's Django logging without creating a file path the service user cannot
+write:
+
+```python
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': 'micboard.log',
-        },
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
     },
-    'loggers': {
-        'micboard': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
-        'micboard.integrations.shure': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
-            'propagate': False,
+    "loggers": {
+        "micboard.integrations.shure": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
         },
     },
 }
 ```
 
-### Debug Commands
+Logs intentionally omit shared-key values. Do not add temporary credential logging.
+
+## Reporting a bug
+
+Include:
+
+- django-micboard, Django, and Python versions
+- exact management command and traceback
+- endpoint hostname/port with secrets removed
+- whether synchronous polling succeeds
+- whether the failure occurs in Django, Huey, or both
+- relevant redacted logs
 
 ```bash
-# Test API connectivity
-uv run python manage.py shell -c "
-from micboard.integrations.shure.client import ShureSystemAPIClient
-client = ShureSystemAPIClient()
-print('Testing API...')
-try:
-    health = client.check_health()
-    print('Health:', health)
-except Exception as e:
-    print('Error:', e)
-"
-
-# Check database status
-uv run python manage.py shell -c "
-from micboard.models.hardware.wireless_chassis import WirelessChassis
-print(f'Total chassis: {WirelessChassis.objects.count()}')
-print(f'Online chassis: {WirelessChassis.objects.filter(is_online=True).count()}')
-"
-
-# Test WebSocket
-uv run python manage.py shell -c "
-from channels.layers import get_channel_layer
-layer = get_channel_layer()
-print('Channel layer:', layer)
-"
+uv run --no-sync python -c \
+  'import django, micboard, sys; print(sys.version); print(django.get_version()); print(micboard.__file__)'
+uv tree --depth 1
 ```
 
-## Common Error Messages
-
-### "Connection timeout"
-
-**Cause:** Network issues or slow API responses
-**Solution:** Increase timeout values, check network connectivity
-
-### "SSL certificate verify failed"
-
-**Cause:** Invalid or self-signed SSL certificate
-**Solution:** Install the issuing CA and set `SSL_CERT_FILE` or `SSL_CERT_DIR` for the service.
-
-### "Device not found"
-
-**Cause:** Device not in discovery range or offline
-**Solution:** Add device IP manually, check device power and network
-
-### "Authentication failed"
-
-**Cause:** Incorrect API credentials
-**Solution:** Verify username/password in Shure system and Django settings
-
-### "WebSocket connection failed"
-
-**Cause:** ASGI/Rails configuration or Redis issues
-**Solution:** Check ASGI setup, verify Redis connectivity, review firewall settings
-
-## Getting Help
-
-### Diagnostic Information
-
-When reporting issues, include:
-
-```bash
-# System information
-uv run python -c "import django; print(f'Django: {django.VERSION}')"
-
-# Package versions
-uv tree --depth 1 | grep -E "(django|channels|micboard)"
-
-# Configuration check
-uv run python manage.py shell -c "
-from django.conf import settings
-print('Shure API configured:', hasattr(settings, 'MICBOARD_SHURE_API'))
-print('Channels configured:', hasattr(settings, 'CHANNEL_LAYERS'))
-"
-```
-
-### Support Resources
-
-- [GitHub Issues](https://github.com/justprosound/django-micboard/issues)
-- [Shure API Documentation](https://shure.secure.force.com/apiexplorer)
-- [Django Channels Documentation](https://channels.readthedocs.io/)
-- [Django Micboard Documentation](https://django-micboard.readthedocs.io/)
+Open issues at [GitHub Issues](https://github.com/justprosound/django-micboard/issues).

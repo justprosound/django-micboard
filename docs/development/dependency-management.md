@@ -30,3 +30,6 @@ directly:
 uv export --locked --no-dev --extra docs --no-emit-project \
   --output-file docs/requirements.txt
 ```
+
+Renovate ignores this generated export and updates canonical dependency inputs instead. The
+pre-commit suite rejects any export that drifts from `uv.lock`.

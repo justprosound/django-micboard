@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.db.models import Model, QuerySet
 
-from micboard.services.settings import settings
+from micboard.services.settings.settings_service import settings
 
 
 def apply_tenant_filters[ModelT: Model](

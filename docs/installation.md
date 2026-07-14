@@ -10,7 +10,7 @@ Complete installation instructions for django-micboard.
 
 - **Python**: 3.13 or higher
 - **Django**: 5.1 through 6.0
-- **Database**: PostgreSQL, MySQL, or SQLite
+- **Database**: PostgreSQL for production; SQLite for local development and tests
 - **Memory**: 512MB RAM minimum
 - **Storage**: 100MB free space
 
@@ -18,7 +18,7 @@ Complete installation instructions for django-micboard.
 
 - **Python**: 3.13+
 - **Database**: PostgreSQL 13+
-- **Redis**: 6.0+ (for WebSocket support)
+- **Redis**: 6.0+ (for native Huey and WebSocket support)
 - **Memory**: 1GB+ RAM
 - **Web Server**: Nginx + Gunicorn or Apache + mod_wsgi
 
@@ -28,7 +28,7 @@ Complete installation instructions for django-micboard.
 
 ```bash
 # Add the package and common integrations to the host project's lockfile
-uv add "django-micboard[standard,tasks]"
+uv add "django-micboard[standard,realtime]"
 
 # Or for latest development version
 uv add "django-micboard @ git+https://github.com/justprosound/django-micboard.git"
@@ -87,6 +87,10 @@ Add to your Django `settings.py`:
 
 ```python
 # settings.py
+import os
+
+DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
+
 INSTALLED_APPS = [
     # Django core apps
     'django.contrib.admin',
@@ -98,6 +102,7 @@ INSTALLED_APPS = [
 
     # Third-party apps
     'channels',
+    'huey.contrib.djhuey',
 
     # Micboard
     'micboard',
@@ -113,6 +118,16 @@ DATABASES = {
         'HOST': 'localhost',
         'PORT': '5432',
     }
+}
+
+# Native Huey Django integration. Use immediate mode only for local development/tests.
+HUEY = {
+    "huey_class": "huey.RedisHuey",
+    "name": "micboard",
+    "connection": {
+        "url": os.environ.get("REDIS_URL", "redis://localhost:6379/1"),
+    },
+    "immediate": DEBUG,
 }
 
 # Internationalization
@@ -133,21 +148,26 @@ MEDIA_ROOT = '/var/www/micboard/media/'
 ### Shure API Configuration
 
 ```python
-# Shure System API settings
-MICBOARD_SHURE_API = {
-    'BASE_URL': 'https://your-shure-system.local',
-    'USERNAME': 'api_user',
-    'PASSWORD': 'secure_password',
-    'TIMEOUT': 30,
+import os
+
+# Shure System API settings use the shared key issued by Shure System API.
+MICBOARD_CONFIG = {
+    "SHURE_API_BASE_URL": os.environ.get(
+        "MICBOARD_SHURE_API_BASE_URL", "https://your-shure-system.local:10000"
+    ),
+    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
+    "SHURE_API_TIMEOUT": int(os.environ.get("MICBOARD_SHURE_API_TIMEOUT", "30")),
 }
 
-# Optional: Additional manufacturers
-# MICBOARD_SENNHEISER_API = {
-#     'BASE_URL': 'https://sennheiser-system.local',
-#     'USERNAME': 'api_user',
-#     'PASSWORD': 'secure_password',
-# }
+# Exact hostnames that credential-bearing Manufacturer API Server checks may contact.
+# Do not include schemes, ports, paths, or wildcards.
+MICBOARD_API_SERVER_ALLOWED_HOSTS = ["your-shure-system.local"]
 ```
+
+The package reads Django settings rather than environment variables directly. Host projects may
+use different environment names, but must map values into `MICBOARD_CONFIG` themselves.
+The API-server allowlist is enforced for admin connection checks so an editable URL cannot send a
+manufacturer credential to an arbitrary destination.
 
 ### Channels Configuration (WebSocket)
 
@@ -188,13 +208,7 @@ CSRF_COOKIE_SECURE = True
 ### Optional Features
 
 ```python
-# Rate limiting
-MICBOARD_RATE_LIMITS = {
-    'api_calls': '1000/hour',
-    'device_polling': '60/minute',
-}
-
-# Email alerts (optional)
+# Standard Django email configuration for host-project notifications
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
@@ -249,7 +263,11 @@ application = ProtocolTypeRouter({
 
 ## Database Setup
 
-### PostgreSQL (Recommended)
+### PostgreSQL (Required for Production)
+
+PostgreSQL is required when `DEBUG=False`. django-micboard's deployment system check rejects
+other database engines in production because cross-model IP ownership relies on PostgreSQL
+transaction advisory locks. SQLite remains supported for local development and tests.
 
 ```bash
 # Create database and user
@@ -282,34 +300,30 @@ DATABASES = {
 
 ```bash
 # Apply database migrations
-uv run python manage.py migrate
+uv run --no-sync python manage.py migrate
 
 # Create superuser
-uv run python manage.py createsuperuser
+uv run --no-sync python manage.py createsuperuser
 ```
 
 ### Collect Static Files
 
 ```bash
 # Collect static files for production
-uv run python manage.py collectstatic --noinput
+uv run --no-sync python manage.py collectstatic --noinput
 ```
 
 ### Verify Installation
 
 ```bash
-# Run tests
-uv run python manage.py test micboard
+# Run the package test suite from a source checkout
+uv run --no-sync pytest
 
 # Check system health
-uv run python manage.py check
+uv run --no-sync python manage.py check
 
 # Test Shure API connection (if configured)
-uv run python manage.py shell -c "
-from micboard.integrations.shure.client import ShureSystemAPIClient
-client = ShureSystemAPIClient()
-print('API Health:', client.check_health())
-"
+uv run --no-sync python manage.py diagnostic_api_health_check
 ```
 
 ## Production Deployment
@@ -337,7 +351,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/micboard
 Environment="DJANGO_SETTINGS_MODULE=myproject.settings"
-ExecStart=/usr/local/bin/uv run --no-sync gunicorn --workers 3 --bind unix:/var/www/micboard/micboard.sock myproject.asgi:application
+ExecStart=/usr/local/bin/uv run --no-sync gunicorn --workers 3 --bind unix:/var/www/micboard/micboard.sock myproject.wsgi:application
 Restart=always
 
 [Install]
@@ -412,7 +426,7 @@ RUN uv run --no-sync python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-CMD ["uv", "run", "--no-sync", "gunicorn", "--bind", "0.0.0.0:8000", "myproject.asgi:application"]
+CMD ["uv", "run", "--no-sync", "gunicorn", "--bind", "0.0.0.0:8000", "myproject.wsgi:application"]
 ```
 
 > **NOTE:** The image copies a pinned binary from Astral's official uv image and installs the locked project with `uv sync`.
@@ -429,7 +443,7 @@ docker run -p 8000:8000 micboard
 
 ```bash
 # Expand CIDRs already configured in the admin discovery settings
-uv run python manage.py sync_discovery --manufacturer shure --scan-cidrs
+uv run --no-sync python manage.py sync_discovery --manufacturer shure --scan-cidrs
 
 # Or add specific devices
 uv run --no-sync python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
@@ -470,8 +484,9 @@ uv run --no-sync python -c "import micboard; print(micboard.__file__)"
 
 **Migration failures:**
 ```bash
-# Reset migrations (development only)
-uv run --no-sync python manage.py migrate --run-syncdb
+# Inspect migration state without rewriting migration history
+uv run --no-sync python manage.py showmigrations micboard
+uv run --no-sync python manage.py migrate --plan
 
 # Check database connectivity
 uv run --no-sync python manage.py dbshell
@@ -494,7 +509,7 @@ sudo chmod -R 755 /var/www/micboard/
 redis-cli ping
 
 # Verify ASGI configuration
-uv run python manage.py check
+uv run --no-sync python manage.py check
 ```
 
 ## Next Steps

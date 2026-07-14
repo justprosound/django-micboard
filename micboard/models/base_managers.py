@@ -14,12 +14,89 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from django.apps import apps
 from django.conf import settings
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q
 
 if TYPE_CHECKING:
     from micboard.multitenancy.models import Organization
 
 _ModelT = TypeVar("_ModelT", bound=models.Model)
+
+
+# Models whose tenant owner is reached through a domain-specific relation rather
+# than one of the generic direct-field conventions below. Keep these mappings
+# explicit: a missing ownership path must continue to fail closed.
+_EXPLICIT_TENANT_LOOKUPS: dict[str, tuple[str, str | None]] = {
+    "micboard_multitenancy.organization": ("pk", None),
+    "micboard_multitenancy.campus": ("organization_id", "pk"),
+    "micboard.alert": (
+        "channel__chassis__location__building__organization_id",
+        "channel__chassis__location__building__campus_id",
+    ),
+    "micboard.chargerslot": (
+        "charger__location__building__organization_id",
+        "charger__location__building__campus_id",
+    ),
+    "micboard.devicemovementlog": (
+        "device__location__building__organization_id",
+        "device__location__building__campus_id",
+    ),
+    "micboard.wallsection": (
+        "wall__location__building__organization_id",
+        "wall__location__building__campus_id",
+    ),
+}
+
+_EXPLICIT_SITE_LOOKUPS: dict[str, str] = {
+    "micboard.alert": "channel__chassis__location__building__site_id",
+    "micboard.chargerslot": "charger__location__building__site_id",
+    "micboard.devicemovementlog": "device__location__building__site_id",
+    "micboard.wallsection": "wall__location__building__site_id",
+}
+
+_RELATIONSHIP_TENANT_LOOKUPS: tuple[tuple[str, tuple[str, str]], ...] = (
+    ("building", ("building__organization_id", "building__campus_id")),
+    ("location", ("location__building__organization_id", "location__building__campus_id")),
+    (
+        "base_chassis",
+        (
+            "base_chassis__location__building__organization_id",
+            "base_chassis__location__building__campus_id",
+        ),
+    ),
+    (
+        "chassis",
+        (
+            "chassis__location__building__organization_id",
+            "chassis__location__building__campus_id",
+        ),
+    ),
+    (
+        "wireless_unit",
+        (
+            "wireless_unit__base_chassis__location__building__organization_id",
+            "wireless_unit__base_chassis__location__building__campus_id",
+        ),
+    ),
+    (
+        "assignments",
+        (
+            "assignments__wireless_unit__base_chassis__location__building__organization_id",
+            "assignments__wireless_unit__base_chassis__location__building__campus_id",
+        ),
+    ),
+    ("campus", ("campus__organization_id", "campus_id")),
+)
+
+_RELATIONSHIP_SITE_LOOKUPS: tuple[tuple[str, str], ...] = (
+    ("building", "building__site_id"),
+    ("location", "location__building__site_id"),
+    ("base_chassis", "base_chassis__location__building__site_id"),
+    ("chassis", "chassis__location__building__site_id"),
+    ("wireless_unit", "wireless_unit__base_chassis__location__building__site_id"),
+    ("assignments", "assignments__wireless_unit__base_chassis__location__building__site_id"),
+    ("organization", "organization__site_id"),
+    ("campus", "campus__organization__site_id"),
+)
 
 
 class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
@@ -31,33 +108,15 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
     def _tenant_lookups(self) -> tuple[str, str | None] | None:
         """Return organization and campus lookups for the queryset model."""
         model_label = getattr(getattr(self.model, "_meta", None), "label_lower", "")
-        direct_tenant_lookups: dict[str, tuple[str, str | None]] = {
-            "micboard_multitenancy.organization": ("pk", None),
-            "micboard_multitenancy.campus": ("organization_id", "pk"),
-        }
-        if model_label in direct_tenant_lookups:
-            return direct_tenant_lookups[model_label]
+        explicit_lookups = _EXPLICIT_TENANT_LOOKUPS.get(model_label)
+        if explicit_lookups is not None:
+            return explicit_lookups
         if hasattr(self.model, "organization_id"):
             campus_lookup = "campus_id" if hasattr(self.model, "campus_id") else None
             return "organization_id", campus_lookup
-        if hasattr(self.model, "building"):
-            return "building__organization_id", "building__campus_id"
-        if hasattr(self.model, "location"):
-            return "location__building__organization_id", "location__building__campus_id"
-        if hasattr(self.model, "base_chassis"):
-            prefix = "base_chassis__location__building"
-            return f"{prefix}__organization_id", f"{prefix}__campus_id"
-        if hasattr(self.model, "chassis"):
-            prefix = "chassis__location__building"
-            return f"{prefix}__organization_id", f"{prefix}__campus_id"
-        if hasattr(self.model, "wireless_unit"):
-            prefix = "wireless_unit__base_chassis__location__building"
-            return f"{prefix}__organization_id", f"{prefix}__campus_id"
-        if hasattr(self.model, "assignments"):
-            prefix = "assignments__wireless_unit__base_chassis__location__building"
-            return f"{prefix}__organization_id", f"{prefix}__campus_id"
-        if hasattr(self.model, "campus"):
-            return "campus__organization_id", "campus_id"
+        for attribute, lookups in _RELATIONSHIP_TENANT_LOOKUPS:
+            if hasattr(self.model, attribute):
+                return lookups
         return None
 
     def _campus_lookup(self) -> str | None:
@@ -67,6 +126,19 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
         lookups = TenantOptimizedQuerySet._tenant_lookups(self)
         return lookups[1] if lookups is not None else None
 
+    def _site_lookup(self) -> str | None:
+        """Return the Django Site lookup for the queryset model."""
+        model_label = getattr(getattr(self.model, "_meta", None), "label_lower", "")
+        if hasattr(self.model, "site_id"):
+            return "site_id"
+        explicit_lookup = _EXPLICIT_SITE_LOOKUPS.get(model_label)
+        if explicit_lookup is not None:
+            return explicit_lookup
+        for attribute, lookup in _RELATIONSHIP_SITE_LOOKUPS:
+            if hasattr(self.model, attribute):
+                return lookup
+        return None
+
     def for_site(self, *, site_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]:
         """Filter by Django Site (multi-site mode)."""
         if not getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
@@ -74,14 +146,10 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
 
         site_id = site_id or getattr(settings, "SITE_ID", 1)
 
-        if hasattr(self.model, "site_id"):
-            return self.filter(site_id=site_id)
-        if hasattr(self.model, "building"):
-            return self.filter(building__site_id=site_id)
-        if hasattr(self.model, "location"):
-            return self.filter(location__building__site_id=site_id)
-
-        return self
+        site_lookup = TenantOptimizedQuerySet._site_lookup(self)
+        if site_lookup is None:
+            return self.none()
+        return self.filter(**{site_lookup: site_id}).distinct()
 
     def for_organization(
         self, *, organization: Organization | int | None = None
@@ -114,11 +182,11 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
             return self.none()
         return self.filter(**{campus_lookup: campus_id})
 
-    def _for_memberships(
+    def for_memberships(
         self,
         memberships: Sequence[tuple[int, int | None]],
     ) -> TenantOptimizedQuerySet[_ModelT]:
-        """Filter through every active organization/campus membership."""
+        """Filter through explicit organization/campus membership identifiers."""
         tenant_filter: Q | None = None
         lookups = TenantOptimizedQuerySet._tenant_lookups(self)
         if lookups is None:
@@ -148,12 +216,9 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
         if not getattr(user, "is_authenticated", True):
             return self.none()
 
-        if user.is_superuser:
-            if not getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True):
-                # Even superuser limited to their orgs
-                pass
-            else:
-                return self
+        multi_site_enabled = getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
+        if user.is_superuser and getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True):
+            return self.for_site() if multi_site_enabled else self
 
         if getattr(settings, "MICBOARD_MSP_ENABLED", False):
             if not apps.is_installed("micboard.multitenancy"):
@@ -163,16 +228,26 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
 
             memberships = list(
                 OrganizationMembership._default_manager.filter(
-                    user=user, is_active=True
+                    Q(campus__isnull=True)
+                    | Q(
+                        campus__is_active=True,
+                        campus__organization_id=F("organization_id"),
+                    ),
+                    user=user,
+                    is_active=True,
+                    organization__is_active=True,
                 ).values_list("organization_id", "campus_id")
             )
 
             if not memberships:
                 return self.none()
 
-            return self._for_memberships(memberships)
+            queryset = self.for_memberships(memberships)
+            if multi_site_enabled:
+                return queryset.for_site()
+            return queryset
 
-        if getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+        if multi_site_enabled:
             return self.for_site()
 
         # Single-site: use monitoring group filtering if available

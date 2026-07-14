@@ -6,23 +6,15 @@ Consolidates logic from legacy device services.
 This module is a facade - implementation is split across:
 - hardware_query: read operations (get, search, count)
 - hardware_sync: write operations (sync status, battery, channels, capabilities)
-- hardware_post_save_hooks: save/delete side effects
 """
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
 from micboard.services.core.hardware_query import HardwareQueryService
 from micboard.services.core.hardware_sync import HardwareSyncService
-
-if TYPE_CHECKING:  # pragma: no cover
-    pass
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -110,10 +102,6 @@ class HardwareService:
     ensure_channel_count = HardwareSyncService.ensure_channel_count
     update_device_capabilities = HardwareSyncService.update_device_capabilities
     async_sync_hardware_status = HardwareSyncService.async_sync_hardware_status
-
-    # Post-save hooks - delegated to HardwarePostSaveHooks
-    handle_chassis_save = HardwarePostSaveHooks.handle_chassis_save
-    handle_chassis_delete = HardwarePostSaveHooks.handle_chassis_delete
 
     # Async query operations - delegated to HardwareQueryService
     aget_active_chassis = HardwareQueryService.aget_active_chassis

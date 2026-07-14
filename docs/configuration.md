@@ -28,7 +28,26 @@ INSTALLED_APPS = [
 | `SHURE_API_RETRY_STATUS_CODES` | HTTP status codes to retry | `[429, 500, 502, 503, 504]` |
 | `POLL_INTERVAL` | Interval in seconds between device polls | `5` |
 | `CACHE_TIMEOUT` | Timeout in seconds for API response caching | `30` |
-| `TRANSMITTER_INACTIVITY_SECONDS` | Seconds before transmitter marked inactive | (varies) |
+| `TRANSMITTER_INACTIVITY_SECONDS` | Seconds before transmitter marked inactive | `10` |
+
+The package reads this Django dictionary; it does not read process environment variables
+directly. Map secrets from the host's environment or secret manager in the settings module.
+
+## Manufacturer API server allowlist
+
+Admin connection checks for persisted Manufacturer API Server rows require an exact hostname
+allowlist outside `MICBOARD_CONFIG`:
+
+```python
+MICBOARD_API_SERVER_ALLOWED_HOSTS = [
+    "shure-system.example.com",
+    "shure-system.internal.example",
+]
+```
+
+Entries are hostnames only: do not include a scheme, port, path, or wildcard. This prevents an
+editable admin URL from sending manufacturer credentials to an arbitrary destination. An empty
+allowlist denies all admin connection checks.
 
 ## Authentication
 
@@ -159,22 +178,22 @@ The app provides several management commands for device management and monitorin
 
 ```bash
 # Poll devices from manufacturers
-uv run python manage.py poll_devices
+uv run --no-sync python manage.py poll_devices
 
 # Sync discovery results
-uv run python manage.py sync_discovery
+uv run --no-sync python manage.py sync_discovery
 
 # Add Shure device IPs manually (comma-separated)
-uv run python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
+uv run --no-sync python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
 
 # Subscribe to real-time status
-uv run python manage.py realtime_status
+uv run --no-sync python manage.py realtime_status
 
 # WebSocket subscriptions
-uv run python manage.py websocket_subscribe
+uv run --no-sync python manage.py websocket_subscribe
 
 # Server-Sent Events subscription
-uv run python manage.py sse_subscribe
+uv run --no-sync python manage.py sse_subscribe
 ```
 
 See [API Reference](api/management.md) for detailed command documentation.
