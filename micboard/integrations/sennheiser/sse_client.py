@@ -8,6 +8,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 import httpx
+from asgiref.sync import sync_to_async
+
+from .exceptions import SennheiserAPIError
 
 logger = logging.getLogger(__name__)
 
@@ -33,21 +36,29 @@ async def connect_and_subscribe(
     """
     # Start subscription
     try:
-        response = client._make_request("GET", "/api/ssc/state/subscriptions")
+        response = await sync_to_async(
+            client._make_request,
+            thread_sensitive=True,
+        )("GET", "/api/ssc/state/subscriptions")
         if not response or not isinstance(response, dict):
-            logger.error("Failed to start subscription")
-            return
+            raise SennheiserAPIError("SSE subscription did not return a session")
 
         session_uuid = response.get("sessionUUID")
         if not session_uuid:
-            logger.error("No sessionUUID in subscription response")
-            return
+            raise SennheiserAPIError("SSE subscription response omitted its session identifier")
 
         logger.info("Started Sennheiser event subscription")
 
         # Subscribe to device resources
         resources = [f"/api/devices/{device_id}"]
-        client._make_request("PUT", f"/api/ssc/state/subscriptions/{session_uuid}", json=resources)
+        await sync_to_async(
+            client._make_request,
+            thread_sensitive=True,
+        )(
+            "PUT",
+            f"/api/ssc/state/subscriptions/{session_uuid}",
+            json=resources,
+        )
 
         # Start SSE stream
         sse_url = f"{client.base_url}/api/ssc/state/subscriptions/{session_uuid}"
@@ -79,5 +90,9 @@ async def connect_and_subscribe(
                 except json.JSONDecodeError:
                     logger.debug("Invalid JSON in SSE event data")
 
+    except SennheiserAPIError:
+        logger.exception("Sennheiser event subscription failed")
+        raise
     except Exception:
-        logger.error("Sennheiser event subscription failed")
+        logger.exception("Sennheiser event subscription failed")
+        raise SennheiserAPIError("Sennheiser event subscription failed") from None

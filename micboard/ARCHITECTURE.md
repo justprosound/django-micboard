@@ -17,7 +17,7 @@ wireless audio hardware. It emphasizes:
 The settings service provides the single access point for all Micboard settings:
 
 ```python
-from micboard.services.settings import settings as micboard_settings
+from micboard.services.settings.settings_service import settings as micboard_settings
 
 # Feature flags
 if micboard_settings.msp_enabled:
@@ -169,26 +169,27 @@ micboard/models/
 
 Core services in `micboard/services/`:
 
-- `plugin_registry.py`: Manufacturer plugin loading
-- `settings_registry.py`: Scope-aware settings resolution
-- `manufacturer_config_registry.py`: Per-manufacturer configs
-- `hardware.py`: Hardware query and lifecycle
-- `hardware_sync_service.py`: API polling and sync
-- `polling_api.py`: Direct API polling
-- `discovery_service_new.py`: Device discovery
-- `alert.py`: Alert management
-- `performer.py`: Performer assignment
+- `manufacturer/plugin_registry.py`: Manufacturer plugin loading
+- `settings/settings_service.py`: Unified host and scoped settings resolution
+- `shared/settings_registry.py`: Database-backed scope resolution
+- `manufacturer/manufacturer_config_registry.py`: Per-manufacturer configuration
+- `core/hardware.py`: Hardware query and synchronization facade
+- `core/hardware_sync.py`: Hardware status and channel synchronization
+- `sync/polling_api.py`: Direct API polling
+- `sync/discovery_service.py`: Device discovery
+- `monitoring/alerts.py`: Alert management
+- `core/performer_assignment.py`: Performer assignment
 
 ## Testing
 
 Run the full test suite:
 
 ```bash
-pytest              # All tests
-pytest tests/test_chargers.py  # Specific test file
-pytest -m unit      # Unit tests only
-pytest -m integration  # Integration tests
-pytest --cov=micboard  # With coverage
+uv run --no-sync pytest  # All tests
+uv run --no-sync pytest tests/test_chargers.py  # Specific test file
+uv run --no-sync pytest -m unit  # Unit tests only
+uv run --no-sync pytest -m integration  # Integration tests
+uv run --no-sync pytest --cov=micboard  # With coverage
 ```
 
 **Test markers** (see pyproject.toml):
@@ -211,9 +212,9 @@ pytest --cov=micboard  # With coverage
 
 ## Release Checklist
 
-- [ ] All tests pass: `pytest --cov=micboard --cov-fail-under=85`
-- [ ] Ruff checks: `ruff check .`
-- [ ] Pre-commit hooks: `pre-commit run --all-files`
+- [ ] All tests pass: `uv run --no-sync pytest --cov=micboard --cov-fail-under=85`
+- [ ] Ruff checks: `uv run --no-sync ruff check .`
+- [ ] Pre-commit hooks: `uv run --no-sync pre-commit run --all-files`
 - [ ] No tracked dev artifacts (db.sqlite3, .env, egg-info)
 - [ ] CHANGELOG.md updated
 - [ ] Version number updated (pyproject.toml, __init__.py)

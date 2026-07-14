@@ -18,7 +18,7 @@ from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.services.common.base import client as base_client_module
 from micboard.services.common.base import resilience
 from micboard.services.maintenance.efis_import import EFISImportService
-from micboard.services.settings import settings as app_settings
+from micboard.services.settings.settings_service import settings as app_settings
 
 
 def test_shure_client_uses_httpx_certificate_verification_defaults(monkeypatch) -> None:
@@ -37,6 +37,21 @@ def test_shure_client_uses_httpx_certificate_verification_defaults(monkeypatch) 
     client_factory.assert_called_once_with(timeout=10)
     assert "verify" not in client_factory.call_args.kwargs
     client.close()
+
+
+def test_shure_client_explicit_shared_key_overrides_global_configuration(monkeypatch) -> None:
+    """Persisted server checks cannot leak a process-global credential."""
+    monkeypatch.setattr(
+        app_settings,
+        "get_config_dict",
+        lambda: {"SHURE_API_SHARED_KEY": "global-secret"},
+    )
+
+    with ShureSystemAPIClient(
+        base_url="https://shure.test",
+        shared_key="row-secret",
+    ) as client:
+        assert client.client.headers["x-api-key"] == "row-secret"
 
 
 def test_shure_client_rejects_cleartext_base_url(monkeypatch) -> None:
@@ -159,12 +174,23 @@ def test_shure_websocket_uses_wss_defaults_and_redacts_handshake(monkeypatch, ca
             return None
 
     connect = Mock(return_value=FakeConnection())
+    adapted_calls: list[tuple[object, bool]] = []
+
+    def adapt_sync(function, *, thread_sensitive: bool):
+        adapted_calls.append((function, thread_sensitive))
+
+        async def invoke(*args, **kwargs):
+            return function(*args, **kwargs)
+
+        return invoke
+
     monkeypatch.setattr(shure_websocket_module, "HAS_WEBSOCKETS", True)
     monkeypatch.setattr(
         shure_websocket_module,
         "websockets",
         SimpleNamespace(connect=connect),
     )
+    monkeypatch.setattr(shure_websocket_module, "sync_to_async", adapt_sync)
     client = SimpleNamespace(
         websocket_url=websocket_url,
         _make_request=Mock(return_value={"status": "success"}),
@@ -179,6 +205,7 @@ def test_shure_websocket_uses_wss_defaults_and_redacts_handshake(monkeypatch, ca
         )
 
     connect.assert_called_once_with(websocket_url)
+    assert adapted_calls == [(shure_websocket_module._subscribe_client_to_transport, True)]
     assert private_transport_id not in caplog.text
     assert private_device_id not in caplog.text
     assert websocket_url not in caplog.text

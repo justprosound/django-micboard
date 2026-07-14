@@ -14,6 +14,7 @@ import pytest
 
 from micboard.middleware import ConnectionHealthMiddleware
 from micboard.services.monitoring.connection import ConnectionHealthService
+from tests.async_utils import run_async_with_heartbeat
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
 from tests.factories.realtime import RealTimeConnectionFactory
@@ -248,7 +249,7 @@ def test_empty_connection_stats() -> None:
     }
 
 
-def _direct_async_adapter(function):
+def _direct_async_adapter(function, **_kwargs):
     async def call(*args, **kwargs):
         return function(*args, **kwargs)
 
@@ -258,7 +259,7 @@ def _direct_async_adapter(function):
 def test_async_connection_helpers_delegate_to_sync_services() -> None:
     """Async adapters preserve arguments and return values without duplicate logic."""
     connection = object()
-    unhealthy = object()
+    unhealthy = [object()]
     with (
         patch("asgiref.sync.sync_to_async", side_effect=_direct_async_adapter),
         patch.object(
@@ -273,7 +274,7 @@ def test_async_connection_helpers_delegate_to_sync_services() -> None:
             asyncio.run(
                 ConnectionHealthService.aget_unhealthy_connections(heartbeat_timeout_seconds=15)
             )
-            is unhealthy
+            == unhealthy
         )
         asyncio.run(ConnectionHealthService.arecord_heartbeat(connection=connection))
         assert asyncio.run(
@@ -286,3 +287,28 @@ def test_async_connection_helpers_delegate_to_sync_services() -> None:
     get_unhealthy.assert_called_once_with(heartbeat_timeout_seconds=15)
     record_heartbeat.assert_called_once_with(connection=connection)
     is_healthy.assert_called_once_with(connection=connection, heartbeat_timeout_seconds=15)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_async_unhealthy_query_materializes_results_before_returning() -> None:
+    """Connection iteration and selected relations remain safe in an event loop."""
+    manufacturer = ManufacturerFactory(code="async-health-vendor")
+    stale = RealTimeConnectionFactory(
+        chassis=WirelessChassisFactory(manufacturer=manufacturer),
+        status="connected",
+        last_message_at=None,
+    )
+    RealTimeConnectionFactory(status="disconnected")
+
+    async def evaluate_results() -> tuple[list[int], list[str]]:
+        connections = await ConnectionHealthService.aget_unhealthy_connections()
+        assert isinstance(connections, list)
+        return (
+            [connection.pk for connection in connections],
+            [connection.chassis.manufacturer.code for connection in connections],
+        )
+
+    connection_ids, manufacturer_codes = run_async_with_heartbeat(evaluate_results())
+
+    assert connection_ids == [stale.pk]
+    assert manufacturer_codes == ["async-health-vendor"]

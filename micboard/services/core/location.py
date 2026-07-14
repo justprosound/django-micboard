@@ -252,15 +252,18 @@ class LocationService:
         )
 
     @staticmethod
-    async def aget_all_locations() -> QuerySet[Location]:
-        """Get all locations asynchronously.
+    async def aget_all_locations() -> list[Location]:
+        """Return all locations materialized safely for async callers.
 
         Returns:
-            QuerySet of all Location instances
+            List of all Location instances.
         """
         from asgiref.sync import sync_to_async
 
-        return await sync_to_async(LocationService.get_all_locations)()
+        return await sync_to_async(
+            lambda: list(LocationService.get_all_locations()),
+            thread_sensitive=True,
+        )()
 
     @staticmethod
     async def aassign_device_to_location(*, device, location):

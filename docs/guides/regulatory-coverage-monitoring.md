@@ -144,7 +144,7 @@ The Django admin interface displays regulatory status at all three levels:
 A management command audits all three levels:
 
 ```bash
-uv run python manage.py audit_regulatory_coverage
+uv run --no-sync python manage.py audit_regulatory_coverage
 ```
 
 **Options:**
@@ -198,7 +198,7 @@ SUMMARY
 
 ACTION REQUIRED:
   1. Review chassis band plans and RF channels flagged above
-  2. Run: uv run python manage.py import_efis_regulations --force
+  2. Run: uv run --no-sync python manage.py import_efis_regulations --force
   3. Or manually add frequency bands in Django admin for missing regions
   4. Update chassis band plan fields if devices have band info
 ```
@@ -237,7 +237,7 @@ Understanding the three-layer data flow:
 
 **Option 1: Import EFIS Data (European frequencies)**
 ```bash
-uv run python manage.py import_efis_regulations --force
+uv run --no-sync python manage.py import_efis_regulations --force
 ```
 This imports the latest European regulatory data from CEPT EFIS API.
 
@@ -245,7 +245,7 @@ This imports the latest European regulatory data from CEPT EFIS API.
 1. Navigate to Django Admin → RF Coordination → Regulatory Domains
 2. Add or update the relevant domain (e.g., 'FCC', 'ACMA')
 3. Add frequency bands under that domain
-4. Re-run audit: `uv run python manage.py audit_regulatory_coverage`
+4. Re-run audit: `uv run --no-sync python manage.py audit_regulatory_coverage`
 
 **Option 3: Update Chassis Location**
 If the chassis location has wrong or missing regulatory domain:

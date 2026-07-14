@@ -18,8 +18,8 @@ from django.db import models
 from django.http import HttpRequest
 from django.utils import timezone
 
-from micboard.models.audit import ActivityLog, ServiceSyncLog
-from micboard.models.telemetry import APIHealthLog
+from micboard.models.audit.activity_log import ActivityLog, ServiceSyncLog
+from micboard.models.telemetry.health import APIHealthLog
 from micboard.services.maintenance.logging_mode import LoggingModeService, LogMode
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ class AuditService:
         error_message: str | None = None,
         request: HttpRequest | None = None,
         log_mode: LogMode = "normal",
+        using: str = "default",
     ) -> ActivityLog | None:
         """Create an activity log entry when the configured log mode permits it."""
         if not LoggingModeService.should_log(log_mode):
@@ -63,7 +64,7 @@ class AuditService:
         }
 
         if obj:
-            log_data["content_type"] = ContentType.objects.get_for_model(obj)
+            log_data["content_type"] = ContentType.objects.db_manager(using).get_for_model(obj)
             log_data["object_id"] = obj.pk
 
         if request:
@@ -71,12 +72,12 @@ class AuditService:
             log_data["ip_address"] = getattr(request, "META", {}).get("REMOTE_ADDR")
             log_data["user_agent"] = getattr(request, "META", {}).get("HTTP_USER_AGENT")
 
-        return ActivityLog.objects.create(**log_data)
+        return ActivityLog.objects.using(using).create(**log_data)
 
     @staticmethod
     def prune_stale_logs() -> dict[str, int]:
         """Prune stale logs based on retention settings in MICBOARD_CONFIG."""
-        from micboard.services.settings import settings
+        from micboard.services.settings.settings_service import settings
 
         # Retention periods (days)
         activity_days = settings.activity_log_retention_days
@@ -116,7 +117,7 @@ class AuditService:
         discard audit records. JSON fields are serialized explicitly for a stable,
         portable archive format.
         """
-        from micboard.services.settings import settings
+        from micboard.services.settings.settings_service import settings
 
         days = AuditService._resolve_retention_days(
             retention_days,
@@ -172,7 +173,7 @@ class AuditService:
     @staticmethod
     def prune_service_sync_logs(*, retention_days: int | None = None) -> int:
         """Delete expired service-sync logs and return deleted row count."""
-        from micboard.services.settings import settings
+        from micboard.services.settings.settings_service import settings
 
         days = AuditService._resolve_retention_days(
             retention_days,
@@ -185,7 +186,7 @@ class AuditService:
     @staticmethod
     def prune_api_health_logs(*, retention_days: int | None = None) -> int:
         """Delete expired API-health logs and return deleted row count."""
-        from micboard.services.settings import settings
+        from micboard.services.settings.settings_service import settings
 
         days = AuditService._resolve_retention_days(
             retention_days,

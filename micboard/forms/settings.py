@@ -9,8 +9,38 @@ from django.apps import apps
 from django.contrib.sites.models import Site
 from django.core.exceptions import ValidationError
 
-from micboard.models.settings import Setting, SettingDefinition
+from micboard.models.settings.registry import Setting, SettingDefinition
+from micboard.services.settings.dtos import SettingsVisibilityScope
+from micboard.services.settings.visibility_service import settings_visibility
 from micboard.services.shared.settings_registry import SettingsRegistry
+
+
+def _scope_for_user(user: Any | None) -> SettingsVisibilityScope:
+    """Return unrestricted scope for trusted non-request callers."""
+    if user is None:
+        return SettingsVisibilityScope()
+    return settings_visibility.for_user(user=user)
+
+
+def _has_choices(identifiers: frozenset[int] | None) -> bool:
+    """Return whether one visibility dimension has selectable rows."""
+    return identifiers is None or bool(identifiers)
+
+
+def _optional_boolean_field(*, label: str, help_text: str = "") -> forms.TypedChoiceField:
+    """Build an explicit tri-state boolean so omission never overwrites a value."""
+    return forms.TypedChoiceField(
+        choices=(
+            ("", "--- No change ---"),
+            ("true", "Enabled"),
+            ("false", "Disabled"),
+        ),
+        coerce=lambda value: value == "true",
+        empty_value=None,
+        required=False,
+        label=label,
+        help_text=help_text,
+    )
 
 
 class BulkSettingConfigForm(forms.Form):
@@ -52,30 +82,55 @@ class BulkSettingConfigForm(forms.Form):
         help_text="Only shown for manufacturer-scoped settings",
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, user: Any | None = None, **kwargs: Any) -> None:
         """Initialize the bulk settings form and dynamically add fields for active definitions."""
         super().__init__(*args, **kwargs)
+        self.visibility_scope = _scope_for_user(user)
+        unrestricted = settings_visibility.is_unrestricted(self.visibility_scope)
 
         if apps.is_installed("micboard.multitenancy"):
             from micboard.multitenancy.models import Organization
 
             organization_selector = cast(forms.ModelChoiceField, self.fields["organization"])
-            organization_selector.queryset = Organization._default_manager.all()
+            organizations = Organization._default_manager.all()
+            if self.visibility_scope.organization_ids is not None:
+                organizations = organizations.filter(pk__in=self.visibility_scope.organization_ids)
+            organization_selector.queryset = organizations
         else:
             self.fields.pop("organization")
-            scope_selector = cast(forms.ChoiceField, self.fields["scope"])
-            scope_selector.choices = [
-                choice
-                for choice in self.SCOPE_CHOICES
-                if choice[0] != SettingDefinition.SCOPE_ORGANIZATION
-            ]
+
+        site_selector = cast(forms.ModelChoiceField, self.fields["site"])
+        sites = Site.objects.all()
+        if self.visibility_scope.site_ids is not None:
+            sites = sites.filter(pk__in=self.visibility_scope.site_ids)
+        site_selector.queryset = sites
 
         # Populate manufacturer choices
-        from micboard.models.discovery import Manufacturer
+        from micboard.models.discovery.manufacturer import Manufacturer
 
-        # Cast the generic Field to a ModelChoiceField to appease type checkers
         selector = cast(forms.ModelChoiceField, self.fields["manufacturer"])
-        selector.queryset = Manufacturer.objects.all()
+        manufacturers = Manufacturer.objects.all()
+        if self.visibility_scope.manufacturer_ids is not None:
+            manufacturers = manufacturers.filter(pk__in=self.visibility_scope.manufacturer_ids)
+        selector.queryset = manufacturers
+
+        available_scopes = {
+            SettingDefinition.SCOPE_GLOBAL: unrestricted,
+            SettingDefinition.SCOPE_ORGANIZATION: (
+                "organization" in self.fields
+                and _has_choices(self.visibility_scope.organization_ids)
+            ),
+            SettingDefinition.SCOPE_SITE: _has_choices(self.visibility_scope.site_ids),
+            SettingDefinition.SCOPE_MANUFACTURER: _has_choices(
+                self.visibility_scope.manufacturer_ids
+            ),
+        }
+        scope_selector = cast(forms.ChoiceField, self.fields["scope"])
+        scope_selector.choices = [
+            choice
+            for choice in self.SCOPE_CHOICES
+            if not choice[0] or available_scopes.get(choice[0], False)
+        ]
 
         # Load setting definitions dynamically
         self._add_setting_fields()
@@ -83,14 +138,16 @@ class BulkSettingConfigForm(forms.Form):
     def _add_setting_fields(self):
         """Dynamically add fields for each active setting definition."""
         definitions = SettingDefinition.objects.filter(is_active=True).order_by("key")
+        selected_scope = self.data.get(self.add_prefix("scope")) if self.is_bound else None
+        if selected_scope:
+            definitions = definitions.filter(scope=selected_scope)
 
         for defn in definitions:
             field_name = f"setting_{defn.id}"
             help_text = defn.description or f"Type: {defn.get_setting_type_display()}"
 
             if defn.setting_type == SettingDefinition.TYPE_BOOLEAN:
-                self.fields[field_name] = forms.BooleanField(
-                    required=False,
+                self.fields[field_name] = _optional_boolean_field(
                     label=defn.label,
                     help_text=help_text,
                 )
@@ -110,7 +167,14 @@ class BulkSettingConfigForm(forms.Form):
                     label=defn.label,
                     help_text=help_text,
                 )
-            else:  # String, JSON
+            elif defn.setting_type == SettingDefinition.TYPE_JSON:
+                self.fields[field_name] = forms.JSONField(
+                    required=False,
+                    label=defn.label,
+                    help_text=help_text,
+                    widget=forms.Textarea(attrs={"rows": 2}),
+                )
+            else:  # String
                 self.fields[field_name] = forms.CharField(
                     required=False,
                     label=defn.label,
@@ -135,6 +199,25 @@ class BulkSettingConfigForm(forms.Form):
             if not cleaned_data.get("manufacturer"):
                 raise ValidationError("Manufacturer is required for manufacturer-scoped settings")
 
+        organization = cleaned_data.get("organization")
+        site = cleaned_data.get("site")
+        manufacturer = cleaned_data.get("manufacturer")
+        effective_scope = {
+            "organization_id": (
+                getattr(organization, "pk", None)
+                if scope == SettingDefinition.SCOPE_ORGANIZATION
+                else None
+            ),
+            "site_id": getattr(site, "pk", None) if scope == SettingDefinition.SCOPE_SITE else None,
+            "manufacturer_id": (
+                getattr(manufacturer, "pk", None)
+                if scope == SettingDefinition.SCOPE_MANUFACTURER
+                else None
+            ),
+        }
+        if not settings_visibility.can_manage_scope(self.visibility_scope, **effective_scope):
+            raise ValidationError("You cannot manage settings for the selected scope")
+
         return cleaned_data
 
     def save_settings(self) -> dict[str, Any]:
@@ -149,7 +232,7 @@ class BulkSettingConfigForm(forms.Form):
         manufacturer = self.cleaned_data.get("manufacturer")
 
         # Get all setting definitions
-        definitions = SettingDefinition.objects.filter(is_active=True)
+        definitions = SettingDefinition.objects.filter(is_active=True, scope=scope)
 
         for defn in definitions:
             field_name = f"setting_{defn.id}"
@@ -238,26 +321,25 @@ class ManufacturerSettingsForm(forms.Form):
     )
 
     # Feature flags
-    supports_discovery_ips = forms.BooleanField(
+    supports_discovery_ips = _optional_boolean_field(
         label="Supports Discovery IPs",
-        required=False,
     )
-    supports_health_check = forms.BooleanField(
+    supports_health_check = _optional_boolean_field(
         label="Supports Health Check",
-        required=False,
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, user: Any | None = None, **kwargs: Any) -> None:
         """Initialize the manufacturer settings form and load manufacturer queryset."""
         super().__init__(*args, **kwargs)
-        # Type checkers do not know the concrete Field instance returned by self.fields
-        # so cast it to ModelChoiceField to access .queryset safely.
-        from typing import cast
+        self.visibility_scope = _scope_for_user(user)
 
-        from micboard.models.discovery import Manufacturer
+        from micboard.models.discovery.manufacturer import Manufacturer
 
         selector = cast(forms.ModelChoiceField, self.fields["manufacturer"])
-        selector.queryset = Manufacturer.objects.all()
+        manufacturers = Manufacturer.objects.all()
+        if self.visibility_scope.manufacturer_ids is not None:
+            manufacturers = manufacturers.filter(pk__in=self.visibility_scope.manufacturer_ids)
+        selector.queryset = manufacturers
 
     def save_settings(self) -> dict[str, Any]:
         """Save manufacturer configuration."""
@@ -265,6 +347,13 @@ class ManufacturerSettingsForm(forms.Form):
             raise ValidationError("Form is not valid")
 
         manufacturer = self.cleaned_data["manufacturer"]
+        if not settings_visibility.can_manage_scope(
+            self.visibility_scope,
+            organization_id=None,
+            site_id=None,
+            manufacturer_id=manufacturer.pk,
+        ):
+            raise ValidationError("You cannot manage settings for the selected manufacturer")
         results: dict[str, Any] = {"saved": 0, "errors": []}
 
         # Map form fields to setting keys
@@ -288,7 +377,10 @@ class ManufacturerSettingsForm(forms.Form):
 
             try:
                 # Get definition
-                defn = SettingDefinition.objects.get(key=setting_key)
+                defn = SettingDefinition.objects.get(
+                    key=setting_key,
+                    scope=SettingDefinition.SCOPE_MANUFACTURER,
+                )
 
                 # Serialize
                 serialized = defn.serialize_value(value)

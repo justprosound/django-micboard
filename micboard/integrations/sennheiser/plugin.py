@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from micboard.services.common.base.plugin import ManufacturerPlugin
@@ -58,18 +58,15 @@ class SennheiserPlugin(ManufacturerPlugin):
         """Transform transmitter data from Sennheiser format to micboard format."""
         return self.transformer.transform_transmitter_data(tx_data, channel_num)
 
-    def connect_and_subscribe(
-        self, device_id: str, callback: Callable[[dict[str, Any]], None]
+    async def connect_and_subscribe(
+        self,
+        device_id: str,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
         """Establish SSE connection and subscribe to Sennheiser device updates."""
-        from asgiref.sync import async_to_sync
-
         from .sse_client import connect_and_subscribe
 
-        async def async_callback(data: dict[str, Any]) -> None:
-            callback(data)
-
-        async_to_sync(connect_and_subscribe)(self.client, device_id, async_callback)
+        await connect_and_subscribe(self.client, device_id, callback)
 
     def is_healthy(self) -> bool:
         """Check if the Sennheiser SSCv2 API client is healthy."""

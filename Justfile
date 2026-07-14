@@ -59,7 +59,7 @@ docs: uv-check
 
 # Run example project
 example: uv-check
-    cd example_project && uv run --no-sync python manage.py runserver
+    uv run --no-sync python manage.py runserver
 
 # Build the distributable artifact and verify it contains the complete app.
 wheel: uv-check

@@ -67,14 +67,17 @@ def _humanize_fqdn(fqdn: str) -> str:
     return " ".join(words)
 
 
-def sync_receiver_discovery(chassis_id: int):
+def sync_receiver_discovery(chassis_id: int, *, using: str = "default") -> None:
     """Task to ensure a wireless chassis is known to the manufacturer's discovery list."""
     try:
-        chassis = WirelessChassis.objects.get(pk=chassis_id)
+        chassis = WirelessChassis.objects.using(using).get(pk=chassis_id)
         discovery_service = DiscoveryService()
         if chassis.ip:
             discovery_service.add_discovery_candidate(
-                chassis.ip, chassis.manufacturer, source="chassis_save"
+                chassis.ip,
+                chassis.manufacturer,
+                source="chassis_save",
+                using=using,
             )
     except WirelessChassis.DoesNotExist:
         logger.warning("WirelessChassis with ID %s not found for discovery sync.", chassis_id)

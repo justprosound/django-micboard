@@ -9,11 +9,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Added
 
-- **Configuration API** (`micboard.services.settings`): Unified settings service for host,
+- **Configuration API** (`micboard.services.settings.settings_service`): Unified settings service for host,
   feature-flag, and scoped database configuration
 - **Architecture Documentation** (`micboard/ARCHITECTURE.md`): Comprehensive guide for developers on plugin architecture, multi-tenancy, and settings registry
 - **Expanded Test Suite**: Tests for configuration module, plugin registry, and settings behavior
-- **Comprehensive `.env.example`**: Template with all available Micboard configuration options and multi-tenancy settings
+- **Focused `.env.example`**: Minimal example-project environment values with explicit API-server
+  destination allowlisting
 - **Enhanced README**: Detailed reusable app integration guide with plugin architecture examples
 - **Comprehensive CONTRIBUTING.md**: Migration guidelines, code patterns, and development workflow documentation
 - **Tenant filtering helper**: Shared service-layer helper for consistent tenant scoping
@@ -33,6 +34,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   every targeted module at 90% coverage or higher
 - **Performance contracts**: Query budgets for discovery batching, alert fanout, connection health,
   and manufacturer statistics
+- **Admin workflow coverage**: Request-level smoke tests for tenant-scoped chassis, discovery
+  approval, monitoring summaries, settings diffs, and HTMX channel fragments
+- **Plugin development guide**: Live registry, shared transport, discovery, transformer,
+  protocol-specific streaming, security, native Huey, and test contracts for new manufacturers
 
 ### Changed
 
@@ -71,6 +76,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   filelock versions
 - **Host-aware test users**: Shared pytest fixtures now use the host project's configured user
   model
+- **Optional admin integrations**: Enable admin enhancements only when the host registers their
+  Django applications
+- **Settings presentation**: Separate tenant-visible diff and overview queries from configuration
+  resolution, with a fixed query budget and fail-closed display allowlist
+- **Settings administration**: Mask unknown values across standard admin views, disable raw
+  import/export paths, and restrict row management and form choices to the user's tenant scope
+- **Discovery approval**: Move queue promotion into an atomic service with target-model permission
+  checks, stable row-lock ordering, bounded fallback identities, cross-model IP ownership,
+  non-destructive updates, explicit charger validation, batch conflict detection, and one write per
+  logical inventory target
 
 ### Fixed
 
@@ -99,11 +114,36 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   duplicate checks for building-level locations, and prevent stale callers from restoring old data
 - Preserve managed IPv4 and IPv6 chassis addresses when reconciling discovery candidates
 - Restore pending-alert action routes, current hardware labels, and owner-scoped state transitions
+- Prevent tenant-scoped settings diff and overview views from exposing foreign organization, site,
+  or manufacturer overrides and remove diff per-definition query growth
+- Prevent discovery approval from reading nonexistent queue fields or creating chargers without
+  the required location
+- Keep core admin changelists usable when optional admin packages are installed but not configured
+- Require change permission for every mutating admin action and for discovery queue transitions
+- Keep test factories isolated from manufacturer discovery APIs while retaining explicit lifecycle
+  coverage for production task submission
+- Keep discovery approval fail-closed when queue records disagree about API IDs, serial numbers,
+  roles, IP ownership, or explicit inventory links, while requiring only the target permission used
+  by each create or update
+- Mask unknown stored-setting definitions regardless of their name or scalar type
+- Defer chassis broadcasts, manufacturer registration, task submission, and grouped delete cleanup
+  until database commit, and run model lifecycle hooks exactly once through Django admin
+- Replace stale discovery-admin fields and Django 6-incompatible one-argument `format_html()` calls,
+  and provide reachable, secret-safe settings management pages
+- Keep persisted manufacturer API-server polling and imports bound to each row's allowlisted URL
+  and credential, with redacted failure state and deterministic client cleanup
+- Keep lifecycle audit payloads JSON-safe when Django-native timestamps are recorded
+- Restore platform-global and nested tenant-owned admin changelists in multi-site mode without
+  widening ordinary staff access, and register the previously unreachable accessory admin
+- Require explicit permission for the single-site browser update stream while preserving
+  membership- and site-scoped WebSocket groups
+- Move ORM work and blocking subscription handshakes off hardware event loops, and materialize
+  public async query results before returning them to callers
 
 ### Removed
 
-- **Legacy settings shim**: Remove the obsolete proxy module; import `settings` or
-  `SettingsService` from `micboard.services.settings` directly
+- **Settings package exports**: Import `settings`, `SettingsService`, and presentation services from
+  their defining modules instead of a package-level convenience API
 - **Compatibility exports**: Remove root model, service, task, exception, telemetry, rate-limiter,
   and discovery-sync aliases
 - **Model convenience shims**: Use typed wireless-unit, chassis, and RF-channel domain services and
@@ -125,6 +165,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - Pin GitHub Actions to immutable commits and keep coverage enforcement and reports self-contained
 - Fail closed for unsupported or tenantless resources in MSP mode and prevent cross-tenant
   WebSocket subscription or broadcast leakage
+- Scope stored settings overrides to active, internally consistent organization/campus memberships
+  and visible managed manufacturers
 
 ### Documentation
 

@@ -23,18 +23,32 @@ class DiscoveryService:
         return get_manufacturer_plugin_instance(manufacturer)
 
     def _is_ip_managed_by_another_manufacturer(
-        self, ip_address: str, current_manufacturer: Manufacturer
+        self,
+        ip_address: str,
+        current_manufacturer: Manufacturer,
+        *,
+        using: str = "default",
     ) -> bool:
-        return is_ip_managed_by_another_manufacturer(ip_address, current_manufacturer)
+        return is_ip_managed_by_another_manufacturer(
+            ip_address,
+            current_manufacturer,
+            using=using,
+        )
 
     def add_discovery_candidate(
         self,
         ip_address: str,
         manufacturer: Manufacturer,
         source: str = "manual",
+        *,
+        using: str = "default",
     ) -> bool:
         """Adds an IP address to a manufacturer's discovery list, enforcing exclusivity."""
-        if self._is_ip_managed_by_another_manufacturer(ip_address, manufacturer):
+        if self._is_ip_managed_by_another_manufacturer(
+            ip_address,
+            manufacturer,
+            using=using,
+        ):
             logger.warning(
                 "IP %s is already managed by another manufacturer. Skipping for %s.",
                 ip_address,

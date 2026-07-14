@@ -114,45 +114,47 @@ class AdminStatusActionsMixin(_AdminActionHost):
     - mark_maintenance: Mark selected items in maintenance mode
     """
 
-    @admin.action(description="Mark selected as online")
+    def _transition_status(self, request: HttpRequest, queryset: QuerySet, status: str) -> None:
+        """Apply validated lifecycle transitions to each selected hardware row."""
+        from micboard.services.core.hardware_lifecycle import get_lifecycle_manager
+
+        updated = 0
+        for item in queryset:
+            manufacturer = getattr(item, "manufacturer", None)
+            service_code = getattr(manufacturer, "code", None)
+            lifecycle = get_lifecycle_manager(service_code)
+            updated += int(
+                lifecycle.transition_device(
+                    item,
+                    status,
+                    reason=f"Status changed to {status} through Django admin",
+                )
+            )
+        self.message_user(
+            request,
+            f"Transitioned {updated} item(s) to {status}.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(permissions=["change"], description="Mark selected as online")
     def mark_online(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Mark selected items as online."""
-        updated = queryset.update(status="online")
-        self.message_user(
-            request,
-            f"Marked {updated} item(s) as online.",
-            messages.SUCCESS,
-        )
+        self._transition_status(request, queryset, "online")
 
-    @admin.action(description="Mark selected as offline")
+    @admin.action(permissions=["change"], description="Mark selected as offline")
     def mark_offline(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Mark selected items as offline."""
-        updated = queryset.update(status="offline")
-        self.message_user(
-            request,
-            f"Marked {updated} item(s) as offline.",
-            messages.SUCCESS,
-        )
+        self._transition_status(request, queryset, "offline")
 
-    @admin.action(description="Mark selected as degraded")
+    @admin.action(permissions=["change"], description="Mark selected as degraded")
     def mark_degraded(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Mark selected items as degraded."""
-        updated = queryset.update(status="degraded")
-        self.message_user(
-            request,
-            f"Marked {updated} item(s) as degraded.",
-            messages.SUCCESS,
-        )
+        self._transition_status(request, queryset, "degraded")
 
-    @admin.action(description="Mark selected as in maintenance")
+    @admin.action(permissions=["change"], description="Mark selected as in maintenance")
     def mark_maintenance(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Mark selected items in maintenance mode."""
-        updated = queryset.update(status="maintenance")
-        self.message_user(
-            request,
-            f"Marked {updated} item(s) as in maintenance.",
-            messages.SUCCESS,
-        )
+        self._transition_status(request, queryset, "maintenance")
 
 
 class AdminBulkActionsMixin(_AdminActionHost):
@@ -164,7 +166,7 @@ class AdminBulkActionsMixin(_AdminActionHost):
     - delete_selected (Django default): Delete selected items
     """
 
-    @admin.action(description="Enable selected items")
+    @admin.action(permissions=["change"], description="Enable selected items")
     def enable(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Enable (activate) selected items."""
         updated = queryset.update(is_active=True)
@@ -174,7 +176,7 @@ class AdminBulkActionsMixin(_AdminActionHost):
             messages.SUCCESS,
         )
 
-    @admin.action(description="Disable selected items")
+    @admin.action(permissions=["change"], description="Disable selected items")
     def disable(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Disable (deactivate) selected items."""
         updated = queryset.update(is_active=False)
@@ -196,7 +198,7 @@ class AdminApprovalActionsMixin(_AdminActionHost):
     - reset_to_pending: Reset selected items to pending status
     """
 
-    @admin.action(description="Approve selected items")
+    @admin.action(permissions=["change"], description="Approve selected items")
     def approve(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Approve selected items."""
         updated = queryset.update(status="approved")
@@ -206,7 +208,7 @@ class AdminApprovalActionsMixin(_AdminActionHost):
             messages.SUCCESS,
         )
 
-    @admin.action(description="Reject selected items")
+    @admin.action(permissions=["change"], description="Reject selected items")
     def reject(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Reject selected items."""
         updated = queryset.update(status="rejected")
@@ -216,7 +218,7 @@ class AdminApprovalActionsMixin(_AdminActionHost):
             messages.SUCCESS,
         )
 
-    @admin.action(description="Reset selected to pending")
+    @admin.action(permissions=["change"], description="Reset selected to pending")
     def reset_to_pending(self, request: HttpRequest, queryset: QuerySet) -> None:
         """Reset selected items to pending status."""
         updated = queryset.update(status="pending")

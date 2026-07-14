@@ -1,606 +1,186 @@
 # Shure System API Integration
 
-Complete guide to integrating django-micboard with Shure wireless microphone systems.
+django-micboard connects to Shure System API over authenticated HTTPS. It can synchronize
+discovery IPs, poll device state, and subscribe to manufacturer WebSocket updates.
 
-## Overview
+## Requirements
 
-Django Micboard integrates with Shure's System API to provide comprehensive monitoring of wireless microphone systems including:
+- A supported Shure System API deployment reachable from the Django/Huey hosts
+- The System API shared key
+- An HTTPS certificate trusted by the host operating system or an internal CA bundle
+- The `standard` extra for native Huey support and the `shure` extra for WebSocket telemetry
 
-- **ULX-D Series** - Digital wireless systems
-- **QLX-D Series** - Digital wireless with advanced features
-- **UHF-R Series** - Professional wireless systems
-- **Axient Digital (AD)** - High-end digital wireless
-- **PSM Series** - Personal monitoring systems
+```bash
+uv add "django-micboard[standard,shure]"
+```
 
-## System Requirements
+## Django configuration
 
-### Hardware Requirements
-
-- Shure wireless microphone system with System API support
-- Network connectivity (Ethernet recommended)
-- System administrator access
-
-### Software Requirements
-
-- Shure System API enabled and configured
-- HTTPS access with a certificate issued by a trusted public or internal CA
-- Network access from Django application server
-
-## API Configuration
-
-### Enable System API
-
-1. **Access System Interface**
-   - Connect to your Shure system's web interface
-   - Log in with administrator credentials
-
-2. **Navigate to API Settings**
-   - Go to **Network → API Settings**
-   - Enable **"System API"**
-   - Configure authentication method
-
-3. **Configure Authentication**
-   - Choose authentication type (HTTP Digest recommended)
-   - Set username and password
-   - Note the API base URL and port
-
-### Django Configuration
-
-Add to your `settings.py`:
+The package reads `MICBOARD_CONFIG` from Django settings. It does not read environment variables
+directly; the host settings module must map any environment values into this dictionary.
 
 ```python
-# Shure System API Configuration
-MICBOARD_SHURE_API = {
-    'BASE_URL': 'https://your-shure-system.local:443',
-    'USERNAME': 'api_user',
-    'PASSWORD': 'your_secure_password',
-    'TIMEOUT': 30,       # Request timeout in seconds
+import os
+
+MICBOARD_CONFIG = {
+    "SHURE_API_BASE_URL": os.environ.get(
+        "MICBOARD_SHURE_API_BASE_URL", "https://shure-system.example.com:10000"
+    ),
+    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
+    "SHURE_API_TIMEOUT": 10,
+    "SHURE_API_MAX_RETRIES": 3,
 }
 ```
 
-TLS certificate verification is mandatory. Trust an internal CA through `SSL_CERT_FILE` or
-`SSL_CERT_DIR` in the service environment.
+The client sends the shared key in the `x-api-key` header. Set `SHURE_API_USE_DIGEST` to `True`
+inside `MICBOARD_CONFIG` only when the System API deployment also requires HTTP Digest auth.
 
-## Device Discovery
+Authenticated endpoints must use HTTPS. Certificate verification cannot be disabled. For an
+internal CA, set `SSL_CERT_FILE` or `SSL_CERT_DIR` in both the Django and Huey process
+environments.
 
-### Automatic Discovery
+## Native Huey
 
-Configure IP ranges for device discovery:
-
-```bash
-# Expand CIDRs already configured in the admin discovery settings
-uv run python manage.py sync_discovery --manufacturer shure --scan-cidrs
-
-# Add specific IPs
-uv run python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
-```
-
-### Manual Device Addition
-
-Add devices directly via admin interface:
-
-1. Go to `/admin/micboard/device/`
-2. Click "Add Device"
-3. Enter device details:
-   - Manufacturer: Shure
-   - Device ID (from Shure system)
-   - IP Address
-   - Model information
-
-## Device Monitoring
-
-### Real-time Data
-
-Django Micboard monitors:
-
-- **Battery Levels** - Percentage and charging status
-- **RF Signal Strength** - dBm values and quality indicators
-- **Audio Levels** - Input/output meters and peak detection
-- **Device Status** - Online/offline state
-- **Channel Information** - Frequency, bandwidth, encryption
-
-### WebSocket Updates
-
-Real-time updates via WebSocket:
-
-```javascript
-// Connect to WebSocket
-const ws = new WebSocket('ws://your-server/ws');
-
-// Listen for updates
-ws.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    console.log('Device update:', data);
-};
-```
-
-## Management Commands
-
-### Device Polling
-
-```bash
-# Poll all Shure devices once
-uv run python manage.py poll_devices --manufacturer shure
-
-# Enqueue one poll through native Huey
-uv run python manage.py poll_devices --manufacturer shure --async
-
-# Run API diagnostics before polling
-uv run python manage.py diagnostic_api_health_check
-```
-
-### Connection Health
-
-```bash
-# Check connection status
-uv run python manage.py realtime_status --manufacturer shure
-
-# Show detailed connection records
-uv run python manage.py realtime_status --manufacturer shure --verbose
-```
-
-## API Endpoints
-
-### Device Information
+Queued polling uses Huey's Django integration from the `huey` package:
 
 ```python
-from micboard.integrations.shure.client import ShureSystemAPIClient
+import os
 
-client = ShureSystemAPIClient()
+INSTALLED_APPS += ["huey.contrib.djhuey"]
 
-# Get all devices
-devices = client.devices.get_devices()
-
-# Get specific device
-device = client.devices.get_device("device_id")
-
-# Get device status
-status = client.devices.get_device_status("device_id")
-```
-
-### Discovery Management
-
-```python
-# Get discovery IPs
-ips = client.discovery.get_discovery_ips()
-
-# Add discovery IPs
-client.discovery.add_discovery_ips(["192.168.1.100", "192.168.1.101"])
-
-# Remove discovery IPs
-client.discovery.remove_discovery_ips(["192.168.1.100"])
-```
-
-## Troubleshooting
-
-### Connection Issues
-
-**API Connection Failed:**
-- Verify BASE_URL in settings
-- Check username/password credentials
-- Ensure Shure system is accessible on network
-- Check SSL certificate settings
-
-**Device Not Found:**
-- Confirm device is powered on and connected
-- Verify IP address is in discovery range
-- Check Shure system device list
-- Review network firewall settings
-
-### Data Issues
-
-**Stale Data:**
-- Check polling interval settings
-- Verify WebSocket connections
-- Monitor connection health logs
-
-**Missing Metrics:**
-- Confirm device firmware version
-- Check API permissions
-- Review Shure system configuration
-
-### Performance Issues
-
-**Slow Updates:**
-- Reduce polling interval if needed
-- Check network latency
-- Monitor Django server resources
-- Consider Redis caching for WebSocket
-
-## Advanced Configuration
-
-### Custom Device Types
-
-Support additional Shure device types by extending the plugin:
-
-```python
-from micboard.services.common.base.plugin import ManufacturerPlugin
-
-class CustomShurePlugin(ManufacturerPlugin):
-    def get_devices(self):
-        # Custom device discovery logic
-        pass
-
-    def get_device_status(self, device_id):
-        # Custom status retrieval
-        pass
-```
-
-### API Rate Limiting
-
-Configure rate limiting for API calls:
-
-```python
-MICBOARD_RATE_LIMITS = {
-    'shure_api_calls': '100/minute',
-    'device_polling': '10/minute',
-}
-```
-
-### Logging Configuration
-
-Enable detailed Shure API logging:
-
-```python
-LOGGING = {
-    'loggers': {
-        'micboard.integrations.shure': {
-            'level': 'DEBUG',
-            'handlers': ['console'],
-        },
+HUEY = {
+    "huey_class": "huey.RedisHuey",
+    "name": "micboard",
+    "connection": {
+        "url": os.environ.get("REDIS_URL", "redis://localhost:6379/1"),
     },
+    "immediate": os.environ.get("DJANGO_DEBUG", "False").lower() == "true",
 }
 ```
 
-## Security Considerations
+Run a worker outside immediate/development mode:
 
-- Use HTTPS for API communication
-- Store credentials securely (environment variables recommended)
-- Implement proper firewall rules
-- Regular credential rotation
-- Monitor API access logs
-
-## Support Resources
-
-- [Shure System API Documentation](https://shure.secure.force.com/apiexplorer)
-- [Django Micboard GitHub Issues](https://github.com/justprosound/django-micboard/issues)
-- [Shure Support](https://www.shure.com/en-US/support)
-
-4. **Network Configuration**
-   - Ensure device has static IP or DHCP reservation
-   - Configure firewall rules if needed
-   - Test connectivity from Django server
-
-## Authentication
-
-### API Key and Optional HTTP Digest Authentication
-
-The integration sends the configured shared key in the `x-api-key` header. Deployments that
-require HTTP Digest Authentication can enable it in addition to the API key.
-
-**Authentication Requirements:**
-- **Primary method:** `x-api-key` header
-- **Optional method:** HTTP Digest Authentication (RFC 7616)
-- **Shared Key:** Configured at system level
-- **Headers:** Include `X-Shure-Auth-Key` for enhanced security
-
-### Implementation with httpx
-
-```python
-import httpx
-
-with httpx.Client(
-    base_url="https://192.168.1.100:2420",
-    headers={"x-api-key": "shared_key"},
-    auth=httpx.DigestAuth("shure", "shared_key"),  # Optional
-) as client:
-    response = client.get("/api/v1/devices")
-    response.raise_for_status()
+```bash
+uv run --no-sync python manage.py run_huey
 ```
 
-### Django Implementation
+## Discovery
 
-In micboard's Shure integration:
+Create an active `Manufacturer` with code `shure`, then record device IPs through the admin or
+management command:
+
+```bash
+uv run --no-sync python manage.py discovery_add_devices \
+  --manufacturer shure \
+  --ips 192.168.1.100,192.168.1.101
+```
+
+To push the configured discovery inventory to System API and pull results back:
+
+```bash
+uv run --no-sync python manage.py sync_discovery --manufacturer shure
+```
+
+`--scan-cidrs` and `--scan-fqdns` expand CIDR/FQDN entries already stored in the discovery
+configuration. Use `--max-hosts` to bound each CIDR expansion.
+
+Review candidates at `/admin/micboard/discovereddevice/` before approving them into inventory.
+
+## Polling and connection status
+
+Run one poll synchronously:
+
+```bash
+uv run --no-sync python manage.py poll_devices --manufacturer shure
+```
+
+Enqueue the same work through native Huey:
+
+```bash
+uv run --no-sync python manage.py poll_devices --manufacturer shure --async
+```
+
+Inspect persisted real-time connection state:
+
+```bash
+uv run --no-sync python manage.py realtime_status --manufacturer shure --verbose
+```
+
+Run the Shure diagnostic command when validating a new endpoint:
+
+```bash
+uv run --no-sync python manage.py diagnostic_api_health_check
+```
+
+## Direct client use
+
+Use the client as a context manager so its `httpx` connection pool closes promptly:
 
 ```python
 from micboard.integrations.shure.client import ShureSystemAPIClient
 
-client = ShureSystemAPIClient()
-devices = client.devices.get_devices()
+with ShureSystemAPIClient() as client:
+    devices = client.devices.get_devices()
+    discovery_ips = client.discovery.get_discovery_ips()
 ```
 
-## API Endpoints
-
-### Core Endpoints
-
-#### Devices List
-```
-GET /api/v1/devices
-```
-Returns all devices connected to the Shure system.
-
-**Response:**
-```json
-{
-  "devices": [
-    {
-      "device_id": "device-uuid",
-      "device_name": "Handheld 1",
-      "device_type": "Transmitter",
-      "model": "ULXD2",
-      "status": "online",
-      "battery_percentage": 85,
-      "rf_level": -50
-    }
-  ]
-}
-```
-
-#### Device Details
-```
-GET /api/v1/devices/{device_id}
-```
-Returns detailed information about a specific device.
-
-#### Device Channels
-```
-GET /api/v1/devices/{device_id}/channels
-```
-Returns channel configuration and status for a device.
-
-#### Transmitter Data
-```
-GET /api/v1/devices/{device_id}/transmitter
-```
-Returns transmitter-specific data (battery, RF level, frequency, etc.).
-
-### WebSocket Connection
-
-**WebSocket URL:**
-```
-wss://{api_host}:{port}/api/v1/ws
-```
-
-**Purpose:** Real-time device status updates and events
-
-**Features:**
-- Automatic reconnection handling
-- Event filtering by device or type
-- Low-latency updates
-
-**Example:**
-```python
-import websocket
-
-def on_message(ws, message):
-    data = json.loads(message)
-    print(f"Device update: {data}")
-
-ws = websocket.WebSocketApp(
-    "wss://192.168.1.100:2420/api/v1/ws",
-    on_message=on_message
-)
-ws.run_forever()
-```
-
-## Rate Limiting
-
-### Rate Limiting Details
-
-Shure System API implements rate limiting via HTTP 429 responses.
-
-**Rate Limits:**
-- Default: 10 requests per second per API client
-- Burst capacity: 20 requests (token bucket algorithm)
-- Retry-After header indicates wait time
-
-**Headers:**
-```
-X-RateLimit-Limit: 10
-X-RateLimit-Remaining: 5
-X-RateLimit-Reset: 1642854600
-Retry-After: 2
-```
-
-### Rate Limiter Implementation
-
-The integration includes automatic rate limiting via `micboard.services.common.base.rate_limiter`:
+Pass an explicit base URL and shared key when testing a persisted API-server row. Avoid changing
+global Django settings for per-server checks:
 
 ```python
-from micboard.services.common.base.rate_limiter import rate_limit
-
-class ShureDeviceClient:
-    @rate_limit(calls_per_second=10.0)
-    def get_devices(self) -> list[dict]:
-        """Fetch devices with automatic rate limiting."""
-        return self._api_request("/api/v1/devices")
+with ShureSystemAPIClient(
+    base_url=server.base_url,
+    shared_key=server.shared_key,
+) as client:
+    health = client.check_health()
 ```
 
-### Error Handling
+## Failure handling
 
-Rate limit errors are handled through the exception hierarchy:
-- **`ShureAPIRateLimitError`** - Rate limit errors (HTTP 429)
-- **`ShureAPIError`** - Generic API errors
+The shared HTTP client retries configured transient statuses, honors integer `Retry-After`
+headers, and opens its circuit breaker after repeated failures. Relevant `MICBOARD_CONFIG` keys
+include:
 
-Both inherit from base classes in `micboard.services.common.base.exceptions`.
-
-## Data Transformation
-
-### Device Data Mapping
-
-Shure API responses are transformed to micboard's internal format:
-
-```python
-# Shure API Response
-{
-    "device_id": "abc123",
-    "device_name": "Handheld 1",
-    "model": "ULXD2",
-    "status": "online"
-}
-
-# Transformed to micboard format
-{
-    "id": "abc123",
-    "name": "Handheld 1",
-    "model_name": "ULXD2",
-    "online": True
-}
-```
-
-### Transformer Implementation
-
-```python
-from micboard.integrations.shure.transformers import ShureDataTransformer
-
-transformer = ShureDataTransformer()
-device_data = transformer.transform_device(shure_response)
-```
-
-## Configuration in Django Settings
-
-### Settings Example
-
-```python
-# demo/settings.py
-
-MICBOARD = {
-    'MANUFACTURERS': {
-        'shure': {
-            'enabled': True,
-            'api_base_url': 'https://192.168.1.100:2420',
-            'shared_key': 'your_shared_key_from_system_settings',
-            'poll_interval': 30,  # Seconds between polls
-            'timeout': 10,  # Request timeout in seconds
-            'websocket_url': None,  # Auto-derived from api_base_url, or override
-        }
-    }
-}
-```
-
-### Environment Variables
-
-For production deployments:
-
-```bash
-export SHURE_API_BASE_URL="https://192.168.1.100:2420"
-export SHURE_SHARED_KEY="your_shared_key"
-export SHURE_POLL_INTERVAL="30"
-```
+- `SHURE_API_TIMEOUT`
+- `SHURE_API_MAX_RETRIES`
+- `SHURE_API_RETRY_BACKOFF`
+- `SHURE_API_RETRY_STATUS_CODES`
+- `SHURE_API_CIRCUIT_FAILURE_THRESHOLD`
+- `SHURE_API_CIRCUIT_RECOVERY_TIMEOUT`
 
 ## Troubleshooting
 
-### Connection Refused
+### Authentication failures
 
-**Error:** `Connection refused` when connecting to Shure system
-**Cause:** IP address incorrect, system not responding, or System API not enabled
-**Solution:**
-- Verify Shure system IP address
-- Check network connectivity via ping
-- Confirm System API is enabled in settings
-- Check firewall rules
+- Confirm `MICBOARD_CONFIG["SHURE_API_SHARED_KEY"]` resolves to a non-empty value.
+- Confirm the key belongs to the configured System API endpoint.
+- Do not log, display, or commit the key.
 
-### Authentication Failed (401)
+### Certificate failures
 
-**Error:** `HTTP 401 Unauthorized`
-**Cause:** Invalid shared key or authentication headers missing
-**Solution:**
-- Verify shared key matches system configuration
-- Check authentication header format
-- Regenerate shared key if forgotten
+- Keep the `https://` URL; cleartext manufacturer endpoints are rejected.
+- Install the issuing CA or configure `SSL_CERT_FILE`/`SSL_CERT_DIR`.
+- Restart both Django and Huey after changing process environment variables.
 
-### SSL Certificate Verification Failed
+### No discovery results
 
-**Error:** `SSL: CERTIFICATE_VERIFY_FAILED`
-**Cause:** The issuing CA is not trusted by the service environment
-**Solution:**
-- Install the issuing CA in the host trust store
-- Or set `SSL_CERT_FILE`/`SSL_CERT_DIR` for both Django and Huey
+- Confirm the `shure` manufacturer is active.
+- Confirm candidate IPs exist in `/admin/micboard/discovereddevice/`.
+- Run `sync_discovery` without scan flags first, then inspect command output and logs.
+- Check routing and firewall access from the application host to System API.
 
-### Rate Limit Exceeded
+### Queued poll does not run
 
-**Error:** `HTTP 429 Too Many Requests`
-**Cause:** Polling interval too aggressive
-**Solution:**
-- Increase `poll_interval` in settings
-- Reduce API call frequency
-- Check for multiple polling processes
-- Verify rate limiter is active
+- Confirm `huey.contrib.djhuey` is installed and in `INSTALLED_APPS`.
+- Confirm `settings.HUEY` is a dictionary.
+- Confirm the Huey consumer is running and can reach its Redis backend.
+- Run the synchronous polling command to separate queue problems from API problems.
 
-### WebSocket Connection Timeout
+## Security checklist
 
-**Error:** WebSocket connection fails to establish
-**Cause:** WebSocket URL incorrect or server rejecting connections
-**Solution:**
-- Verify WebSocket URL is correctly derived from API base URL
-- Check firewall allows WebSocket connections (port 2420)
-- Verify system is online and responding
-- Check Django Channels configuration
-
-## Best Practices
-
-### Security
-
-1. **Shared Key Management**
-   - Use strong, randomly generated shared keys
-   - Rotate keys regularly (monthly recommended)
-   - Never commit keys to version control
-   - Use environment variables in production
-
-2. **SSL/TLS**
-   - Use proper SSL certificates for production
-   - Trust the issuing CA through the host store, `SSL_CERT_FILE`, or `SSL_CERT_DIR`
-   - Keep certificates updated
-
-3. **Network Access**
-   - Restrict API access to trusted networks
-   - Use firewall rules to limit connections
-   - Monitor access logs for suspicious activity
-
-### Performance
-
-1. **Polling Optimization**
-   - Set appropriate `poll_interval` (30+ seconds recommended)
-   - Use WebSocket for real-time updates when possible
-   - Implement caching for device lists
-
-2. **Error Handling**
-   - Implement exponential backoff for retries
-   - Log errors for debugging
-   - Alert on API access failures
-   - Monitor rate limit headers
-
-3. **Database Efficiency**
-   - Use `select_related()` for ForeignKey lookups
-   - Use `prefetch_related()` for reverse relationships
-   - Batch updates with `bulk_update()`
-
-## Support & Resources
-
-### Shure Documentation
-- [Shure System API Explorer](https://shure.secure.force.com/apiexplorer)
-- [Shure Developer Portal](https://developer.shure.com)
-- [Wireless Microphone Systems Documentation](https://pubs.shure.com)
-
-### Django Micboard Documentation
-- [Integration Architecture](development/architecture.md)
-- [Adding Manufacturers](development/architecture.md#adding-new-manufacturers)
-- [Rate Limiting](#rate-limiting)
-- [Shure Troubleshooting](guides/shure-troubleshooting.md)
-
-### Common Integration Utilities
-- **Rate Limiter:** `micboard.services.common.base.rate_limiter`
-- **Exceptions:** `micboard.services.common.base.exceptions`
-- **Base Client:** `micboard.services.common.base.client`
-
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 26.01.22 | 2026-01-22 | Initial integration documentation with API references |
-
----
-
-**Last Updated:** January 22, 2026
-**Maintainer:** Django Micboard Development Team
-**Status:** ✅ Production Ready
+- Restrict System API access at the network layer.
+- Store shared keys in a secret manager.
+- Allow only known Manufacturer API Server hostnames through
+  `MICBOARD_API_SERVER_ALLOWED_HOSTS`.
+- Use trusted TLS certificates and rotate credentials according to local policy.
+- Keep Django admin permissions and tenant boundaries narrow.

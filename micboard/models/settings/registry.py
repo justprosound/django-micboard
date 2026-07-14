@@ -6,6 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 if TYPE_CHECKING:
@@ -94,6 +95,67 @@ class SettingDefinition(models.Model):
     def __str__(self) -> str:
         return f"{self.label} ({self.key})"
 
+    def clean(self) -> None:
+        """Validate defaults and preserve the contract of stored overrides."""
+        super().clean()
+        errors: dict[str, str] = {}
+
+        if self.setting_type == self.TYPE_CHOICES and (
+            not isinstance(self.choices_json, dict) or not self.choices_json
+        ):
+            errors["choices_json"] = "Choices settings require a non-empty value-to-label mapping"
+
+        try:
+            self.parse_value(self.default_value)
+        except (AttributeError, TypeError, ValueError) as exc:
+            errors["default_value"] = f"Invalid default for {self.setting_type}: {exc}"
+
+        if self.pk is not None:
+            self._validate_existing_overrides(errors)
+
+        if errors:
+            raise ValidationError(errors)
+
+    def _validate_existing_overrides(self, errors: dict[str, str]) -> None:
+        """Reject definition changes that would strand existing overrides."""
+        from micboard.services.settings.visibility_service import settings_visibility
+
+        using = self._state.db or "default"
+        overrides = (
+            Setting.objects.using(using)
+            .filter(definition_id=self.pk)
+            .only(
+                "organization_id",
+                "site_id",
+                "manufacturer_id",
+                "value",
+            )
+        )
+        scope_mismatch = False
+        invalid_value = False
+        for override in overrides.iterator():
+            if not settings_visibility.matches_definition_scope(
+                definition_scope=self.scope,
+                organization_id=override.organization_id,
+                site_id=override.site_id,
+                manufacturer_id=override.manufacturer_id,
+            ):
+                scope_mismatch = True
+            try:
+                self.parse_value(override.value)
+            except (AttributeError, TypeError, ValueError):
+                invalid_value = True
+
+        if scope_mismatch:
+            errors["scope"] = (
+                "Existing overrides target another scope; remove or migrate them before "
+                "changing scope"
+            )
+        if invalid_value:
+            errors["setting_type"] = (
+                "Existing overrides are incompatible with this type or choices mapping"
+            )
+
     def parse_value(self, raw_value: str) -> Any:
         """Parse raw string value according to setting type."""
         if self.setting_type == self.TYPE_STRING:
@@ -101,10 +163,17 @@ class SettingDefinition(models.Model):
         elif self.setting_type == self.TYPE_INTEGER:
             return int(raw_value)
         elif self.setting_type == self.TYPE_BOOLEAN:
-            return raw_value.lower() in ("true", "1", "yes", "on")
+            normalized = raw_value.lower()
+            if normalized in ("true", "1", "yes", "on"):
+                return True
+            if normalized in ("false", "0", "no", "off"):
+                return False
+            raise ValueError("enter true, false, 1, 0, yes, no, on, or off")
         elif self.setting_type == self.TYPE_JSON:
             return json.loads(raw_value)
         elif self.setting_type == self.TYPE_CHOICES:
+            if not isinstance(self.choices_json, dict) or raw_value not in self.choices_json:
+                raise ValueError("select a key present in choices JSON")
             return raw_value
         return raw_value
 
@@ -159,18 +228,95 @@ class Setting(models.Model):
         verbose_name = "Setting"
         verbose_name_plural = "Settings"
         ordering = ["definition", "organization_id", "site", "manufacturer_id"]
-        # Enforce uniqueness per scope
-        unique_together = [
-            ["definition", "organization_id", "site", "manufacturer_id"],
+        unique_together: ClassVar[list[list[str]]] = [
+            ["definition", "organization_id", "site", "manufacturer_id"]
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        organization_id__isnull=True,
+                        site__isnull=True,
+                        manufacturer_id__isnull=True,
+                    )
+                    | models.Q(
+                        organization_id__isnull=False,
+                        site__isnull=True,
+                        manufacturer_id__isnull=True,
+                    )
+                    | models.Q(
+                        organization_id__isnull=True,
+                        site__isnull=False,
+                        manufacturer_id__isnull=True,
+                    )
+                    | models.Q(
+                        organization_id__isnull=True,
+                        site__isnull=True,
+                        manufacturer_id__isnull=False,
+                    )
+                ),
+                name="setting_exactly_one_scope",
+            ),
+            models.UniqueConstraint(
+                fields=["definition"],
+                condition=models.Q(
+                    organization_id__isnull=True,
+                    site__isnull=True,
+                    manufacturer_id__isnull=True,
+                ),
+                name="setting_unique_global",
+            ),
+            models.UniqueConstraint(
+                fields=["definition", "organization_id"],
+                condition=models.Q(
+                    organization_id__isnull=False,
+                    site__isnull=True,
+                    manufacturer_id__isnull=True,
+                ),
+                name="setting_unique_organization",
+            ),
+            models.UniqueConstraint(
+                fields=["definition", "site"],
+                condition=models.Q(
+                    organization_id__isnull=True,
+                    site__isnull=False,
+                    manufacturer_id__isnull=True,
+                ),
+                name="setting_unique_site",
+            ),
+            models.UniqueConstraint(
+                fields=["definition", "manufacturer_id"],
+                condition=models.Q(
+                    organization_id__isnull=True,
+                    site__isnull=True,
+                    manufacturer_id__isnull=False,
+                ),
+                name="setting_unique_manufacturer",
+            ),
         ]
 
     def __str__(self) -> str:
         scope_name = self.organization_id or self.site or self.manufacturer_id or "Global"
-        return f"{self.definition.label} = {self.value[:50]} ({scope_name})"
+        return f"{self.definition.label} ({scope_name})"
 
     def get_parsed_value(self) -> Any:
         """Get the parsed value according to definition type."""
         return self.definition.parse_value(self.value)
+
+    def clean(self) -> None:
+        """Require one target matching the definition's declared scope."""
+        super().clean()
+        from micboard.services.settings.visibility_service import settings_visibility
+
+        if not settings_visibility.matches_definition_scope(
+            definition_scope=self.definition.scope,
+            organization_id=self.organization_id,
+            site_id=self.site_id,
+            manufacturer_id=self.manufacturer_id,
+        ):
+            raise ValidationError(
+                "The configured target must match the setting definition's declared scope"
+            )
 
     def set_value(self, value: Any) -> None:
         """Set value and automatically serialize."""

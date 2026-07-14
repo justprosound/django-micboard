@@ -16,7 +16,7 @@ Django Micboard is a Django application for real-time monitoring and management 
 - 👥 **User Assignments** - Assign devices to users with location tracking
 - 🚨 **Smart Alerts** - Configurable notifications for battery and RF issues
 - 📊 **Admin Dashboard** - Visual oversight of devices and system health
-- 🔒 **Rate Limiting** - Built-in API protection
+- 🔒 **Transport Hardening** - TLS-only authenticated manufacturer connections
 - 🧪 **Pre-production Beta** - Django 5.1 through 6.0 compatible
 
 ## Quick Start
@@ -25,22 +25,27 @@ All installation and environment management uses [`uv`](https://github.com/astra
 
 ```bash
 # Add django-micboard to an existing uv-managed Django project
-uv add "django-micboard[standard,tasks]"
+uv add "django-micboard[standard,realtime,shure]"
 ```
 
 ```python
 # Add to Django settings
+import os
+
 INSTALLED_APPS = [
     # ... other apps
     "channels",
+    "huey.contrib.djhuey",
     "micboard",
 ]
 
 # Configure Shure API
 MICBOARD_CONFIG = {
     "SHURE_API_BASE_URL": "https://your-shure-system.local:10000",
-    "SHURE_API_SHARED_KEY": "your-shared-secret",
+    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
 }
+
+MICBOARD_API_SERVER_ALLOWED_HOSTS = ["your-shure-system.local"]
 ```
 
 ```bash
@@ -65,6 +70,7 @@ uv run --no-sync python manage.py poll_devices
 - [Shure Integration](shure-integration.md) - Shure System API setup and usage
 - [API Reference](api/endpoints.md) - REST and WebSocket endpoints
 - [Architecture](development/architecture.md) - System design overview
+- [Plugin Development](plugin-development.md) - Add a manufacturer using the live plugin contract
 
 ## Requirements
 

@@ -3,8 +3,8 @@
 from unittest.mock import patch
 
 from django.conf import settings
-from django.contrib.auth.models import User
-from django.test import Client, TestCase
+from django.contrib.auth.models import Permission, User
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -208,6 +208,29 @@ class DiscoveredDevicePromotionAccessTests(TestCase):
         response = csrf_client.post(self.url)
 
         self.assertEqual(response.status_code, 403)
+        promote_mock.assert_not_called()
+
+    @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
+    @patch(
+        "micboard.admin.monitoring.DiscoveredDeviceAdmin._promote_to_chassis",
+        return_value=(False, "not promoted", None),
+    )
+    def test_post_applies_admin_tenant_scope(self, promote_mock) -> None:
+        """A direct object URL cannot bypass the admin queryset boundary."""
+        self.staff_user.user_permissions.add(
+            *Permission.objects.filter(
+                content_type__app_label="micboard",
+                codename__in=(
+                    "add_wirelesschassis",
+                    "change_discovereddevice",
+                    "delete_discovereddevice",
+                ),
+            )
+        )
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 302)
         promote_mock.assert_not_called()
 
 

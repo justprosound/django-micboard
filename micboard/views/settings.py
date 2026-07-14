@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from django.contrib import messages
@@ -14,14 +15,16 @@ from django.urls import reverse_lazy
 from django.views.generic import FormView
 
 from micboard.forms.settings import BulkSettingConfigForm, ManufacturerSettingsForm
-from micboard.services.settings import settings
+from micboard.services.settings.presentation_service import settings_presentation
+
+logger = logging.getLogger(__name__)
 
 
 @staff_member_required
 @permission_required("micboard.view_setting", raise_exception=True)
 def settings_diff_view(request: HttpRequest) -> HttpResponse:
     """Show where tenant/site/manufacturer settings differ from global defaults."""
-    context = settings.get_settings_diff()
+    context = settings_presentation.get_diff(user=request.user)
     return render(request, "admin/micboard/settings_diff_stub.html", context)
 
 
@@ -33,6 +36,12 @@ class BulkSettingConfigView(LoginRequiredMixin, PermissionRequiredMixin, FormVie
     template_name = "micboard/settings/bulk_config.html"
     form_class = BulkSettingConfigForm
     success_url = reverse_lazy("admin:micboard_setting_changelist")
+
+    def get_form_kwargs(self) -> dict[str, Any]:
+        """Bind tenant visibility to every settings form request."""
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
 
     def form_valid(self, form: BulkSettingConfigForm) -> HttpResponse:
         """Save settings and show results."""
@@ -51,8 +60,9 @@ class BulkSettingConfigView(LoginRequiredMixin, PermissionRequiredMixin, FormVie
 
             return redirect(self.success_url)
 
-        except Exception as e:
-            messages.error(self.request, f"❌ Error saving settings: {e}")
+        except Exception:
+            logger.exception("Failed to save bulk settings for user %s", self.request.user.pk)
+            messages.error(self.request, "❌ Settings could not be saved. Please try again.")
             return self.form_invalid(form)
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
@@ -70,6 +80,20 @@ class ManufacturerSettingsView(LoginRequiredMixin, PermissionRequiredMixin, Form
     template_name = "micboard/settings/manufacturer_config.html"
     form_class = ManufacturerSettingsForm
     success_url = reverse_lazy("admin:micboard_setting_changelist")
+
+    def get_initial(self) -> dict[str, Any]:
+        """Preselect a manufacturer supplied by a trusted admin link."""
+        initial = super().get_initial()
+        manufacturer_id = self.request.GET.get("manufacturer")
+        if manufacturer_id:
+            initial["manufacturer"] = manufacturer_id
+        return initial
+
+    def get_form_kwargs(self) -> dict[str, Any]:
+        """Bind tenant visibility to every manufacturer settings request."""
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
 
     def form_valid(self, form: ManufacturerSettingsForm) -> HttpResponse:
         """Save manufacturer settings and show results."""
@@ -89,8 +113,12 @@ class ManufacturerSettingsView(LoginRequiredMixin, PermissionRequiredMixin, Form
 
             return redirect(self.success_url)
 
-        except Exception as e:
-            messages.error(self.request, f"❌ Error saving settings: {e}")
+        except Exception:
+            logger.exception(
+                "Failed to save manufacturer settings for user %s",
+                self.request.user.pk,
+            )
+            messages.error(self.request, "❌ Settings could not be saved. Please try again.")
             return self.form_invalid(form)
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
@@ -104,4 +132,8 @@ class ManufacturerSettingsView(LoginRequiredMixin, PermissionRequiredMixin, Form
 @permission_required("micboard.view_setting", raise_exception=True)
 def settings_overview(request: HttpRequest) -> HttpResponse:
     """Show overview of all configured settings."""
-    return render(request, "micboard/settings/overview.html", settings.get_settings_overview())
+    return render(
+        request,
+        "micboard/settings/overview.html",
+        settings_presentation.get_overview(user=request.user),
+    )

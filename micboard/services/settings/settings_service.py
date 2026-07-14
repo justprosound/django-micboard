@@ -6,17 +6,14 @@ DB-backed SettingsRegistry into a single resolution chain.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
-from django.apps import apps
 from django.conf import settings as django_settings
 
 from micboard.apps import MicboardConfig
-from micboard.models.settings import Setting, SettingDefinition
 from micboard.services.shared.settings_registry import SettingsRegistry as _SettingsRegistry
 
-logger = logging.getLogger(__name__)
+_NOT_FOUND = object()
 
 
 class SettingsService:
@@ -28,7 +25,8 @@ class SettingsService:
     2. ``settings.MICBOARD_CONFIG`` dict key
     3. Feature flag Django setting (``MICBOARD_*``) via key mapping
     4. ``MicboardConfig.default_config`` (``POLL_INTERVAL``, etc.)
-    5. Provided *default*
+    5. Registered ``SettingDefinition`` default
+    6. Provided *default*
     """
 
     # Canonical key → Django setting name for feature flag properties
@@ -83,6 +81,7 @@ class SettingsService:
             organization=organization,
             site=site,
             manufacturer=manufacturer,
+            include_definition_default=False,
         )
         if value is not None:
             return value
@@ -95,9 +94,12 @@ class SettingsService:
         if flag_name is not None and hasattr(django_settings, flag_name):
             return getattr(django_settings, flag_name)
 
-        app_default = MicboardConfig.default_config.get(key)
-        if app_default is not None:
-            return app_default
+        if key in MicboardConfig.default_config:
+            return MicboardConfig.default_config[key]
+
+        definition_default = self._registry.get_definition_default(key, default=_NOT_FOUND)
+        if definition_default is not _NOT_FOUND:
+            return definition_default
 
         return default
 
@@ -110,197 +112,6 @@ class SettingsService:
     def testing(self) -> bool:
         """Whether Django is running tests."""
         return getattr(django_settings, "TESTING", False)
-
-    # ------------------------------------------------------------------
-    # Settings business logic (moved from views/settings.py)
-    # ------------------------------------------------------------------
-
-    def _is_sensitive_key(self, key: str) -> bool:
-        """Return True when a setting key likely contains secrets."""
-        key_lower = key.lower()
-        sensitive_tokens = ("secret", "token", "password", "shared_key", "api_key", "key")
-        return any(token in key_lower for token in sensitive_tokens)
-
-    def _format_value(self, value: Any, *, sensitive: bool) -> str:
-        """Format a value for display in the admin diff view."""
-        if value is None:
-            return "—"
-        if sensitive:
-            return "••••••"
-        return str(value)
-
-    def _resolve_organization_names(self, org_ids: set[int]) -> dict[int, str]:
-        """Resolve organization IDs to names when available."""
-        if not apps.is_installed("micboard.multitenancy"):
-            return {}
-
-        from micboard.multitenancy.models import Organization
-
-        return dict(Organization._default_manager.filter(id__in=org_ids).values_list("id", "name"))
-
-    def _resolve_manufacturer_names(self, manufacturer_ids: set[int]) -> dict[int, str]:
-        """Resolve manufacturer IDs to names when available."""
-        try:
-            from micboard.models.discovery import Manufacturer
-        except Exception:
-            return {}
-
-        return dict(Manufacturer.objects.filter(id__in=manufacturer_ids).values_list("id", "name"))
-
-    def get_settings_diff(
-        self,
-        organization_ids: set[int] | None = None,
-        site_ids: set[int] | None = None,
-        manufacturer_ids: set[int] | None = None,
-    ) -> dict[str, Any]:
-        """Show where tenant/site/manufacturer settings differ from global defaults.
-
-        Args:
-            organization_ids: Set of organization IDs to consider
-            site_ids: Set of site IDs to consider
-            manufacturer_ids: Set of manufacturer IDs to consider
-
-        Returns:
-            Dictionary containing settings diff data for template rendering
-        """
-        definitions = SettingDefinition.objects.filter(is_active=True).order_by(
-            "scope",
-            "key",
-        )
-        raw_overrides: list[dict[str, Any]] = []
-
-        org_ids_set: set[int] = set() if organization_ids is None else organization_ids
-        manufacturer_ids_set: set[int] = set() if manufacturer_ids is None else manufacturer_ids
-
-        for definition in definitions:
-            org_overrides = list(
-                Setting.objects.filter(definition=definition, organization_id__isnull=False)
-            )
-            site_overrides = list(
-                Setting.objects.filter(definition=definition, site__isnull=False).select_related(
-                    "site"
-                )
-            )
-            mfg_overrides = list(
-                Setting.objects.filter(definition=definition, manufacturer_id__isnull=False)
-            )
-
-            if not (org_overrides or site_overrides or mfg_overrides):
-                continue
-
-            org_ids_set.update(
-                {override.organization_id for override in org_overrides if override.organization_id}
-            )
-            manufacturer_ids_set.update(
-                {override.manufacturer_id for override in mfg_overrides if override.manufacturer_id}
-            )
-
-            global_setting = Setting.objects.filter(
-                definition=definition,
-                organization_id__isnull=True,
-                site__isnull=True,
-                manufacturer_id__isnull=True,
-            ).first()
-
-            sensitive = self._is_sensitive_key(definition.key)
-            global_value = self._format_value(
-                global_setting.get_parsed_value() if global_setting else None,
-                sensitive=sensitive,
-            )
-
-            raw_overrides.append(
-                {
-                    "key": definition.key,
-                    "label": definition.label,
-                    "global": global_value,
-                    "sensitive": sensitive,
-                    "org_overrides": org_overrides,
-                    "site_overrides": site_overrides,
-                    "mfg_overrides": mfg_overrides,
-                }
-            )
-
-        org_names = self._resolve_organization_names(org_ids_set)
-        mfg_names = self._resolve_manufacturer_names(manufacturer_ids_set)
-
-        overrides: list[dict[str, Any]] = []
-        for override in raw_overrides:
-            sensitive = override["sensitive"]
-
-            org_items = [
-                {
-                    "label": org_names.get(item.organization_id, f"Org {item.organization_id}"),
-                    "value": self._format_value(item.get_parsed_value(), sensitive=sensitive),
-                }
-                for item in override["org_overrides"]
-            ]
-
-            site_items = [
-                {
-                    "label": item.site.name if item.site else f"Site {item.site_id}",
-                    "value": self._format_value(item.get_parsed_value(), sensitive=sensitive),
-                }
-                for item in override["site_overrides"]
-            ]
-
-            mfg_items = [
-                {
-                    "label": mfg_names.get(
-                        item.manufacturer_id, f"Manufacturer {item.manufacturer_id}"
-                    ),
-                    "value": self._format_value(item.get_parsed_value(), sensitive=sensitive),
-                }
-                for item in override["mfg_overrides"]
-            ]
-
-            overrides.append(
-                {
-                    "key": override["key"],
-                    "label": override["label"],
-                    "global": override["global"],
-                    "org_overrides": org_items,
-                    "site_overrides": site_items,
-                    "mfg_overrides": mfg_items,
-                }
-            )
-
-        return {
-            "title": "Settings Overrides Diff",
-            "overrides": overrides,
-        }
-
-    def get_settings_overview(self) -> dict[str, Any]:
-        """Show overview of all configured settings.
-
-        Returns:
-            Dictionary containing settings overview data for template rendering
-        """
-        # Group stored values by the identifier that establishes their scope.
-        global_settings = Setting.objects.filter(
-            organization_id__isnull=True,
-            site__isnull=True,
-            manufacturer_id__isnull=True,
-        ).select_related("definition")
-
-        org_settings = Setting.objects.filter(
-            organization_id__isnull=False,
-        ).select_related("definition")
-
-        site_settings = Setting.objects.filter(
-            site__isnull=False,
-        ).select_related("definition", "site")
-
-        mfg_settings = Setting.objects.filter(
-            manufacturer_id__isnull=False,
-        ).select_related("definition")
-
-        return {
-            "title": "Settings Overview",
-            "global_settings": global_settings,
-            "org_settings": org_settings,
-            "site_settings": site_settings,
-            "mfg_settings": mfg_settings,
-        }
 
     # ------------------------------------------------------------------
     # Feature-flag convenience properties

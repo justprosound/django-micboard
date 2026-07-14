@@ -1,437 +1,199 @@
-# Developer Guide
+# Developer guide
 
-Guide for developers contributing to or extending Django Micboard.
+This guide covers the supported repository workflow. Architecture decisions live in
+`docs/adr/`; domain language and boundaries live in `CONTEXT.md`.
 
-## Development Setup
-
-### Requirements
+## Requirements
 
 - Python 3.13+
 - Django 5.1 through 6.0
-- uv for dependency and environment management
+- `uv` for dependency and environment management
 - Git
+- `just` for canonical repository recipes
+- PostgreSQL when exercising production behavior; SQLite is sufficient for local tests
 
-### Local Setup
+## Local setup
 
-1. Clone the repository:
 ```bash
 git clone https://github.com/justprosound/django-micboard.git
 cd django-micboard
+uv sync --locked --all-extras
+uv run --no-sync pre-commit install --hook-type pre-commit
 ```
 
-2. Create the managed environment and install dependencies:
-```bash
-uv sync --all-extras
-```
-
-3. Run tests:
-```bash
-uv run --no-sync pytest tests/ -v
-```
-
-### Demo and Local Docker
-
-The repository includes a demo Docker Compose configuration under `demo/docker/docker-compose.yml` for local testing. It runs the Django app and a demo database and is configured with a healthcheck. To improve resilience during development, consider enabling a `restart:` policy for the Django service in the compose file (for example `restart: unless-stopped`) or using a small watchdog script that probes `/api/health/` and restarts the service/container when unhealthy. This is helpful when testing integrations that may cause the process to exit unexpectedly.
-
-Example watchdog (simple):
+The root `manage.py` loads `example_project.settings` and uses SQLite by default:
 
 ```bash
-# Simple loop to restart a container if health endpoint is failing (demo only)
-while true; do
-  if ! curl -fsS http://localhost:8000/api/health/ >/dev/null; then
-    echo "Service unhealthy - restarting container"
-    docker-compose -f demo/docker/docker-compose.yml restart micboard-demo
-  fi
-  sleep 30
-done
+uv run --no-sync python manage.py migrate
+uv run --no-sync python manage.py runserver
 ```
 
-### Project Structure
+Or run the bootstrap script:
 
+```bash
+./start-dev.sh
+./start-dev.sh --check-only
 ```
+
+Docker is optional and no Docker demo tree is required for local development.
+
+## Repository layout
+
+```text
 django-micboard/
-├── micboard/                # Main package
-│   ├── admin/              # Django admin interfaces
-│   │   ├── assignments.py  # Assignment/alert admins
-│   │   ├── devices.py      # Device admins
-│   │   └── monitoring.py   # Monitoring/config admins
-│   ├── models/             # Django models
-│   │   ├── assignments.py  # User assignments & alerts
-│   │   ├── devices.py      # Receivers, channels, transmitters
-│   │   └── locations.py    # Locations & monitoring groups
-│   ├── shure/              # Shure API integration
-│   │   ├── client.py       # HTTP client with pooling
-│   │   ├── transformers.py # Data transformers
-│   │   └── websocket.py    # WebSocket handling
-│   ├── views/              # Django views
-│   │   ├── api.py          # REST API endpoints
-│   │   └── dashboard.py    # Dashboard views
-│   ├── management/commands/ # Management commands
-│   │   ├── poll_devices.py   # Device polling command
-│   │   └── realtime_status.py # Real-time connection monitoring
-│   ├── tasks/                # Background tasks
-│   │   ├── polling_tasks.py  # Device polling tasks
-│   │   ├── sse_tasks.py      # SSE subscription tasks
-│   │   ├── websocket_tasks.py # WebSocket subscription tasks
-│   │   └── health_tasks.py   # Health monitoring tasks
-│   ├── models/               # Django models
-│   │   ├── realtime.py       # Real-time connection tracking
-│   │   ├── assignments.py    # User assignments & alerts
-│   │   ├── devices.py        # Receivers, channels, transmitters
-│   │   └── locations.py      # Locations & monitoring groups
-├── tests/                  # Test suite
-│   ├── test_models.py      # Model tests
-│   └── test_package_structure.py  # PyPI validation
-├── docs/                   # Documentation
-└── pyproject.toml          # Package configuration
+├── micboard/
+│   ├── admin/               # Thin Django admin adapters
+│   ├── integrations/        # Manufacturer transports and plugins
+│   ├── management/commands/ # Thin management-command adapters
+│   ├── models/              # Domain-grouped persistence models
+│   ├── services/            # Business logic and orchestration
+│   ├── tasks/               # Native Huey wrappers
+│   ├── views/               # HTML/HTMX request adapters
+│   └── websockets/          # Authenticated Channels routing/consumer
+├── example_project/         # Development host project
+├── tests/                   # Pytest suite, factories, and settings
+├── docs/                    # MkDocs source
+├── manage.py                # Root example-project entry point
+├── Justfile                 # Canonical development recipes
+└── pyproject.toml           # Package and tool configuration
 ```
 
-## Code Organization
+## Architecture rules
 
-### Package Split Rationale
+- Put business logic in a domain service, not in admin, views, tasks, serializers, or commands.
+- Pass structured data with Pydantic v2 DTOs and keep public service APIs typed.
+- Tasks carry serializable identifiers/DTO data and delegate to services.
+- Scope querysets at the boundary; tenant isolation must fail closed.
+- Use `select_related`/`prefetch_related` intentionally on hot query paths.
+- Use `httpx` for manufacturer transport and close direct clients promptly.
+- Use native Huey through `huey.contrib.djhuey`; do not introduce another task queue.
+- Update call sites directly when moving APIs; do not add compatibility re-export modules.
 
-The codebase has been organized into focused modules for maintainability:
-
-#### Shure Package (`micboard/shure/`)
-
-**Purpose:** Isolate all Shure System API interaction logic.
-
-- **client.py** (394 lines)
-  - HTTP client with connection pooling
-  - Automatic retry with exponential backoff
-  - Health tracking and error handling
-  - Thread-safe operations
-
-- **transformers.py** (286 lines)
-  - Transform Shure API responses → micboard format
-  - Channel status computation
-  - Battery health analysis
-  - Signal quality calculations
-
-- **websocket.py** (136 lines)
-  - Real-time WebSocket connections to Shure devices
-  - Automatic reconnection
-  - Message parsing and routing
-
-#### Admin Package (`micboard/admin/`)
-
-**Purpose:** Organize Django admin by functional area.
-
-- **devices.py** (189 lines)
-  - ReceiverAdmin, ChannelAdmin, TransmitterAdmin
-  - List displays, filters, search
-  - Read-only fields for API-sourced data
-
-- **assignments.py** (100 lines)
-  - DeviceAssignmentAdmin, AlertAdmin
-  - User assignment management
-  - Alert preferences
-
-- **monitoring.py** (57 lines)
-  - LocationAdmin, MonitoringGroupAdmin
-  - Configuration admin
-  - Group management
-
-#### Serializers Module (`micboard/serializers.py`)
-
-**Purpose:** DRY principle for data serialization.
-
-- 8 reusable functions with keyword-only parameters
-- Eliminates ~100 lines of duplicate code
-- Consistent serialization across views and commands
-
-### Django Best Practices
-
-#### Keyword-Only Parameters
-
-All functions use keyword-only parameters for clarity:
-
-```python
-def serialize_receiver_detail(receiver, *, include_extra=False):
-    """
-    Serialize receiver with keyword-only parameters.
-
-    Args:
-        receiver: Receiver instance
-        include_extra: Whether to include computed properties (keyword-only)
-    """
-    pass
-```
-
-Benefits:
-- Prevents boolean confusion: `func(receiver, True)` vs `func(receiver, include_extra=True)`
-- Self-documenting code
-- Easier to extend without breaking compatibility
-
-#### Type Hints
-
-Modern type hints with `__future__` annotations:
-
-```python
-from __future__ import annotations
-
-from typing import Optional, Dict, List
-from django.db.models import QuerySet
-
-def process_devices(
-    receivers: QuerySet[Receiver],
-    *,
-    include_offline: bool = False
-) -> List[Dict[str, Any]]:
-    """Process receivers with full type annotations."""
-    pass
-```
-
-#### Model Managers
-
-Custom managers for common queries:
-
-```python
-class ReceiverManager(models.Manager):
-    def active(self) -> QuerySet[Receiver]:
-        """Return active receivers."""
-        return self.filter(is_active=True)
-
-    def online_recently(self, *, minutes: int = 30) -> QuerySet[Receiver]:
-        """Return receivers seen in last N minutes."""
-        threshold = timezone.now() - timedelta(minutes=minutes)
-        return self.filter(last_seen__gte=threshold)
-```
+Review `.github/copilot-instructions.md` before changing architecture.
 
 ## Testing
 
-### Running Tests
+Run all tests:
 
 ```bash
-# All tests
-uv run pytest tests/ -v
-
-# Specific test file
-uv run pytest tests/test_models.py -v
-
-# Specific test
-uv run pytest tests/test_models.py::TestReceiver::test_mark_online -v
-
-# With coverage
-uv run pytest tests/ --cov=micboard --cov-report=html
+just test
 ```
 
-### Test Structure
-
-#### Model Tests (`test_models.py`)
-
-38 tests covering all models:
-- Receiver online/offline tracking
-- Channel-Transmitter relationships
-- DeviceAssignment validation
-- Alert creation and preferences
-- Location and MonitoringGroup hierarchies
-
-#### Real-Time Tests (`test_realtime.py`)
-
-3 tests covering real-time connection functionality:
-- Connection status summary
-- Model constants validation
-- Health monitoring functions
-
-### Writing Tests
-
-Follow these conventions:
-
-```python
-import pytest
-from django.test import TestCase
-from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.realtime.connection import RealTimeConnection
-
-class TestRealTimeConnection(TestCase):
-    """Test RealTimeConnection model."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.manufacturer = Manufacturer.objects.create(
-            name="Test Manufacturer",
-            code="test",
-            is_active=True
-        )
-
-    def test_connection_lifecycle(self):
-        """Test connection status transitions."""
-        # Test connection state changes
-        connection.mark_connecting()
-        self.assertEqual(connection.status, "connecting")
-
-        connection.mark_connected()
-        self.assertEqual(connection.status, "connected")
-
-        connection.mark_disconnected("Test error")
-        self.assertEqual(connection.status, "disconnected")
-```
-
-## Code Quality
-
-### Style Guide
-
-- PEP 8 compliant
-- Type hints required for public functions
-- Docstrings required for all modules, classes, and public functions
-- Keyword-only parameters for boolean/optional arguments
-
-### Linting
+Focused examples:
 
 ```bash
-# Run ruff for linting
-uv run ruff check micboard/
-
-# Auto-fix issues
-uv run ruff check --fix micboard/
-
-# Format code
-uv run ruff format micboard/
+uv run --no-sync pytest tests/test_lifecycle_hooks.py -v
+uv run --no-sync pytest \
+  tests/test_lifecycle_hooks.py::TestStatusTransitionValidation::test_valid_transition_discovered_to_online
+uv run --no-sync pytest tests/admin/ -v
+uv run --no-sync pytest tests/ -k "shure or sennheiser"
 ```
 
-### Type Checking
+Coverage gate and inventory:
 
 ```bash
-# Run mypy
-uv run --no-sync python -m mypy micboard/
+just coverage
 ```
 
-## Django Compatibility
+Test layout:
 
-### Supported Versions
+- `tests/admin/`: end-to-end admin smoke flows
+- `tests/services/`: domain-service unit/integration coverage
+- `tests/test_*security.py`: authorization and authenticated-transport boundaries
+- `tests/test_huey_*.py`: native Huey configuration and task wrappers
+- `tests/factories/`: reusable model factories
 
-- Django 5.1 through 6.0
-- Django 6.0
-- Python 3.13+
+Add a regression test for each bug. For DB code, test rollback/on-commit behavior and tenant scope
+where relevant.
 
-### No Backwards Compatibility
-
-This package targets modern Django and Python versions only. We do not maintain backwards compatibility with:
-- Django < 5.1
-- Python < 3.13
-- Deprecated Django APIs
-
-### Migration Strategy
-
-When Django deprecates APIs:
-1. Update to new API immediately
-2. No transitional compatibility layers
-3. Bump minimum Django version requirement
-
-## Shure API Integration
-
-### Client Architecture
-
-The Shure System API client uses:
-- `httpx.Client` for connection pooling
-- Typed retry handling around `httpx` failures and retryable status codes
-- Exponential backoff (0.5s, 1s, 2s)
-- Health tracking (consecutive failures)
-
-### Adding New Device Types
-
-1. Add device type to `DEVICE_TYPE_CHOICES` in models:
-```python
-DEVICE_TYPE_CHOICES = [
-    ('ulxd', 'ULX-D'),
-    ('qlxd', 'QLX-D'),
-    ('axient', 'Axient Digital'),
-    ('new_type', 'New Type'),  # Add here
-]
-```
-
-2. Add transformer logic in `shure/transformers.py`:
-```python
-def transform_new_type(device_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Transform new device type data."""
-    pass
-```
-
-3. Update client in `shure/client.py` to handle new endpoints
-
-### WebSocket Integration
-
-For real-time updates from Shure devices:
-
-```python
-from micboard.integrations.shure.client import ShureSystemAPIClient
-
-client = ShureSystemAPIClient()
-await client.connect_and_subscribe("device-id", handle_update)
-```
-
-## Deployment
-
-### PyPI Package
-
-Build and publish:
+## Quality gates
 
 ```bash
-# Build package
-uv build
-
-# Upload to PyPI
-uv publish
+just lint
+just pre-commit
+uv run --no-sync bandit -r micboard -ll
+uv run --no-sync python manage.py check
 ```
 
-### Documentation
+`just lint` checks Ruff formatting, Ruff rules, and mypy. Pre-commit additionally checks file
+syntax, migration drift, and generated migration integrity.
 
-Build documentation:
+Apply formatting deliberately:
 
 ```bash
-# Using MkDocs
-uv run mkdocs build
-
-# Serve locally
-uv run mkdocs serve
+uv run --no-sync ruff check . --fix
+uv run --no-sync ruff format .
 ```
 
-Deploy to Read the Docs:
-1. Connect GitHub repository at https://readthedocs.org
-2. The `.readthedocs.yaml` configuration file handles the build automatically
-3. Documentation auto-builds on push to main branch
-4. Visit https://django-micboard.readthedocs.io to view the documentation
+## Migrations
 
-## Contributing
+Never edit or delete existing files in `micboard/migrations/`. When an approved model change
+requires schema work, generate the new file through Django:
 
-### Workflow
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/my-feature`
-3. Make changes with tests
-4. Run test suite: `uv run pytest tests/`
-5. Commit with clear messages
-6. Push and create pull request
-
-### Commit Messages
-
-Follow conventional commits:
-
-```
-feat: Add support for Axient Digital receivers
-fix: Correct battery percentage calculation
-docs: Update API reference
-test: Add tests for device discovery
-refactor: Split shure_api_client into package
-chore: Update dependencies
+```bash
+uv run --no-sync python manage.py makemigrations micboard micboard_multitenancy
 ```
 
-### Pull Request Guidelines
+Then inspect operations and SQL, and test clean/existing databases. Check drift without writing:
 
-- Include tests for new features
-- Update documentation
-- Ensure all tests pass
-- Follow code style guidelines
-- Keep changes focused and atomic
+```bash
+uv run --no-sync python manage.py makemigrations \
+  micboard micboard_multitenancy --check --dry-run
+```
 
-## Getting Help
+Production hosts use `django-safemigrate` according to their deployment process.
 
-- GitHub Issues: https://github.com/justprosound/django-micboard/issues
-- Documentation: https://django-micboard.readthedocs.io
-- Community Discussions: Open an issue on GitHub
+## Native Huey
 
-## License
+Queued work requires `huey.contrib.djhuey` in `INSTALLED_APPS` and a dictionary at
+`settings.HUEY`. Run the consumer with:
 
-AGPL-3.0-or-later - see LICENSE file for details.
+```bash
+uv run --no-sync python manage.py run_huey
+```
+
+Keep network I/O outside long DB transactions. Task functions must delegate business behavior to
+services and accept explicit IDs rather than model instances.
+
+## Documentation
+
+Use the [manufacturer plugin development guide](plugin-development.md) when adding or extending a
+vendor integration. It documents the live registry, base classes, transport, discovery, streaming,
+security, native Huey, and test boundaries.
+
+```bash
+just docs
+uv run --no-sync mkdocs serve
+```
+
+Update `README.md` for user-facing behavior and `CHANGELOG.md` under `[Unreleased]`. Keep commands,
+paths, setting names, and optional dependencies aligned with repository code.
+
+## Packaging
+
+Build and validate the distributable artifacts:
+
+```bash
+just wheel
+```
+
+The validation script installs the built wheel in an isolated uv-managed environment and checks
+that reusable-app resources are present.
+
+## Contribution workflow
+
+1. Create a focused branch.
+2. Implement the smallest contract-preserving change.
+3. Add or update tests and documentation.
+4. Run `just lint`, relevant tests, and `just pre-commit`.
+5. Use a Conventional Commit message.
+6. Open a PR describing behavior, risk, verification, and linked issues.
+
+See `CONTRIBUTING.md` for the complete policy.
+
+## Support
+
+- [GitHub Issues](https://github.com/justprosound/django-micboard/issues)
+- [GitHub Discussions](https://github.com/justprosound/django-micboard/discussions)
+
+django-micboard is licensed under AGPL-3.0-or-later.

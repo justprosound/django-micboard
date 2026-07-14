@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import DEFAULT_DB_ALIAS, models
 
 from micboard.models.audit.activity_log import ActivityLog, ServiceSyncLog
 
@@ -31,6 +31,7 @@ class StructuredLogger:
         new_values: dict[str, Any] | None = None,
         request=None,
         extra: dict[str, Any] | None = None,
+        using: str = DEFAULT_DB_ALIAS,
     ) -> ActivityLog:
         """Log a CREATE operation.
 
@@ -40,6 +41,7 @@ class StructuredLogger:
             new_values: Values of created object
             request: Optional HTTP request
             extra: Extra context for logging
+            using: Database alias for audit persistence
         """
         values = new_values or {}
         log = ActivityLog.log_crud(
@@ -48,6 +50,7 @@ class StructuredLogger:
             user=user,
             new_values=values,
             request=request,
+            using=using,
         )
 
         log_data = extra or {}
@@ -71,6 +74,7 @@ class StructuredLogger:
         new_values: dict[str, Any] | None = None,
         request=None,
         extra: dict[str, Any] | None = None,
+        using: str = DEFAULT_DB_ALIAS,
     ) -> ActivityLog:
         """Log an UPDATE operation.
 
@@ -81,6 +85,7 @@ class StructuredLogger:
             new_values: New values
             request: Optional HTTP request
             extra: Extra context for logging
+            using: Database alias for audit persistence
         """
         log = ActivityLog.log_crud(
             operation=ActivityLog.UPDATE,
@@ -89,6 +94,7 @@ class StructuredLogger:
             old_values=old_values or {},
             new_values=new_values or {},
             request=request,
+            using=using,
         )
 
         log_data = extra or {}
@@ -115,6 +121,7 @@ class StructuredLogger:
         old_values: dict[str, Any] | None = None,
         request=None,
         extra: dict[str, Any] | None = None,
+        using: str = DEFAULT_DB_ALIAS,
     ) -> ActivityLog:
         """Log a DELETE operation.
 
@@ -124,6 +131,7 @@ class StructuredLogger:
             old_values: Values of deleted object
             request: Optional HTTP request
             extra: Extra context for logging
+            using: Database alias for audit persistence
         """
         log = ActivityLog.log_crud(
             operation=ActivityLog.DELETE,
@@ -131,6 +139,7 @@ class StructuredLogger:
             user=user,
             old_values=old_values or {},
             request=request,
+            using=using,
         )
 
         log_data = extra or {}

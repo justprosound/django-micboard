@@ -4,7 +4,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from json import JSONDecodeError
-from typing import Any
+from typing import Any, Self
 
 import httpx
 from httpx import RequestError, TimeoutException
@@ -33,7 +33,7 @@ class BaseAPIClient(ABC):
 
 class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
     def __init__(self, base_url: str | None = None):
-        from micboard.services.settings import settings
+        from micboard.services.settings.settings_service import settings
 
         config_dict = settings.get_config_dict()
         prefix = self._get_config_prefix()
@@ -291,7 +291,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         """Close the underlying HTTP connection pool."""
         self.client.close()
 
-    def __enter__(self) -> BaseHTTPClient:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc_info: object) -> None:

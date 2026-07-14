@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -74,10 +75,11 @@ class ManufacturerConfigRegistry:
             ManufacturerConfig with database overrides applied
         """
         # Start with defaults or registry
-        config = cls._registry.get(manufacturer_code)
-        if not config:
+        registered_config = cls._registry.get(manufacturer_code)
+        if not registered_config:
             logger.warning("No configuration found for manufacturer %s", manufacturer_code)
             return ManufacturerConfig(manufacturer_code=manufacturer_code)
+        config = deepcopy(registered_config)
 
         # If no manufacturer instance, return registry version
         if not manufacturer:
@@ -108,13 +110,12 @@ class ManufacturerConfigRegistry:
             value: Value to set
             manufacturer: Manufacturer instance (for scope)
         """
-        setting_key = f"{manufacturer_code}_{key}"
         SettingsRegistry.set(
-            setting_key,
+            key,
             value,
             manufacturer=manufacturer,
         )
-        logger.info("Set %s.%s = %s", manufacturer_code, key, value)
+        logger.info("Set manufacturer override %s.%s", manufacturer_code, key)
 
     @classmethod
     def _apply_overrides(
@@ -123,12 +124,23 @@ class ManufacturerConfigRegistry:
         overrides: dict[str, Any],
     ) -> ManufacturerConfig:
         """Apply database overrides to config."""
+        direct_fields = {
+            "health_check_interval": "health_check_interval",
+            "api_timeout": "api_timeout",
+            "device_max_requests_per_call": "max_devices_per_request",
+            "supports_discovery_ips": "supports_discovery_ips",
+            "supports_health_check": "supports_health_check",
+        }
+        battery_fields = {
+            "battery_good_level": "good",
+            "battery_low_level": "low",
+            "battery_critical_level": "critical",
+        }
         for key, value in overrides.items():
-            if key.startswith(config.manufacturer_code + "_"):
-                # Extract field name
-                field_name = key[len(config.manufacturer_code) + 1 :]
-                if hasattr(config, field_name):
-                    setattr(config, field_name, value)
+            if field_name := direct_fields.get(key):
+                setattr(config, field_name, value)
+            elif threshold_name := battery_fields.get(key):
+                config.battery_thresholds[threshold_name] = value
 
         return config
 

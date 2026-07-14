@@ -7,7 +7,7 @@
 
 ## Implementation Status
 
-Phases 1 and 2 were completed on 2026-07-13:
+Phases 1 through 3 were completed on 2026-07-13:
 
 - Every installed concrete project model has a domain-grouped factory.
 - A live registry contract detects missing and duplicate factory adapters.
@@ -19,10 +19,11 @@ Phases 1 and 2 were completed on 2026-07-13:
   have direct behavioral coverage at 90% or higher per targeted module.
 - Query budgets protect discovery batching, alert fanout, connection health, and connection
   statistics from data-dependent query growth.
+- Request-level smoke tests cover tenant-scoped chassis administration, atomic discovery approval,
+  the monitoring dashboard, settings diffs, and HTMX channel fragments.
 
-Phases 3 and 4 remain tracked by issues #71 and #72. CI currently enforces a synchronized 49%
-coverage floor; it will be raised toward 60% and then 80% only as measured coverage supports those
-thresholds.
+Phase 4 remains tracked by issue #71. CI currently enforces a synchronized 49% coverage floor; it
+will be raised toward 60% and then 80% only as measured coverage supports those thresholds.
 
 ## Context
 
@@ -83,8 +84,8 @@ This means:
 - **Positive:** Refactoring becomes safe. New contributors have visible patterns for writing tests. CI catches regressions. The factory layer reduces test boilerplate by ~70%.
 - **Negative:** Adding ~300-400 tests requires dedicated sprints. Factory maintenance adds overhead when model schemas change.
 - **Migration:** Phase 1 — factories for all models (complete). Phase 2 — service tests for
-  discovery, hardware, monitoring domains (complete). Phase 3 — admin E2E smoke tests. Phase 4 —
-  integration pipeline tests.
+  discovery, hardware, monitoring domains (complete). Phase 3 — admin E2E smoke tests (complete).
+  Phase 4 — integration pipeline tests.
 
 ## Compliance
 

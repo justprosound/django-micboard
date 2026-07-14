@@ -15,6 +15,7 @@ DOMAIN_EXPORTS = {
     "micboard.services.manufacturer": ("PluginRegistry", "ManufacturerSyncService"),
     "micboard.services.monitoring": ("AlertManager", "MonitoringService"),
     "micboard.services.notification": ("BroadcastService", "EmailService"),
+    "micboard.services.settings": ("SettingsService", "settings"),
     "micboard.services.shared": ("ComplianceService", "SettingsRegistry"),
     "micboard.services.sync": ("DiscoveryService", "PollingService"),
     "micboard.views": ("about", "index"),

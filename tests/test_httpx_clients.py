@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from functools import partial
 from io import StringIO
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from django.core.management import call_command
 
 import httpx
 import pytest
 
+import micboard.integrations.sennheiser.sse_client as sennheiser_sse_module
 from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
+from micboard.integrations.sennheiser.exceptions import SennheiserAPIError
 from micboard.integrations.sennheiser.plugin import SennheiserPlugin
 from micboard.integrations.sennheiser.sse_client import connect_and_subscribe
 from micboard.integrations.shure.client import ShureSystemAPIClient
@@ -22,7 +25,22 @@ from micboard.integrations.shure.plugin import ShurePlugin
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveredDevice
 from micboard.services.common.base.plugin import ManufacturerPlugin
-from micboard.services.settings import settings as app_settings
+from micboard.services.settings.settings_service import settings as app_settings
+
+
+def _adapt_sync_immediately(
+    adapted_calls: list[tuple[object, bool]],
+    function,
+    *,
+    thread_sensitive: bool,
+):
+    """Record a sync adapter boundary while keeping this unit test deterministic."""
+    adapted_calls.append((function, thread_sensitive))
+
+    async def invoke(*args, **kwargs):
+        return function(*args, **kwargs)
+
+    return invoke
 
 
 @pytest.mark.parametrize(
@@ -190,6 +208,7 @@ def test_sennheiser_client_configures_httpx_basic_auth(monkeypatch) -> None:
 def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
     received: list[dict[str, str]] = []
     client_options: list[dict[str, object]] = []
+    adapted_calls: list[tuple[object, bool]] = []
     password_value = "test-credential"
 
     class FakeStreamResponse:
@@ -222,10 +241,17 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
             return FakeStreamResponse()
 
     monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
+    responses = iter([{"sessionUUID": "session-123"}, None])
+
+    monkeypatch.setattr(
+        sennheiser_sse_module,
+        "sync_to_async",
+        partial(_adapt_sync_immediately, adapted_calls),
+    )
     client = SimpleNamespace(
         base_url="https://sennheiser.test",
         password=password_value,
-        _make_request=Mock(side_effect=[{"sessionUUID": "session-123"}, None]),
+        _make_request=Mock(side_effect=responses),
     )
 
     async def callback(data: dict[str, str]) -> None:
@@ -235,11 +261,32 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
         asyncio.run(connect_and_subscribe(client, "device-1", callback))
 
     assert received == [{"state": "online"}]
+    assert adapted_calls == [(client._make_request, True), (client._make_request, True)]
     assert len(client_options) == 1
     assert "verify" not in client_options[0]
     assert "session-123" not in caplog.text
     assert password_value not in caplog.text
     assert "not-json" not in caplog.text
+
+
+def test_sennheiser_sse_missing_session_propagates_connection_failure(monkeypatch) -> None:
+    """A failed handshake must let connection tracking leave its connecting state."""
+    adapted_calls: list[tuple[object, bool]] = []
+    monkeypatch.setattr(
+        sennheiser_sse_module,
+        "sync_to_async",
+        partial(_adapt_sync_immediately, adapted_calls),
+    )
+    client = SimpleNamespace(
+        base_url="https://sennheiser.test",
+        password="test-credential",
+        _make_request=Mock(return_value={}),
+    )
+
+    with pytest.raises(SennheiserAPIError, match="did not return a session"):
+        asyncio.run(connect_and_subscribe(client, "device-1", AsyncMock()))
+
+    assert adapted_calls == [(client._make_request, True)]
 
 
 @pytest.mark.django_db

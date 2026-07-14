@@ -1,0 +1,15 @@
+{% extends "micboard/base.html" %}
+
+{% block title %}{{ title }} - micboard{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-3">{{ title }}</h1>
+    <p class="text-muted">{{ description }}</p>
+    <form method="post" class="card card-body" aria-label="Bulk settings configuration">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary align-self-start">Save settings</button>
+    </form>
+</div>
+{% endblock %}

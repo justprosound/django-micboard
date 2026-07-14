@@ -1,420 +1,142 @@
-# Integration References & API Documentation
+# Manufacturer integration reference
 
-**Version:** 26.01.22
-**Status:** Current
-**Last Updated:** January 22, 2026
+django-micboard currently ships Shure System API and Sennheiser SSCv2 plugins. Both use the
+shared `httpx` transport, retry/circuit-breaker behavior, exception hierarchy, and cache-backed
+request pacing in `micboard.services.common.base`.
 
-## Official Manufacturer API Documentation
+## Clients and authentication
 
-### Shure System API
+| Manufacturer | Client | Authentication | Required `MICBOARD_CONFIG` keys |
+| --- | --- | --- | --- |
+| Shure | `ShureSystemAPIClient` | `x-api-key`; optional Digest using the same key | `SHURE_API_BASE_URL`, `SHURE_API_SHARED_KEY` |
+| Sennheiser | `SennheiserSystemAPIClient` | HTTP Basic user `api` | `SENNHEISER_API_BASE_URL`, `SENNHEISER_API_PASSWORD` |
 
-#### Primary Documentation
-- **Shure System API**: https://www.shure.com/en-US/products/software/systemapi
-- **API Explorer**: https://shure.secure.force.com/apiexplorer
-- **Developer Portal**: https://developer.shure.com
+Both clients require absolute HTTPS URLs. Trust private certificate authorities with
+`SSL_CERT_FILE` or `SSL_CERT_DIR`; certificate verification cannot be disabled.
 
-#### Authentication
-- **Method:** HTTP Digest Authentication
-- **Shared Key:** Configured at system level
-- **Additional Headers:** `X-Shure-Auth-Key` for enhanced security
-
-#### Key Endpoints
-- `GET /api/v1/devices` - List all devices
-- `GET /api/v1/devices/{device_id}` - Get device details
-- `GET /api/v1/devices/{device_id}/channels` - Get device channels
-- `GET /api/v1/devices/{device_id}/transmitter` - Get transmitter data
-- `WSS /api/v1/ws` - WebSocket for real-time updates
-
-#### Rate Limiting
-- Limit: 10 requests per second (default)
-- Burst: 20 requests (token bucket algorithm)
-- Header: `Retry-After` indicates wait time
-
-**Integration Guide:** [Shure Integration Guide](../shure-integration.md)
-
----
-
-### Sennheiser Sound Control Protocol
-
-#### API Specifications
-- **TCCM API 1.8 JSON**: https://www.sennheiser.com/globalassets/digizuite/51646-en-tccm-api-1_8.json
-- **TC Bar OpenAPI 3.0**: https://www.sennheiser.com/globalassets/digizuite/52626-en-tc-bar-openapi-3rd-party-release-1.12.yaml
-
-#### Documentation
-- **Sound Control Protocol**: https://docs.cloud.sennheiser.com/en-us/api-docs/api-docs/sound-control-protocol.html
-- **Sound Control Protocol v2 (Draft)**: https://docs.cloud.sennheiser.com/en-us/api-docs/api-docs/resources/Sennheiser%20Sound%20Control%20Protocol%20v2_draft_0.1.html
-- **API Docs Portal**: https://docs.cloud.sennheiser.com/en-us/api-docs/api-docs/
-
-#### Device Configuration Requirements
-
-**Factory Default Limitation:**
-Sennheiser devices cannot be accessed via API in factory default state.
-
-**Enabling Third-Party API Access:**
-1. Connect device to Sennheiser Control Cockpit
-2. Navigate to device settings
-3. Enable third-party access
-4. Configure third-party password
-
-#### Authentication
-- **Method:** HTTP Basic Authentication (RFC 7617)
-- **Username:** `api` (fixed)
-- **Password:** Configured via Sennheiser Control Cockpit
-- **Requirement:** Must authenticate with every request
-
-#### Example Authentication
 ```python
-import httpx
-
-with httpx.Client(auth=httpx.BasicAuth("api", "configured_password")) as client:
-    response = client.get("http://device-ip/api/endpoint")
-    response.raise_for_status()
+MICBOARD_CONFIG = {
+    "SHURE_API_BASE_URL": "https://shure-system.example.com:10000",
+    "SHURE_API_SHARED_KEY": "loaded-from-a-secret-manager",
+    "SENNHEISER_API_BASE_URL": "https://sennheiser-system.example.com",
+    "SENNHEISER_API_PASSWORD": "loaded-from-a-secret-manager",
+}
 ```
 
-**Integration Guide:** [Sennheiser Integration Reference](#sennheiser-sound-control-protocol)
+Do not put real credentials in source control.
 
----
+## Module map
 
-## Common Integration Utilities
+### Shared transport
 
-### Shared Rate Limiter
+- `micboard.services.common.base.client.BaseHTTPClient`: HTTPS validation, connection pooling,
+  retries, health checks, and circuit-breaker integration
+- `micboard.services.common.base.exceptions`: common API exception types
+- `micboard.services.common.base.rate_limiter`: cache-backed minimum request intervals
+- `micboard.services.common.base.plugin.ManufacturerPlugin`: plugin interface
 
-**Module:** `micboard.services.common.base.rate_limiter`
+### Shure
 
-Implements token bucket algorithm using Django cache for consistent rate limiting across all manufacturers.
+- `micboard.integrations.shure.client.ShureSystemAPIClient`
+- `micboard.integrations.shure.device_client.ShureDeviceClient`
+- `micboard.integrations.shure.discovery_client.ShureDiscoveryClient`
+- `micboard.integrations.shure.transformers.ShureDataTransformer`
+- `micboard.integrations.shure.websocket`: System API WebSocket subscription transport
 
-**Features:**
-- Configurable `calls_per_second` parameter
-- Thread-safe atomic cache operations
-- Django cache backend compatible
-- DEBUG logging for rate limit events
+### Sennheiser
 
-**Usage:**
-```python
-from micboard.services.common.base.rate_limiter import rate_limit
+- `micboard.integrations.sennheiser.client.SennheiserSystemAPIClient`
+- `micboard.integrations.sennheiser.device_client.SennheiserDeviceClient`
+- `micboard.integrations.sennheiser.discovery_client.SennheiserDiscoveryClient`
+- `micboard.integrations.sennheiser.transformers.SennheiserDataTransformer`
+- `micboard.integrations.sennheiser.sse_client`: SSCv2 server-sent-event transport
 
-@rate_limit(calls_per_second=10.0)
-def api_request(self):
-    """Automatically rate limited to 10 requests per second."""
-    pass
-```
+## Sennheiser Sound Control Protocol
 
-**Reference:** [Shared Rate Limiter](#shared-rate-limiter)
+The Sennheiser plugin targets SSCv2 over HTTPS with HTTP Basic authentication. Its username is
+fixed to `api`; `SENNHEISER_API_PASSWORD` supplies the host-configured password. Real-time device
+events use the integration's SSE client.
 
-### Base Exception Hierarchy
+## Plugin loading
 
-**Module:** `micboard.services.common.base.exceptions`
-
-Unified exception handling for API errors across all manufacturers.
-
-**Base Classes:**
-- `APIError` - Generic API error
-- `APIRateLimitError` - Rate limit error (HTTP 429)
-
-**Vendor Subclasses:**
-- Shure: `ShureAPIError`, `ShureAPIRateLimitError`
-- Sennheiser: `SennheiserAPIError`, `SennheiserAPIRateLimitError`
-
-**Features:**
-- HTTP status code tracking
-- Response object storage
-- Retry-After header parsing
-- Formatted error messages
-
-### Base HTTP Client
-
-**Module:** `micboard.integrations.base_http_client`
-
-Abstract base class for HTTP-based API clients.
-
-**Provides:**
-- Request/response handling
-- Error handling
-- Timeout configuration
-- SSL verification options
-
----
-
-## Manufacturer Plugin Architecture
-
-### Plugin Registration
-
-**File:** `micboard/services/manufacturer/plugin_registry.py`
+`PluginRegistry` resolves a plugin from the persisted manufacturer's code:
 
 ```python
 from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
-# Dynamically load manufacturer plugin
-plugin = PluginRegistry.get_plugin("shure")
-devices = plugin.get_devices()
+plugin = PluginRegistry.get_plugin(manufacturer.code, manufacturer=manufacturer)
+if plugin is None:
+    raise RuntimeError(f"No plugin for {manufacturer.code}")
+
+health = plugin.check_health()
 ```
 
-### Available Plugins
+Add new integrations under `micboard/integrations/<code>/` and implement
+`ManufacturerPlugin`. Keep persistence/orchestration in domain services rather than in the
+transport client.
 
-| Manufacturer | Module | Status | Notes |
-|--------------|--------|--------|-------|
-| Shure | `micboard.integrations.shure` | Production | Comprehensive test suite |
-| Sennheiser | `micboard.integrations.sennheiser` | Ready | Full API support |
+## Request behavior
 
-### Adding New Manufacturers
+Device and discovery clients apply bounded request rates through the shared decorator. The base
+HTTP client also:
 
-**Reference:** [Adding New Manufacturers](../development/architecture.md#adding-new-manufacturers)
+- retries configured transient HTTP statuses and transport errors
+- honors integer `Retry-After` headers
+- raises manufacturer-specific exceptions for HTTP and rate-limit failures
+- records successes/failures in its circuit breaker
+- exposes `close()` and context-manager support
 
-Steps:
-1. Create manufacturer directory under `micboard/integrations/`
-2. Implement `ManufacturerPlugin` interface
-3. Use common utilities (rate limiter, exceptions)
-4. Add comprehensive tests
-5. Document API integration
-
----
-
-## Integration Testing
-
-### Test Coverage
-
-**Shure Integration Tests:**
-- `test_shure_client.py` - 12 tests covering authentication, WebSocket, health checks
-- `test_shure_device_client.py` - 9 tests covering device operations
-- `test_shure_transformers.py` - 9 tests covering data transformation
-- **Total:** 30 tests, 100% passing
-
-**Test Command:**
-```bash
-uv run pytest micboard/tests/test_shure_*.py -v
-```
-
-### Sennheiser Integration Tests
-
-**Status:** Implementation ready
-- Authentication tests
-- Device discovery tests
-- API operation tests
-- Error handling tests
-
-### Running Full Test Suite
-
-```bash
-# Run all tests
-uv run pytest micboard/tests/ -v
-
-# Run with coverage
-uv run pytest micboard/tests/ --cov=micboard
-
-# Run specific manufacturer tests
-uv run pytest micboard/tests/ -k "shure" -v
-uv run pytest micboard/tests/ -k "sennheiser" -v
-```
-
----
-
-## Docker Demo Environment
-
-**Purpose:** Integrated testing and development environment
-
-**Components:**
-- Django app with Micboard
-- PostgreSQL database
-- Redis cache
-- Manufacturer mock APIs
-
-**Reference:** `demo/docker/`
-
-**Usage:**
-```bash
-docker-compose -f demo/docker/docker-compose.yml up
-```
-
----
-
-## API Response Transformation
-
-### Data Transformation Pipeline
-
-```
-Manufacturer API Response
-    ↓
-Transform to Common Format
-    ↓
-Store in Django Models
-    ↓
-Broadcast via WebSocket
-    ↓
-Frontend Display
-```
-
-### Shure Data Transformer
-
-**Module:** `micboard.integrations.shure.transformers.ShureDataTransformer`
-
-Transforms Shure API responses to micboard's internal format.
-
-### Sennheiser Data Transformer
-
-**Module:** `micboard.integrations.sennheiser.transformers.SennheiserDataTransformer`
-
-Transforms Sennheiser API responses to micboard's internal format.
-
----
-
-## Performance Considerations
-
-### Rate Limiting
-
-**Shure:** 10 req/s default, burst capability
-**Sennheiser:** Per device limit
-
-### Polling Strategy
-
-- **Poll Interval:** Configurable (30+ seconds recommended)
-- **Batch Operations:** Use bulk_update() for multiple devices
-- **Caching:** Implement 30-second cache for device lists
-
-### Database Optimization
+Prefer context-managed direct client use:
 
 ```python
-# Use select_related for ForeignKey
-devices = Device.objects.select_related('manufacturer').all()
-
-# Use prefetch_related for reverse relationships
-devices = Device.objects.prefetch_related('channels').all()
-
-# Batch updates
-Device.objects.bulk_update(updated_devices, ['status', 'battery'], batch_size=100)
-```
-
----
-
-## Security Best Practices
-
-### Credential Management
-
-1. **Environment Variables**
-   ```bash
-   export SHURE_API_BASE_URL="https://192.168.1.100:2420"
-   export SHURE_SHARED_KEY="your_key"
-   export SENNHEISER_HOST="192.168.1.101"
-   export SENNHEISER_PASSWORD="your_password"
-   ```
-
-2. **Never Hardcode Credentials**
-   - Use Django settings from environment
-   - Use `.env` files in development only
-   - Store secrets in production secret management
-
-3. **SSL/TLS**
-   - Enable certificate verification in production
-   - Use proper SSL certificates
-   - Keep certificates updated
-
-### Network Security
-
-- Restrict API access to trusted networks
-- Use firewall rules to limit connections
-- Monitor access logs
-- Implement rate limiting at network level
-
----
-
-## Troubleshooting Reference
-
-### Connection Issues
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Connection refused | Wrong IP/port | Verify device address |
-| Connection timeout | Network unreachable | Check network connectivity |
-| DNS resolution failed | Hostname invalid | Verify hostname in settings |
-
-### Authentication Issues
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| 401 Unauthorized | Invalid credentials | Verify shared key/password |
-| 403 Forbidden | API access disabled | Enable API access on device |
-| Invalid auth header | Wrong format | Check authentication method |
-
-### Rate Limiting
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| 429 Too Many Requests | Too aggressive polling | Increase poll_interval |
-| Rate limit errors | Multiple pollers | Check for duplicate processes |
-
-### SSL/TLS Issues
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Certificate verification failed | Untrusted internal CA | Trust the CA with `SSL_CERT_FILE` or `SSL_CERT_DIR` |
-| Certificate expired | Old certificate | Renew certificate |
-
----
-
-## Quick Reference
-
-### Configuration Templates
-
-**Shure:**
-```python
-MICBOARD = {
-    'MANUFACTURERS': {
-        'shure': {
-            'enabled': True,
-            'api_base_url': 'https://192.168.1.100:2420',
-            'shared_key': 'your_shared_key',
-            'poll_interval': 30,
-        }
-    }
-}
-```
-
-**Sennheiser:**
-```python
-MICBOARD = {
-    'MANUFACTURERS': {
-        'sennheiser': {
-            'enabled': True,
-            'api_base_url': 'https://192.168.1.101',
-            'password': 'your_configured_password',
-            'poll_interval': 30,
-        }
-    }
-}
-```
-
-### Import References
-
-```python
-# Common utilities
-from micboard.services.common.base.exceptions import APIError, APIRateLimitError
-from micboard.services.common.base.rate_limiter import rate_limit
-
-# Shure
 from micboard.integrations.shure.client import ShureSystemAPIClient
-from micboard.integrations.shure.device_client import ShureDeviceClient
-from micboard.integrations.shure.exceptions import ShureAPIError, ShureAPIRateLimitError
 
-# Sennheiser
-from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
-from micboard.integrations.sennheiser.exceptions import SennheiserAPIError, SennheiserAPIRateLimitError
-
-# Manufacturer plugin
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+with ShureSystemAPIClient() as client:
+    devices = client.devices.get_devices()
 ```
 
----
+Normal application flows should use plugins and services so tenant scope, persistence, audit,
+and broadcasts stay consistent.
 
-## Related Documentation
+## Shared rate limiter
 
-- [Architecture Overview](../development/architecture.md)
-- [Shure Integration Guide](../shure-integration.md)
-- [Sennheiser Integration Reference](#sennheiser-sound-control-protocol)
-- [Adding New Manufacturers](../development/architecture.md#adding-new-manufacturers)
-- [Rate Limiting](#shared-rate-limiter)
-- [Shure Troubleshooting](../guides/shure-troubleshooting.md)
+Device/discovery methods use `micboard.services.common.base.rate_limiter.rate_limit`. The
+decorator stores each method's last-call time in Django cache and delays calls to preserve the
+configured minimum interval. Configure a shared production cache when multiple processes must
+coordinate these intervals.
 
----
+## Validation commands
 
-**Last Updated:** January 22, 2026
-**Maintainer:** Django Micboard Development Team
-**Status:** ✅ Current & Complete
+Integration coverage lives in the root `tests/` tree:
+
+```bash
+# Auth, HTTPS enforcement, retry handling, Shure WebSockets, and Sennheiser SSE
+uv run --no-sync pytest \
+  tests/test_httpx_clients.py \
+  tests/test_authenticated_transport_security.py
+
+# Plugin loading and runtime polling paths
+uv run --no-sync pytest \
+  tests/test_plugin_registry.py \
+  tests/test_polling_runtime.py \
+  tests/test_polling_api_service.py
+
+# Discovery synchronization
+uv run --no-sync pytest tests/test_shure_discovery_sync.py
+
+# All manufacturer-focused tests
+uv run --no-sync pytest tests/ -k "shure or sennheiser"
+```
+
+## External documentation
+
+- [Shure System API](https://www.shure.com/en-US/products/software/systemapi)
+- [Shure API Explorer](https://shure.secure.force.com/apiexplorer)
+- [Sennheiser Sound Control Protocol](https://docs.cloud.sennheiser.com/en-us/api-docs/api-docs/sound-control-protocol.html)
+
+## Related guides
+
+- [Shure integration](../shure-integration.md)
+- [Shure troubleshooting](../guides/shure-troubleshooting.md)
+- [Discovery workflow](discovery-workflow.md)
+- [Architecture](../development/architecture.md)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from django.db import models
+from django.db import models, router, transaction
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
 
@@ -153,6 +153,17 @@ class Charger(models.Model):
         if self.name:
             return f"{self.name} at {self.location.name}"
         return f"Charger {self.model} ({self.serial_number}) at {self.location.name}"
+
+    def save(self, *args, **kwargs) -> None:
+        """Persist a charger while enforcing cross-model IP ownership."""
+        from micboard.services.hardware.ip_ownership_service import (
+            HardwareIPOwnershipService,
+        )
+
+        using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            HardwareIPOwnershipService.validate_for_instance(instance=self, using=using)
+            super().save(*args, **kwargs)
 
 
 class ChargerSlot(models.Model):

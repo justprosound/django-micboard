@@ -30,14 +30,19 @@ django-micboard is a community-driven, pre-production Django reusable app for mo
 Add to your Django project:
 
 ```bash
-uv add "django-micboard[standard]"
+uv add "django-micboard[standard,audit,import-export]"
 ```
 
-Use `uv add django-micboard` instead when only the core reusable app is needed.
+Use `uv add "django-micboard[standard]"` without the optional history/import-export apps, or
+`uv add django-micboard` when only the core reusable app is needed.
 
 In `settings.py`:
 
 ```python
+import os
+
+DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
+
 INSTALLED_APPS = [
     # ... Django core apps ...
     "micboard",
@@ -47,8 +52,16 @@ INSTALLED_APPS = [
 INSTALLED_APPS += [
     "django.contrib.sites",  # For multi-site support
     "unfold",  # Modern admin theme
+    "unfold.contrib.filters",  # Unfold date and datetime range filters
     "simple_history",  # Model change tracking
     "huey.contrib.djhuey",  # Native Huey Django integration
+]
+
+# Import/export support requires both apps and the import-export package extra.
+# Add "unfold.contrib.import_export" only when "import_export" is also enabled.
+INSTALLED_APPS += [
+    "unfold.contrib.import_export",
+    "import_export",
 ]
 
 HUEY = {
@@ -62,10 +75,20 @@ HUEY = {
 
 # Configure Micboard
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": os.environ.get("SHURE_API_BASE_URL", "https://localhost:10000"),
-    "SHURE_API_SHARED_KEY": os.environ.get("SHURE_API_SHARED_KEY"),
+    "SHURE_API_BASE_URL": os.environ.get(
+        "MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"
+    ),
+    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
+    "SHURE_API_TIMEOUT": int(os.environ.get("MICBOARD_SHURE_API_TIMEOUT", "10")),
     "POLL_INTERVAL": 5,  # seconds
 }
+
+# Exact hostnames allowed for credential-bearing admin API-server checks.
+MICBOARD_API_SERVER_ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get("MICBOARD_API_SERVER_ALLOWED_HOSTS", "localhost").split(",")
+    if host.strip()
+]
 
 # Optional: Enable multi-tenancy
 MICBOARD_MULTI_SITE_MODE = True
@@ -90,8 +113,8 @@ Run migrations:
 uv run --no-sync python manage.py migrate
 ```
 
-Note: This release prep does not modify or generate migrations. Existing migrations remain
-unchanged; host projects continue to manage database schema changes as usual.
+Host projects should commit their own app migrations and apply django-micboard's shipped
+migrations through Django's normal `migrate` command.
 
 Run the native Huey consumer with:
 
@@ -115,18 +138,19 @@ uv run --no-sync python manage.py run_huey
 
 2. **Create the uv-managed environment and install every supported extra**:
    ```bash
-   uv sync --all-extras
+   uv sync --locked --all-extras
    ```
 
-3. **Configure environment**:
+3. **Configure the shell environment** (the example project does not load `.env` files
+   implicitly):
    ```bash
-   cp .env.example .env
-   # Edit .env with your settings
+   export DJANGO_SECRET_KEY="local-development-only"
+   export MICBOARD_SHURE_API_BASE_URL="https://localhost:10000"
+   export MICBOARD_SHURE_API_SHARED_KEY="your-shared-key"
    ```
 
 4. **Run the example project**:
    ```bash
-   cd example_project
    uv run --no-sync python manage.py migrate
    uv run --no-sync python manage.py createsuperuser
    uv run --no-sync python manage.py runserver
@@ -140,7 +164,8 @@ uv run --no-sync python manage.py run_huey
 
 ### Environment Variables
 
-Key environment variables (see `.env.example` for complete list):
+The package reads Django settings, not process environment variables directly. The host-settings
+example above maps these variables into `MICBOARD_CONFIG`:
 
 ```bash
 # Shure API
@@ -148,13 +173,12 @@ MICBOARD_SHURE_API_BASE_URL=https://shure-api.example.com:10000
 MICBOARD_SHURE_API_SHARED_KEY=your-secret-key
 MICBOARD_SHURE_API_TIMEOUT=10
 
-# Multi-tenancy
-MICBOARD_MULTI_SITE_MODE=False
-MICBOARD_MSP_ENABLED=False
-
-# Audit & retention
-MICBOARD_ACTIVITY_LOG_RETENTION_DAYS=90
+# Restrict credential-bearing API server requests to explicit hostnames
+MICBOARD_API_SERVER_ALLOWED_HOSTS=localhost,shure-api.example.com
 ```
+
+Host projects may choose different variable names; set `MICBOARD_CONFIG` and the
+`MICBOARD_*` Django feature flags explicitly in their settings module.
 
 Authenticated manufacturer connections require HTTPS or WSS, and certificate verification is
 mandatory. For an internal certificate authority, set `SSL_CERT_FILE` or `SSL_CERT_DIR` to the
@@ -163,7 +187,7 @@ trusted CA bundle before starting Django or Huey.
 ### Using the Configuration API
 
 ```python
-from micboard.services.settings import settings as micboard_settings
+from micboard.services.settings.settings_service import settings as micboard_settings
 
 # Feature flags
 if micboard_settings.msp_enabled:

@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from typing import ClassVar
 
 from django.db import models
-
-from micboard.models.audit import ActivityLog
-
-logger = logging.getLogger(__name__)
 
 
 class Manufacturer(models.Model):
@@ -41,24 +36,6 @@ class Manufacturer(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.code})"
-
-    def _log_change(self, action: str) -> None:
-        """Log change to ActivityLog."""
-        try:
-            ActivityLog.objects.create(
-                activity_type=ActivityLog.ACTIVITY_CRUD,
-                operation=action,
-                summary=f"{action} {self.__class__.__name__}: {self.name}",
-                object_id=str(self.pk) if self.pk else None,
-                details={
-                    "name": self.name,
-                    "code": self.code,
-                    "is_active": self.is_active,
-                    "model_name": self.__class__.__name__,
-                },
-            )
-        except Exception as e:
-            logger.exception("Failed to log %s activity: %s", action, e)
 
     def save(self, *args, **kwargs):
         """Persist manufacturer data and delegate side effects to the service layer."""

@@ -8,8 +8,9 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import render
 from django.urls import path
@@ -24,6 +25,7 @@ from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.hardware.wireless_unit_service import get_battery_percentage
 
 logger = logging.getLogger(__name__)
+MAX_SYNCHRONOUS_REFRESH = 25
 
 
 class WirelessUnitInline(admin.StackedInline):
@@ -105,19 +107,27 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     date_hierarchy = "last_seen"
     actions: ClassVar[list[str]] = ["mark_online", "mark_offline", "sync_from_api"]
 
-    def save_model(self, request, obj, form, change):
-        """Delegate all business logic to HardwareService."""
-        from micboard.services.core.hardware import HardwareService
+    def delete_queryset(self, request, queryset) -> None:
+        """Register one post-commit discovery cleanup for bulk deletion."""
+        from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
 
-        super().save_model(request, obj, form, change)
-        HardwareService.handle_chassis_save(chassis=obj, created=not change)
-
-    def delete_model(self, request, obj):
-        """Delegate all business logic to HardwareService."""
-        from micboard.services.core.hardware import HardwareService
-
-        HardwareService.handle_chassis_delete(chassis=obj)
-        super().delete_model(request, obj)
+        using = queryset.db
+        with transaction.atomic(using=using):
+            chassis_ids = list(queryset.values_list("pk", flat=True))
+            chassis_list = list(
+                WirelessChassis._default_manager.using(using)
+                .select_for_update()
+                .filter(pk__in=chassis_ids)
+                .order_by("pk")
+            )
+            HardwarePostSaveHooks.handle_chassis_bulk_delete(
+                chassis_list=chassis_list,
+                using=using,
+            )
+            deletion_queryset = WirelessChassis._default_manager.using(using).filter(
+                pk__in=chassis_ids
+            )
+            super().delete_queryset(request, deletion_queryset)
 
     def get_queryset(self, request):
         return (
@@ -325,13 +335,15 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         """Display colored status indicator."""
         if obj.is_online:
             return format_html(
-                '<span style="color: var(--success-fg, green); font-weight: bold;">● Online</span>',
+                '<span style="color: var(--success-fg, green); font-weight: bold;">{}</span>',
+                "● Online",
             )
         return format_html(
-            '<span style="color: var(--error-fg, red); font-weight: bold;">● Offline</span>',
+            '<span style="color: var(--error-fg, red); font-weight: bold;">{}</span>',
+            "● Offline",
         )
 
-    @admin.action(description="Mark selected chassis as online")
+    @admin.action(permissions=["change"], description="Mark selected chassis as online")
     def mark_online(self, request, queryset):
         """Mark selected chassis as online."""
         from micboard.services.core.hardware import HardwareService
@@ -342,7 +354,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             updated += 1
         self.message_user(request, f"{updated} chassis marked as online.")
 
-    @admin.action(description="Mark selected chassis as offline")
+    @admin.action(permissions=["change"], description="Mark selected chassis as offline")
     def mark_offline(self, request, queryset):
         """Mark selected chassis as offline."""
         from micboard.services.core.hardware import HardwareService
@@ -353,59 +365,44 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             updated += 1
         self.message_user(request, f"{updated} chassis marked as offline.")
 
-    @admin.action(description="Sync selected chassis from API")
+    @admin.action(permissions=["change"], description="Sync selected chassis from API")
     def sync_from_api(self, request, queryset):
-        """Sync selected chassis from manufacturer API."""
-        from micboard.tasks.sync.polling import poll_manufacturer_devices
+        """Sync exactly the tenant-scoped chassis selected by the operator."""
+        from micboard.services.hardware.chassis_refresh_service import ChassisRefreshService
+        from micboard.tasks.sync.polling import refresh_selected_chassis
         from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
-        # If all selected chassis belong to the same manufacturer, run
-        # centralized discovery sync which will import/update devices.
-        manufacturers = queryset.values_list("manufacturer", flat=True).distinct()
-        if manufacturers.count() == 1:
-            m_id = manufacturers.first()
-            if huey_is_configured():
-                try:
-                    # Enqueue background task for polling
-                    enqueue_huey_task(poll_manufacturer_devices, m_id)
-                    self.message_user(request, "Discovery sync enqueued for background processing")
-                    return
-                except Exception as e:
-                    logger.exception("Error enqueuing discovery sync from admin: %s", e)
-                    self.message_user(request, f"Error: {e}", level="error")
-                    # fall back to per-chassis sync after logging
-            else:
-                # Run synchronously
-                poll_manufacturer_devices(m_id)
-                self.message_user(request, "Discovery sync completed synchronously")
-                return
+        using = queryset.db
+        chassis_ids = list(queryset.order_by("pk").values_list("pk", flat=True))
+        if not chassis_ids:
+            self.message_user(request, "No chassis selected.", level=messages.WARNING)
+            return
+        if huey_is_configured():
+            enqueue_huey_task(refresh_selected_chassis, chassis_ids, using=using)
+            self.message_user(
+                request,
+                f"Queued {len(chassis_ids)} chassis for API refresh.",
+                level=messages.SUCCESS,
+            )
+            return
+        if len(chassis_ids) > MAX_SYNCHRONOUS_REFRESH:
+            self.message_user(
+                request,
+                "Native Huey must be configured to refresh more than "
+                f"{MAX_SYNCHRONOUS_REFRESH} chassis at once.",
+                level=messages.ERROR,
+            )
+            return
 
-        synced = 0
-        for chassis in queryset:
-            try:
-                plugin_class = chassis.manufacturer.get_plugin_class()
-                plugin = plugin_class(chassis.manufacturer)
-                device_data = plugin.get_device(chassis.api_device_id)
-                if device_data:
-                    transformed_data = plugin.transform_device_data(device_data)
-                    chassis.name = transformed_data.get("name", chassis.name)
-                    chassis.firmware_version = transformed_data.get(
-                        "firmware", chassis.firmware_version
-                    )
-                    # Use HardwareService for status update
-                    from micboard.services.core.hardware import HardwareService
-
-                    HardwareService.sync_hardware_status(obj=chassis, online=True)
-                    synced += 1
-            except Exception as e:
-                logger.error("Failed to sync %s: %s", chassis.api_device_id, e)
-                self.message_user(
-                    request,
-                    f"Error syncing {chassis.name}: {e}",
-                    level="error",
-                )
-        if synced > 0:
-            self.message_user(request, f"{synced} chassis synced from API.")
+        result = ChassisRefreshService.refresh_ids(chassis_ids=chassis_ids, using=using)
+        if result.synced_count:
+            self.message_user(request, f"{result.synced_count} chassis synced from API.")
+        if result.failed_count:
+            self.message_user(
+                request,
+                f"{result.failed_count} chassis could not be synced. Check logs for details.",
+                level="warning",
+            )
 
     @admin.display(description="Band Plan")
     def band_plan_display(self, obj):
@@ -422,7 +419,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
                     range_str,
                 )
             return format_html("<span>{}</span>", range_str)
-        return format_html('<span style="color: gray;">—</span>')
+        return format_html('<span style="color: gray;">{}</span>', "—")
 
     @admin.display(description="Band Plan Regulatory Status")
     def band_plan_regulatory_status_display(self, obj):
@@ -434,14 +431,15 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         status = get_band_plan_regulatory_status(obj)
 
         if not status["has_band_plan"]:
-            return format_html('<span style="color: gray;">No band plan</span>')
+            return format_html('<span style="color: gray;">{}</span>', "No band plan")
 
         if status["needs_update"]:
             return format_html(
-                '<span style="color: red; font-weight: bold;">⚠️ Missing coverage</span>'
+                '<span style="color: red; font-weight: bold;">{}</span>',
+                "⚠️ Missing coverage",
             )
 
         if status["has_coverage"]:
-            return format_html('<span style="color: green;">✅ OK</span>')
+            return format_html('<span style="color: green;">{}</span>', "✅ OK")
 
-        return format_html('<span style="color: gray;">—</span>')
+        return format_html('<span style="color: gray;">{}</span>', "—")

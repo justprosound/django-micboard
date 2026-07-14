@@ -8,12 +8,42 @@ from __future__ import annotations
 from django.conf import settings
 from django.contrib import admin
 
+
+class SuperuserOnlyAdmin(admin.ModelAdmin):
+    """Reserve tenant-boundary administration for platform superusers."""
+
+    def get_queryset(self, request):
+        """Hide every tenant-boundary object from non-superusers."""
+        queryset = super().get_queryset(request)
+        return queryset if request.user.is_superuser else queryset.none()
+
+    def has_module_permission(self, request):
+        """Show this module only to platform superusers."""
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        """Allow viewing tenant boundaries only to platform superusers."""
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        """Allow creating tenant boundaries only to platform superusers."""
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        """Allow changing tenant boundaries only to platform superusers."""
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        """Allow deleting tenant boundaries only to platform superusers."""
+        return request.user.is_superuser
+
+
 # Only register admin if MSP enabled
 if getattr(settings, "MICBOARD_MSP_ENABLED", False):
     from .models import Campus, Organization, OrganizationMembership
 
     @admin.register(Organization)
-    class OrganizationAdmin(admin.ModelAdmin):
+    class OrganizationAdmin(SuperuserOnlyAdmin):
         """Admin interface for Organization model."""
 
         list_display = [
@@ -76,7 +106,7 @@ if getattr(settings, "MICBOARD_MSP_ENABLED", False):
             return get_device_count(obj)
 
     @admin.register(Campus)
-    class CampusAdmin(admin.ModelAdmin):
+    class CampusAdmin(SuperuserOnlyAdmin):
         """Admin interface for Campus model."""
 
         list_display = [
@@ -133,7 +163,7 @@ if getattr(settings, "MICBOARD_MSP_ENABLED", False):
         ]
 
     @admin.register(OrganizationMembership)
-    class OrganizationMembershipAdmin(admin.ModelAdmin):
+    class OrganizationMembershipAdmin(SuperuserOnlyAdmin):
         """Admin interface for OrganizationMembership model."""
 
         list_display = [

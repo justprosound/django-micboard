@@ -6,9 +6,10 @@ The app keeps a reusable Django package layout with a configuration registry, ma
 
 ## Components
 
-- Configuration access: `micboard/services/settings` for feature flags, host configuration, app
-  defaults, and scoped settings.
-- Manufacturer registry: `micboard/services/plugin_registry.py` and `micboard/services/manufacturer_config_registry.py`.
+- Configuration access: `micboard/services/settings/settings_service.py` for feature flags, host
+  configuration, app defaults, and scoped settings.
+- Manufacturer registry: `micboard/services/manufacturer/plugin_registry.py` and
+  `micboard/services/manufacturer/manufacturer_config_registry.py`.
 - Tenant scoping: tenant-aware QuerySet/Manager helpers and middleware that attaches request context.
 - Admin overrides view: admin-facing UI showing differences between scoped settings and global defaults.
 

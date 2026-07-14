@@ -20,6 +20,7 @@ from micboard.services.notification.realtime_routing_service import (
     RealtimeRoutingService,
     campus_updates_group,
     organization_updates_group,
+    site_updates_group,
 )
 
 
@@ -46,6 +47,73 @@ def test_non_msp_event_uses_global_group(
         GLOBAL_UPDATES_GROUP,
         {"type": "progress_update", "status": {"status": "running"}},
     )
+
+
+@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True, SITE_ID=7)
+@patch("micboard.services.notification.broadcast_service.async_to_sync")
+@patch("micboard.services.notification.broadcast_service.get_channel_layer")
+def test_multisite_progress_uses_current_site_group(
+    get_channel_layer: MagicMock,
+    async_to_sync: MagicMock,
+) -> None:
+    sender = _configured_layer(get_channel_layer, async_to_sync)
+
+    BroadcastService.broadcast_progress_update(status={"status": "running"})
+
+    sender.assert_called_once_with(
+        site_updates_group(7),
+        {"type": "progress_update", "status": {"status": "running"}},
+    )
+
+
+@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True, SITE_ID=1)
+@patch.object(RealtimeRoutingService, "chassis_site_ids", return_value={1: 1, 2: 2})
+@patch("micboard.services.notification.broadcast_service.async_to_sync")
+@patch("micboard.services.notification.broadcast_service.get_channel_layer")
+def test_multisite_device_updates_are_partitioned_by_site(
+    get_channel_layer: MagicMock,
+    async_to_sync: MagicMock,
+    _chassis_site_ids: MagicMock,
+) -> None:
+    sender = _configured_layer(get_channel_layer, async_to_sync)
+
+    BroadcastService.broadcast_device_update(
+        manufacturer=SimpleNamespace(code="vendor"),
+        data={
+            "receivers": [
+                {"id": 1, "name": "Current"},
+                {"id": 2, "name": "Other"},
+                {"id": 3, "name": "Unscoped"},
+            ]
+        },
+    )
+
+    routed = dict(item.args for item in sender.call_args_list)
+    assert routed[site_updates_group(1)]["data"]["receivers"] == [{"id": 1, "name": "Current"}]
+    assert routed[site_updates_group(2)]["data"]["receivers"] == [{"id": 2, "name": "Other"}]
+    assert GLOBAL_UPDATES_GROUP not in routed
+
+
+@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True, SITE_ID=1)
+@patch.object(RealtimeRoutingService, "hardware_site_id", return_value=2)
+@patch("micboard.services.notification.broadcast_service.async_to_sync")
+@patch("micboard.services.notification.broadcast_service.get_channel_layer")
+def test_multisite_device_status_routes_to_hardware_site(
+    get_channel_layer: MagicMock,
+    async_to_sync: MagicMock,
+    _hardware_site_id: MagicMock,
+) -> None:
+    sender = _configured_layer(get_channel_layer, async_to_sync)
+
+    BroadcastService.broadcast_device_status(
+        service_code="vendor",
+        device_id=9,
+        device_type="WirelessChassis",
+        status="online",
+        is_active=True,
+    )
+
+    assert sender.call_args.args[0] == site_updates_group(2)
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
