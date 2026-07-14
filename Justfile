@@ -11,7 +11,7 @@ default:
     @echo "  migrate    - Run migrations"
     @echo "  docs       - Build documentation"
     @echo "  example    - Run example project"
-    @echo "  wheel      - Build and validate the reusable-app wheel"
+    @echo "  wheel      - Build, validate, and smoke-test the reusable-app wheel"
     @echo "  type-check - Run type checks specifically"
 
 # Fail early before any environment or command operation.
@@ -61,11 +61,13 @@ docs: uv-check
 example: uv-check
     uv run --no-sync python manage.py runserver
 
-# Build the distributable artifact and verify it contains the complete app.
+# Build the distributable artifact, verify its contents, and import it outside the source tree.
 wheel: uv-check
     uv build --sdist --clear
     uv build --wheel dist/django_micboard-*.tar.gz
     uv run --no-project python scripts/validate_wheel.py dist/django_micboard-*.whl
+    uv run --no-project --with dist/django_micboard-*.whl \
+        python scripts/smoke_test_installed_wheel.py
 
 # Run type checks specifically
 type-check: uv-check

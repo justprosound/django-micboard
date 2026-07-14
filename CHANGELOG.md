@@ -139,6 +139,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   membership- and site-scoped WebSocket groups
 - Move ORM work and blocking subscription handshakes off hardware event loops, and materialize
   public async query results before returning them to callers
+- Run the installed-wheel smoke contract from the local `just wheel` gate and mark its in-memory
+  SQLite host explicitly as development-only
 
 ### Removed
 

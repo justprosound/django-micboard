@@ -38,3 +38,12 @@ def test_workflow_actions_are_pinned_to_commits() -> None:
                 unpinned.append(f"{workflow_path.name}:{line_number}:{match.group(1)}")
 
     assert unpinned == []
+
+
+def test_local_wheel_recipe_runs_the_ci_smoke_contract_in_development_mode() -> None:
+    """Local package validation must catch the same installed-wheel failures as CI."""
+    justfile = (ROOT / "Justfile").read_text()
+    smoke_script = (ROOT / "scripts" / "smoke_test_installed_wheel.py").read_text()
+
+    assert "scripts/smoke_test_installed_wheel.py" in justfile
+    assert "DEBUG=True" in smoke_script
