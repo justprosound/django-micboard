@@ -149,7 +149,7 @@ dev = [
     "django-safemigrate>=6.0",
     "ruff>=0.1.0",
     "mypy>=1.0",
-    "pathspec<1.1",  # pathspec 1.1.x crashes mypy when optional re2 is absent
+    "pathspec<1.2",  # pathspec 1.1.x crashes mypy when optional re2 is absent
     "django-stubs[compatible-mypy]",
     "django-debug-toolbar",
     "django-extensions>=3.2.0",
@@ -209,7 +209,7 @@ all = [
     "django-safemigrate>=6.0",
     "ruff>=0.1.0",
     "mypy>=1.0",
-    "pathspec<1.1",  # pathspec 1.1.x crashes mypy when optional re2 is absent
+    "pathspec<1.2",  # pathspec 1.1.x crashes mypy when optional re2 is absent
     "django-stubs[compatible-mypy]",
     "django-debug-toolbar",
     "django-extensions>=3.2.0",
