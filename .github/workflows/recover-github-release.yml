@@ -1,0 +1,227 @@
+---
+name: Recover GitHub Release
+run-name: "Recover release v${{ inputs.version }} from run ${{ inputs.source_run_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Failed Publish Release run containing the successful PyPI artifact"
+        required: true
+      expected_sha:
+        description: "Exact source commit used to build the published distribution"
+        required: true
+      version:
+        description: "Published CalVer version (YY.MM.DD[.N])"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recover-github-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  verify-recovery:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.expected_sha }}
+
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
+        with:
+          enable-cache: "false"
+
+      - name: Validate recovery authority and source run
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          if [[ ! "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "Invalid source run ID: $SOURCE_RUN_ID"
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid release commit: $EXPECTED_SHA"
+            exit 1
+          fi
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[1-9][0-9]*)?$ ]]; then
+            echo "Invalid CalVer format: $RELEASE_VERSION"
+            exit 1
+          fi
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_SHA" ]; then
+            echo "Checked-out commit does not match the selected release source"
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$EXPECTED_SHA" origin/main; then
+            echo "Selected release source is not part of protected main"
+            exit 1
+          fi
+          grep -Fqx "version = \"$RELEASE_VERSION\"" pyproject.toml
+          grep -q "^## \[$RELEASE_VERSION\]" CHANGELOG.md
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
+            | jq --exit-status \
+              --arg repository "$GITHUB_REPOSITORY" \
+              '.repository.full_name == $repository and
+               .event == "workflow_dispatch" and
+               .head_branch == "main" and
+               .path == ".github/workflows/publish-release.yml" and
+               .status == "completed" and
+               .conclusion == "failure"' \
+            >/dev/null
+          PUBLISH_SUCCEEDED="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name == "publish-pypi" and .conclusion == "success")] | length')"
+          RELEASE_FAILED="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name == "create-github-release" and .conclusion == "failure")] | length')"
+          if [ "$PUBLISH_SUCCEEDED" -ne 1 ] || [ "$RELEASE_FAILED" -ne 1 ]; then
+            echo "Source run does not contain one successful PyPI job and one failed release job"
+            exit 1
+          fi
+
+      - name: Download original PyPI release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: pypi-distribution-${{ inputs.version }}
+          path: dist
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify published bytes, provenance, and source contents
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          cd dist
+          sha256sum --check SHA256SUMS
+          test "$(find . -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
+          test "$(find . -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
+          test "$(find . -maxdepth 1 -name '*.spdx.json' | wc -l)" -eq 1
+          test "$(find . -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
+          NORMALIZED_VERSION="$(printf '%s' "$RELEASE_VERSION" | awk -F. '{
+            for (part = 1; part <= NF; part++) {
+              printf "%s%d", (part == 1 ? "" : "."), $part
+            }
+          }')"
+          WHEEL_VERSION="$(unzip -p ./*.whl '*/METADATA' | sed -n 's/^Version: //p')"
+          test "$WHEEL_VERSION" = "$NORMALIZED_VERSION"
+          curl \
+            --fail \
+            --retry 5 \
+            --retry-all-errors \
+            --silent \
+            --show-error \
+            --output "$RUNNER_TEMP/pypi-release.json" \
+            "https://pypi.org/pypi/django-micboard/$RELEASE_VERSION/json"
+          while read -r expected filename; do
+            filename="${filename#./}"
+            case "$filename" in
+              *.whl|*.tar.gz)
+                remote="$(jq --raw-output \
+                  --arg filename "$filename" \
+                  '.urls[] | select(.filename == $filename) | .digests.sha256' \
+                  "$RUNNER_TEMP/pypi-release.json")"
+                test -n "$remote"
+                test "$remote" = "$expected"
+                ;;
+            esac
+          done < SHA256SUMS
+          cd ..
+          uv run --no-project python scripts/validate_wheel.py dist/*.whl
+          gh attestation verify dist/*.whl --repo "$GITHUB_REPOSITORY"
+          gh attestation verify dist/*.tar.gz --repo "$GITHUB_REPOSITORY"
+          awk -v heading="## [$RELEASE_VERSION]" '
+            index($0, heading) == 1 { in_release = 1; next }
+            in_release && /^## \[/ { exit }
+            in_release { print }
+          ' CHANGELOG.md > dist/RELEASE_NOTES.md
+          test -s dist/RELEASE_NOTES.md
+
+      - name: Seal verified recovery assets for the write-isolated job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: verified-pypi-distribution-${{ inputs.version }}-${{ inputs.source_run_id }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  create-github-release:
+    needs: verify-recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi-release
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download write-isolated recovery assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: verified-pypi-distribution-${{ inputs.version }}-${{ inputs.source_run_id }}
+          path: dist
+
+      - name: Reverify release assets
+        run: |
+          cd dist
+          sha256sum --check SHA256SUMS
+          test "$(find . -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
+          test -s RELEASE_NOTES.md
+
+      - name: Create draft GitHub release and publish after asset upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.expected_sha }}
+          RELEASE_TAG: v${{ inputs.version }}
+          RELEASE_TITLE: Release ${{ inputs.version }}
+        run: |
+          RELEASE_FLAGS=(
+            --draft
+            --notes-file dist/RELEASE_NOTES.md
+            --target "$RELEASE_SHA"
+            --title "$RELEASE_TITLE"
+          )
+          RELEASE_STATE="$RUNNER_TEMP/github-release.json"
+          if gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,targetCommitish > "$RELEASE_STATE" 2>/dev/null; then
+            if [ "$(jq --raw-output '.isDraft' "$RELEASE_STATE")" != "true" ]; then
+              echo "Release $RELEASE_TAG is already published"
+              exit 1
+            fi
+            if [ "$(jq --raw-output '.targetCommitish' "$RELEASE_STATE")" != "$RELEASE_SHA" ]; then
+              echo "Existing draft release does not target $RELEASE_SHA"
+              exit 1
+            fi
+          else
+            gh release create "$RELEASE_TAG" "${RELEASE_FLAGS[@]}" \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+          gh release upload "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            dist/*.whl \
+            dist/*.tar.gz \
+            dist/*.spdx.json \
+            dist/*.publish.attestation \
+            dist/SHA256SUMS \
+            --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --repo "$GITHUB_REPOSITORY"

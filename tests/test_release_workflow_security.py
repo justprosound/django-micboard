@@ -17,6 +17,7 @@ def test_release_workflows_have_single_responsibility_names() -> None:
     """Workflow filenames must distinguish preparation from publication."""
     assert not (WORKFLOW_ROOT / "release.yml").exists()
     assert (WORKFLOW_ROOT / "prepare-release.yml").is_file()
+    assert (WORKFLOW_ROOT / "recover-github-release.yml").is_file()
 
 
 def test_release_version_defaults_to_the_next_utc_calver() -> None:
@@ -48,6 +49,45 @@ def test_release_workflows_accept_positive_same_day_calver_revisions() -> None:
     assert version_pattern in _workflow("publish-release.yml")
 
 
+def test_release_builds_are_reproducible_across_safe_retries() -> None:
+    """A source commit must produce registry-identical wheel and source archives."""
+    publication = _workflow("publish-release.yml")
+
+    assert "source-date-epoch: ${{ steps.release.outputs.source-date-epoch }}" in publication
+    assert "git show -s --format=%ct HEAD" in publication
+    assert (
+        "SOURCE_DATE_EPOCH: ${{ needs.validate-release.outputs.source-date-epoch }}" in publication
+    )
+    sdist_build = publication.index("uv build --no-sources --sdist --clear")
+    normalization = publication.index("scripts/normalize_sdist.py")
+    wheel_build = publication.index("uv build --no-sources --wheel dist/*.tar.gz")
+    assert sdist_build < normalization < wheel_build
+
+
+def test_github_release_recovery_reuses_only_verified_pypi_artifacts() -> None:
+    """Recovery must preserve published bytes and keep write authority in a separate job."""
+    recovery = _workflow("recover-github-release.yml")
+    verify_job = recovery[recovery.index("  verify-recovery:") :]
+    verify_job = verify_job[: verify_job.index("  create-github-release:")]
+    release_job = recovery[recovery.index("  create-github-release:") :]
+
+    assert "SOURCE_RUN_ID: ${{ inputs.source_run_id }}" in verify_job
+    assert '.path == ".github/workflows/publish-release.yml"' in verify_job
+    assert 'select(.name == "publish-pypi" and .conclusion == "success")' in verify_job
+    assert "run-id: ${{ inputs.source_run_id }}" in verify_job
+    assert "github-token: ${{ github.token }}" in verify_job
+    assert "sha256sum --check SHA256SUMS" in verify_job
+    assert "https://pypi.org/pypi/django-micboard/$RELEASE_VERSION/json" in verify_job
+    assert "gh attestation verify" in verify_job
+    assert "scripts/validate_wheel.py" in verify_job
+    assert "actions: read" in verify_job
+    assert "contents: write" not in verify_job
+    assert "needs: verify-recovery" in release_job
+    assert "contents: write" in release_job
+    assert "actions: read" not in release_job
+    assert '--repo "$GITHUB_REPOSITORY"' in release_job
+
+
 def test_workflow_topology_is_documented() -> None:
     """Maintainers must be able to discover every workflow and the release sequence."""
     guide = (WORKFLOW_ROOT / "README.md").read_text(encoding="utf-8")
@@ -58,6 +98,7 @@ def test_workflow_topology_is_documented() -> None:
         "docs.yml",
         "prepare-release.yml",
         "publish-release.yml",
+        "recover-github-release.yml",
         "warden.yml",
     ):
         assert f"`{workflow_name}`" in guide
