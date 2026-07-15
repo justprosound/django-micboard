@@ -42,21 +42,37 @@ The release lifecycle is **prepare -> validate -> merge -> attest -> publish**:
 5. Publication verifies that SHA belongs to `main`, builds it once, and seals the distributions
    with SHA-256 checksums.
 6. An isolated OIDC job creates signed Sigstore build-provenance attestations for the sealed files.
-7. The protected TestPyPI or PyPI environment publishes only after attestation succeeds.
+7. Prereleases publish automatically through the protected `testpypi` environment after
+   attestation succeeds.
+8. Production releases pause at the protected `pypi-release` environment until the Code Owners
+   team explicitly approves the deployment, then publish through the environment-bound OIDC
+   token.
 
 Preparation never receives an OIDC token. Publishing jobs cannot modify repository contents, and
 the GitHub release job cannot publish Python distributions. Explicit workflow-run observation
-keeps the release gate effective even when repository branch rules are incomplete; maintainers
-should still require pull-request review and the CI, documentation, and dependency-review checks
-on `main`.
+keeps the release gate effective even when repository branch rules are incomplete. The production
+environment approval is intentionally separate from pull-request validation so a single human
+maintainer can operate the repository without weakening the automated release gates.
 
 ## Branch protection contract
 
 Protect `main` with strict, GitHub-Actions-bound checks named `CI required`, `build-docs`, and
 `dependency-review`. `CI required` aggregates lint, package, compatibility-matrix tests, Bandit,
 locked-dependency audit, and CodeQL so matrix maintenance does not require branch-rule edits.
-Require a code-owner approval, dismiss stale approvals, require approval after the latest push,
-resolve review conversations, enforce linear history, and apply the rules to administrators.
+Keep pull requests mandatory with zero required pull-request approvals: GitHub does not permit a
+pull-request author to approve their own change, so requiring a review would deadlock the sole
+human maintainer. CODEOWNERS remains non-blocking and routes security-sensitive changes to
+`@justprosound/code-owners` for visibility. Require signed commits, resolve review conversations,
+enforce linear history, disallow force pushes and branch deletion, and apply the rules to
+administrators. Allow only squash merges, enable auto-merge, and delete merged branches.
+
+Protect the production `pypi-release` environment with the `@justprosound/code-owners` team as a
+required reviewer, allow self-review so the sole team member can release, and limit deployments to
+protected branches. Disallow administrator bypass so every production publication records an
+explicit approval. Keep the `testpypi` environment limited to protected branches without a reviewer
+so prerelease validation remains automated. This moves the one deliberate human decision to the
+point of production publication while every source change still passes the exact automated branch
+gates.
 
 ## NIST SSDF evidence
 
@@ -68,8 +84,8 @@ so it informs future work but is not represented as a final requirement.
 | --- | --- |
 | `PO.3` Implement Supporting Toolchains | One pinned uv bootstrap, immutable action SHAs, Renovate-managed updates, and `uv.lock` |
 | `PO.4` Define and Use Criteria for Software Security Checks | Static workflow contracts, pre-commit, mypy, Bandit, CodeQL, package checks, and a 95% coverage floor |
-| `PO.5` Implement and Maintain Secure Environments | GitHub-hosted runners, explicit timeouts and concurrency, least-privilege job tokens, and protected publishing environments |
-| `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Pull-request release changes, CODEOWNERS, non-persisted read tokens, and exact-SHA release validation |
+| `PO.5` Implement and Maintain Secure Environments | GitHub-hosted runners, explicit timeouts and concurrency, least-privilege job tokens, protected publishing environments, and explicit production deployment approval |
+| `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Mandatory pull requests, strict app-bound checks, signed linear history, CODEOWNERS routing, non-persisted read tokens, and exact-SHA release validation |
 | `PS.2` Provide a Mechanism for Verifying Software Release Integrity | SHA-256 manifests plus signed Sigstore build-provenance attestations |
 | `PS.3` Archive and Protect Each Software Release | Immutable workflow artifacts, exact-commit GitHub releases, and retained checksum manifests |
 | `PW.4` Reuse Existing, Well-Secured Software When Feasible | Locked Python dependencies, full-lock auditing, and dependency review for new vulnerabilities and OpenSSF signals |
