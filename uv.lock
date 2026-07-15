@@ -568,7 +568,7 @@ wheels = [
 
 [[package]]
 name = "django-micboard"
-version = "26.1.27"
+version = "26.7.15"
 source = { editable = "." }
 dependencies = [
     { name = "django" },
