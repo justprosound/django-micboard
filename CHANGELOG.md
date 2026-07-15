@@ -9,6 +9,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- **Release recovery**: Add a least-privilege, approval-gated recovery workflow that verifies and
+  reuses the original PyPI artifact after GitHub release assembly fails, and make distribution
+  archives reproducible across safe retries with `SOURCE_DATE_EPOCH`.
 - **Same-day releases**: Calculate collision-safe daily CalVer versions automatically, retaining
   `YY.MM.DD` for the first release and incrementing `.1`, `.2`, and later revisions as needed.
 - **Release SBOM generation**: Pass Syft's v-prefixed release tag to the pinned Anchore action and

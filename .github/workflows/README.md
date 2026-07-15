@@ -11,6 +11,7 @@ and `tests/test_release_workflow_security.py`.
 | `docs.yml` | Build and validate MkDocs output | Push, pull request, or manual dispatch |
 | `prepare-release.yml` | Create the metadata pull request, observe exact required workflow runs, merge, and dispatch publication | Manual dispatch from `main` |
 | `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from the preparation workflow on `main` |
+| `recover-github-release.yml` | Reverify the original PyPI artifact from a failed publication run and finish only its GitHub release | Manual break-glass dispatch from `main` |
 | `warden.yml` | Optional AI review for same-repository pull requests after a provider secret is configured | Pull-request activity when enabled |
 
 ## Shared setup action
@@ -44,7 +45,8 @@ The release lifecycle is **prepare -> validate -> merge -> attest -> publish**:
    three to succeed.
 3. A separate repository-write token requests the protected pull-request merge.
 4. A third token limited to Actions passes the merge commit SHA to `publish-release.yml`.
-5. Publication verifies that SHA belongs to `main`, builds with registry-standard dependency
+5. Publication verifies that SHA belongs to `main`, uses its commit timestamp as
+   `SOURCE_DATE_EPOCH` for reproducible archives, builds with registry-standard dependency
    metadata, generates an SPDX JSON SBOM, and seals the wheel, source archive, and SBOM with
    SHA-256 checksums.
 6. An isolated OIDC job creates separate Sigstore build-provenance and SBOM attestations for the
@@ -66,6 +68,19 @@ the GitHub release job cannot publish Python distributions. Explicit workflow-ru
 keeps the release gate effective even when repository branch rules are incomplete. The production
 environment approval is intentionally separate from pull-request validation so a single human
 maintainer can operate the repository without weakening the automated release gates.
+
+## GitHub release recovery
+
+Use `recover-github-release.yml` only when `publish-pypi` succeeded but the final
+`create-github-release` job failed. Supply the failed publication run ID, its exact released source
+commit, and its CalVer version. Recovery rejects any other workflow shape, downloads the retained
+`pypi-distribution` artifact instead of rebuilding it, and verifies its checksum manifest, package
+version, source contents, and GitHub Sigstore attestations in a read-only job. A one-day intermediate
+artifact then crosses into a separate `contents: write` job, which pauses for `pypi-release`
+environment approval before creating a draft, attaching every original asset, and publishing it.
+
+Do not start a new publication run to recover an existing registry version. Registry indexes must
+never be used as permission to replace or reconstruct the original release attestations.
 
 ## First-release registry and immutability setup
 

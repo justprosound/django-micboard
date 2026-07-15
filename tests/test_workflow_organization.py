@@ -47,8 +47,9 @@ def test_repository_controlled_python_jobs_share_the_bootstrap_action() -> None:
     expected_jobs = {
         "ci.yml": ("lint", "package", "test", "security"),
         "docs.yml": ("build-docs",),
-        "prepare-release.yml": ("open-release-pr",),
+        "prepare-release.yml": ("prepare-release", "open-release-pr"),
         "publish-release.yml": ("build-release",),
+        "recover-github-release.yml": ("verify-recovery",),
     }
 
     for workflow_name, job_names in expected_jobs.items():
@@ -92,6 +93,7 @@ def test_externally_triggered_privileged_jobs_avoid_local_actions() -> None:
         _workflow_job("publish-release.yml", "attest-release"),
         _workflow_job("publish-release.yml", "publish-testpypi"),
         _workflow_job("publish-release.yml", "publish-pypi"),
+        _workflow_job("recover-github-release.yml", "create-github-release"),
     )
 
     for job in privileged_jobs:
