@@ -34,6 +34,19 @@ def test_workflow_topology_is_documented() -> None:
     assert "prepare -> validate -> merge -> attest -> publish" in guide
 
 
+def test_solo_maintainer_release_gate_is_documented() -> None:
+    """The checked-in protection contract must not reintroduce a self-review deadlock."""
+    guide = (WORKFLOW_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "zero required pull-request approvals" in guide
+    assert "CODEOWNERS remains non-blocking" in guide
+    assert "allow self-review so the sole team member can release" in guide
+    assert "Disallow administrator bypass" in guide
+    assert "strict, GitHub-Actions-bound checks" in guide
+    assert "production `pypi-release` environment" in guide
+    assert "`testpypi` environment" in guide
+
+
 def test_workflow_runs_have_contextual_ui_names() -> None:
     """The Actions run list must identify the branch, pull request, or release at a glance."""
     unnamed_workflows = [

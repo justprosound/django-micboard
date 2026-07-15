@@ -62,6 +62,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- **Solo-maintainer release protection**: Keep pull requests mandatory without an impossible
+  self-approval requirement, preserve strict app-bound checks and signed linear history, require
+  non-bypassable Code Owners approval at the production PyPI environment, and allow only squash
+  merges
 - **Organized GitHub Actions bootstrap**: Reuse one pinned uv/Python setup action across
   repository-controlled jobs, retain direct immutable setup in privileged jobs, enforce explicit
   job timeouts, expose one stable aggregate check for branch protection, assign valid code owners,
