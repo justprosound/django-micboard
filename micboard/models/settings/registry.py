@@ -107,7 +107,9 @@ class SettingDefinition(models.Model):
         try:
             self.parse_value(self.default_value)
         except (AttributeError, TypeError, ValueError) as exc:
-            errors["default_value"] = f"Invalid default for {self.setting_type}: {exc}"
+            errors["default_value"] = (
+                f"Invalid default for {self.setting_type} ({type(exc).__name__}); details redacted."
+            )
 
         if self.pk is not None:
             self._validate_existing_overrides(errors)

@@ -5,6 +5,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from micboard.services.hardware.dtos import WirelessChassisWrite
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
+from micboard.utils.exception_logging import sanitized_exception_info
+
 if TYPE_CHECKING:
     from micboard.models.discovery.registry import DiscoveredDevice
     from micboard.models.hardware.wireless_chassis import WirelessChassis
@@ -26,24 +32,47 @@ class DevicePromotionService:
         if not discovered.manufacturer:
             return (False, "No manufacturer specified for discovered device", None)
 
-        existing = self._find_existing_chassis_for_discovered(discovered)
-        if existing:
-            return (False, f"Device already managed as chassis: {existing}", existing)
-
         try:
+            existing = self._find_existing_chassis_for_discovered(discovered)
+            if existing:
+                return (False, f"Device already managed as chassis: {existing}", existing)
+
             plugin, device_data = self._get_plugin_and_device_data_for_promotion(discovered)
             if not plugin:
                 return (False, "Plugin not available for manufacturer", None)
 
             if not device_data:
-                chassis = self._create_basic_chassis_from_discovered(discovered)
+                logger.warning(
+                    "Could not fetch detailed data for %s from API, creating basic chassis",
+                    discovered.ip,
+                )
+                chassis = WirelessChassisPersistenceService.create(
+                    manufacturer=discovered.manufacturer,
+                    write=WirelessChassisWrite(
+                        api_device_id=discovered.ip,
+                        ip=discovered.ip,
+                        name=f"{discovered.device_type} at {discovered.ip}",
+                        model=discovered.device_type,
+                        role="receiver",
+                        max_channels=discovered.channels or 4,
+                        status="discovered",
+                    ),
+                )
                 return (True, "Created basic chassis (limited API data)", chassis)
 
             return self._attempt_promotion_with_device_data(discovered, plugin, device_data)
 
-        except Exception as e:
-            logger.exception("Error promoting discovered device %s", discovered.ip)
-            return (False, f"Exception during promotion: {e}", None)
+        except Exception as exc:
+            logger.exception(
+                "Error promoting discovered device %s",
+                getattr(discovered, "pk", None),
+                exc_info=sanitized_exception_info(exc),
+            )
+            return (
+                False,
+                f"Promotion failed ({type(exc).__name__}); details redacted.",
+                None,
+            )
 
     def _find_existing_chassis_for_discovered(self, discovered):
         from micboard.models.hardware.wireless_chassis import WirelessChassis
@@ -64,28 +93,14 @@ class DevicePromotionService:
             for dev in api_devices:
                 if dev.get("ip") == discovered.ip or dev.get("ipAddress") == discovered.ip:
                     return plugin, dev
-        except Exception:
-            logger.exception("Error fetching devices from plugin for promotion: %s", discovered.ip)
+        except Exception as exc:
+            logger.exception(
+                "Error fetching vendor devices for discovered device %s",
+                getattr(discovered, "pk", None),
+                exc_info=sanitized_exception_info(exc),
+            )
 
         return plugin, None
-
-    def _create_basic_chassis_from_discovered(self, discovered):
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-        logger.warning(
-            "Could not fetch detailed data for %s from API, creating basic chassis",
-            discovered.ip,
-        )
-        return WirelessChassis.objects.create(
-            manufacturer=discovered.manufacturer,
-            api_device_id=discovered.ip,
-            ip=discovered.ip,
-            name=f"{discovered.device_type} at {discovered.ip}",
-            model=discovered.device_type,
-            role="receiver",
-            max_channels=discovered.channels or 4,
-            status="discovered",
-        )
 
     def _attempt_promotion_with_device_data(
         self, discovered, plugin, device_data
@@ -113,16 +128,17 @@ class DevicePromotionService:
             normalized = ManufacturerSyncService._normalize_devices([device_data], plugin)
             if not normalized:
                 return (False, "Failed to normalize duplicate device data", None)
-            ManufacturerSyncService._update_existing_chassis(
-                chassis,
-                normalized[0],
+            WirelessChassisPersistenceService.update_from_normalized(
+                chassis=chassis,
+                payload=normalized[0],
             )
             return (True, "Updated existing chassis", chassis)
 
         normalized = ManufacturerSyncService._normalize_devices([device_data], plugin)
         if normalized:
-            chassis = ManufacturerSyncService._create_chassis(
-                normalized[0], discovered.manufacturer
+            chassis = WirelessChassisPersistenceService.create_from_normalized(
+                payload=normalized[0],
+                manufacturer=discovered.manufacturer,
             )
             return (True, "Created new managed chassis", chassis)
 

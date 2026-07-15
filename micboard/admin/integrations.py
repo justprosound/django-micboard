@@ -11,7 +11,9 @@ from micboard.admin.mixins import MicboardModelAdmin
 from micboard.admin.secret_fields import replace_field
 from micboard.forms.integrations import ManufacturerAPIServerForm
 from micboard.models.integrations import Accessory, ManufacturerAPIServer
-from micboard.services.integrations.api_server_service import APIServerConnectionService
+from micboard.services.integrations.api_server_service import MAX_API_SERVER_HEALTH_CHECK_BATCH
+from micboard.tasks.monitoring.health import check_selected_api_server_connections
+from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
 
 @admin.register(ManufacturerAPIServer)
@@ -119,12 +121,40 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
 
     @admin.action(permissions=["change"], description="🔍 Test connection to API servers")
     def test_connection(self, request: Any, queryset: QuerySet) -> None:
-        """Test connection to selected API servers."""
-        for server in queryset:
-            APIServerConnectionService.test_connection_and_record(server)
+        """Queue a bounded connection test without performing vendor I/O in the request."""
+        server_ids = list(
+            queryset.order_by("pk").values_list("pk", flat=True)[
+                : MAX_API_SERVER_HEALTH_CHECK_BATCH + 1
+            ]
+        )
+        if not server_ids:
+            self.message_user(request, "No API servers selected", messages.WARNING)
+            return
+        if len(server_ids) > MAX_API_SERVER_HEALTH_CHECK_BATCH:
+            self.message_user(
+                request,
+                f"Select at most {MAX_API_SERVER_HEALTH_CHECK_BATCH} API servers per health check",
+                messages.ERROR,
+            )
+            return
+        if not huey_is_configured():
+            self.message_user(
+                request,
+                "API server health checks require a configured Huey worker",
+                messages.ERROR,
+            )
+            return
 
+        enqueue_huey_task(
+            check_selected_api_server_connections,
+            server_ids,
+            request.user.pk,
+            using=queryset.db,
+        )
         self.message_user(
-            request, f"Health check completed for {queryset.count()} server(s)", messages.SUCCESS
+            request,
+            f"Queued health checks for {len(server_ids)} API server(s)",
+            messages.SUCCESS,
         )
 
     def has_import_permission(self, request: Any) -> bool:

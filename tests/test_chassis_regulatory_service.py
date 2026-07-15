@@ -16,9 +16,9 @@ from micboard.models.rf_coordination.compliance import (
 from micboard.services.hardware.chassis_regulatory_service import (
     get_band_plan_regulatory_status,
     get_needs_band_plan_regulatory_update,
-    get_regulatory_domain,
     has_band_plan_regulatory_coverage,
 )
+from micboard.services.hardware.rf_channel_service import get_regulatory_domain_for_location
 
 
 @pytest.fixture
@@ -105,12 +105,12 @@ def frequency_band(db, regulatory_domain):
 
 class TestGetRegulatoryDomain:
     def test_with_location_and_domain(self, chassis_with_band_plan, regulatory_domain):
-        domain = get_regulatory_domain(chassis_with_band_plan)
+        domain = get_regulatory_domain_for_location(chassis_with_band_plan.location)
         assert domain is not None
         assert domain.code == "FCC"
 
     def test_no_location(self, chassis_no_location):
-        domain = get_regulatory_domain(chassis_no_location)
+        domain = get_regulatory_domain_for_location(chassis_no_location.location)
         assert domain is None
 
     def test_location_has_no_domain(self, db, manufacturer):
@@ -124,7 +124,7 @@ class TestGetRegulatoryDomain:
             status="online",
             location=loc,
         )
-        domain = get_regulatory_domain(chassis)
+        domain = get_regulatory_domain_for_location(chassis.location)
         assert domain is None
 
     def test_location_with_country_lookup(self, db, manufacturer, regulatory_domain):
@@ -138,7 +138,7 @@ class TestGetRegulatoryDomain:
             status="online",
             location=loc,
         )
-        domain = get_regulatory_domain(chassis)
+        domain = get_regulatory_domain_for_location(chassis.location)
         assert domain == regulatory_domain
 
 

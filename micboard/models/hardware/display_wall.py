@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
@@ -52,6 +53,8 @@ class DisplayWall(models.Model):
         ("portrait", "Portrait (9:16, 10:16)"),
         ("square", "Square (1:1)"),
     ]
+    MIN_REFRESH_INTERVAL_SECONDS: ClassVar[int] = 2
+    MAX_REFRESH_INTERVAL_SECONDS: ClassVar[int] = 3600
 
     location = models.ForeignKey(
         "micboard.Location",
@@ -141,6 +144,23 @@ class DisplayWall(models.Model):
             models.Index(fields=["location", "is_active"]),
             models.Index(fields=["kiosk_id"]),
         ]
+
+    def clean(self) -> None:
+        """Reject refresh rates that can storm clients or overflow browser timers."""
+        super().clean()
+        interval = self.refresh_interval_seconds
+        if interval is not None and not (
+            self.MIN_REFRESH_INTERVAL_SECONDS <= interval <= self.MAX_REFRESH_INTERVAL_SECONDS
+        ):
+            raise ValidationError(
+                {
+                    "refresh_interval_seconds": (
+                        "Refresh interval must be between "
+                        f"{self.MIN_REFRESH_INTERVAL_SECONDS} and "
+                        f"{self.MAX_REFRESH_INTERVAL_SECONDS} seconds."
+                    )
+                }
+            )
 
     def __str__(self) -> str:
         return f"{self.name} ({self.display_width_px}x{self.display_height_px}) @ {self.location}"
@@ -243,6 +263,8 @@ class WallSection(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = WallSectionQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Wall Section"

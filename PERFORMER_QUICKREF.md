@@ -11,7 +11,6 @@ Import models and services from their defining modules:
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
-from micboard.services.core.performer import PerformerService
 from micboard.services.core.performer_assignment import PerformerAssignmentService
 ```
 
@@ -19,18 +18,9 @@ The root `micboard.models` and `micboard.services` packages do not re-export dom
 
 ## Create a performer
 
-```python
-performer = PerformerService.create_performer(
-    name="Jane Smith",
-    title="Lead vocalist",
-    email="jane@example.com",
-    role_description="Primary vocal microphone",
-    notes="Prefers a handheld transmitter",
-)
-```
-
-Photos are model fields rather than service arguments. Assign a photo to the returned instance
-and save it with Django's normal file-field API when needed.
+Performer CRUD is available through the tenant-scoped Django admin. Application workflows should
+use `Performer.objects.for_user(user=request.user)` for reads and
+`PerformerAssignmentService` for every device binding; there is no unscoped performer facade.
 
 ## Create an assignment
 
@@ -38,17 +28,21 @@ All assignment writes require the acting user and object IDs. The service resolv
 through that user's scope before writing:
 
 ```python
+from micboard.services.core.performer_assignment_dtos import CreatePerformerAssignment
+
 assignment = PerformerAssignmentService.create_assignment(
-    performer_id=performer.id,
-    unit_id=wireless_unit.id,
-    group_id=monitoring_group.id,
+    command=CreatePerformerAssignment(
+        performer_id=performer_id,
+        unit_id=wireless_unit.id,
+        group_id=monitoring_group.id,
+        priority="high",
+        notes="Lead microphone",
+        alert_on_battery_low=True,
+        alert_on_signal_loss=True,
+        alert_on_audio_low=False,
+        alert_on_hardware_offline=True,
+    ),
     user=request.user,
-    priority="high",
-    notes="Lead microphone",
-    alert_on_battery_low=True,
-    alert_on_signal_loss=True,
-    alert_on_audio_low=False,
-    alert_on_hardware_offline=True,
 )
 ```
 
@@ -76,11 +70,15 @@ tenant-scoped assignment fails closed.
 ## Update or remove an assignment
 
 ```python
+from micboard.services.core.performer_assignment_dtos import UpdatePerformerAssignment
+
 assignment = PerformerAssignmentService.update_assignment(
-    assignment_id=assignment.id,
+    command=UpdatePerformerAssignment(
+        assignment_id=assignment.id,
+        priority="critical",
+        alert_on_audio_low=True,
+    ),
     user=request.user,
-    priority="critical",
-    alert_on_audio_low=True,
 )
 
 was_deactivated = PerformerAssignmentService.deactivate_assignment(

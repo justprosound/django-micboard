@@ -202,4 +202,5 @@ class ApplyManufacturerConfigTests(TestCase):
         result = apply_manufacturer_config(config=cfg)
 
         self.assertFalse(result)
-        mock_logger.error.assert_called_once()
+        mock_logger.exception.assert_called_once()
+        self.assertNotIn("Log failure", str(mock_logger.exception.call_args))

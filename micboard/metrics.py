@@ -16,6 +16,8 @@ from typing import Any
 
 from django.core.cache import cache
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,8 +68,11 @@ class MetricsCollector:
 
             cache.set(key, metrics, cls.METRICS_TTL)
 
-        except Exception as e:
-            logger.error("Error recording metric: %s", e)
+        except Exception as exc:
+            logger.exception(
+                "Error recording service metric",
+                exc_info=sanitized_exception_info(exc),
+            )
 
     @classmethod
     def get_metrics(cls, *, service_name: str, method_name: str) -> list[dict[str, Any]]:
@@ -154,9 +159,9 @@ def track_service_metrics(func: Callable) -> Callable:
             result = func(*args, **kwargs)
             return result
 
-        except Exception as e:
+        except Exception as exc:
             success = False
-            error_message = str(e)
+            error_message = f"{type(exc).__name__}: service error details redacted"
             raise
 
         finally:

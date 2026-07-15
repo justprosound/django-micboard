@@ -21,8 +21,15 @@ from django.utils import timezone
 from micboard.models.audit.activity_log import ActivityLog, ServiceSyncLog
 from micboard.models.telemetry.health import APIHealthLog
 from micboard.services.maintenance.logging_mode import LoggingModeService, LogMode
+from micboard.services.manufacturer.secret_redaction import redact_secrets
 
 logger = logging.getLogger(__name__)
+
+
+def _json_safe(value: dict[str, Any] | None) -> dict[str, Any]:
+    """Return redacted JSON-compatible audit metadata."""
+    redacted = redact_secrets(value or {})
+    return json.loads(json.dumps(redacted, cls=DjangoJSONEncoder))
 
 
 class AuditService:
@@ -55,10 +62,10 @@ class AuditService:
             "user": actor,
             "activity_type": activity_type,
             "operation": operation,
-            "summary": summary,
-            "details": details or {},
-            "old_values": old_values or {},
-            "new_values": new_values or {},
+            "summary": summary[:255],
+            "details": _json_safe(details),
+            "old_values": _json_safe(old_values),
+            "new_values": _json_safe(new_values),
             "status": status,
             "error_message": error_message or "",
         }
@@ -70,40 +77,11 @@ class AuditService:
         if request:
             # Safely extract IP and User Agent if request object is provided
             log_data["ip_address"] = getattr(request, "META", {}).get("REMOTE_ADDR")
-            log_data["user_agent"] = getattr(request, "META", {}).get("HTTP_USER_AGENT")
+            log_data["user_agent"] = (getattr(request, "META", {}).get("HTTP_USER_AGENT") or "")[
+                :255
+            ]
 
         return ActivityLog.objects.using(using).create(**log_data)
-
-    @staticmethod
-    def prune_stale_logs() -> dict[str, int]:
-        """Prune stale logs based on retention settings in MICBOARD_CONFIG."""
-        from micboard.services.settings.settings_service import settings
-
-        # Retention periods (days)
-        activity_days = settings.activity_log_retention_days
-        sync_days = settings.service_sync_log_retention_days
-        health_days = settings.api_health_log_retention_days
-
-        now = timezone.now()
-        results = {}
-
-        # 1. Activity Logs
-        activity_cutoff = now - timedelta(days=activity_days)
-        deleted, _ = ActivityLog.objects.filter(created_at__lt=activity_cutoff).delete()
-        results["activity_logs"] = deleted
-
-        # 2. Service Sync Logs
-        sync_cutoff = now - timedelta(days=sync_days)
-        deleted, _ = ServiceSyncLog.objects.filter(started_at__lt=sync_cutoff).delete()
-        results["sync_logs"] = deleted
-
-        # 3. API Health Logs
-        health_cutoff = now - timedelta(days=health_days)
-        deleted, _ = APIHealthLog.objects.filter(timestamp__lt=health_cutoff).delete()
-        results["health_logs"] = deleted
-
-        logger.info("Pruned stale logs: %s", results)
-        return results
 
     @staticmethod
     def archive_activity_logs(
@@ -203,9 +181,3 @@ class AuditService:
         if days < 0:
             raise ValueError("retention_days must be zero or greater")
         return days
-
-    @staticmethod
-    def archive_logs(path: str | None = None) -> str:
-        """Archive expired activity logs and return the created CSV path."""
-        result = AuditService.archive_activity_logs(path=path)
-        return str(result["file"])

@@ -155,6 +155,7 @@ def test_manufacturer_admin_runs_model_save_side_effects_once() -> None:
         manufacturer=manufacturer,
         created=True,
         old_active=False,
+        using="default",
     )
 
 
@@ -169,7 +170,7 @@ def test_manufacturer_admin_runs_model_delete_side_effects_once() -> None:
     ) as handle_delete:
         model_admin.delete_model(Mock(), manufacturer)
 
-    handle_delete.assert_called_once_with(manufacturer=manufacturer)
+    handle_delete.assert_called_once_with(manufacturer=manufacturer, using="default")
 
 
 @pytest.mark.django_db

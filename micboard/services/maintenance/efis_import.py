@@ -10,7 +10,8 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Any
 
 from django.utils import timezone
 
@@ -19,6 +20,8 @@ import httpx
 from micboard.models.audit.activity_log import ActivityLog
 from micboard.models.rf_coordination.compliance import FrequencyBand, RegulatoryDomain
 from micboard.services.common.base.resilience import create_resilient_session
+from micboard.services.maintenance.audit import AuditService
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +36,7 @@ class EFISImportService:
     _EXCLUDED_REGION_CODES: set[str] = {"ECA", "ITU"}
 
     @classmethod
-    def get_last_import_date(cls):
+    def get_last_import_date(cls) -> datetime | None:
         """Get the date of the last successful EFIS import."""
         last_log = (
             ActivityLog.objects.filter(
@@ -59,17 +62,17 @@ class EFISImportService:
         return last_date < cutoff
 
     @classmethod
-    def run_import(cls, user=None) -> dict:
+    def run_import(cls, user: Any = None) -> dict[str, bool | int | str]:
         """Execute the import process against the official EFIS API.
 
         The importer pulls region metadata, identifies wireless-audio application terms
         (PMSE/Radio microphones/ALD), and writes `FrequencyBand` rows per application
         range using MHz units. Bands are upserted to avoid duplicates on repeated runs.
         """
-        ActivityLog.objects.create(
+        AuditService.log_activity(
             activity_type=ActivityLog.ACTIVITY_COMPLIANCE,
             operation="start",
-            user=user,
+            actor=user,
             summary="Started EFIS regulatory import (API)",
             status="success",
         )
@@ -112,10 +115,10 @@ class EFISImportService:
                 bands_created += created
                 bands_updated += updated
 
-            ActivityLog.objects.create(
+            AuditService.log_activity(
                 activity_type=ActivityLog.ACTIVITY_COMPLIANCE,
                 operation="import",
-                user=user,
+                actor=user,
                 summary="Successfully imported EFIS regulatory data (API)",
                 details={
                     "source": cls.EFIS_URL,
@@ -134,17 +137,21 @@ class EFISImportService:
                 "bands_updated": bands_updated,
             }
 
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.exception("EFIS import failed")
-            ActivityLog.objects.create(
+        except Exception as exc:
+            logger.exception(
+                "EFIS import failed",
+                exc_info=sanitized_exception_info(exc),
+            )
+            safe_message = f"EFIS import failed ({type(exc).__name__}); details redacted."
+            AuditService.log_activity(
                 activity_type=ActivityLog.ACTIVITY_COMPLIANCE,
                 operation="failure",
-                user=user,
-                summary=f"EFIS import failed: {exc}",
+                actor=user,
+                summary=safe_message,
                 status="failed",
-                error_message=str(exc),
+                error_message=safe_message,
             )
-            return {"success": False, "message": str(exc)}
+            return {"success": False, "message": safe_message}
         finally:
             session.close()
 
@@ -239,7 +246,9 @@ class EFISImportService:
                 return response.json()
             except (httpx.RequestError, httpx.HTTPStatusError) as exc:
                 if attempt >= max_retries - 1:
-                    raise RuntimeError(f"EFIS request failed for {url}: {exc}") from exc
+                    raise RuntimeError(
+                        f"EFIS request failed ({type(exc).__name__}); details redacted."
+                    ) from exc
                 attempt += 1
                 time.sleep(backoff_factor * (2**attempt))
 

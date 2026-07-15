@@ -14,8 +14,8 @@ from micboard.admin.mixins import MicboardModelAdmin
 from micboard.forms.settings_admin import SettingDefinitionForm, SettingValueForm
 from micboard.models.settings.registry import Setting, SettingDefinition
 from micboard.services.settings.presentation_service import settings_presentation
+from micboard.services.settings.settings_service import settings
 from micboard.services.settings.visibility_service import settings_visibility
-from micboard.services.shared.settings_registry import SettingsRegistry
 
 
 def _without_raw_field(
@@ -115,20 +115,20 @@ class SettingDefinitionAdmin(MicboardModelAdmin):
         super().save_model(request, obj, form, change)
         for key in {previous_key, obj.key}:
             if key is not None:
-                SettingsRegistry.invalidate_definition(key)
+                settings.invalidate_definition_cache(key)
 
     def delete_model(self, request: Any, obj: SettingDefinition) -> None:
         """Delete one definition and invalidate its cached metadata and value."""
         key = obj.key
         super().delete_model(request, obj)
-        SettingsRegistry.invalidate_definition(key)
+        settings.invalidate_definition_cache(key)
 
     def delete_queryset(self, request: Any, queryset: QuerySet[SettingDefinition]) -> None:
         """Invalidate each definition removed by the bulk-delete action."""
         keys = set(queryset.values_list("key", flat=True))
         super().delete_queryset(request, queryset)
         for key in keys:
-            SettingsRegistry.invalidate_definition(key)
+            settings.invalidate_definition_cache(key)
 
     @admin.display(description="Scope")
     def scope_badge(self, obj: SettingDefinition) -> str:
@@ -163,13 +163,16 @@ class SettingDefinitionAdmin(MicboardModelAdmin):
     @admin.display(description="Default Value")
     def default_value_display(self, obj: SettingDefinition) -> str:
         """Display only explicitly safe default values."""
-        if settings_presentation.is_sensitive_definition(obj):
+        if settings_presentation.is_key_sensitive(obj.key):
             return settings_presentation.format_value(obj, obj.default_value)
         try:
             parsed = obj.parse_value(obj.default_value)
             return settings_presentation.format_value(obj, parsed)
-        except Exception as e:
-            return format_html("<em style='color: red;'>Parse Error: {}</em>", e)
+        except Exception as exc:
+            return format_html(
+                "<em style='color: red;'>Parse Error ({}); details redacted.</em>",
+                type(exc).__name__,
+            )
 
 
 @admin.register(Setting)
@@ -229,7 +232,7 @@ class SettingAdmin(MicboardModelAdmin):
     def get_queryset(self, request: Any) -> Any:
         """Return exact setting rows the current user may manage."""
         queryset: QuerySet[Setting] = admin.ModelAdmin.get_queryset(self, request)
-        scope = settings_visibility.for_user(user=request.user)
+        scope = settings_visibility.for_management_user(user=request.user)
         return queryset.filter(settings_visibility.build_management_filter(scope)).select_related(
             "definition",
             "site",
@@ -269,7 +272,7 @@ class SettingAdmin(MicboardModelAdmin):
     def value_display(self, obj: Setting) -> str:
         """Display only explicitly safe stored values."""
         value = settings_presentation.format_value(obj.definition, obj.value)
-        if settings_presentation.is_sensitive_definition(obj.definition):
+        if settings_presentation.is_key_sensitive(obj.definition.key):
             return value
         return f"{value[:50]}..." if len(value) > 50 else value
 
@@ -290,7 +293,7 @@ class SettingAdmin(MicboardModelAdmin):
     @admin.display(description="Parsed Value")
     def parsed_value_display(self, obj: Setting) -> str:
         """Display parsed values only for explicitly safe definitions."""
-        if settings_presentation.is_sensitive_definition(obj.definition):
+        if settings_presentation.is_key_sensitive(obj.definition.key):
             return settings_presentation.format_value(obj.definition, obj.value)
         try:
             parsed = obj.get_parsed_value()
@@ -298,8 +301,11 @@ class SettingAdmin(MicboardModelAdmin):
                 "<code>{}</code>",
                 settings_presentation.format_value(obj.definition, repr(parsed)),
             )
-        except Exception as e:
-            return format_html("<em style='color: red;'>Parse Error: {}</em>", e)
+        except Exception as exc:
+            return format_html(
+                "<em style='color: red;'>Parse Error ({}); details redacted.</em>",
+                type(exc).__name__,
+            )
 
     def save_model(self, request: Any, obj: Setting, form: ModelForm, change: bool) -> None:
         previous_key = None
@@ -307,7 +313,7 @@ class SettingAdmin(MicboardModelAdmin):
             previous_key = (
                 Setting.objects.filter(pk=obj.pk).values_list("definition__key", flat=True).first()
             )
-        scope = settings_visibility.for_user(user=request.user)
+        scope = settings_visibility.for_management_user(user=request.user)
         if not settings_visibility.can_manage_scope(
             scope,
             organization_id=obj.organization_id,
@@ -322,17 +328,17 @@ class SettingAdmin(MicboardModelAdmin):
             messages.success(request, f"✅ New setting '{obj.definition.label}' created")
         for key in {previous_key, obj.definition.key}:
             if key is not None:
-                SettingsRegistry.invalidate_cache(key)
+                settings.invalidate_value_cache(key)
 
     def delete_model(self, request: Any, obj: Setting) -> None:
         """Delete one value and invalidate its definition's scoped cache entries."""
         key = obj.definition.key
         super().delete_model(request, obj)
-        SettingsRegistry.invalidate_cache(key)
+        settings.invalidate_value_cache(key)
 
     def delete_queryset(self, request: Any, queryset: QuerySet[Setting]) -> None:
         """Invalidate each setting key removed by the bulk-delete action."""
         keys = set(queryset.values_list("definition__key", flat=True))
         super().delete_queryset(request, queryset)
         for key in keys:
-            SettingsRegistry.invalidate_cache(key)
+            settings.invalidate_value_cache(key)

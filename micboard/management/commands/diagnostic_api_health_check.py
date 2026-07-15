@@ -4,6 +4,7 @@ from django.core.management.base import BaseCommand
 
 from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.services.settings.settings_service import settings
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,13 @@ class HealthChecker:
         self.error = ""
         try:
             self.client = ShureSystemAPIClient(base_url=base_url)
-        except Exception as e:
+        except Exception as exc:
             self.client = None
-            self.error = str(e)
+            logger.exception(
+                "Failed to initialize the diagnostic API client",
+                exc_info=sanitized_exception_info(exc),
+            )
+            self.error = f"Client initialization failed ({type(exc).__name__}); details redacted."
 
     def check_connectivity(self):
         logger.info("1. Connectivity Check\n" + "-" * 70)
@@ -42,11 +47,17 @@ class HealthChecker:
             logger.info("%s Status: %s", status_icon, health.get("status"))
             logger.info("%s Response Code: %s", status_icon, health.get("status_code"))
             if health.get("error"):
-                logger.error("  Error: %s", health["error"])
+                logger.error("  API health error details redacted")
             return health
-        except Exception as e:
-            logger.error("✗ Connectivity check failed: %s", e)
-            return {"status": "failed", "error": str(e)}
+        except Exception as exc:
+            logger.exception(
+                "Connectivity check failed",
+                exc_info=sanitized_exception_info(exc),
+            )
+            return {
+                "status": "failed",
+                "error": f"Connectivity check failed ({type(exc).__name__}); details redacted.",
+            }
 
     def check_devices(self):
         logger.info("\n2. WirelessChassis Discovery Check\n" + "-" * 70)
@@ -69,8 +80,11 @@ class HealthChecker:
                 for state, count in sorted(states.items()):
                     logger.info("  %s: %s", state, count)
             return {"device_count": len(devices), "devices": devices}
-        except Exception as e:
-            logger.error("✗ WirelessChassis check failed: %s", e)
+        except Exception as exc:
+            logger.exception(
+                "WirelessChassis check failed",
+                exc_info=sanitized_exception_info(exc),
+            )
             return {}
 
     def check_discovery_ips(self):
@@ -92,8 +106,11 @@ class HealthChecker:
                 for subnet in sorted(subnets.keys()):
                     logger.info("    %s.0/24: %s IPs", subnet, subnets[subnet])
             return {"ip_count": len(ips), "ips": ips}
-        except Exception as e:
-            logger.error("✗ Discovery IP check failed: %s", e)
+        except Exception as exc:
+            logger.exception(
+                "Discovery IP check failed",
+                exc_info=sanitized_exception_info(exc),
+            )
             return {}
 
     def check_api_endpoints(self):
@@ -112,10 +129,14 @@ class HealthChecker:
                 status = "✓" if response.status_code == 200 else "⚠"
                 logger.info("%s %-40s %s - %s", status, endpoint, response.status_code, description)
                 results[endpoint] = response.status_code
-            except Exception as e:
-                logger.error("✗ %-40s ERROR - %s", endpoint, description)
-                logger.error("  %s", e)
-                results[endpoint] = f"ERROR: {e}"
+            except Exception as exc:
+                logger.exception(
+                    "API endpoint check failed for %s (%s)",
+                    endpoint,
+                    description,
+                    exc_info=sanitized_exception_info(exc),
+                )
+                results[endpoint] = f"ERROR ({type(exc).__name__}): details redacted."
         return results
 
     def check_client_config(self):
@@ -187,7 +208,12 @@ class Command(BaseCommand):
         try:
             checker = HealthChecker()
             checker.run(full=options["full"])
-        except Exception as e:
-            logger.error("Fatal error: %s", e)
-            self.stderr.write(self.style.ERROR(f"Fatal error: {e}"))
+        except Exception as exc:
+            logger.exception(
+                "Fatal diagnostic API health-check error",
+                exc_info=sanitized_exception_info(exc),
+            )
+            self.stderr.write(
+                self.style.ERROR(f"Fatal error ({type(exc).__name__}); details redacted.")
+            )
             return

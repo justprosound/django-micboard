@@ -4,17 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
+
 
 @pytest.fixture(autouse=True)
-def isolate_hardware_factory_side_effects(settings: Any) -> Iterator[None]:
+def isolate_hardware_factory_side_effects(
+    settings: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[None]:
     """Keep model factories local while preserving their database behavior."""
     settings.TESTING = True
-    with patch(
-        "micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin",
-        return_value=None,
-    ):
-        yield
+    monkeypatch.setattr(PluginRegistry, "get_plugin", lambda *_args, **_kwargs: None)
+    yield

@@ -42,7 +42,10 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
 def rate_limit_user(max_requests: int = 100, window_seconds: int = 60):
     """Rate limit decorator for authenticated users (delegates to service for cache key)."""
 
-    def key_func(request):
-        return get_user_cache_key(request, view_func_name="user_view")
+    def decorator(view_func):
+        def key_func(request):
+            return get_user_cache_key(request, view_func_name=view_func.__name__)
 
-    return rate_limit_view(max_requests, window_seconds, key_func)
+        return rate_limit_view(max_requests, window_seconds, key_func)(view_func)
+
+    return decorator

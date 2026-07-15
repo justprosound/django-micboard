@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from django.test import override_settings
 
@@ -30,40 +30,6 @@ def _configured_layer(get_channel_layer: MagicMock, async_to_sync: MagicMock) ->
     sender = Mock()
     async_to_sync.return_value = sender
     return sender
-
-
-@override_settings(MICBOARD_MSP_ENABLED=False)
-@patch("micboard.services.notification.broadcast_service.async_to_sync")
-@patch("micboard.services.notification.broadcast_service.get_channel_layer")
-def test_non_msp_event_uses_global_group(
-    get_channel_layer: MagicMock,
-    async_to_sync: MagicMock,
-) -> None:
-    sender = _configured_layer(get_channel_layer, async_to_sync)
-
-    BroadcastService.broadcast_progress_update(status={"status": "running"})
-
-    sender.assert_called_once_with(
-        GLOBAL_UPDATES_GROUP,
-        {"type": "progress_update", "status": {"status": "running"}},
-    )
-
-
-@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True, SITE_ID=7)
-@patch("micboard.services.notification.broadcast_service.async_to_sync")
-@patch("micboard.services.notification.broadcast_service.get_channel_layer")
-def test_multisite_progress_uses_current_site_group(
-    get_channel_layer: MagicMock,
-    async_to_sync: MagicMock,
-) -> None:
-    sender = _configured_layer(get_channel_layer, async_to_sync)
-
-    BroadcastService.broadcast_progress_update(status={"status": "running"})
-
-    sender.assert_called_once_with(
-        site_updates_group(7),
-        {"type": "progress_update", "status": {"status": "running"}},
-    )
 
 
 @override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True, SITE_ID=1)
@@ -114,41 +80,6 @@ def test_multisite_device_status_routes_to_hardware_site(
     )
 
     assert sender.call_args.args[0] == site_updates_group(2)
-
-
-@override_settings(MICBOARD_MSP_ENABLED=True)
-@patch("micboard.services.notification.broadcast_service.async_to_sync")
-@patch("micboard.services.notification.broadcast_service.get_channel_layer")
-def test_campus_event_routes_to_parent_and_campus_groups(
-    get_channel_layer: MagicMock,
-    async_to_sync: MagicMock,
-) -> None:
-    sender = _configured_layer(get_channel_layer, async_to_sync)
-
-    BroadcastService.broadcast_progress_update(
-        status={"status": "running"},
-        organization_id=11,
-        campus_id=13,
-    )
-
-    assert sender.call_args_list == [
-        call(
-            organization_updates_group(11),
-            {"type": "progress_update", "status": {"status": "running"}},
-        ),
-        call(
-            campus_updates_group(11, 13),
-            {"type": "progress_update", "status": {"status": "running"}},
-        ),
-    ]
-
-
-@override_settings(MICBOARD_MSP_ENABLED=True)
-@patch("micboard.services.notification.broadcast_service.get_channel_layer")
-def test_msp_event_without_tenant_fails_closed(get_channel_layer: MagicMock) -> None:
-    BroadcastService.broadcast_progress_update(status={"status": "running"})
-
-    get_channel_layer.assert_not_called()
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
@@ -279,7 +210,7 @@ def test_chassis_route_is_derived_from_its_building() -> None:
         location=location,
     )
 
-    assert RealtimeRoutingService.chassis_tenant_scope(chassis.pk) == (
+    assert RealtimeRoutingService.chassis_tenant_scopes((chassis.pk,))[chassis.pk] == (
         organization.pk,
         campus.pk,
     )

@@ -1,6 +1,6 @@
-"""Exceptions shared by Shure integration clients."""
+"""Shure-specific exceptions at the manufacturer integration boundary."""
 
-from micboard.services.common.base.exceptions import APIError, APIRateLimitError
+from micboard.exceptions import APIError, APIRateLimitError
 
 
 class ShureAPIError(APIError):

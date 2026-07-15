@@ -8,7 +8,7 @@ wireless audio hardware. It emphasizes:
 - **DRY Code**: Reduced duplication through registries and base classes
 - **Manufacturer-Agnostic Core**: Plugin architecture for manufacturer-specific logic
 - **Multi-Tenant Safe**: Site/Organization/Campus scoping with settings inheritance
-- **Settings Registry**: Centralized config with scope-aware fallback (global → site → org)
+- **Settings Registry**: Centralized typed config at each definition's exact declared scope
 
 ## Key Components
 
@@ -31,32 +31,34 @@ allowed = micboard_settings.allow_cross_org_view
 ```
 
 **Resolution Order** (`services/settings/settings_service.py`):
-1. Scoped database setting (organization, site, or manufacturer)
-2. Host `MICBOARD_CONFIG` dictionary
-3. Host feature-flag setting
+1. Immutable Django host setting for `MICBOARD_*` deployment controls
+2. Scoped database setting (organization, site, or manufacturer)
+3. Host `MICBOARD_CONFIG` dictionary
 4. App default
-5. Caller-provided default
+5. Registered definition default
+6. Caller-provided default
 
 ### 2. Plugin Architecture (Manufacturer-Agnostic)
 
-Manufacturer-specific logic lives in `micboard/integrations/<manufacturer>/`, inheriting from shared base classes in `micboard/integrations/common/`:
+Manufacturer-specific protocol logic lives in `micboard/integrations/<manufacturer>/`. Shared
+transport, response bounds, retries, rate limiting, health behavior, and plugin contracts live in
+`micboard/services/common/base/`; the common exception hierarchy lives in
+`micboard/exceptions.py`.
 
 ```
-micboard/integrations/
-  common/
-    __init__.py           # Plugin loader, shared exports
-    base.py               # ManufacturerPlugin, BasePlugin, BaseAPIClient
-    exceptions.py         # Shared exception taxonomy
-    rate_limiter.py       # Shared rate-limiting logic
-  shure/
-    __init__.py
-    plugin.py             # ShurePlugin implementation
-    client.py             # Shure HTTP client
-    websocket.py          # Real-time telemetry
-  sennheiser/
-    __init__.py
-    plugin.py             # SennheiserPlugin implementation
-    client.py             # Sennheiser HTTP client
+micboard/
+  exceptions.py
+  services/
+    common/base/
+      plugin.py           # ManufacturerPlugin and convention-based class discovery
+      client.py           # Verified HTTP transport
+      bounded_transport.py
+      rate_limiter.py
+    manufacturer/
+      plugin_registry.py  # Cached class lookup and instance construction
+  integrations/
+    shure/                 # REST, discovery, transforms, WebSocket
+    sennheiser/            # REST, discovery, transforms, SSE
 ```
 
 **Using the Plugin Registry:**
@@ -65,37 +67,21 @@ micboard/integrations/
 from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
 # Get plugin class
-plugin_class = PluginRegistry.get_plugin_class('shure')
+plugin_class = PluginRegistry.get_plugin_class("shure")
 
 # Get plugin instance
-plugin = PluginRegistry.get_plugin('shure', manufacturer=shure_obj)
+plugin = PluginRegistry.get_plugin("shure", manufacturer=shure_obj)
 
 # Get all active plugins
 plugins = PluginRegistry.get_all_active_plugins()
 ```
 
-**Implementing a New Plugin:**
-
-```python
-from micboard.services.common.base.plugin import ManufacturerPlugin
-
-class MyPlugin(ManufacturerPlugin):
-    manufacturer_code = 'mymanufacturer'
-
-    def get_devices(self) -> list:
-        # Fetch devices from API
-        pass
-
-    def poll_device(self, device_id: str) -> dict:
-        # Poll telemetry for a device
-        pass
-
-# Register in micboard/integrations/common/__init__.py
-def get_manufacturer_plugin(code: str):
-    if code == 'mymanufacturer':
-        return MyPlugin
-    raise ModuleNotFoundError(f"No plugin for {code}")
-```
+**Implementing a New Plugin:** Create `micboard/integrations/<code>/plugin.py` with a concrete,
+conventionally named `ManufacturerPlugin` subclass. For code `my_manufacturer`, the loader prefers
+`MyManufacturerPlugin`. Create a matching active `Manufacturer` row, then verify discovery with
+`PluginRegistry.get_plugin_class("my_manufacturer")`. There is no central registration map or
+package re-export to edit. See [Manufacturer plugin development](../docs/plugin-development.md) for
+the complete contract.
 
 ### 3. Multi-Tenancy
 
@@ -123,27 +109,24 @@ MICBOARD_SITE_ISOLATION = 'organization'
 devices = WirelessUnit.objects.for_user(user=request.user)
 ```
 
-### 4. Settings Registry
+### 4. Scoped Settings
 
 Add custom app settings with scope-aware resolution:
 
 ```python
-from micboard.services.shared.settings_registry import SettingsRegistry
+from micboard.services.settings.settings_service import settings as micboard_settings
 
-# Get with scope hierarchy
-value = SettingsRegistry.get(
+# Resolve at the setting definition's declared scope
+value = micboard_settings.get(
     'CUSTOM_KEY',
     organization=org,
     site=site,
     manufacturer=manufacturer,
-    default='fallback'
+    default='fallback',
 )
 
-# Required settings raise error if not found
-value = SettingsRegistry.get(
-    'REQUIRED_KEY',
-    required=True
-)
+# Deployment controls are host-owned and cannot be overridden by database rows.
+limit = micboard_settings.get('MICBOARD_REALTIME_MAX_DEVICES', 128)
 ```
 
 ## Models & Domains
@@ -171,8 +154,11 @@ Core services in `micboard/services/`:
 
 - `manufacturer/plugin_registry.py`: Manufacturer plugin loading
 - `settings/settings_service.py`: Unified host and scoped settings resolution
-- `shared/settings_registry.py`: Database-backed scope resolution
-- `manufacturer/manufacturer_config_registry.py`: Per-manufacturer configuration
+- `settings/registry.py`: Internal database-backed scope resolution
+- `settings/persistence_service.py`: Authorized scoped setting writes
+- `hardware/wireless_chassis_persistence_service.py`: Typed chassis create/update/upsert boundary
+- `hardware/chassis_lifecycle_service.py`: Chassis save transitions and committed side effects
+- `hardware/chassis_regulatory_service.py`: Band-plan detection, enrichment, and coverage
 - `core/hardware.py`: Hardware query and synchronization facade
 - `core/hardware_sync.py`: Hardware status and channel synchronization
 - `sync/polling_api.py`: Direct API polling
@@ -202,7 +188,7 @@ uv run --no-sync pytest --cov=micboard  # With coverage
 
 ## Best Practices for Contributors
 
-1. **Always use the registry pattern** for settings/config
+1. **Always use `SettingsService`** for settings reads and the persistence service for writes
 2. **Extend base classes** for models, views, services
 3. **Add type hints** for all public functions
 4. **Document scope requirements** (tenant, site, org)
@@ -212,18 +198,17 @@ uv run --no-sync pytest --cov=micboard  # With coverage
 
 ## Release Checklist
 
-- [ ] All tests pass: `uv run --no-sync pytest --cov=micboard --cov-fail-under=85`
+- [ ] All tests pass: `uv run --no-sync pytest --cov=micboard --cov-branch --cov-fail-under=95`
 - [ ] Ruff checks: `uv run --no-sync ruff check .`
 - [ ] Pre-commit hooks: `uv run --no-sync pre-commit run --all-files`
 - [ ] No tracked dev artifacts (db.sqlite3, .env, egg-info)
 - [ ] CHANGELOG.md updated
-- [ ] Version number updated (pyproject.toml, __init__.py)
+- [ ] Version number updated in `pyproject.toml` (`micboard.__version__` reads package metadata)
 
 ## Further Reading
 
-- [Settings System](micboard/settings/multitenancy.py)
-- [Plugin System](micboard/integrations/common/base.py)
-- [Models](micboard/models/)
-- [Contributing](CONTRIBUTING.md)
-- [Tests](tests/)
-"""
+- [Settings System](../SETTINGS_MANAGEMENT.md)
+- [Plugin System](../docs/plugin-development.md)
+- [Models](models/)
+- [Contributing](../CONTRIBUTING.md)
+- [Tests](../tests/)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -14,11 +13,12 @@ import pytest
 from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.models.hardware.charger import Charger
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.sync.discovery_approval_policy import DiscoveryApprovalBatchPolicy
-from micboard.services.sync.discovery_approval_resolution import (
+from micboard.services.sync.discovery_approval_inventory import (
     ApprovalIPOwners,
-    DiscoveryApprovalResolver,
+    LockedApprovalInventory,
 )
+from micboard.services.sync.discovery_approval_policy import DiscoveryApprovalBatchPolicy
+from micboard.services.sync.discovery_approval_resolution import DiscoveryApprovalResolver
 from micboard.services.sync.discovery_approval_service import (
     DiscoveryApprovalResult,
     DiscoveryApprovalService,
@@ -259,12 +259,7 @@ def test_manufacturer_null_charger_rejects_conflicting_batch_manufacturers() -> 
 def test_owner_snapshot_preserves_duplicate_ids_and_rejects_ambiguity() -> None:
     """Malformed duplicate owners must remain visible to fail-closed policy."""
     ip = "192.0.2.158"
-    owner_ids = DiscoveryApprovalResolver._owner_ids_by_ip(
-        (
-            SimpleNamespace(pk=41, ip=ip),
-            SimpleNamespace(pk=42, ip=ip),
-        )
-    )
+    owner_ids = {ip: (41, 42)}
     charger = ChargerFactory(ip="192.0.2.159")
     queue_item = DiscoveryQueueFactory(
         manufacturer=charger.manufacturer,
@@ -280,6 +275,32 @@ def test_owner_snapshot_preserves_duplicate_ids_and_rejects_ambiguity() -> None:
     assert owner_ids == {ip: (41, 42)}
     with pytest.raises(ValidationError, match="multiple wireless chassis"):
         policy.validate_charger(item=queue_item, charger=charger)
+
+
+def test_approval_rejects_ambiguous_chassis_serial_inventory() -> None:
+    """A serial shared by managed chassis cannot select an arbitrary approval target."""
+    first_chassis = WirelessChassisFactory(
+        api_device_id="first-shared-serial-api",
+        serial_number="shared-inventory-serial",
+        ip="192.0.2.163",
+    )
+    WirelessChassisFactory(
+        manufacturer=first_chassis.manufacturer,
+        api_device_id="second-shared-serial-api",
+        serial_number=first_chassis.serial_number,
+        ip="192.0.2.164",
+    )
+    queue_item = DiscoveryQueueFactory(
+        manufacturer=first_chassis.manufacturer,
+        api_device_id="",
+        serial_number=first_chassis.serial_number,
+        ip="192.0.2.165",
+    )
+
+    with pytest.raises(ValidationError, match="match multiple chassis"):
+        _approve(queue_item)
+
+    _assert_review_pending(queue_item)
 
 
 def test_inventory_targets_are_prelocked_once_in_stable_model_queries(
@@ -304,10 +325,12 @@ def test_inventory_targets_are_prelocked_once_in_stable_model_queries(
     )
 
     with transaction.atomic():
-        inventory = DiscoveryApprovalResolver.lock_inventory([first_item, second_item])
+        inventory = LockedApprovalInventory.lock([first_item, second_item])
         assert [chassis.pk for chassis in inventory.chassis] == sorted(
             [first_chassis.pk, second_chassis.pk]
         )
+        assert set(inventory.chassis_by_pk) == {first_chassis.pk, second_chassis.pk}
+        inventory.chassis = ()
         with django_assert_num_queries(0):
             first_target = DiscoveryApprovalResolver.resolve_chassis(
                 first_item,
@@ -327,7 +350,7 @@ def test_approval_locks_addresses_before_inventory_rows() -> None:
     item = DiscoveryQueueFactory(ip="192.0.2.162")
     reviewer = UserFactory(is_staff=True, is_superuser=True)
     call_order: list[str] = []
-    lock_inventory = DiscoveryApprovalResolver.lock_inventory
+    lock_inventory = LockedApprovalInventory.lock
 
     def observe_inventory(items: list[DiscoveryQueue], *, using: str) -> Any:
         call_order.append("inventory")
@@ -340,8 +363,8 @@ def test_approval_locks_addresses_before_inventory_rows() -> None:
             side_effect=lambda *args, **kwargs: call_order.append("addresses"),
         ) as lock_addresses,
         patch.object(
-            DiscoveryApprovalResolver,
-            "lock_inventory",
+            LockedApprovalInventory,
+            "lock",
             side_effect=observe_inventory,
         ),
     ):

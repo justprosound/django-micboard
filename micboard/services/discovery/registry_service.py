@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
-def discovery_manufacturer_for_config(config) -> int | None:
+if TYPE_CHECKING:
+    from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN, MicboardConfig
+
+
+def discovery_manufacturer_for_config(config: MicboardConfig) -> int | None:
     """Return the manufacturer to rescan after a relevant config change."""
     if config.manufacturer and config.key in (
         "SHURE_DISCOVERY_CIDRS",
@@ -13,6 +18,6 @@ def discovery_manufacturer_for_config(config) -> int | None:
     return None
 
 
-def discovery_manufacturer_for_entry(entry) -> int:
+def discovery_manufacturer_for_entry(entry: DiscoveryCIDR | DiscoveryFQDN) -> int:
     """Return the manufacturer to rescan after a registry entry change."""
     return entry.manufacturer_id

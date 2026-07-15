@@ -34,9 +34,11 @@ from typing import Any, Protocol
 
 from asgiref.sync import sync_to_async
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 websockets: Any
-WebsocketClosedOKError: type[BaseException]
-WebsocketConnectionClosedError: type[BaseException]
+WebsocketClosedOKError: type[Exception]
+WebsocketConnectionClosedError: type[Exception]
 
 try:
     import websockets as websockets_package
@@ -81,8 +83,11 @@ def _parse_transport_id_from_message(message: str | bytes) -> str | None:
             message = message.decode("utf-8")
         payload = json.loads(message)
         return payload.get("transportId")
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        logger.exception("Failed to parse WebSocket transport ID message")
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        logger.exception(
+            "Failed to parse WebSocket transport ID message",
+            exc_info=sanitized_exception_info(exc),
+        )
         return None
 
 
@@ -97,8 +102,11 @@ def _subscribe_client_to_transport(client, device_id: str, transport_id: str) ->
         else:
             logger.error("Failed to subscribe to Shure device updates")
             raise ShureWebSocketError("Failed to subscribe to Shure device updates")
-    except ShureAPIError:
-        logger.exception("Error during Shure REST subscription")
+    except ShureAPIError as exc:
+        logger.exception(
+            "Error during Shure REST subscription",
+            exc_info=sanitized_exception_info(exc),
+        )
         raise
 
 
@@ -114,11 +122,17 @@ async def _read_and_dispatch_messages(
             callback_result = callback(data)
             if isawaitable(callback_result):
                 await callback_result
-        except json.JSONDecodeError:
-            logger.exception("Failed to parse Shure WebSocket message")
+        except json.JSONDecodeError as exc:
+            logger.exception(
+                "Failed to parse Shure WebSocket message",
+                exc_info=sanitized_exception_info(exc),
+            )
             continue
-        except Exception:
-            logger.exception("Error processing WebSocket message")
+        except Exception as exc:
+            logger.exception(
+                "Error processing WebSocket message",
+                exc_info=sanitized_exception_info(exc),
+            )
             continue
 
 
@@ -177,13 +191,19 @@ async def connect_and_subscribe(
 
     except WebsocketClosedOKError:
         logger.info("Shure API WebSocket connection closed gracefully")
-    except WebsocketConnectionClosedError:
-        logger.exception("Shure API WebSocket connection closed with error")
+    except WebsocketConnectionClosedError as exc:
+        logger.exception(
+            "Shure API WebSocket connection closed with error",
+            exc_info=sanitized_exception_info(exc),
+        )
         raise ShureWebSocketError("Shure WebSocket connection error") from None
     except ShureWebSocketError:
         raise
     except ShureAPIError:
         raise
-    except Exception:
-        logger.exception("Unhandled error in Shure API WebSocket connection")
+    except Exception as exc:
+        logger.exception(
+            "Unhandled error in Shure API WebSocket connection",
+            exc_info=sanitized_exception_info(exc),
+        )
         raise ShureWebSocketError("Unhandled Shure WebSocket error") from None

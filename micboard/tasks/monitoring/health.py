@@ -4,120 +4,118 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 from django.core.cache import cache
-from django.utils import timezone
 
-from micboard.models.discovery import Manufacturer
-from micboard.models.realtime import RealTimeConnection
-from micboard.models.telemetry import APIHealthLog
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.telemetry.health import APIHealthLog
 from micboard.services.common.base.plugin import get_manufacturer_plugin
 from micboard.services.notification.broadcast_service import BroadcastService
-from micboard.services.realtime.connection_service import mark_disconnected
+from micboard.services.realtime.health_dtos import RealtimeConnectionHealthResult
+from micboard.services.realtime.health_service import RealtimeConnectionHealthService
+from micboard.services.shared.api_health import (
+    API_HEALTH_AGGREGATE_CACHE_KEY,
+    API_HEALTH_SNAPSHOT_CACHE_PREFIX,
+    sanitize_public_api_health_snapshot,
+)
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
 
-def check_manufacturer_api_health(manufacturer_id: int):
+def check_selected_api_server_connections(
+    api_server_ids: list[int],
+    actor_id: int,
+    using: str = "default",
+) -> dict[str, int | bool]:
+    """Run one bounded API server health-check batch outside the request process."""
+    from micboard.services.integrations.api_server_service import APIServerConnectionService
+
+    return APIServerConnectionService.test_selected_connections(
+        api_server_ids=api_server_ids,
+        actor_id=actor_id,
+        using=using,
+    ).model_dump()
+
+
+def _publish_manufacturer_api_health(manufacturer: Manufacturer, health_data: object) -> None:
+    """Persist and emit one bounded, secret-safe manufacturer health snapshot."""
+    snapshot = sanitize_public_api_health_snapshot(health_data)
+    snapshot_data = snapshot.model_dump(exclude_none=True)
+    APIHealthLog.objects.create(
+        manufacturer=manufacturer,
+        status=snapshot.status,
+        response_time=snapshot.response_time,
+        error_message=snapshot.error or "",
+        details=snapshot_data,
+    )
+    cache.set(
+        f"{API_HEALTH_SNAPSHOT_CACHE_PREFIX}{manufacturer.code}",
+        snapshot_data,
+        timeout=60,
+    )
+    cache.delete(API_HEALTH_AGGREGATE_CACHE_KEY)
+    logger.info("API health for %s: %s", manufacturer.code, snapshot_data)
+    BroadcastService.broadcast_api_health(manufacturer=manufacturer, health_data=snapshot_data)
+
+
+def check_manufacturer_api_health(manufacturer_id: int) -> None:
     """Task to check a specific manufacturer's API health."""
     try:
-        manufacturer = Manufacturer.objects.get(pk=manufacturer_id)
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
-        health_status = plugin.get_client().check_health()
-
-        # Log the health status
-        APIHealthLog.objects.create(
-            manufacturer=manufacturer,
-            status=health_status.get("status", "unknown"),
-            response_time=health_status.get("response_time"),
-            error_message=health_status.get("error", ""),
-            details=health_status,
-        )
-
-        # Optionally, store health status in cache or update a model field
-        cache.set(f"api_health_{manufacturer.code}", health_status, timeout=60)
-        logger.info("API health for %s: %s", manufacturer.code, health_status)
-
-        # Broadcast health status
-        BroadcastService.broadcast_api_health(manufacturer=manufacturer, health_data=health_status)
-
+        manufacturer = Manufacturer.objects.get(pk=manufacturer_id, is_active=True)
     except Manufacturer.DoesNotExist:
         logger.warning(
-            "Manufacturer with ID %s not found for API health check task.", manufacturer_id
+            "Manufacturer with ID %s not found or inactive for API health check task.",
+            manufacturer_id,
         )
-    except Exception as e:
-        logger.exception("Error checking API health for manufacturer ID %s: %s", manufacturer_id, e)
+        return
+    except Exception as exc:
+        logger.exception(
+            "Error loading manufacturer ID %s for API health check",
+            manufacturer_id,
+            exc_info=sanitized_exception_info(exc),
+        )
+        return
 
-
-def check_realtime_connection_health():
-    """Task to check health of real-time connections and clean up stale connections."""
     try:
-        # Check for connections that haven't received messages recently
-        stale_threshold = timezone.now() - timedelta(minutes=10)
-        stale_connections = RealTimeConnection.objects.filter(
-            status="connected", last_message_at__lt=stale_threshold
+        plugin_class = get_manufacturer_plugin(manufacturer.code)
+        plugin = plugin_class(manufacturer)
+        health_status: object = plugin.get_client().check_health()
+    except Exception as exc:
+        logger.exception(
+            "Error checking API health for manufacturer ID %s",
+            manufacturer_id,
+            exc_info=sanitized_exception_info(exc),
+        )
+        health_status = {"status": "error", "error": True}
+
+    try:
+        _publish_manufacturer_api_health(manufacturer, health_status)
+    except Exception as exc:
+        logger.exception(
+            "Error publishing API health for manufacturer ID %s",
+            manufacturer_id,
+            exc_info=sanitized_exception_info(exc),
         )
 
-        for connection in stale_connections:
-            logger.warning(
-                "Real-time connection for %s appears stale (last message: %s)",
-                connection.chassis,
-                connection.last_message_at,
-            )
-            mark_disconnected(connection, "Connection appears stale - no messages received")
 
-        # Check for connections that have been in error state too long
-        error_threshold = timezone.now() - timedelta(hours=1)
-        old_error_connections = RealTimeConnection.objects.filter(
-            status="error", last_error_at__lt=error_threshold
-        )
-
-        for connection in old_error_connections:
-            logger.info("Resetting old error state for connection: %s", connection.chassis)
-            connection.status = "disconnected"
-            connection.error_count = 0
-            connection.error_message = ""
-            connection.save()
-
-        # Log summary
-        active_connections = RealTimeConnection.objects.filter(status="connected").count()
-        error_connections = RealTimeConnection.objects.filter(status="error").count()
+def check_realtime_connection_health() -> dict[str, int | bool | str | None]:
+    """Run one bounded real-time connection maintenance sweep."""
+    try:
+        result = RealtimeConnectionHealthService.cleanup()
         logger.info(
             "Real-time connection health check: %d active, %d errors, %d stale reset",
-            active_connections,
-            error_connections,
-            stale_connections.count(),
+            result.active,
+            result.errors,
+            result.stale_disconnected,
         )
-
-    except Exception as e:
-        logger.exception("Error checking real-time connection health: %s", e)
-
-
-def get_realtime_connection_status():
-    """Get a summary of real-time connection statuses.
-
-    Returns:
-        dict: Summary of connection statuses
-    """
-    try:
-        total = RealTimeConnection.objects.count()
-        connected = RealTimeConnection.objects.filter(status="connected").count()
-        connecting = RealTimeConnection.objects.filter(status="connecting").count()
-        disconnected = RealTimeConnection.objects.filter(status="disconnected").count()
-        error = RealTimeConnection.objects.filter(status="error").count()
-        stopped = RealTimeConnection.objects.filter(status="stopped").count()
-
-        return {
-            "total": total,
-            "connected": connected,
-            "connecting": connecting,
-            "disconnected": disconnected,
-            "error": error,
-            "stopped": stopped,
-            "healthy_percentage": (connected / total * 100) if total > 0 else 0,
-        }
-    except Exception as e:
-        logger.exception("Error getting real-time connection status: %s", e)
-        return {"error": str(e)}
+        return result.model_dump()
+    except Exception as exc:
+        logger.exception(
+            "Error checking real-time connection health",
+            exc_info=sanitized_exception_info(exc),
+        )
+        return RealtimeConnectionHealthResult(
+            failed=True,
+            error_type=type(exc).__name__,
+        ).model_dump()

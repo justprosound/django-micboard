@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import Paginator
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from micboard.models.monitoring.alert import Alert
+from micboard.services.monitoring.alert_browse_dtos import AlertBrowseCriteria
+from micboard.services.monitoring.alert_browse_service import AlertBrowseService
 from micboard.services.monitoring.alerts import (
     acknowledge_alert,
     get_alerts_for_user,
@@ -32,47 +33,37 @@ from micboard.services.monitoring.alerts import (
 @require_http_methods(["GET"])
 def alerts_view(request: HttpRequest) -> HttpResponse:
     """View to display and manage system alerts."""
-    status_filter = request.GET.get("status", "pending")
-    alert_type_filter = request.GET.get("type", "")
-    page_number = request.GET.get("page", 1)
-
-    # Base queryset
-    visible_alerts = get_alerts_for_user(request.user)
-    alerts = visible_alerts.select_related(
-        "assignment__performer",
-        "assignment__wireless_unit__base_chassis__location",
-        "channel__chassis",
-        "user",
-    ).order_by("-created_at")
-
-    # Apply filters
-    if status_filter and status_filter != "all":
-        alerts = alerts.filter(status=status_filter)
-    if alert_type_filter:
-        alerts = alerts.filter(alert_type=alert_type_filter)
-
-    # Paginate results
-    paginator = Paginator(alerts, 25)  # 25 alerts per page
-    page_obj = paginator.get_page(page_number)
-
-    # Alert statistics
-    stats = {
-        "total": visible_alerts.count(),
-        "pending": visible_alerts.filter(status="pending").count(),
-        "acknowledged": visible_alerts.filter(status="acknowledged").count(),
-        "resolved": visible_alerts.filter(status="resolved").count(),
-        "failed": visible_alerts.filter(status="failed").count(),
-    }
+    criteria = AlertBrowseCriteria(
+        status=request.GET.get("status", "pending"),
+        alert_type=request.GET.get("type", ""),
+        page=request.GET.get("page", 1),
+    )
+    browse = AlertBrowseService.get_page(user=request.user, criteria=criteria)
 
     context = {
-        "alerts": page_obj,
-        "stats": stats,
-        "status_filter": status_filter,
-        "alert_type_filter": alert_type_filter,
+        "browse": browse,
+        "stats": AlertBrowseService.get_stats(user=request.user),
+        "status_filter": criteria.status,
+        "alert_type_filter": criteria.alert_type,
         "alert_types": Alert.ALERT_TYPES,
         "alert_statuses": Alert.ALERT_STATUS,
     }
     return render(request, "micboard/alerts.html", context)
+
+
+@login_required
+@require_http_methods(["GET"])
+def alert_rows_view(request: HttpRequest) -> HttpResponse:
+    """Return only bounded alert rows for live refreshes."""
+    browse = AlertBrowseService.get_rows(
+        user=request.user,
+        criteria=AlertBrowseCriteria(
+            status=request.GET.get("status", "pending"),
+            alert_type=request.GET.get("type", ""),
+            page=request.GET.get("page", 1),
+        ),
+    )
+    return render(request, "micboard/partials/alert_rows.html", {"browse": browse})
 
 
 @login_required

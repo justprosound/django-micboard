@@ -31,6 +31,7 @@ class SettingsDefaultsTests(SimpleTestCase):
     def test_defaults_live_outside_app_config(self) -> None:
         """Settings consumers can load defaults without importing ``micboard.apps``."""
         self.assertFalse(hasattr(MicboardConfig, "default_config"))
+        self.assertFalse(hasattr(MicboardConfig, "get_config"))
         self.assertEqual(
             DEFAULT_CONFIG,
             {

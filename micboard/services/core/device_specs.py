@@ -10,6 +10,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 if TYPE_CHECKING:  # pragma: no cover
     from micboard.models.discovery.manufacturer import Manufacturer
 
@@ -49,10 +51,13 @@ class DeviceSpecService:
         from micboard.models.device_specs import (
             get_channel_count,
             get_dante_support,
+            get_device_spec,
         )
 
         try:
             mfg_code = manufacturer.code.lower() if hasattr(manufacturer, "code") else ""
+            if get_device_spec(manufacturer=mfg_code, model=model) is None:
+                return None
 
             max_channels = get_channel_count(
                 manufacturer=mfg_code,
@@ -69,8 +74,12 @@ class DeviceSpecService:
                 model=model,
                 manufacturer=mfg_code,
             )
-        except Exception as e:
-            logger.warning("Failed to get specs for %s/%s: %s", manufacturer.code, model, e)
+        except Exception as exc:
+            logger.warning(
+                "Failed to get device specifications for manufacturer %s",
+                getattr(manufacturer, "pk", None),
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
     @staticmethod

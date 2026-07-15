@@ -78,6 +78,7 @@ import os
 
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "your_project.settings")
@@ -87,7 +88,9 @@ from micboard.websockets.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
+    "websocket": AllowedHostsOriginValidator(
+        AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+    ),
 })
 ```
 
@@ -180,14 +183,9 @@ Polling and subscription tasks feed real-time updates for:
 uv run --no-sync python manage.py check
 ```
 
-2. Run device discovery:
-```bash
-uv run --no-sync python manage.py device_discovery --help
-```
+2. Sign in to Django admin and inspect the registered Micboard models.
 
-3. Sign in to Django admin and inspect the registered Micboard models.
-
-4. Check real-time connection status:
+3. Check real-time connection status:
 ```bash
 uv run --no-sync python manage.py realtime_status --verbose
 ```
@@ -196,10 +194,19 @@ uv run --no-sync python manage.py realtime_status --verbose
 
 The system now supports real-time updates via WebSocket (Shure) and SSE (Sennheiser):
 
-- **Automatic Subscription**: Queued polling starts real-time subscriptions after it completes
+- **Explicit Subscription**: Run `websocket_subscribe` or `sse_subscribe` as a foreground process,
+  or explicitly enqueue its registered native Huey entrypoint
+- **Independent Polling**: Queued polling never starts or multiplies subscription supervisors
+- **Singleton Safety**: Multi-process deployments use a shared Django cache lease; restart after a
+  stop or crash can take up to 60 seconds
 - **Connection Monitoring**: Use `uv run --no-sync python manage.py realtime_status` to check connection health
 - **Admin Interface**: Monitor connections in Django Admin under "Real-Time Connections"
 - **Health Monitoring**: Automatic cleanup of stale connections and error recovery
+
+```bash
+uv run --no-sync python manage.py websocket_subscribe
+uv run --no-sync python manage.py sse_subscribe --manufacturer sennheiser
+```
 
 ### Connection States
 - `connecting` - Establishing connection

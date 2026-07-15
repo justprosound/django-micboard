@@ -1,18 +1,24 @@
 # PRD-003: Plugin Standardization & Infrastructure Unification
 
-**Status:** In Progress
+**Status:** Implemented
 **Date:** 2026-05-20
+**Updated:** 2026-07-14
 
 ## Problem Statement
 
-Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-90% structurally identical, with copy-pasted patterns for HTTP clients, rate limiting, retry logic, and data transformation. Two parallel settings resolution mechanisms (`conf.py` and `SettingsRegistryService`) create inconsistent access patterns. A legacy compat shim (`micboard/manufacturers/`) used fragile `sys.modules` patching (removed in ADR-008).
+Manufacturer integrations need common transport, retry, rate-limit, health, plugin-loading, and
+exception behavior without hiding protocol differences behind a broad inheritance tree. Shure uses
+REST and WebSocket transports; Sennheiser SSCv2 uses REST and SSE, with different discovery and
+payload contracts. Two parallel settings mechanisms and the legacy `micboard/manufacturers/` shim
+also created ambiguous import and configuration paths.
 
 ## Goals
 
-1. Extract shared plugin framework reducing per-manufacturer code by 40-60%.
+1. Establish one verified transport and plugin-contract seam under `micboard/services/common/base/`.
 2. Unify all settings access through a single `SettingsService`.
 3. Remove the `micboard/manufacturers/` compat shim entirely.
 4. Eliminate all direct `settings.MICBOARD_CONFIG` reads (~20+ files).
+5. Keep protocol-specific clients, discovery, transforms, and streaming adapters manufacturer-local.
 
 ## Non-Goals
 
@@ -24,9 +30,9 @@ Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-
 
 | Area | ADR | Issues |
 |------|-----|--------|
-| Build shared plugin framework | ADR-004 | #63 |
-| Refactor Shure plugin | ADR-004 | #64 |
-| Refactor Sennheiser plugin | ADR-004 | #65 |
+| Establish shared transport and plugin contracts | ADR-004 | #63 |
+| Keep Shure protocol behavior local | ADR-004 | #64 |
+| Keep Sennheiser protocol behavior local | ADR-004 | #65 |
 | Remove compat shim | ADR-008 | #66 |
 | Implement unified SettingsService | ADR-005 | #67 |
 | Migrate direct settings reads | ADR-005 | #68 |
@@ -34,31 +40,45 @@ Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-
 
 ## Design
 
-- **Plugin framework:** Extract `micboard/integrations/common/` with shared HTTP client, base plugin, base discovery client, base transformers, and exception taxonomy. Shure and Sennheiser inherit from these bases, overriding only protocol-specific details.
+- **Shared contracts:** Keep verified HTTP transport, bounded responses, retries, circuit breaking,
+  health behavior, rate limiting, and plugin interfaces in `micboard/services/common/base/`; keep the
+  exception hierarchy in `micboard/exceptions.py`.
+- **Convention-based loading:** `PluginRegistry` delegates class discovery to
+  `get_manufacturer_plugin(code)`, which imports `micboard.integrations.<code>.plugin` and selects the
+  conventionally named concrete `ManufacturerPlugin` subclass. There is no central plugin map.
+- **Protocol ownership:** Shure and Sennheiser retain manufacturer-local device, discovery,
+  transform, and streaming adapters. Only transport-neutral behavior with two verified consumers is
+  shared.
+- **Production surface:** Vendor clients expose only endpoints consumed by the plugin and service
+  contracts. Speculative enrichment calls and duplicate polling orchestration are removed without
+  compatibility wrappers.
 - **Settings unification:** `SettingsService.get(key, default=None, organization=None, site=None,
   manufacturer=None)` is the single entry point. The former proxy shim is removed, and a lint
   rule forbids direct `settings.MICBOARD_CONFIG` access.
-- **Shim removal:** Single PR — delete `micboard/manufacturers/`, update all imports to `micboard.integrations.*`, merge `base.py` into `integrations/common/`.
+- **Shim removal:** Delete `micboard/manufacturers/`, update imports to defining modules, and use
+  shared contracts directly from `micboard.services.common.base` without compatibility exports.
 
 ## Success Metrics
 
-- Shure plugin: ≤500 lines (from ~1,153).
-- Sennheiser plugin: ≤400 lines (from ~772).
+- Shared transport and plugin behavior has one canonical implementation under `services/common/base/`.
+- Protocol-specific integrations remain independently testable and locally readable.
+- Plugin discovery requires no registry-map edit for a new conventionally named integration.
 - No imports from `micboard.manufacturers`.
 - No direct `settings.MICBOARD_CONFIG` reads outside `SettingsService`.
 - `uv run ruff check .` and `uv run pytest` pass.
 
 ## Risks
 
-- **Protocol divergence:** Shure uses WebSocket for streaming; Sennheiser uses SSE. Base classes must be overridable at the method level to accommodate this.
+- **Protocol divergence:** Broad shared discovery or transformer bases would obscure vendor-specific
+  semantics. Keep those adapters local and extract only proven common behavior.
 - **Import chain disruption:** Shim removal and settings migration must be coordinated to avoid broken CI mid-migration.
 - **Missed settings readers:** May discover additional direct `settings.MICBOARD_CONFIG` reads during migration — plan for iterative cleanup.
 
 ## Issues
 
-- #63 — refactor: build shared plugin framework in integrations/common/
-- #64 — refactor: refactor Shure plugin to use shared base classes
-- #65 — refactor: refactor Sennheiser plugin to use shared base classes
+- #63 — refactor: establish shared transport and plugin contracts
+- #64 — refactor: align Shure with shared transport contracts
+- #65 — refactor: align Sennheiser with shared transport contracts
 - #66 — chore: remove micboard/manufacturers/ compat shim
 - #67 — refactor: implement unified SettingsService
 - #68 — refactor: migrate all direct settings.MICBOARD_CONFIG reads
@@ -66,6 +86,6 @@ Manufacturer plugin stacks (Shure: ~1,153 lines, Sennheiser: ~772 lines) are 80-
 
 ## References
 
-- ADR-004: Standardize Manufacturer Plugin System
+- ADR-004: Compose Manufacturer Plugins Around Shared Transport
 - ADR-005: Unify Settings Proxy
 - ADR-008: Remove Compat Shim

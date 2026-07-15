@@ -10,7 +10,7 @@ from django.urls import reverse
 from micboard.forms.settings import BulkSettingConfigForm, ManufacturerSettingsForm
 from micboard.forms.settings_admin import SettingDefinitionForm
 from micboard.models.settings.registry import Setting, SettingDefinition
-from micboard.services.shared.settings_registry import SettingsRegistry
+from micboard.services.settings.settings_service import settings
 from micboard.views.settings import BulkSettingConfigView, ManufacturerSettingsView
 from tests.admin.helpers import create_tenant_inventory
 from tests.factories.base import UserFactory
@@ -81,7 +81,7 @@ class SettingsAdminCacheInvalidationTests(TestCase):
             setting_type=SettingDefinition.TYPE_INTEGER,
             default_value="5",
         )
-        self.assertEqual(SettingsRegistry.get("poll_interval"), 5)
+        self.assertEqual(settings.get("poll_interval"), 5)
 
         response = self.client.post(
             reverse("admin:micboard_settingdefinition_change", args=[definition.pk]),
@@ -99,7 +99,7 @@ class SettingsAdminCacheInvalidationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(SettingsRegistry.get("poll_interval"), 15)
+        self.assertEqual(settings.get("poll_interval"), 15)
 
     def test_setting_delete_invalidates_cached_value(self) -> None:
         """Deleting a stored override must expose its definition default immediately."""
@@ -110,7 +110,7 @@ class SettingsAdminCacheInvalidationTests(TestCase):
             default_value="30",
         )
         setting = Setting.objects.create(definition=definition, value="60")
-        self.assertEqual(SettingsRegistry.get("cache_timeout"), 60)
+        self.assertEqual(settings.get("cache_timeout"), 60)
 
         response = self.client.post(
             reverse("admin:micboard_setting_delete", args=[setting.pk]),
@@ -119,7 +119,7 @@ class SettingsAdminCacheInvalidationTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Setting.objects.filter(pk=setting.pk).exists())
-        self.assertEqual(SettingsRegistry.get("cache_timeout"), 30)
+        self.assertEqual(settings.get("cache_timeout"), 30)
 
 
 class SettingDefinitionTransitionFormTests(TestCase):

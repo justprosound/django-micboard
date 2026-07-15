@@ -15,7 +15,6 @@ State Transitions:
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -25,7 +24,6 @@ from django.utils import timezone
 if TYPE_CHECKING:  # pragma: no cover
     from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.models.hardware.wireless_unit import WirelessUnit
-    from micboard.services.maintenance.logging import StructuredLogger
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +39,6 @@ class HardwareStatus(StrEnum):
     MAINTENANCE = "maintenance"  # Administratively disabled
     RETIRED = "retired"  # Permanently decommissioned
 
-    @classmethod
-    def choices(cls):
-        """Django model choices format."""
-        return [(status.value, status.name.replace("_", " ").title()) for status in cls]
-
-    @classmethod
-    def active_states(cls) -> list[str]:
-        """States where device is considered active."""
-        return [cls.ONLINE.value, cls.DEGRADED.value, cls.PROVISIONING.value]
-
-    @classmethod
-    def inactive_states(cls) -> list[str]:
-        """States where device is considered inactive."""
-        return [cls.OFFLINE.value, cls.MAINTENANCE.value, cls.RETIRED.value]
-
 
 class HardwareLifecycleManager:
     """Centralized manager for device lifecycle operations.
@@ -63,7 +46,6 @@ class HardwareLifecycleManager:
     Handles:
     - State transitions with validation
     - Bi-directional sync with manufacturer APIs
-    - Activity logging
     - Health monitoring
 
     Does NOT use signals for state management (signals only for broadcasts).
@@ -105,21 +87,6 @@ class HardwareLifecycleManager:
         HardwareStatus.RETIRED.value: [],  # Terminal state
     }
 
-    def __init__(
-        self,
-        service_code: str | None = None,
-        *,
-        structured_logger: StructuredLogger | None = None,
-    ) -> None:
-        """Initialize lifecycle manager.
-
-        Args:
-            service_code: Optional manufacturer service code for logging context
-            structured_logger: Optional structured logger instance for consistent event formatting
-        """
-        self.service_code = service_code
-        self._logger = structured_logger or get_structured_logger()
-
     def transition_device(
         self,
         device: WirelessChassis | WirelessUnit,
@@ -127,7 +94,6 @@ class HardwareLifecycleManager:
         *,
         reason: str = "",
         metadata: dict[str, Any] | None = None,
-        sync_to_api: bool = False,
     ) -> bool:
         """Transition a device on the database that supplied the instance."""
         using = device._state.db or DEFAULT_DB_ALIAS
@@ -137,7 +103,6 @@ class HardwareLifecycleManager:
                 to_status,
                 reason=reason,
                 metadata=metadata,
-                sync_to_api=sync_to_api,
                 using=using,
             )
 
@@ -148,7 +113,6 @@ class HardwareLifecycleManager:
         *,
         reason: str = "",
         metadata: dict[str, Any] | None = None,
-        sync_to_api: bool = False,
         using: str = DEFAULT_DB_ALIAS,
     ) -> bool:
         """Transition device to new status with validation and logging.
@@ -158,8 +122,6 @@ class HardwareLifecycleManager:
             to_status: Target status
             reason: Human-readable reason for transition
             metadata: Additional context data
-            sync_to_api: Whether to push change to manufacturer API
-
         Returns:
             True if transition succeeded, False otherwise
         """
@@ -183,12 +145,6 @@ class HardwareLifecycleManager:
             )
             return False
 
-        # Store old values for logging
-        old_values = {
-            "status": from_status,
-            "last_seen": device.last_seen,
-        }
-
         # Update device status
         device.status = to_status
         device.last_seen = timezone.now()
@@ -201,18 +157,6 @@ class HardwareLifecycleManager:
             update_fields.append("updated_at")
         device.save(update_fields=update_fields, using=using)
 
-        # Log the transition
-        if self._logger:
-            self._logger.log_crud_update(
-                device,
-                old_values=old_values,
-                new_values={
-                    "status": to_status,
-                    "last_seen": device.last_seen,
-                },
-                using=using,
-            )
-
         logger.info(
             f"Device transition: {device_type} {device.pk} {from_status} → {to_status}",
             extra={
@@ -220,31 +164,12 @@ class HardwareLifecycleManager:
                 "device_type": device_type,
                 "from_status": from_status,
                 "to_status": to_status,
-                "reason": reason,
-                "metadata": metadata or {},
+                "reason_provided": bool(reason),
+                "has_metadata": bool(metadata),
             },
         )
 
-        if sync_to_api and self.service_code:
-            from .device_api_status_sync import sync_status_to_api
-
-            sync_status_to_api(self.service_code, device, to_status, metadata)
-
         return True
-
-    def mark_discovered(
-        self,
-        device: WirelessChassis | WirelessUnit,
-        *,
-        device_data: dict[str, Any] | None = None,
-    ) -> bool:
-        """Mark device as discovered."""
-        return self.transition_device(
-            device,
-            HardwareStatus.DISCOVERED.value,
-            reason="Device discovered via API",
-            metadata=device_data,
-        )
 
     def mark_online(
         self,
@@ -260,98 +185,11 @@ class HardwareLifecycleManager:
             metadata=health_data,
         )
 
-    def mark_degraded(
-        self, device: WirelessChassis | WirelessUnit, *, warnings: list[str] | None = None
-    ) -> bool:
-        """Mark device as degraded (functional but with issues)."""
-        return self.transition_device(
-            device,
-            HardwareStatus.DEGRADED.value,
-            reason="Device has warnings or performance issues",
-            metadata={"warnings": warnings or []},
-        )
-
     def mark_offline(
         self, device: WirelessChassis | WirelessUnit, *, reason: str = "Not responding"
     ) -> bool:
         """Mark device as offline."""
         return self.transition_device(device, HardwareStatus.OFFLINE.value, reason=reason)
-
-    def mark_maintenance(
-        self, device: WirelessChassis | WirelessUnit, *, reason: str = "Administrative action"
-    ) -> bool:
-        """Mark device as in maintenance mode."""
-        return self.transition_device(
-            device,
-            HardwareStatus.MAINTENANCE.value,
-            reason=reason,
-            sync_to_api=True,  # Push to API to disable alerts
-        )
-
-    def mark_retired(
-        self, device: WirelessChassis | WirelessUnit, *, reason: str = "Decommissioned"
-    ) -> bool:
-        """Mark device as retired (terminal state)."""
-        return self.transition_device(device, HardwareStatus.RETIRED.value, reason=reason)
-
-    def update_stale_devices(self, *, timeout_minutes: int = 5) -> int:
-        """Mark devices offline when last_seen is older than threshold."""
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-        threshold = timezone.now() - timedelta(minutes=timeout_minutes)
-        stale = WirelessChassis.objects.filter(last_seen__lt=threshold).exclude(
-            status__in=[HardwareStatus.MAINTENANCE.value, HardwareStatus.RETIRED.value]
-        )
-
-        updated = 0
-        for device in stale:
-            if self.mark_offline(device, reason="Stale heartbeat"):
-                updated += 1
-        return updated
-
-    def create_with_state(self, manufacturer, api_data: dict[str, Any]) -> WirelessChassis | None:
-        """Create a chassis with initial state from API data."""
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-        ip = api_data.get("ipAddress") or api_data.get("ip") or api_data.get("ipv4")
-        api_device_id = api_data.get("id") or api_data.get("api_device_id")
-        if not ip or not api_device_id:
-            logger.warning("Skipping device creation; missing ip or api_device_id")
-            return None
-
-        chassis = WirelessChassis.objects.create(
-            manufacturer=manufacturer,
-            api_device_id=api_device_id,
-            ip=ip,
-            model=api_data.get("model", ""),
-            serial_number=api_data.get("serialNumber", ""),
-            status=self._map_api_state_to_status(
-                api_data.get("deviceState", "").upper(), "discovered"
-            ),
-            last_seen=timezone.now(),
-        )
-
-        return chassis
-
-    def handle_poll_result(
-        self, device: WirelessChassis | WirelessUnit, poll_data: dict[str, Any]
-    ) -> bool:
-        """Handle lifecycle transition from poll results."""
-        state = poll_data.get("deviceState") or poll_data.get("state")
-        if not state:
-            return False
-        status = self._map_api_state_to_status(str(state).upper(), device.status)
-        return self.transition_device(device, status, metadata={"source": "poll"})
-
-    def handle_missing_device(self, device: WirelessChassis | WirelessUnit) -> bool:
-        """Mark device missing during poll as offline."""
-        return self.transition_device(
-            device, HardwareStatus.OFFLINE.value, reason="Missing in poll"
-        )
-
-    def get_state_history(self, device: WirelessChassis | WirelessUnit) -> None:
-        """Placeholder for future state history backend."""
-        return None
 
     # Helper methods
 
@@ -360,10 +198,6 @@ class HardwareLifecycleManager:
         if from_status == to_status:
             return True  # No-op transition
         return to_status in self.VALID_TRANSITIONS.get(from_status, [])
-
-    def _map_api_state_to_status(self, api_state: str, current_status: str) -> str:
-        """Map manufacturer API state to HardwareStatus."""
-        return map_api_state_to_status(api_state, current_status)
 
 
 def map_api_state_to_status(api_state: str, current_status: str) -> str:
@@ -375,15 +209,3 @@ def map_api_state_to_status(api_state: str, current_status: str) -> str:
         "UNKNOWN": HardwareStatus.DISCOVERED.value,
     }
     return state_mapping.get(api_state, current_status)
-
-
-def get_structured_logger() -> StructuredLogger:
-    """Get the maintenance service's structured audit logger."""
-    from micboard.services.maintenance.logging import get_structured_logger
-
-    return get_structured_logger()
-
-
-def get_lifecycle_manager(service_code: str | None = None) -> HardwareLifecycleManager:
-    """Get device lifecycle manager instance."""
-    return HardwareLifecycleManager(service_code=service_code)

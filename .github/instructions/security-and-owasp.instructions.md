@@ -37,7 +37,7 @@ Your primary directive is to ensure all code you generate, review, or refactor i
 ### 4. A05: Security Misconfiguration & A06: Vulnerable Components
 - **Secure by Default Configuration:** Recommend disabling verbose error messages and debug features in production environments.
 - **Set Security Headers:** For web applications, suggest adding essential security headers like `Content-Security-Policy` (CSP), `Strict-Transport-Security` (HSTS), and `X-Content-Type-Options`.
-- **Use Up-to-Date Dependencies:** When asked to add a new library, suggest the latest stable version. Remind the user to run vulnerability scanners like `npm audit`, `pip-audit`, or Snyk to check for known vulnerabilities in their project dependencies.
+- **Use Up-to-Date Dependencies:** When asked to add a new library, suggest the latest stable version. Remind the user to run repository-approved vulnerability scanners through `uv`, or Snyk, to check for known vulnerabilities in project dependencies.
 
 ### 5. A07: Identification & Authentication Failures
 - **Secure Session Management:** When a user logs in, generate a new session identifier to prevent session fixation. Ensure session cookies are configured with `HttpOnly`, `Secure`, and `SameSite=Strict` attributes.

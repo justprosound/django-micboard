@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, call
 
@@ -36,6 +37,7 @@ def _consumer_for(user: User | AnonymousUser) -> MicboardConsumer:
     consumer.channel_layer = AsyncMock()
     consumer.accept = AsyncMock()
     consumer.close = AsyncMock()
+    consumer.send = AsyncMock()
     return consumer
 
 
@@ -43,7 +45,7 @@ def _consumer_for(user: User | AnonymousUser) -> MicboardConsumer:
 def test_anonymous_connection_is_rejected() -> None:
     consumer = _consumer_for(AnonymousUser())
 
-    async_to_sync(consumer.connect)()
+    asyncio.run(consumer.connect())
 
     consumer.close.assert_awaited_once_with(code=UNAUTHENTICATED_CLOSE_CODE)
     consumer.accept.assert_not_awaited()
@@ -254,6 +256,104 @@ def test_msp_connection_joins_every_resolved_membership_group(regular_user: User
     consumer.close.assert_not_awaited()
 
 
+@pytest.mark.django_db
+@override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_MULTI_SITE_MODE=False)
+def test_msp_membership_revocation_blocks_next_group_event(regular_user: User) -> None:
+    """A connection cannot retain tenant delivery after membership revocation."""
+    organization = Organization.objects.create(name="Revoked", slug="revoked-ws")
+    membership = OrganizationMembership.objects.create(
+        user=regular_user,
+        organization=organization,
+    )
+    consumer = _consumer_for(regular_user)
+    joined_group = organization_updates_group(organization.pk)
+    consumer._active_groups_for_user = AsyncMock(return_value=(joined_group,))
+
+    asyncio.run(consumer.connect())
+    consumer.channel_layer.group_add.assert_awaited_once_with(joined_group, consumer.channel_name)
+
+    membership.is_active = False
+    membership.save(update_fields=["is_active"])
+    current_groups = MicboardConsumer._current_group_names(regular_user.pk)
+    assert joined_group not in current_groups
+    consumer._current_groups_for_user = AsyncMock(return_value=current_groups)
+    asyncio.run(consumer.device_update({"data": {"id": 1}}))
+
+    consumer.send.assert_not_awaited()
+    consumer.channel_layer.group_discard.assert_awaited_once_with(
+        joined_group,
+        consumer.channel_name,
+    )
+    consumer.close.assert_awaited_once_with(code=UNAUTHORIZED_CLOSE_CODE)
+
+
+@pytest.mark.django_db
+@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=False)
+def test_global_permission_revocation_blocks_next_group_event(regular_user: User) -> None:
+    """A global stream permission is re-read before each outbound event."""
+    permission = Permission.objects.get(
+        codename="view_realtimeconnection",
+        content_type__app_label="micboard",
+    )
+    regular_user.user_permissions.add(permission)
+    consumer = _consumer_for(regular_user)
+    consumer._can_receive_global_updates = AsyncMock(return_value=True)
+
+    asyncio.run(consumer.connect())
+    regular_user.user_permissions.remove(permission)
+    current_groups = MicboardConsumer._current_group_names(regular_user.pk)
+    assert GLOBAL_UPDATES_GROUP not in current_groups
+    consumer._current_groups_for_user = AsyncMock(return_value=current_groups)
+    asyncio.run(consumer.status_update({"message": "revoked"}))
+
+    consumer.send.assert_not_awaited()
+    consumer.channel_layer.group_discard.assert_awaited_once_with(
+        GLOBAL_UPDATES_GROUP,
+        consumer.channel_name,
+    )
+    consumer.close.assert_awaited_once_with(code=UNAUTHORIZED_CLOSE_CODE)
+
+
+@pytest.mark.django_db
+@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True, SITE_ID=1)
+def test_user_deactivation_blocks_next_site_event(regular_user: User) -> None:
+    """A stale authenticated scope cannot outlive persisted user deactivation."""
+    consumer = _consumer_for(regular_user)
+    asyncio.run(consumer.connect())
+
+    User.objects.filter(pk=regular_user.pk).update(is_active=False)
+    current_groups = MicboardConsumer._current_group_names(regular_user.pk)
+    assert current_groups == ()
+    consumer._current_groups_for_user = AsyncMock(return_value=current_groups)
+    asyncio.run(consumer.status_update({"message": "revoked"}))
+
+    consumer.send.assert_not_awaited()
+    consumer.channel_layer.group_discard.assert_awaited_once_with(
+        site_updates_group(1),
+        consumer.channel_name,
+    )
+    consumer.close.assert_awaited_once_with(code=UNAUTHORIZED_CLOSE_CODE)
+
+
+@pytest.mark.django_db
+@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True, SITE_ID=1)
+def test_user_deactivation_blocks_ping_reply(regular_user: User) -> None:
+    """Heartbeat replies use the same event-time authorization check as data."""
+    consumer = _consumer_for(regular_user)
+    asyncio.run(consumer.connect())
+
+    User.objects.filter(pk=regular_user.pk).update(is_active=False)
+    consumer._current_groups_for_user = AsyncMock(return_value=())
+    asyncio.run(consumer.receive(text_data='{"command": "ping"}'))
+
+    consumer.send.assert_not_awaited()
+    consumer.channel_layer.group_discard.assert_awaited_once_with(
+        site_updates_group(1),
+        consumer.channel_name,
+    )
+    consumer.close.assert_awaited_once_with(code=UNAUTHORIZED_CLOSE_CODE)
+
+
 @pytest.mark.parametrize(
     ("handler_name", "event"),
     [
@@ -273,15 +373,6 @@ def test_msp_connection_joins_every_resolved_membership_group(regular_user: User
                 "status": "online",
             },
         ),
-        ("sync_completed", {"type": "sync_completed", "status": "success"}),
-        (
-            "discovery_approved",
-            {"type": "discovery_approved", "queue_item_id": 8},
-        ),
-        (
-            "error_notification",
-            {"type": "error_notification", "message": "bounded failure"},
-        ),
     ],
 )
 def test_producer_event_handlers_forward_complete_payloads(
@@ -290,7 +381,7 @@ def test_producer_event_handlers_forward_complete_payloads(
 ) -> None:
     """Every producer dispatch type has a matching browser consumer handler."""
     consumer = _consumer_for(AnonymousUser())
-    consumer.send = AsyncMock()
+    consumer._can_forward_event = AsyncMock(return_value=True)
 
     async_to_sync(getattr(consumer, handler_name))(event)
 

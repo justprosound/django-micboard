@@ -7,21 +7,26 @@ channels and field units.
 from __future__ import annotations
 
 from django.contrib import admin
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Prefetch
 from django.utils.html import format_html
 
+from micboard.admin.channel_forms import RFChannelAdminForm, WirelessUnitAdminForm
 from micboard.admin.mixins import MicboardModelAdmin
+from micboard.admin.regulatory_annotations import (
+    regulatory_domain_from_annotations,
+    with_regulatory_domain,
+)
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.rf_coordination.compliance import FrequencyBand
 from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.hardware.rf_channel_service import (
-    get_regulatory_status as get_rf_channel_regulatory_status,
+    get_regulatory_status_for_domain as get_rf_channel_regulatory_status,
 )
 from micboard.services.hardware.wireless_unit_service import (
     get_battery_health,
     get_battery_health_display_icon,
     get_battery_percentage,
-    get_regulatory_status,
+    get_regulatory_status_for_domain,
 )
 
 
@@ -40,6 +45,7 @@ class RFChannelAdmin(MicboardModelAdmin):
     list_filter = ("link_direction", "resource_state", "chassis__role")
     search_fields = ("chassis__name", "channel_number", "frequency")
     readonly_fields = ("resource_state",)
+    form = RFChannelAdminForm
     list_select_related = (
         "chassis",
         "chassis__manufacturer",
@@ -60,7 +66,11 @@ class RFChannelAdmin(MicboardModelAdmin):
             end_frequency_mhz__gte=OuterRef("frequency"),
         ).exclude(band_type="forbidden")
 
-        return qs.annotate(_has_specific_band=Exists(bands))
+        queryset = qs.annotate(_has_specific_band=Exists(bands))
+        return with_regulatory_domain(
+            queryset,
+            building_path="chassis__location__building",
+        )
 
     @admin.display(description="Active Unit")
     def active_unit(self, obj):
@@ -79,16 +89,16 @@ class RFChannelAdmin(MicboardModelAdmin):
         if not chassis or not chassis.location or not chassis.location.building:
             return "—"
 
-        building = chassis.location.building
-        domain = building.regulatory_domain
-
-        if not domain:
-            return "[i] No regulatory domain"
-
         if not obj.frequency:
             return "[i] No frequency"
 
-        status = get_rf_channel_regulatory_status(obj)
+        status = get_rf_channel_regulatory_status(
+            obj,
+            regulatory_domain_from_annotations(obj),
+        )
+
+        if not status["regulatory_domain"]:
+            return "[i] No regulatory domain"
 
         if status["needs_update"]:
             return format_html(
@@ -120,9 +130,15 @@ class WirelessUnitAdmin(MicboardModelAdmin):
     )
     list_filter = ("device_type", "status", "base_chassis__role")
     search_fields = ("base_chassis__name", "serial_number", "name")
+    form = WirelessUnitAdminForm
     list_select_related = (
         "base_chassis",
         "manufacturer",
+        "assigned_resource",
+        "assigned_resource__chassis",
+        "assigned_resource__chassis__location",
+        "assigned_resource__chassis__location__building",
+        "assigned_resource__chassis__location__building__regulatory_domain",
         "base_chassis__location",
         "base_chassis__location__building",
         "base_chassis__location__building__regulatory_domain",
@@ -133,6 +149,27 @@ class WirelessUnitAdmin(MicboardModelAdmin):
         "battery_health_detail_display",
         "updated_at",
     )
+
+    def get_queryset(self, request):
+        """Eager-load the effective RF channel used by regulatory displays."""
+        active_channels = RFChannel.objects.select_related(
+            "chassis__location__building__regulatory_domain"
+        ).order_by("channel_number")
+        queryset = (
+            super()
+            .get_queryset(request)
+            .prefetch_related(
+                Prefetch(
+                    "active_on_receive_channels",
+                    queryset=active_channels,
+                    to_attr="_admin_active_receive_channels",
+                )
+            )
+        )
+        return with_regulatory_domain(
+            queryset,
+            building_path="base_chassis__location__building",
+        )
 
     fieldsets = (
         (
@@ -273,7 +310,10 @@ class WirelessUnitAdmin(MicboardModelAdmin):
     @admin.display(description="Regulatory Status")
     def regulatory_status_display(self, obj: WirelessUnit) -> str:
         """Display regulatory coverage status."""
-        status = get_regulatory_status(obj)
+        status = get_regulatory_status_for_domain(
+            obj,
+            regulatory_domain_from_annotations(obj),
+        )
         if status.get("source") == "no_channel":
             return "[i] No RF channel"
         if not status["operating_frequency_mhz"]:

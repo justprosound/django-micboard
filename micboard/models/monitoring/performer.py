@@ -7,6 +7,7 @@ from typing import ClassVar, cast
 from django.db import models
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
+from micboard.settings.deployment_controls import deployment_controls
 
 
 class PerformerQuerySet(TenantOptimizedQuerySet):
@@ -26,13 +27,11 @@ class PerformerQuerySet(TenantOptimizedQuerySet):
         if user.is_superuser:
             return tenant_scope
 
-        from django.conf import settings
-
         from micboard.models.monitoring.performer_assignment import PerformerAssignment
 
         visible_assignments = PerformerAssignment.objects.for_user(user=user)
         visibility = models.Q(assignments__in=visible_assignments)
-        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+        if not deployment_controls.msp_enabled:
             visibility |= models.Q(assignments__isnull=True)
         return tenant_scope.filter(visibility).distinct()
 

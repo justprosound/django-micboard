@@ -5,7 +5,11 @@ Split from configuration_and_logging.py — logging-only admin classes.
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.http import HttpRequest
 from django.urls import reverse
 from django.utils.html import format_html
 
@@ -13,8 +17,24 @@ from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.audit.activity_log import ActivityLog, ServiceSyncLog
 
 
+class _ReadOnlyLogAdminMixin:
+    """Keep append-only operational history immutable through Django admin."""
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        """Operational logs cannot be forged from admin forms."""
+        return False
+
+    def has_change_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        """Operational logs are view-only after persistence."""
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        """Retention services, not interactive admins, own deletion."""
+        return False
+
+
 @admin.register(ActivityLog)
-class ActivityLogAdmin(MicboardModelAdmin):
+class ActivityLogAdmin(_ReadOnlyLogAdminMixin, MicboardModelAdmin):
     """Admin for ActivityLog."""
 
     list_display = (
@@ -26,7 +46,7 @@ class ActivityLogAdmin(MicboardModelAdmin):
         "created_at",
     )
     list_filter = ("activity_type", "operation", "status", "created_at")
-    search_fields = ("summary", "user__username", "service_code")
+    search_fields = ("summary", "service_code")
     list_select_related = ("user", "content_type")
     readonly_fields = (
         "activity_type",
@@ -111,6 +131,7 @@ class ActivityLogAdmin(MicboardModelAdmin):
             "config": "#9900cc",
             "discovery": "var(--link-fg, #00cccc)",
             "alert": "var(--error-fg, #cc0000)",
+            "compliance": "var(--warning-fg, #ff9900)",
         }
         color = colors.get(obj.activity_type, "var(--body-fg, #666666)")
         return format_html(
@@ -144,18 +165,24 @@ class ActivityLogAdmin(MicboardModelAdmin):
     def user_name(self, obj: ActivityLog) -> str:
         """Display user name."""
         if obj.user:
-            url = reverse(
-                "admin:auth_user_change",
-                args=[obj.user.id],
-            )
-            return format_html(
-                '<a href="{}">{}</a>',
-                url,
-                obj.user.username,
-            )
+            username = obj.user.get_username()
+            user_model = type(obj.user)
+            if self.admin_site.is_registered(user_model):
+                model_meta = obj.user._meta
+                url = reverse(
+                    f"admin:{model_meta.app_label}_{model_meta.model_name}_change",
+                    args=[obj.user.pk],
+                )
+                return format_html('<a href="{}">{}</a>', url, username)
+            return username
         if obj.service_code:
             return f"[{obj.service_code}]"
         return "System"
+
+    def get_search_fields(self, request: HttpRequest) -> tuple[str, ...]:
+        """Search the configured user model through its declared login field."""
+        username_field = get_user_model().USERNAME_FIELD
+        return (*self.search_fields, f"user__{username_field}")
 
     @admin.display(description="Status")
     def status_badge(self, obj: ActivityLog) -> str:
@@ -174,7 +201,7 @@ class ActivityLogAdmin(MicboardModelAdmin):
 
 
 @admin.register(ServiceSyncLog)
-class ServiceSyncLogAdmin(MicboardModelAdmin):
+class ServiceSyncLogAdmin(_ReadOnlyLogAdminMixin, MicboardModelAdmin):
     """Admin for ServiceSyncLog."""
 
     list_display = (
@@ -257,8 +284,8 @@ class ServiceSyncLogAdmin(MicboardModelAdmin):
     def sync_type_badge(self, obj: ServiceSyncLog) -> str:
         """Display sync type as badge."""
         colors = {
-            "refresh": "var(--link-fg, #0099cc)",
-            "discovery": "var(--success-fg, #00cc00)",
+            "full": "var(--link-fg, #0099cc)",
+            "incremental": "var(--success-fg, #00cc00)",
             "health_check": "var(--warning-fg, #ff9900)",
         }
         color = colors.get(obj.sync_type, "var(--body-quiet-color, gray)")
@@ -280,7 +307,7 @@ class ServiceSyncLogAdmin(MicboardModelAdmin):
         return format_html(
             '<span style="color: {};">{}</span>',
             color,
-            obj.status.upper(),
+            obj.get_status_display(),
         )
 
     @admin.display(description="Duration")

@@ -1,5 +1,6 @@
 ---
 name: Warden
+run-name: "Warden · PR #${{ github.event.pull_request.number }}"
 
 on:
   pull_request:
@@ -7,24 +8,30 @@ on:
 
 permissions:
   # Warden uses this scope for GitHub's resolveReviewThread mutation.
-  contents: write
+  contents: read
   pull-requests: write
   checks: write
 
 jobs:
   review:
+    # Fork pull requests do not receive repository secrets. Skipping them also prevents an
+    # untrusted head from reaching a write-capable AI review step.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    env:
-      WARDEN_MODEL: ${{ secrets.WARDEN_MODEL }}
-      WARDEN_SENTRY_DSN: ${{ secrets.WARDEN_SENTRY_DSN }}
-      # Add the WARDEN_<PROVIDER>_API_KEY that matches your WARDEN_MODEL provider:
-      WARDEN_OPENAI_API_KEY: ${{ secrets.WARDEN_OPENAI_API_KEY }}
-      WARDEN_ANTHROPIC_API_KEY: ${{ secrets.WARDEN_ANTHROPIC_API_KEY }}
-      # WARDEN_FIREWORKS_API_KEY: ${{ secrets.WARDEN_FIREWORKS_API_KEY }}
-      # WARDEN_OPENROUTER_API_KEY: ${{ secrets.WARDEN_OPENROUTER_API_KEY }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - uses: getsentry/warden@b18e8ed3b6c657778afd20950b399abb50c195d5  # v0.40.0
+
+      - name: Review pull request
+        uses: getsentry/warden@b18e8ed3b6c657778afd20950b399abb50c195d5  # v0.40.0
+        env:
+          WARDEN_MODEL: ${{ secrets.WARDEN_MODEL }}
+          WARDEN_SENTRY_DSN: ${{ secrets.WARDEN_SENTRY_DSN }}
+          # Add the WARDEN_<PROVIDER>_API_KEY that matches your WARDEN_MODEL provider:
+          WARDEN_OPENAI_API_KEY: ${{ secrets.WARDEN_OPENAI_API_KEY }}
+          WARDEN_ANTHROPIC_API_KEY: ${{ secrets.WARDEN_ANTHROPIC_API_KEY }}
+          # WARDEN_FIREWORKS_API_KEY: ${{ secrets.WARDEN_FIREWORKS_API_KEY }}
+          # WARDEN_OPENROUTER_API_KEY: ${{ secrets.WARDEN_OPENROUTER_API_KEY }}

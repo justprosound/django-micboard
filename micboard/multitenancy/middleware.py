@@ -11,8 +11,9 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
-from django.conf import settings
 from django.utils.functional import SimpleLazyObject
+
+from micboard.services.settings.settings_service import settings as micboard_settings
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -77,7 +78,7 @@ def _get_org_from_membership(request: HttpRequest):
 
 
 def _get_org_from_subdomain(request: HttpRequest):
-    if not getattr(settings, "MICBOARD_SUBDOMAIN_ROUTING", False):
+    if not micboard_settings.subdomain_routing:
         return None
     host = request.get_host().split(":")[0]
     subdomain = host.split(".")[0]
@@ -85,7 +86,7 @@ def _get_org_from_subdomain(request: HttpRequest):
     if not subdomain or subdomain == "www":
         return None
 
-    root_domain = getattr(settings, "MICBOARD_ROOT_DOMAIN", "")
+    root_domain = micboard_settings.root_domain
     if not root_domain or not host.endswith(root_domain):
         return None
 
@@ -105,7 +106,7 @@ def get_current_organization(request: HttpRequest) -> Organization | None:
       2. User's primary/default organization
       3. Subdomain mapping (if MICBOARD_SUBDOMAIN_ROUTING enabled)
     """
-    if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+    if not micboard_settings.msp_enabled:
         return None
 
     # 1. Session
@@ -138,7 +139,7 @@ def get_current_campus(request: HttpRequest) -> int | None:
     Returns:
         Campus ID or None
     """
-    if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+    if not micboard_settings.msp_enabled:
         return None
 
     from micboard.multitenancy.models import OrganizationMembership

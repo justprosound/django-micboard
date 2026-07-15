@@ -74,14 +74,7 @@ uv run --no-sync python manage.py migrate
 
 ### Settings Reference
 
-Import the multitenancy settings template:
-
-```python
-# settings.py
-from micboard.settings.multitenancy import *
-```
-
-Or customize individual settings:
+Configure the required values explicitly in the host settings module:
 
 ```python
 # Enable/disable features
@@ -123,7 +116,9 @@ org = Organization.objects.create(
 - `site` - Django Site FK
 - `is_active` - Active status
 - `subscription_tier` - 'basic', 'pro', 'enterprise'
-- `max_devices` - Device limit (null = unlimited)
+- `max_devices` - Organization-owned wireless chassis limit (`null` = unlimited). The canonical
+  chassis persistence service locks the organization and enforces this limit for new inventory and
+  ownership transfers; locationless platform inventory is outside organization quotas.
 - `logo` - Organization logo
 - `primary_color` - Brand color (hex)
 
@@ -170,39 +165,24 @@ membership = OrganizationMembership.objects.create(
 
 ## Service Layer Integration
 
-All services accept optional tenant parameters:
+Request-facing queries derive their scope from the authenticated user:
 
 ```python
-from micboard.services.core.hardware_query import HardwareQueryService
-from micboard.services.core.location import LocationService
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.services.monitoring.monitoring_access import MonitoringService
 
-# Single-site mode (parameters ignored)
-chassis = HardwareQueryService.get_active_chassis()
-
-# Multi-site mode
-chassis = HardwareQueryService.get_active_chassis(site_id=1)
-
-# MSP mode
-chassis = HardwareQueryService.get_active_chassis(
-    organization_id=org.id,
-    campus_id=campus.id  # Optional
-)
-
-# Location filtering
-locations = LocationService.get_all_locations(
-    organization_id=org.id
-)
+chassis = WirelessChassis.objects.for_user(user=request.user).active()
+units = WirelessUnit.objects.for_user(user=request.user).active()
+locations = MonitoringService.get_accessible_locations(request.user)
 ```
 
-### Backward Compatibility
+### Explicit access scope
 
-All tenant parameters are optional and default to `None`. Existing code continues working without modification:
+Do not replace an authenticated scope with optional tenant identifiers:
 
 ```python
-# These all work identically
-chassis = HardwareQueryService.get_active_chassis()
-chassis = HardwareQueryService.get_active_chassis(organization_id=None)
-chassis = HardwareQueryService.get_active_chassis(site_id=None, campus_id=None)
+chassis = WirelessChassis.objects.for_user(user=request.user).active()
 ```
 
 ## Managers & Querysets
@@ -240,10 +220,7 @@ def my_view(request):
     org = request.organization  # Current organization or None
     campus_id = request.campus_id  # Current campus ID or None
 
-    # Use in service calls
-    chassis = HardwareQueryService.get_active_chassis(
-        organization_id=org.id if org else None
-    )
+    chassis = WirelessChassis.objects.for_user(user=request.user).active()
 ```
 
 **Organization detection priority:**
@@ -267,18 +244,11 @@ Apply tenant filtering in your views by accessing the organization attached to t
 ```python
 from django.http import JsonResponse
 from django.views import View
-from micboard.services.core.hardware_query import HardwareQueryService
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 class ReceiverListAPIView(View):
     def get(self, request):
-        # Get organization from request (attached by TenantMiddleware)
-        org = getattr(request, 'organization', None)
-        org_id = org.id if org else None
-
-        # Filter receivers using the service layer
-        chassis = HardwareQueryService.get_active_chassis(
-            organization_id=org_id
-        )
+        chassis = WirelessChassis.objects.for_user(user=request.user).active()
 
         # Return as JSON
         return JsonResponse({
@@ -395,7 +365,7 @@ Test tenant isolation:
 ```python
 from django.test import TestCase
 from micboard.multitenancy.models import Organization, Campus
-from micboard.services.core.hardware_query import HardwareQueryService
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 class TenantIsolationTest(TestCase):
     def test_organization_isolation(self):
@@ -405,9 +375,9 @@ class TenantIsolationTest(TestCase):
         # Create devices in each org
         # ... create buildings, locations, receivers
 
-        # Verify isolation
-        org1_chassis = HardwareQueryService.get_active_chassis(organization_id=org1.id)
-        org2_chassis = HardwareQueryService.get_active_chassis(organization_id=org2.id)
+        # Verify isolation through users with memberships in each organization
+        org1_chassis = WirelessChassis.objects.for_user(user=org1_user)
+        org2_chassis = WirelessChassis.objects.for_user(user=org2_user)
 
         self.assertEqual(org1_chassis.count(), 5)
         self.assertEqual(org2_chassis.count(), 3)
@@ -457,9 +427,10 @@ print(f"User has {memberships.count()} active memberships")
 Verify feature flags:
 
 ```python
-from django.conf import settings
-print(f"Multi-site: {getattr(settings, 'MICBOARD_MULTI_SITE_MODE', False)}")
-print(f"MSP: {getattr(settings, 'MICBOARD_MSP_ENABLED', False)}")
+from micboard.services.settings.settings_service import settings as micboard_settings
+
+print(f"Multi-site: {micboard_settings.multi_site_mode}")
+print(f"MSP: {micboard_settings.msp_enabled}")
 ```
 
 ## API Reference

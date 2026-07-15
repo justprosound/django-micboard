@@ -23,7 +23,7 @@ from tests.settings import INSTALLED_APPS as BASE_INSTALLED_APPS
 INSTALLED_APPS = [
     app
     for app in BASE_INSTALLED_APPS
-    if app not in {"huey.contrib.djhuey", "micboard.multitenancy"}
+    if app not in {"adminsortable2", "huey.contrib.djhuey", "micboard.multitenancy"}
 ]
 
 __all__ = (

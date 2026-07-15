@@ -2,7 +2,7 @@
 
 **Status:** Implemented
 **Date:** 2026-05-20
-**Updated:** 2026-05-21
+**Updated:** 2026-07-14
 **Deciders:** (to be assigned)
 
 ## Context
@@ -28,12 +28,13 @@ This violates the single-responsibility principle. Models should define data str
 
 ## Decision
 
-1. **Models become pure data holders.** Make `WirelessChassis`, `WirelessUnit`, `RFChannel`, `DiscoveredDevice`, and `ManufacturerConfiguration` side-effect-free. Remove all orchestration logic (sync triggers, status transitions, queue management) from `save()` overrides.
+1. **Models do not override persistence with orchestration.** `WirelessChassis`, `WirelessUnit`,
+   `RFChannel`, `DiscoveredDevice`, and `ManufacturerConfiguration` keep persistence methods free
+   of service imports and external calls.
 2. **Define a service seam per model.** For each affected model, introduce (or extend) a domain service method that encapsulates the orchestration currently hidden in `save()`. The canonical pattern:
 
    ```python
-   # Callers who want to persist only: use Model.objects.create() / .save()
-   # Callers who want to persist AND orchestrate:
+   # Explicit workflows call their domain service:
    HardwareLifecycleService.save_chassis(chassis_data, context) -> WirelessChassis
    ```
 
@@ -41,17 +42,32 @@ This violates the single-responsibility principle. Models should define data str
 
 3. **Model `clean()` / `validate()` methods may keep structural validation** (field formats, required fields, uniqueness) but must not invoke services or write to DB.
 
-4. **Existing post-save signal handlers** must be audited per model. If the logic duplicates a service method, remove the signal and call the service explicitly from the view/task layer instead.
+4. **Django lifecycle adapters preserve repository-wide invariants.** `model_lifecycle.py` owns the
+   registered pre/post-save and delete adapters. They delegate validation, derived-field updates,
+   audit, broadcast, and discovery scheduling to domain services. Consequently, ordinary
+   `.save()` is not a persistence-only escape hatch; callers needing bulk persistence without
+   lifecycle behavior must use an explicit reviewed service path.
 
 5. **The service layer already has candidates for hosting extracted logic:**
    - `services/core/hardware_lifecycle.py` (381L) — extend for WirelessChassis lifecycle
    - `services/core/hardware.py` (534L) — extend for WirelessChassis CRUD orchestration
-   - `services/sync/discovery_candidates_service.py` (321L) — extend for DiscoveredDevice logic
+   - `services/sync/discovery_sync_service.py` — orchestrates claimed discovery synchronization
+
+6. **Route chassis field persistence through one seam.** Manufacturer sync, discovery approval,
+   promotion, imports, refresh, realtime updates, lifecycle creation, and regulatory repair pass a
+   `WirelessChassisWrite` DTO to
+   `services/hardware/wireless_chassis_persistence_service.py`. Lifecycle transition methods remain
+   responsible for status policy, but callers no longer create or upsert chassis rows themselves.
 
 ## Consequences
 
-- **Positive:** Models become testable in isolation (no DB side effects). A test of chassis creation no longer implicitly tests discovery orchestration. Business rules are reusable from views, tasks, and management commands alike. Side-effect chains are explicit in the caller — you can see "I'm saving with orchestration" vs "I'm just persisting".
-- **Negative:** Existing callers that rely on implicit side-effects from `model.save()` will break. Each caller must be updated to invoke the corresponding service method.
+- **Positive:** Models remain declarative while lifecycle behavior has one registered adapter and
+  domain-service implementation. Direct and service-driven writes obey the same invariants.
+- **Positive:** Chassis identity validation, database alias selection, explicit-field updates, and
+  normalized manufacturer persistence have one implementation.
+- **Negative:** Save behavior still includes delegated lifecycle effects. Developers must inspect
+  `model_lifecycle.py` when changing write semantics and must use the documented suppression
+  context only in reviewed bulk workflows.
 
 ## Migration Summary
 
@@ -63,12 +79,14 @@ All 5 models have been fully extracted. Status per model:
 | 2 | `DiscoveredDevice` | Queue management, duplicate detection | `services/sync/discovered_device_service.py` | ✅ Done |
 | 3 | `WirelessUnit` | Status transitions, timestamp updates | `services/hardware/wireless_unit_service.py` | ✅ Done |
 | 4 | `RFChannel` | Frequency coordination, regulatory domain resolution | `services/hardware/rf_channel_service.py` | ✅ Done |
-| 5 | `WirelessChassis` | `save()` orchestration → service methods; band-plan regulatory methods extracted to `chassis_regulatory_service.py` | `services/hardware/chassis_regulatory_service.py` | ✅ Done |
+| 5 | `WirelessChassis` | Save transitions and side effects; band-plan detection and coverage | `services/hardware/chassis_lifecycle_service.py`, `services/hardware/chassis_regulatory_service.py` | ✅ Done |
 
-Note on WirelessChassis: Band-plan regulatory operations live in the dedicated
-`chassis_regulatory_service.py` module. They share the single-source-of-truth
-`get_regulatory_domain_for_location(location)` implementation in `rf_channel_service.py`; callers
-import those services directly and no model compatibility methods remain.
+Note on WirelessChassis: save transition validation, uptime derivation, audit, and committed
+broadcasts live in `chassis_lifecycle_service.py`. Device specification and band-plan enrichment,
+detection, and regulatory coverage live in `chassis_regulatory_service.py`. Regulatory-domain
+lookup uses the defining `rf_channel_service.get_regulatory_domain_for_location()` implementation.
+The former mixed `wireless_chassis_service.py` module was deleted; callers import each owning
+module directly and no compatibility methods remain.
 
 ## Compliance
 

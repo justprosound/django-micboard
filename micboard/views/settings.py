@@ -16,6 +16,8 @@ from django.views.generic import FormView
 
 from micboard.forms.settings import BulkSettingConfigForm, ManufacturerSettingsForm
 from micboard.services.settings.presentation_service import settings_presentation
+from micboard.services.settings.visibility_service import settings_visibility
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,24 @@ def settings_diff_view(request: HttpRequest) -> HttpResponse:
     return render(request, "admin/micboard/settings_diff_stub.html", context)
 
 
-class BulkSettingConfigView(LoginRequiredMixin, PermissionRequiredMixin, FormView):
+class SettingsManagementPermissionMixin(PermissionRequiredMixin):
+    """Combine Django model permission with tenant-role management scope."""
+
+    request: HttpRequest
+    management_scope_attribute: str | None = None
+
+    def has_permission(self) -> bool:
+        """Deny the workflow when the caller has no writable setting scope."""
+        if not super().has_permission():
+            return False
+        scope = settings_visibility.for_management_user(user=self.request.user)
+        if self.management_scope_attribute is not None:
+            identifiers = getattr(scope, self.management_scope_attribute)
+            return identifiers is None or bool(identifiers)
+        return settings_visibility.has_manageable_scope(scope)
+
+
+class BulkSettingConfigView(LoginRequiredMixin, SettingsManagementPermissionMixin, FormView):
     """Bulk configure settings for a specific scope."""
 
     permission_required = ("micboard.add_setting", "micboard.change_setting")
@@ -60,8 +79,12 @@ class BulkSettingConfigView(LoginRequiredMixin, PermissionRequiredMixin, FormVie
 
             return redirect(self.success_url)
 
-        except Exception:
-            logger.exception("Failed to save bulk settings for user %s", self.request.user.pk)
+        except Exception as exc:
+            logger.exception(
+                "Failed to save bulk settings for user %s",
+                self.request.user.pk,
+                exc_info=sanitized_exception_info(exc),
+            )
             messages.error(self.request, "❌ Settings could not be saved. Please try again.")
             return self.form_invalid(form)
 
@@ -72,9 +95,10 @@ class BulkSettingConfigView(LoginRequiredMixin, PermissionRequiredMixin, FormVie
         return context
 
 
-class ManufacturerSettingsView(LoginRequiredMixin, PermissionRequiredMixin, FormView):
+class ManufacturerSettingsView(LoginRequiredMixin, SettingsManagementPermissionMixin, FormView):
     """Quick configuration view for manufacturer-specific settings."""
 
+    management_scope_attribute = "manufacturer_ids"
     permission_required = ("micboard.add_setting", "micboard.change_setting")
     raise_exception = True
     template_name = "micboard/settings/manufacturer_config.html"
@@ -113,10 +137,11 @@ class ManufacturerSettingsView(LoginRequiredMixin, PermissionRequiredMixin, Form
 
             return redirect(self.success_url)
 
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "Failed to save manufacturer settings for user %s",
                 self.request.user.pk,
+                exc_info=sanitized_exception_info(exc),
             )
             messages.error(self.request, "❌ Settings could not be saved. Please try again.")
             return self.form_invalid(form)

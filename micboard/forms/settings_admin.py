@@ -14,13 +14,14 @@ from micboard.models.settings.registry import Setting, SettingDefinition
 from micboard.services.settings.dtos import SettingsVisibilityScope
 from micboard.services.settings.presentation_service import settings_presentation
 from micboard.services.settings.visibility_service import settings_visibility
+from micboard.settings.scope_policy import matches_definition_scope
 
 
 def _scope_for_user(user: Any | None) -> SettingsVisibilityScope:
     """Return unrestricted scope for trusted non-request form callers."""
     if user is None:
         return SettingsVisibilityScope()
-    return settings_visibility.for_user(user=user)
+    return settings_visibility.for_management_user(user=user)
 
 
 class SettingDefinitionForm(ModelForm):
@@ -85,7 +86,7 @@ class SettingValueForm(ModelForm):
         self._scope_target_fields()
 
         definition = self._selected_definition()
-        sensitive = definition is None or settings_presentation.is_sensitive_definition(definition)
+        sensitive = definition is None or settings_presentation.is_key_sensitive(definition.key)
         if sensitive:
             value_field = self.fields["value"]
             value_field.widget = forms.PasswordInput(render_value=False)
@@ -164,7 +165,7 @@ class SettingValueForm(ModelForm):
 
         if (
             definition
-            and settings_presentation.is_sensitive_definition(definition)
+            and settings_presentation.is_key_sensitive(definition.key)
             and self.instance.pk
             and not value
         ):
@@ -174,15 +175,18 @@ class SettingValueForm(ModelForm):
         if definition and value:
             try:
                 definition.parse_value(value)
-            except Exception as exc:
-                self.add_error("value", f"Invalid value for type {definition.setting_type}: {exc}")
+            except Exception:
+                self.add_error(
+                    "value",
+                    f"Invalid value for type {definition.setting_type}; details redacted.",
+                )
 
         selected_scope = {
             "organization_id": cleaned_data.get("organization_id"),
             "site_id": getattr(cleaned_data.get("site"), "pk", None),
             "manufacturer_id": cleaned_data.get("manufacturer_id"),
         }
-        if definition and not settings_visibility.matches_definition_scope(
+        if definition and not matches_definition_scope(
             definition_scope=definition.scope,
             **selected_scope,
         ):

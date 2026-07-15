@@ -2,8 +2,7 @@
 
 from django.core.management.base import BaseCommand
 
-from micboard.models.settings import SettingDefinition
-from micboard.services.manufacturer.manufacturer_config_registry import ManufacturerConfigRegistry
+from micboard.models.settings.registry import SettingDefinition
 
 
 class Command(BaseCommand):
@@ -17,11 +16,6 @@ class Command(BaseCommand):
             action="store_true",
             help="Reset all settings to default state",
         )
-        parser.add_argument(
-            "--manufacturer-defaults",
-            action="store_true",
-            help="Initialize manufacturer default settings",
-        )
 
     def handle(self, *args, **options):
         if options["reset"]:
@@ -32,11 +26,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.HTTP_INFO("Initializing setting definitions..."))
         count = self._initialize_definitions()
         self.stdout.write(self.style.SUCCESS(f"✓ Created {count} setting definitions"))
-
-        if options["manufacturer_defaults"]:
-            self.stdout.write(self.style.HTTP_INFO("Initializing manufacturer defaults..."))
-            ManufacturerConfigRegistry.initialize_defaults()
-            self.stdout.write(self.style.SUCCESS("✓ Manufacturer defaults initialized"))
 
     def _initialize_definitions(self) -> int:
         """Create all standard setting definitions."""

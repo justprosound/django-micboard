@@ -5,15 +5,16 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import httpx
 import pytest
 
+import micboard.integrations.sennheiser.sse_client as sennheiser_sse_module
 import micboard.integrations.shure.websocket as shure_websocket_module
-import micboard.management.commands.diagnostic_api_test as diagnostic_api_test_module
 import micboard.services.maintenance.efis_import as efis_import_module
 from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
+from micboard.integrations.sennheiser.exceptions import SennheiserAPIError
 from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.services.common.base import client as base_client_module
 from micboard.services.common.base import resilience
@@ -95,32 +96,6 @@ def test_shure_client_rejects_cleartext_websocket_url(monkeypatch) -> None:
         ShureSystemAPIClient(base_url="https://shure.test")
 
 
-def test_diagnostic_client_does_not_log_shared_key(monkeypatch, caplog) -> None:
-    """The diagnostic command reports configuration without exposing credential fragments."""
-    private_key = "private-shared-key"
-    client = MagicMock()
-    monkeypatch.setattr(
-        diagnostic_api_test_module,
-        "ShureSystemAPIClient",
-        MagicMock(return_value=client),
-    )
-    monkeypatch.setattr(
-        diagnostic_api_test_module.django_settings,
-        "MICBOARD_CONFIG",
-        {},
-        raising=False,
-    )
-
-    with caplog.at_level(logging.INFO, logger=diagnostic_api_test_module.__name__):
-        initialized = diagnostic_api_test_module.ShureAPITester(
-            shared_key=private_key
-        ).initialize_client()
-
-    assert initialized is True
-    assert private_key not in caplog.text
-    assert private_key[-4:] not in caplog.text
-
-
 def test_resilient_session_uses_httpx_certificate_verification_defaults(monkeypatch) -> None:
     """Shared pooled sessions cannot accept or forward a verification override."""
     client_factory = MagicMock(return_value=MagicMock(spec=httpx.Client))
@@ -137,7 +112,7 @@ def test_efis_import_uses_verified_shared_session(monkeypatch) -> None:
     session = MagicMock(spec=httpx.Client)
     session_factory = MagicMock(return_value=session)
     monkeypatch.setattr(efis_import_module, "create_resilient_session", session_factory)
-    monkeypatch.setattr(efis_import_module.ActivityLog.objects, "create", MagicMock())
+    monkeypatch.setattr(efis_import_module.AuditService, "log_activity", MagicMock())
     monkeypatch.setattr(
         efis_import_module.EFISImportService,
         "_fetch_wireless_term_ids",
@@ -216,3 +191,54 @@ def test_shure_websocket_uses_wss_defaults_and_redacts_handshake(monkeypatch, ca
     assert private_transport_id not in caplog.text
     assert private_device_id not in caplog.text
     assert websocket_url not in caplog.text
+
+
+def test_sennheiser_sse_redacts_callback_and_connection_failures(monkeypatch, caplog) -> None:
+    """SSE failures retain typed behavior without exposing transport exception text."""
+    callback_secret = "private-sse-callback-secret"
+    connection_secret = "private-sse-connection-secret"
+    client = SimpleNamespace()
+
+    async def deliver_callback(_client, *, device_id, callback) -> None:
+        assert device_id == "device-1"
+        await callback({"status": "online"})
+
+    async def failing_callback(_data: dict[str, str]) -> None:
+        raise RuntimeError(callback_secret)
+
+    monkeypatch.setattr(sennheiser_sse_module, "_connect_and_subscribe", deliver_callback)
+    with (
+        caplog.at_level(logging.ERROR, logger=sennheiser_sse_module.__name__),
+        pytest.raises(SennheiserAPIError, match="event subscription failed"),
+    ):
+        asyncio.run(
+            sennheiser_sse_module.connect_and_subscribe(
+                client,  # type: ignore[arg-type]
+                "device-1",
+                failing_callback,
+            )
+        )
+
+    connection_failure = SennheiserAPIError(connection_secret)
+    monkeypatch.setattr(
+        sennheiser_sse_module,
+        "_connect_and_subscribe",
+        AsyncMock(side_effect=connection_failure),
+    )
+    with (
+        caplog.at_level(logging.ERROR, logger=sennheiser_sse_module.__name__),
+        pytest.raises(SennheiserAPIError) as exc_info,
+    ):
+        asyncio.run(
+            sennheiser_sse_module.connect_and_subscribe(
+                client,  # type: ignore[arg-type]
+                "device-1",
+                AsyncMock(),
+            )
+        )
+
+    assert exc_info.value is connection_failure
+    assert callback_secret not in caplog.text
+    assert connection_secret not in caplog.text
+    assert "RuntimeError: error details redacted" in caplog.text
+    assert "SennheiserAPIError: error details redacted" in caplog.text

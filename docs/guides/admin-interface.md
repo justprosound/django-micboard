@@ -37,7 +37,8 @@ related objects.
 
 Discovery candidates live at `/admin/micboard/discovereddevice/`. Approval actions delegate to
 the discovery approval service, which validates permissions and identity conflicts before
-promoting candidates into inventory.
+promoting candidates into inventory. Approve at most 100 pending rows in one action; larger
+selections or same-address conflict sets are rejected without changing queue or inventory state.
 
 Configuration/status models include:
 
@@ -97,7 +98,8 @@ uv run --no-sync python manage.py realtime_status --verbose
 ```
 
 Operational history is available through Activity Log, Service Sync Log, Device Movement Log, and
-Configuration Audit Log admins. Secret-bearing configuration is redacted in audit displays.
+Configuration Audit Log admins. Activity and service-sync history is view-only; retention services
+own deletion. Secret-bearing configuration is redacted in audit displays.
 
 ## Bulk actions
 

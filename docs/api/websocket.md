@@ -35,15 +35,38 @@ WebSocket transports.
 ## Message Types
 
 ### Device Update
+
 ```json
 {
   "type": "device_update",
-  "receiver_id": 1,
   "data": {
-    "channels": [...]
+    "manufacturer_code": "shure",
+    "receivers": [
+      {
+        "id": 1,
+        "api_device_id": "receiver-1",
+        "name": "Stage receiver",
+        "ip": "192.0.2.10",
+        "status": "online",
+        "model": "ULXD4Q"
+      }
+    ],
+    "timestamp": "2026-07-14T12:00:00+00:00",
+    "snapshot_id": "shared-across-resumed-batches",
+    "chunk_index": 0,
+    "is_final_chunk": true,
+    "inventory_complete": false,
+    "next_cursor": 42,
+    "broadcast_namespace": "poll"
   }
 }
 ```
+
+`is_final_chunk` marks the last Channels message in the current invocation.
+`inventory_complete` marks the end of the full manufacturer projection. When it is false, a later
+poll or discovery run resumes after `next_cursor` with the same `snapshot_id`. Clients should not
+treat a partial batch as a complete fleet replacement. Device and chunk counts are bounded by
+`MICBOARD_POLL_MAX_DEVICES` and `MICBOARD_POLL_BROADCAST_CHUNK_SIZE`.
 
 ### Alert
 ```json

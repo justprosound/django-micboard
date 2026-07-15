@@ -8,7 +8,7 @@ from __future__ import annotations
 from django.contrib import admin
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models.discovery import DiscoveryCIDR, DiscoveryFQDN, DiscoveryJob
+from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN, DiscoveryJob
 
 
 @admin.register(DiscoveryCIDR)

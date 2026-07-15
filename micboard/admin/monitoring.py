@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
+from django.db.models import Exists, OuterRef
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.decorators import method_decorator
@@ -111,14 +112,22 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     )
     actions: ClassVar[list[str]] = [
         "promote_to_chassis_action",
-        "delete_and_remove_from_api",
+        "delete_and_reconcile_discovery",
         "refresh_from_api",
     ]
 
     def get_queryset(self, request):
         """Optimize queryset with related lookups."""
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
+
         qs = super().get_queryset(request)
-        return qs.select_related("manufacturer")
+        managed_chassis = WirelessChassis.objects.filter(
+            ip=OuterRef("ip"),
+            manufacturer_id=OuterRef("manufacturer_id"),
+        )
+        return qs.select_related("manufacturer").annotate(
+            _is_managed=Exists(managed_chassis),
+        )
 
     @admin.display(description="Status", ordering="status")
     def status_display_with_color(self, obj):
@@ -150,12 +159,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.display(description="Managed", boolean=True)
     def is_managed_display(self, obj):
         """Check if this discovered device is already managed as a chassis."""
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-        return WirelessChassis.objects.filter(
-            ip=obj.ip,
-            manufacturer=obj.manufacturer,
-        ).exists()
+        return obj._is_managed
 
     @admin.display(description="Manageable", boolean=True)
     def is_manageable_display(self, obj):
@@ -181,14 +185,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
     @admin.display(description="Actions")
     def promotion_actions(self, obj):
         """Display promotion action buttons with status awareness."""
-        from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-        is_managed = WirelessChassis.objects.filter(
-            ip=obj.ip,
-            manufacturer=obj.manufacturer,
-        ).exists()
-
-        if is_managed:
+        if obj._is_managed:
             return "✓ Already Managed"
 
         # Check if device can be promoted
@@ -304,46 +301,22 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
 
     @admin.action(
         permissions=["delete"],
-        description="Delete and remove from manufacturer API discovery list",
+        description="Delete and reconcile manufacturer API discovery lists",
     )
-    def delete_and_remove_from_api(self, request, queryset):
-        """Delete discovered devices and remove from remote API discovery lists."""
-        from micboard.services.manufacturer.plugin_registry import PluginRegistry
+    def delete_and_reconcile_discovery(self, request, queryset):
+        """Delete staged devices and schedule claimed remote reconciliation."""
+        from micboard.services.sync.discovered_device_deletion_service import (
+            DiscoveredDeviceDeletionService,
+        )
 
-        removed_count = 0
-        failed_count = 0
-
-        for discovered in queryset:
-            # Try to remove from manufacturer's discovery list
-            if discovered.manufacturer:
-                try:
-                    plugin = PluginRegistry.get_plugin(
-                        discovered.manufacturer.code, discovered.manufacturer
-                    )
-
-                    if plugin and hasattr(plugin, "remove_discovery_ips"):
-                        plugin.remove_discovery_ips([discovered.ip])
-                except Exception as e:
-                    logger.exception(
-                        "Failed to remove IP %s from discovery list: %s",
-                        discovered.ip,
-                        e,
-                    )
-                    failed_count += 1
-
-            # Delete the discovered device record
-            discovered.delete()
-            removed_count += 1
+        result = DiscoveredDeviceDeletionService.delete(queryset)
 
         messages.success(
             request,
-            f"✅ Deleted {removed_count} discovered device(s) and removed from API discovery lists.",
+            f"✅ Deleted {result.deleted_count} discovered device(s); scheduled "
+            f"claimed discovery reconciliation for {result.scheduled_manufacturers} "
+            "manufacturer(s).",
         )
-        if failed_count > 0:
-            messages.warning(
-                request,
-                f"⚠️ {failed_count} device(s) could not be removed from API discovery lists.",
-            )
 
     def _promote_to_chassis(
         self, discovered: DiscoveredDevice

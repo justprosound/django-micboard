@@ -143,11 +143,3 @@ class SennheiserMetadataAccessor(DeviceMetadataAccessor):
             return "Device is incompatible with current API version."
 
         return None
-
-    def get_hardware_version(self) -> str | None:
-        """Get Sennheiser hardware version."""
-        return self.data.get("hardware_version")
-
-    def get_software_version(self) -> str | None:
-        """Get Sennheiser software version."""
-        return self.data.get("software_version")

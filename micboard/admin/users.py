@@ -1,39 +1,26 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.contrib.auth.models import User
 
+from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.users.user_profile import UserProfile
 
 
-class UserProfileInline(admin.StackedInline):
-    model = UserProfile
-    can_delete = False
-    verbose_name_plural = "Micboard Profile"
+class UserProfileAdmin(MicboardModelAdmin):
+    """Administer Micboard profile data without replacing the host's User admin."""
+
+    list_display = ("user", "user_type", "title", "last_active_at", "updated_at")
+    list_filter = ("user_type", "last_active_at")
+    search_fields = ("user__username", "user__email", "title")
+    list_select_related = ("user",)
+    readonly_fields = ("created_at", "updated_at", "last_active_at")
+    raw_id_fields = ("user",)
 
 
-class UserAdmin(BaseUserAdmin):
-    inlines = (UserProfileInline,)
-    list_display = (
-        "username",
-        "email",
-        "first_name",
-        "last_name",
-        "is_staff",
-        "get_user_type",
-    )
-
-    @admin.display(description="Role")
-    def get_user_type(self, obj: User) -> str:
-        return obj.profile.get_user_type_display() if hasattr(obj, "profile") else "-"
-
-
-def configure_user_admin(site: admin.AdminSite) -> None:
-    """Enhance an existing User admin without overriding host registration policy."""
-    if not site.is_registered(User):
+def register_user_profile_admin(site: admin.AdminSite) -> None:
+    """Register Micboard's profile on a site without mutating host User policy."""
+    if site.is_registered(UserProfile):
         return
 
-    site.unregister(User)
-    site.register(User, UserAdmin)
+    site.register(UserProfile, UserProfileAdmin)
 
 
-configure_user_admin(admin.site)
+register_user_profile_admin(admin.site)

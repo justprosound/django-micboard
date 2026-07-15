@@ -58,16 +58,11 @@ class SettingsPresentationService:
         return key.lower() not in cls._DISPLAY_SAFE_KEYS
 
     @classmethod
-    def is_sensitive_definition(cls, definition: SettingDefinition) -> bool:
-        """Fail closed for settings not explicitly known to be display-safe."""
-        return cls.is_key_sensitive(definition.key)
-
-    @classmethod
     def format_value(cls, definition: SettingDefinition, value: Any) -> str:
         """Format one value without exposing unknown or sensitive definitions."""
         if value is None:
             return "—"
-        if cls.is_sensitive_definition(definition):
+        if cls.is_key_sensitive(definition.key):
             return "••••••"
         return str(value)
 

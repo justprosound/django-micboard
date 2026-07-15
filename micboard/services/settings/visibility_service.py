@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from django.apps import apps
 from django.conf import settings as django_settings
 from django.db.models import F, Q
 
 from micboard.services.settings.dtos import SettingsVisibilityScope
+from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.access_policy import TENANT_ADMIN_ROLES
 from micboard.settings.scope_policy import (
-    matches_definition_scope,
     resolve_scope,
 )
 
@@ -29,9 +30,22 @@ class SettingsVisibilityService:
 
     def for_user(self, *, user: Any) -> SettingsVisibilityScope:
         """Resolve the setting-override identifiers visible to ``user``."""
-        msp_enabled = getattr(django_settings, "MICBOARD_MSP_ENABLED", False)
-        multi_site_mode = getattr(django_settings, "MICBOARD_MULTI_SITE_MODE", False)
-        cross_org_view = getattr(django_settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True)
+        return self._for_user(user=user, roles=None)
+
+    def for_management_user(self, *, user: Any) -> SettingsVisibilityScope:
+        """Resolve setting scopes where ``user`` has an administering role."""
+        return self._for_user(user=user, roles=TENANT_ADMIN_ROLES)
+
+    def _for_user(
+        self,
+        *,
+        user: Any,
+        roles: frozenset[str] | None,
+    ) -> SettingsVisibilityScope:
+        """Resolve readable or role-filtered management scope for ``user``."""
+        msp_enabled = micboard_settings.msp_enabled
+        multi_site_mode = micboard_settings.multi_site_mode
+        cross_org_view = micboard_settings.allow_cross_org_view
 
         if not msp_enabled:
             if not multi_site_mode:
@@ -77,6 +91,8 @@ class SettingsVisibilityService:
             is_active=True,
             organization__is_active=True,
         )
+        if roles is not None:
+            memberships_queryset = memberships_queryset.filter(role__in=roles)
         if multi_site_mode:
             memberships_queryset = memberships_queryset.filter(organization__site_id=site_id)
         memberships = list(memberships_queryset.values_list("organization_id", "campus_id"))
@@ -91,6 +107,18 @@ class SettingsVisibilityService:
             organization_ids=organization_ids,
             site_ids=frozenset(),
             manufacturer_ids=frozenset(),
+        )
+
+    @classmethod
+    def has_manageable_scope(cls, scope: SettingsVisibilityScope) -> bool:
+        """Return whether at least one setting target may be mutated."""
+        return cls.is_unrestricted(scope) or any(
+            bool(identifiers)
+            for identifiers in (
+                scope.organization_ids,
+                scope.site_ids,
+                scope.manufacturer_ids,
+            )
         )
 
     @staticmethod
@@ -157,37 +185,6 @@ class SettingsVisibilityService:
             include_global=cls.is_unrestricted(scope),
         )
 
-    @staticmethod
-    def resolve_scope(
-        *,
-        organization_id: int | None,
-        site_id: int | None,
-        manufacturer_id: int | None,
-    ) -> str | None:
-        """Return the one exact settings scope, or ``None`` for mixed scopes."""
-        return resolve_scope(
-            organization_id=organization_id,
-            site_id=site_id,
-            manufacturer_id=manufacturer_id,
-        )
-
-    @classmethod
-    def matches_definition_scope(
-        cls,
-        *,
-        definition_scope: str,
-        organization_id: int | None,
-        site_id: int | None,
-        manufacturer_id: int | None,
-    ) -> bool:
-        """Return whether identifiers match a setting definition's declared scope."""
-        return matches_definition_scope(
-            definition_scope=definition_scope,
-            organization_id=organization_id,
-            site_id=site_id,
-            manufacturer_id=manufacturer_id,
-        )
-
     @classmethod
     def can_manage_scope(
         cls,
@@ -208,13 +205,16 @@ class SettingsVisibilityService:
         if resolved_scope is None:
             return False
 
-        if organization_id is not None:
-            return scope.organization_ids is None or organization_id in scope.organization_ids
-        if site_id is not None:
-            return scope.site_ids is None or site_id in scope.site_ids
-        if manufacturer_id is not None:
-            return scope.manufacturer_ids is None or manufacturer_id in scope.manufacturer_ids
-        return False  # pragma: no cover - exhaustive identifier guard
+        if resolved_scope == "organization":
+            return (
+                scope.organization_ids is None
+                or cast(int, organization_id) in scope.organization_ids
+            )
+        if resolved_scope == "site":
+            return scope.site_ids is None or cast(int, site_id) in scope.site_ids
+        return (
+            scope.manufacturer_ids is None or cast(int, manufacturer_id) in scope.manufacturer_ids
+        )
 
 
 settings_visibility = SettingsVisibilityService()

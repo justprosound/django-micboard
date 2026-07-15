@@ -45,19 +45,17 @@ Three new functions handle band plan detection:
 Detects band plan from API frequency band value with preferred fallback to model code detection.
 
 ```python
-from micboard.services.hardware.wireless_chassis_service import detect_band_plan_from_api_data
+from micboard.services.hardware.chassis_regulatory_service import detect_band_plan_from_api_data
 
 chassis = WirelessChassis(manufacturer=shure, model="ULXD4Q")
 result = detect_band_plan_from_api_data(chassis, api_band_value="G50")
 
-# Returns:
-{
-    "band_plan_name": "G50 (470-534 MHz)",
-    "band_plan_min_mhz": 470.0,
-    "band_plan_max_mhz": 534.0,
-    "source": "api",
-    "message": "Detected from API frequencyBand 'G50'"
-}
+# Returns a validated BandPlanInfo DTO:
+result.name  # "G50"
+result.min_mhz  # 470.0
+result.max_mhz  # 534.0
+result.source  # "api"
+result.message  # "Detected from API frequencyBand 'G50'"
 ```
 
 #### Service: `apply_detected_band_plan(chassis, api_band_value=None)`
@@ -65,7 +63,7 @@ result = detect_band_plan_from_api_data(chassis, api_band_value="G50")
 Convenience method that applies detected band plan directly to the chassis:
 
 ```python
-from micboard.services.hardware.wireless_chassis_service import apply_detected_band_plan
+from micboard.services.hardware.chassis_regulatory_service import apply_detected_band_plan
 
 chassis = WirelessChassis(manufacturer=shure, model="ULXD4Q")
 if apply_detected_band_plan(chassis, api_band_value="G50"):
@@ -112,7 +110,7 @@ chassis, created = WirelessChassis.objects.update_or_create(
 )
 
 # 3. Auto-detect band plan from API frequencyBand
-from micboard.services.hardware.wireless_chassis_service import apply_detected_band_plan
+from micboard.services.hardware.chassis_regulatory_service import apply_detected_band_plan
 
 apply_detected_band_plan(chassis, api_band_value=api_response.get("frequencyBand"))
 chassis.save()
@@ -125,7 +123,7 @@ print(f"✅ Setup band plan: {chassis.band_plan_name}")
 
 ```python
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.hardware.wireless_chassis_service import apply_detected_band_plan
+from micboard.services.hardware.chassis_regulatory_service import apply_detected_band_plan
 
 # Update all online Shure devices
 for chassis in WirelessChassis.objects.filter(
@@ -200,13 +198,13 @@ If API doesn't provide `frequencyBand`, the detector falls back to model code in
 
 ```python
 from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.band_plans import get_available_band_plans
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.hardware.wireless_chassis_service import get_available_band_plans
 
 shure = Manufacturer.objects.get(code="shure")
 chassis = WirelessChassis(manufacturer=shure)
 
-plans = get_available_band_plans(chassis)
+plans = get_available_band_plans(manufacturer=chassis.manufacturer.code)
 # Output: [
 #   ("g50_470_534", "G50 (470-534 MHz)"),
 #   ("h50_520_600", "H50 (520-600 MHz)"),
@@ -218,7 +216,7 @@ plans = get_available_band_plans(chassis)
 
 ```python
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.hardware.wireless_chassis_service import (
+from micboard.services.hardware.chassis_regulatory_service import (
     apply_detected_band_plan,
     detect_band_plan_from_api_data,
 )
@@ -227,11 +225,11 @@ chassis = WirelessChassis(manufacturer=shure, model="ULXD4Q")
 
 # Test API detection
 result = detect_band_plan_from_api_data(chassis, api_band_value="G50")
-print(result["band_plan_name"])  # "G50 (470-534 MHz)"
+print(result.name)  # "G50"
 
 # Test model detection (no API value)
 result = detect_band_plan_from_api_data(chassis, api_band_value=None)
-print(result["band_plan_name"])  # "G50 (470-534 MHz)" (from ULXD4Q model code)
+print(result.name)  # "G50" (from ULXD4Q model code)
 
 # Test apply
 if apply_detected_band_plan(chassis, api_band_value="G50"):

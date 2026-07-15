@@ -1,11 +1,16 @@
 # PRD-004: Quality, API, and Documentation
 
-**Status:** Proposed
+**Status:** In Progress
 **Date:** 2026-05-20
+**Updated:** 2026-07-14
 
 ## Problem Statement
 
-django-micboard has no automated test safety net — 33 of 38 service files are untested, no factories exist, and no integration or E2E tests run in CI. There is no REST API for programmatic access, and API documentation is absent. CI quality pipelines (linting, type checking, security scanning) run but lack coverage gates.
+The project originally lacked factories, integration coverage, and an enforced coverage gate. Those
+quality foundations are now implemented: the distributable package is covered by a 95% branch
+floor, discovery and poll-to-alert integration paths are exercised, critical admin workflows have
+request-level coverage, and the plugin development contract is documented. The read-only v1 REST
+API remains a separate outstanding deliverable.
 
 ## Goals
 
@@ -39,13 +44,15 @@ django-micboard has no automated test safety net — 33 of 38 service files are 
 
 - **Factories:** One `factory_boy` factory per model under `tests/factories/`. Inline model construction is replaced across all existing tests.
 - **Test structure:** Restructure from flat `tests/` to domain-aligned: `tests/services/`, `tests/models/`, `tests/admin/`, `tests/integration/`.
-- **Coverage targets:** `uv run pytest --cov=micboard --cov-fail-under=60` initially, stepping to 80%.
+- **Coverage target:** `just coverage` enforces at least 95% branch coverage and checks that every
+  distributable Python module is included.
 - **API v1:** DRF ViewSets at `micboard/api/v1/` with GET-only endpoints for chassis, wireless units, RF channels, discovery status, monitoring state, and settings. Read-only avoids write-side validation complexity.
-- **CI gates:** pre-commit hooks (ruff, mypy, bandit). GitHub Actions run lint, type-check, test (with coverage), and security scan on every PR.
+- **CI gates:** pre-commit hooks run formatting, lint, typing, migration, and documentation
+  integrity checks. GitHub Actions additionally run coverage and Bandit security scans on every PR.
 
 ## Success Metrics
 
-- `uv run pytest --cov=micboard --cov-fail-under=60` passes.
+- `just coverage` passes with at least 95% branch coverage.
 - Integration tests for discovery pipeline and sync lifecycle.
 - Admin E2E tests for 5 critical flows (chassis CRUD, discovery approval, monitoring).
 - API v1 serves GET endpoints for core models with DRF browsable docs.
@@ -60,13 +67,13 @@ django-micboard has no automated test safety net — 33 of 38 service files are 
 
 ## Issues
 
-- #69 — test: add factory_boy factories for all models
-- #70 — test: write service-level tests for discovery, hardware, and monitoring
-- #71 — test: write integration tests for discovery pipeline and sync lifecycle
-- #72 — test: write admin E2E smoke tests for 5 critical flows
-- #73 — chore: configure pre-commit hooks and CI quality jobs
-- #74 — feat: implement v1 REST API with DRF (read-only, core models)
-- #75 — docs: create plugin development guide
+- #69 — factory catalog (implemented)
+- #70 — service-layer coverage (implemented)
+- #71 — discovery and sync integration coverage (implemented)
+- #72 — admin workflow coverage (implemented)
+- #73 — pre-commit and CI quality gates (implemented)
+- #74 — read-only v1 REST API (outstanding)
+- #75 — plugin development guide (implemented)
 
 ## References
 

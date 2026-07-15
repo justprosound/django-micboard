@@ -20,4 +20,4 @@ uv run --no-project python scripts/validate_wheel.py dist/django_micboard-*.whl
 uv run --no-project --with dist/django_micboard-*.whl \
     python scripts/smoke_test_installed_wheel.py
 
-echo "Release-readiness checks passed. Publish only through .github/workflows/release.yml."
+echo "Release-readiness checks passed. Start .github/workflows/prepare-release.yml from main."

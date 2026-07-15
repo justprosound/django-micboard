@@ -22,7 +22,7 @@ from django.urls import reverse
 # These will raise NoReverseMatch errors
 redirect_url = reverse("index")
 alert_url = reverse("alerts")
-room_url = reverse("room_view", kwargs={"building": "main", "room": "101"})
+room_url = reverse("room_view", kwargs={"room_id": 101})
 ```
 
 ### After (✅ Correct)
@@ -32,13 +32,13 @@ from django.urls import reverse
 # Add 'micboard:' prefix to all app URLs
 redirect_url = reverse("micboard:index")
 alert_url = reverse("micboard:alerts")
-room_url = reverse("micboard:room_view", kwargs={"building": "main", "room": "101"})
+room_url = reverse("micboard:room_view", kwargs={"room_id": 101})
 ```
 
 ### Quick Fix Command
 ```bash
 # Find all Python files with micboard reverse() calls
-grep -r "reverse(" . --include="*.py" | grep -E "(index|alerts|about|room_view|building_view)"
+rg -n 'reverse\("(index|alerts|about|room_view|single_building_view)' --glob '*.py'
 ```
 
 ---
@@ -50,13 +50,13 @@ grep -r "reverse(" . --include="*.py" | grep -E "(index|alerts|about|room_view|b
 {# Navigation links #}
 <a href="{% url 'index' %}">Dashboard</a>
 <a href="{% url 'alerts' %}">Alerts</a>
-<a href="{% url 'room_view' building='all' room='all' %}">Rooms</a>
+<a href="{% url 'all_rooms_view' %}">Rooms</a>
 
 {# Form actions #}
 <form action="{% url 'create_assignment' %}" method="post">
 
 {# HTMX endpoints #}
-<div hx-get="{% url 'list_assignments' %}" hx-trigger="every 5s">
+<div hx-get="{% url 'assignment_rows' %}" hx-trigger="every 5s">
 ```
 
 ### After (✅ Correct)
@@ -64,19 +64,19 @@ grep -r "reverse(" . --include="*.py" | grep -E "(index|alerts|about|room_view|b
 {# Navigation links #}
 <a href="{% url 'micboard:index' %}">Dashboard</a>
 <a href="{% url 'micboard:alerts' %}">Alerts</a>
-<a href="{% url 'micboard:room_view' building='all' room='all' %}">Rooms</a>
+<a href="{% url 'micboard:all_rooms_view' %}">Rooms</a>
 
 {# Form actions #}
 <form action="{% url 'micboard:create_assignment' %}" method="post">
 
 {# HTMX endpoints #}
-<div hx-get="{% url 'micboard:list_assignments' %}" hx-trigger="every 5s">
+<div hx-get="{% url 'micboard:assignment_rows' %}" hx-trigger="every 5s">
 ```
 
 ### Quick Fix Command
 ```bash
 # Find all templates with micboard URL tags
-grep -r "{% url" . --include="*.html" | grep -v "'admin:" | grep -v "'micboard:"
+rg -n "{% url" --glob '*.html'
 ```
 
 ---
@@ -89,21 +89,25 @@ All these URL names now require the `micboard:` prefix:
 - `micboard:index` - Main dashboard
 - `micboard:about` - About page
 - `micboard:alerts` - Alerts list
+- `micboard:alert_rows` - Filtered alert table fragment
 
 ### View Modes
 - `micboard:all_buildings_view` - All buildings
-- `micboard:single_building_view` - Single building
-- `micboard:room_view` - Room view
-- `micboard:user_view` - User view
-- `micboard:device_type_view` - Device type view
-- `micboard:priority_view` - Priority view
+- `micboard:single_building_view` - Chassis in one building by integer ID
+- `micboard:rooms_in_building_view` - Rooms in one building by integer ID
+- `micboard:all_rooms_view` - All visible rooms
+- `micboard:room_view` - Chassis in one room by integer ID
+- `micboard:performer_view` - Chassis assigned to one performer by integer ID
+- `micboard:device_type_view` - Chassis by validated RF role
+- `micboard:priority_view` - Chassis by validated assignment priority
 
 ### Charger Management
 - `micboard:charger_display` - Charger display
 - `micboard:charger_dashboard` - Charger dashboard
 
 ### Assignments
-- `micboard:list_assignments` - List assignments
+- `micboard:assignments` - List assignments
+- `micboard:assignment_rows` - Assignment table fragment
 - `micboard:create_assignment` - Create assignment
 - `micboard:update_assignment` - Update assignment
 - `micboard:delete_assignment` - Delete assignment
@@ -112,11 +116,11 @@ All these URL names now require the `micboard:` prefix:
 - `micboard:alert_detail` - Alert detail view
 - `micboard:acknowledge_alert` - Acknowledge alert action
 - `micboard:resolve_alert` - Resolve alert action
-- `micboard:alert_acknowledge` - Alert acknowledge (HTMX)
 
 ### Kiosk Mode
-- `micboard:kiosk_auth` - Kiosk authentication
+- `micboard:kiosk_display` - Kiosk authentication and display entry point
 - `micboard:kiosk_data` - Kiosk data view
+- `micboard:kiosk_content` - Kiosk content fragment
 - `micboard:kiosk_health` - Kiosk health check
 - `micboard:display_wall_list` - Display wall list
 - `micboard:display_wall_detail` - Display wall detail
@@ -128,6 +132,8 @@ All these URL names now require the `micboard:` prefix:
 - `micboard:charger_grid_partial` - Charger grid
 - `micboard:charger_slot_partial` - Charger slot
 - `micboard:wall_section_partial` - Wall section
+- `micboard:alert_row_partial` - Alert row
+- `micboard:assignment_row_partial` - Assignment row
 
 ---
 
@@ -163,10 +169,10 @@ Visit `http://localhost:8000/micboard/` and click through all navigation links. 
 ### 2. Search Your Codebase
 ```bash
 # Python files: Look for reverse() calls
-find . -name "*.py" -type f -exec grep -l "reverse(" {} \; | xargs grep -n "reverse("
+rg -n "reverse\(" --glob '*.py'
 
 # Templates: Look for {% url %} tags
-find . -name "*.html" -type f -exec grep -l "{% url" {} \; | xargs grep -n "{% url"
+rg -n "{% url" --glob '*.html'
 ```
 
 ### 3. Run Django's URL Check
@@ -178,8 +184,6 @@ uv run --no-sync python manage.py check --deploy
 ### 4. Run Your Test Suite
 ```bash
 # URL-related tests should catch missing namespaces
-uv run --no-sync python manage.py test
-# or
 uv run --no-sync pytest
 ```
 
@@ -244,25 +248,27 @@ If you encounter issues during migration:
 
 ---
 
-## Configuration Access Pattern (Recommended but Optional)
+## Configuration Access Pattern
 
-While not breaking, we recommend migrating from:
+Direct Django settings reads and the former app-config cache are unsupported:
 
 ```python
-# Old pattern (still works)
+# Removed patterns
 from django.conf import settings
 config = getattr(settings, "MICBOARD_CONFIG", {})
+from micboard.apps import MicboardConfig
+config = MicboardConfig.get_config()
 ```
 
 To:
 
 ```python
-# New pattern (recommended)
-from micboard.apps import MicboardConfig
-config = MicboardConfig.get_config()
+# Canonical pattern
+from micboard.services.settings.settings_service import settings as micboard_settings
+config = micboard_settings.get_config_dict()
 ```
 
-This change improves testability and follows Django best practices. The old pattern continues to work but may be deprecated in future versions.
+All Micboard runtime configuration reads now use the canonical settings service.
 
 ---
 

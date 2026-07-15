@@ -14,7 +14,10 @@ from django.utils import timezone
 
 if TYPE_CHECKING:
     from micboard.models.hardware.wireless_unit import WirelessUnit
+    from micboard.models.rf_coordination.compliance import RegulatoryDomain
     from micboard.models.rf_coordination.rf_channel import RFChannel
+
+from micboard.services.hardware.dtos import RegulatoryDomainDTO
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +139,16 @@ def get_iem_metrics(unit: WirelessUnit) -> dict[str, int | None]:
 
 def get_assigned_rf_channel(unit: WirelessUnit) -> RFChannel | None:
     """Get the RFChannel this unit is assigned to, if any."""
+    prefetched_channels = getattr(unit, "_admin_active_receive_channels", None)
+    if prefetched_channels is not None:
+        if prefetched_channels:
+            return prefetched_channels[0]
+        return unit.assigned_resource
+
     if hasattr(unit, "active_on_receive_channels"):
-        return unit.active_on_receive_channels.first()
+        active_channel = unit.active_on_receive_channels.first()
+        if active_channel:
+            return active_channel
 
     if hasattr(unit, "assigned_resource") and unit.assigned_resource:
         return unit.assigned_resource
@@ -169,7 +180,33 @@ def get_regulatory_status(unit: WirelessUnit) -> dict[str, str | bool | float | 
     }
 
 
-def prepare_unit_for_save(unit: WirelessUnit) -> dict[str, Any]:
+def get_regulatory_status_for_domain(
+    unit: WirelessUnit,
+    regulatory_domain: RegulatoryDomain | RegulatoryDomainDTO | None,
+) -> dict[str, str | bool | float | None]:
+    """Build unit regulatory status from a pre-resolved domain projection."""
+    rf_channel = get_assigned_rf_channel(unit)
+    if rf_channel is None:
+        return {
+            "has_coverage": False,
+            "regulatory_domain": None,
+            "operating_frequency_mhz": None,
+            "needs_update": False,
+            "source": "no_channel",
+            "message": "\u2139\ufe0f No RF channel assigned - regulatory check not applicable",
+        }
+
+    from micboard.services.hardware.rf_channel_service import (
+        get_regulatory_status_for_domain as _get_status,
+    )
+
+    status = _get_status(rf_channel, regulatory_domain)
+    status["source"] = "rf_channel"
+    status["message"] = f"Via RFChannel {rf_channel.channel_number}: {status['message']}"
+    return status
+
+
+def prepare_unit_for_save(unit: WirelessUnit, *, using: str = "default") -> dict[str, Any]:
     """Validate lifecycle changes and prepare derived fields before persistence."""
     if unit._state.adding:
         return {
@@ -180,7 +217,7 @@ def prepare_unit_for_save(unit: WirelessUnit) -> dict[str, Any]:
             "update_fields": set(),
         }
 
-    previous = type(unit).objects.only("status", "battery").get(pk=unit.pk)
+    previous = type(unit).objects.using(using).only("status", "battery").get(pk=unit.pk)
     status_changed = previous.status != unit.status
     battery_changed = previous.battery != unit.battery
     update_fields: set[str] = set()
@@ -207,7 +244,12 @@ def prepare_unit_for_save(unit: WirelessUnit) -> dict[str, Any]:
     }
 
 
-def finalize_unit_save(unit: WirelessUnit, context: dict[str, Any]) -> None:
+def finalize_unit_save(
+    unit: WirelessUnit,
+    context: dict[str, Any],
+    *,
+    using: str = "default",
+) -> None:
     """Write lifecycle audit events after a wireless unit is persisted."""
     from micboard.services.maintenance.audit import AuditService
 
@@ -219,6 +261,7 @@ def finalize_unit_save(unit: WirelessUnit, context: dict[str, Any]) -> None:
             obj=unit,
             old_values={"status": context["old_status"]},
             new_values={"status": unit.status},
+            using=using,
         )
 
     if not context["battery_changed"] or unit.battery == _UNKNOWN_BYTE_VALUE:
@@ -249,4 +292,5 @@ def finalize_unit_save(unit: WirelessUnit, context: dict[str, Any]) -> None:
         new_values={"battery_percentage": new_pct},
         status="warning",
         log_mode="passive" if new_pct <= 15 else "normal",
+        using=using,
     )

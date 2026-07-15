@@ -1,8 +1,8 @@
 # ADR-006: Test Infrastructure Overhaul
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-05-20
-**Updated:** 2026-07-13
+**Updated:** 2026-07-14
 **Deciders:** (to be assigned)
 
 ## Implementation Status
@@ -15,15 +15,16 @@ Phases 1 through 3 were completed on 2026-07-13:
 - Core-only, optional multitenancy, and swappable-user host configurations are covered.
 - Factory Boy remains outside the base runtime dependencies, and test support is excluded from
   wheels.
-- Discovery, deduplication, hardware, location, performer, alert, connection, and uptime services
+- Discovery, deduplication, hardware, location, performer, alert, and connection services
   have direct behavioral coverage at 90% or higher per targeted module.
 - Query budgets protect discovery batching, alert fanout, connection health, and connection
   statistics from data-dependent query growth.
 - Request-level smoke tests cover tenant-scoped chassis administration, atomic discovery approval,
   the monitoring dashboard, settings diffs, and HTMX channel fragments.
 
-Phase 4 remains tracked by issue #71. CI currently enforces a synchronized 49% coverage floor; it
-will be raised toward 60% and then 80% only as measured coverage supports those thresholds.
+The coverage expansion completed on 2026-07-14. CI now enforces a synchronized 95% branch-coverage
+floor across every distributable Python module, backed by service, integration, command, admin,
+and host-configuration contracts.
 
 ## Context
 
@@ -85,10 +86,9 @@ This means:
 - **Negative:** Adding ~300-400 tests requires dedicated sprints. Factory maintenance adds overhead when model schemas change.
 - **Migration:** Phase 1 — factories for all models (complete). Phase 2 — service tests for
   discovery, hardware, monitoring domains (complete). Phase 3 — admin E2E smoke tests (complete).
-  Phase 4 — integration pipeline tests.
+  Phase 4 — discovery and poll-to-alert integration pipelines (complete).
 
 ## Compliance
 
-- CI enforces the synchronized 49% coverage floor today, ratcheting to 60% and then 80% as the
-  remaining phases add verified coverage.
+- CI enforces a synchronized 95% branch-coverage floor and rejects omitted distributable modules.
 - New service methods require tests in the same PR.

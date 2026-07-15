@@ -15,9 +15,13 @@ from django.core.management.base import BaseCommand
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.hardware.chassis_regulatory_service import (
+    apply_detected_band_plan,
     get_band_plan_regulatory_status,
 )
-from micboard.services.hardware.wireless_chassis_service import apply_detected_band_plan
+from micboard.services.hardware.dtos import WirelessChassisWrite
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
 
 
 class Command(BaseCommand):
@@ -72,7 +76,15 @@ class Command(BaseCommand):
                 if fix_mode:
                     # Attempt auto-detection from model
                     if apply_detected_band_plan(chassis):
-                        chassis.save()
+                        WirelessChassisPersistenceService.update(
+                            chassis=chassis,
+                            write=WirelessChassisWrite(
+                                band_plan_name=chassis.band_plan_name,
+                                band_plan_min_mhz=chassis.band_plan_min_mhz,
+                                band_plan_max_mhz=chassis.band_plan_max_mhz,
+                            ),
+                            save_all_fields=True,
+                        )
                         self.stdout.write(
                             self.style.SUCCESS(
                                 f"[FIXED] Set band plan for {chassis.name}: "

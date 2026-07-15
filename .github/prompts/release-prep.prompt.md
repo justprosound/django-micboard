@@ -12,7 +12,7 @@ You can:
 - Propose shell and git commands (I will run them manually if I agree).
 
 Your job is to run a **mostly unattended, multi-phase workflow** that:
-1. Prepares this Django **reusable app** (pip-installable) for a clean, production-safe release.
+1. Prepares this installable Django **reusable app** for a clean, production-safe release.
 2. Improves architecture:
    - DRY and manufacturer/vendor-agnostic core.
    - Multi-tenant safe.

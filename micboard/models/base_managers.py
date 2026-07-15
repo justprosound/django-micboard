@@ -12,9 +12,11 @@ from collections.abc import Sequence
 from typing import Any, Protocol, TypeVar
 
 from django.apps import apps
-from django.conf import settings
+from django.conf import settings as django_settings
 from django.db import models
 from django.db.models import F, Q
+
+from micboard.settings.deployment_controls import deployment_controls
 
 _ModelT = TypeVar("_ModelT", bound=models.Model)
 
@@ -122,6 +124,10 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
                 return lookups
         return None
 
+    def supports_membership_scope(self) -> bool:
+        """Return whether this model has an explicit tenant ownership path."""
+        return self._tenant_lookups() is not None
+
     def _campus_lookup(self) -> str | None:
         """Return the campus lookup for the queryset model, when available."""
         if hasattr(self.model, "campus_id"):
@@ -144,10 +150,10 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
 
     def for_site(self, *, site_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]:
         """Filter by Django Site (multi-site mode)."""
-        if not getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+        if not deployment_controls.multi_site_mode:
             return self
 
-        site_id = site_id or getattr(settings, "SITE_ID", 1)
+        site_id = site_id or getattr(django_settings, "SITE_ID", 1)
 
         site_lookup = TenantOptimizedQuerySet._site_lookup(self)
         if site_lookup is None:
@@ -158,7 +164,7 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
         self, *, organization: OrganizationLike | int | None = None
     ) -> TenantOptimizedQuerySet[_ModelT]:
         """Filter by Organization (MSP mode)."""
-        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+        if not deployment_controls.msp_enabled:
             return self
 
         if organization is None:
@@ -174,7 +180,7 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
 
     def for_campus(self, *, campus_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]:
         """Filter by Campus (MSP mode)."""
-        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
+        if not deployment_controls.msp_enabled:
             return self
 
         if campus_id is None:
@@ -219,11 +225,11 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
         if not getattr(user, "is_authenticated", True):
             return self.none()
 
-        multi_site_enabled = getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
-        if user.is_superuser and getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True):
+        multi_site_enabled = deployment_controls.multi_site_mode
+        if user.is_superuser and deployment_controls.allow_cross_org_view:
             return self.for_site() if multi_site_enabled else self
 
-        if getattr(settings, "MICBOARD_MSP_ENABLED", False):
+        if deployment_controls.msp_enabled:
             if not apps.is_installed("micboard.multitenancy"):
                 return self.none()
 

@@ -129,14 +129,14 @@ result = parse_band_plan_from_name(name="G50 (470-534 MHz)")
 # Returns: {"min_mhz": 470.0, "max_mhz": 534.0}
 ```
 
-### Chassis Service
+### Manufacturer Band Plans
 ```python
-from micboard.services.hardware.wireless_chassis_service import get_available_band_plans
+from micboard.models.band_plans import get_available_band_plans
 
 chassis = WirelessChassis.objects.get(pk=1)
 
 # Get available band plans for this chassis's manufacturer
-available = get_available_band_plans(chassis)
+available = get_available_band_plans(manufacturer=chassis.manufacturer.code)
 # Returns: [("g50", "G50 (470-534 MHz)"), ...]
 ```
 
