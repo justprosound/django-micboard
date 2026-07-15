@@ -91,6 +91,14 @@ gh attestation verify django_micboard-<version>-py3-none-any.whl \
 
 ## Branch protection contract
 
+Keep repository default workflow permissions read-only and enable
+**Allow GitHub Actions to create and approve pull requests**. The release workflow needs that
+explicit repository capability to open its metadata pull request. Each job still receives only its
+declared token permissions. Keep public-fork approval at **first-time contributors**. The first
+generated release pull request may pause its `pull_request` runs until a maintainer approves
+`github-actions[bot]` once; approve only the runs bound to the generated release commit rather than
+weakening the approval policy.
+
 Protect `main` with strict, GitHub-Actions-bound checks named `CI required`, `build-docs`, and
 `dependency-review`. `CI required` aggregates lint, package, compatibility-matrix tests, Bandit,
 locked-dependency audit, and CodeQL so matrix maintenance does not require branch-rule edits.
