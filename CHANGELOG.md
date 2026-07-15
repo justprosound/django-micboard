@@ -79,7 +79,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   dispatch, repository write, and publication dispatch permissions across jobs
 - **Verified release promotion**: Create release metadata through GitHub's signed commit API,
   build without workspace source overrides, verify TestPyPI digests before production approval,
-  and publish draft GitHub releases only after every integrity asset is attached
+  publish production from the same sealed workflow run, make named artifacts and draft releases
+  safe to resume after job retries, and publish GitHub releases only after every integrity asset
+  is attached
 - **Hardened build dependencies**: Upgrade the exactly pinned build backend to setuptools 83.0.0
   and wheel 0.47.0, and lock Twine plus the PEP 740 signer through uv
 - **Credential-safe workflow checkouts**: Disable persisted Git credentials for every read-only

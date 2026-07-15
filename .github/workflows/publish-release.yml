@@ -11,11 +11,6 @@ on:
       version:
         description: "CalVer version already merged to main (YY.MM.DD)"
         required: true
-      test_only:
-        description: "Stop after verified TestPyPI publication"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -146,6 +141,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - name: Upload locked release attestation toolchain
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -154,6 +150,7 @@ jobs:
           path: release-tools.txt
           if-no-files-found: error
           retention-days: 30
+          overwrite: true
 
   attest-release:
     needs: [validate-release, build-release]
@@ -242,6 +239,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
   verify-testpypi:
     needs: [validate-release, build-release, publish-testpypi]
@@ -292,7 +290,6 @@ jobs:
           exit 1
 
   publish-pypi:
-    if: ${{ ! inputs.test_only }}
     needs: [validate-release, build-release, attest-release, verify-testpypi]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -344,6 +341,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
   create-github-release:
     needs:
@@ -355,7 +353,6 @@ jobs:
       - publish-pypi
     if: >-
       always() &&
-      ! inputs.test_only &&
       needs.validate-release.result == 'success' &&
       needs.build-release.result == 'success' &&
       needs.attest-release.result == 'success' &&
@@ -394,11 +391,25 @@ jobs:
             --target "$RELEASE_SHA"
             --title "$RELEASE_TITLE"
           )
-          gh release create "$RELEASE_TAG" \
+          RELEASE_STATE="$RUNNER_TEMP/github-release.json"
+          if gh release view "$RELEASE_TAG" \
+            --json isDraft,targetCommitish > "$RELEASE_STATE" 2>/dev/null; then
+            if [ "$(jq --raw-output '.isDraft' "$RELEASE_STATE")" != "true" ]; then
+              echo "Release $RELEASE_TAG is already published"
+              exit 1
+            fi
+            if [ "$(jq --raw-output '.targetCommitish' "$RELEASE_STATE")" != "$RELEASE_SHA" ]; then
+              echo "Existing draft release does not target $RELEASE_SHA"
+              exit 1
+            fi
+          else
+            gh release create "$RELEASE_TAG" "${RELEASE_FLAGS[@]}"
+          fi
+          gh release upload "$RELEASE_TAG" \
             dist/*.whl \
             dist/*.tar.gz \
             dist/*.spdx.json \
             dist/*.publish.attestation \
             dist/SHA256SUMS \
-            "${RELEASE_FLAGS[@]}"
+            --clobber
           gh release edit "$RELEASE_TAG" --draft=false
