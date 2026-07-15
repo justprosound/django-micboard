@@ -197,19 +197,32 @@ jobs:
           RELEASE_FLAGS=(
             --draft
             --notes-file dist/RELEASE_NOTES.md
-            --target "$RELEASE_SHA"
             --title "$RELEASE_TITLE"
+            --verify-tag
           )
+          TAG_OBJECT_SHA="$(gh api \
+            "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+            --jq 'select(.object.type == "tag") | .object.sha')"
+          if [[ ! "$TAG_OBJECT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Release tag $RELEASE_TAG must be an annotated tag"
+            exit 1
+          fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/tags/$TAG_OBJECT_SHA" \
+            | jq --exit-status \
+              --arg expected_sha "$RELEASE_SHA" \
+              '.object.type == "commit" and
+               .object.sha == $expected_sha and
+               .verification.verified == true' \
+            >/dev/null; then
+            echo "Release tag $RELEASE_TAG must be verified and target $RELEASE_SHA"
+            exit 1
+          fi
           RELEASE_STATE="$RUNNER_TEMP/github-release.json"
           if gh release view "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --json isDraft,targetCommitish > "$RELEASE_STATE" 2>/dev/null; then
+            --json isDraft > "$RELEASE_STATE" 2>/dev/null; then
             if [ "$(jq --raw-output '.isDraft' "$RELEASE_STATE")" != "true" ]; then
               echo "Release $RELEASE_TAG is already published"
-              exit 1
-            fi
-            if [ "$(jq --raw-output '.targetCommitish' "$RELEASE_STATE")" != "$RELEASE_SHA" ]; then
-              echo "Existing draft release does not target $RELEASE_SHA"
               exit 1
             fi
           else

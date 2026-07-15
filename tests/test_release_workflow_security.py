@@ -88,6 +88,52 @@ def test_github_release_recovery_reuses_only_verified_pypi_artifacts() -> None:
     assert '--repo "$GITHUB_REPOSITORY"' in release_job
 
 
+def test_release_writers_require_the_verified_signed_tag_for_the_exact_commit() -> None:
+    """Registry and GitHub publication must consume a maintainer-signed immutable identity."""
+    publication = _workflow("publish-release.yml")
+    pypi_job = publication[publication.index("  publish-pypi:") :]
+    pypi_job = pypi_job[: pypi_job.index("  create-github-release:")]
+    release_jobs = (
+        pypi_job,
+        publication[publication.index("  create-github-release:") :],
+        _workflow("recover-github-release.yml").split("  create-github-release:", 1)[1],
+    )
+
+    for job in release_jobs:
+        assert "git/ref/tags/$RELEASE_TAG" in job
+        assert "git/tags/$TAG_OBJECT_SHA" in job
+        assert '.object.type == "commit"' in job
+        assert ".object.sha == $expected_sha" in job
+        assert ".verification.verified == true" in job
+
+    for github_release_job in release_jobs[1:]:
+        assert "--verify-tag" in github_release_job
+        assert "--target" not in github_release_job
+        assert "targetCommitish" not in github_release_job
+
+
+def test_publication_retry_allows_its_existing_verified_release_tag() -> None:
+    """A pre-PyPI retry must reach the exact-target signature gate instead of failing early."""
+    preparation = _workflow("prepare-release.yml")
+    publication = _workflow("publish-release.yml")
+    validation_job = publication[publication.index("  validate-release:") :]
+    validation_job = validation_job[: validation_job.index("  build-release:")]
+
+    assert 'git show-ref --verify --quiet "refs/tags/v$RELEASE_VERSION"' in preparation
+    assert 'git show-ref --verify --quiet "refs/tags/v$RELEASE_VERSION"' not in validation_job
+
+
+def test_release_preparation_surfaces_the_human_signing_ceremony() -> None:
+    """Solo maintainers must receive exact tag commands before production approval."""
+    preparation = _workflow("prepare-release.yml")
+    dispatch_job = preparation[preparation.index("  dispatch-publication:") :]
+
+    assert "Sign release tag before production approval" in dispatch_job
+    assert "git tag -s v$RELEASE_VERSION $MERGE_SHA -m 'Release $RELEASE_VERSION'" in dispatch_job
+    assert "git push origin refs/tags/v$RELEASE_VERSION" in dispatch_job
+    assert "pypi-release" in dispatch_job
+
+
 def test_workflow_topology_is_documented() -> None:
     """Maintainers must be able to discover every workflow and the release sequence."""
     guide = (WORKFLOW_ROOT / "README.md").read_text(encoding="utf-8")
@@ -143,12 +189,14 @@ def test_release_metadata_reaches_main_through_a_pull_request() -> None:
 def test_release_metadata_commit_is_verified_without_a_stored_signing_key() -> None:
     """GitHub must author the generated commit so signed-commit protection remains enforceable."""
     release_workflow = _workflow("prepare-release.yml")
+    metadata_job = release_workflow[release_workflow.index("  open-release-pr:") :]
+    metadata_job = metadata_job[: metadata_job.index("  validate-release-pr:")]
 
-    assert "createCommitOnBranch" in release_workflow
-    assert "expectedHeadOid" in release_workflow
-    assert "git commit" not in release_workflow
-    assert "git push" not in release_workflow
-    assert "git config --local user" not in release_workflow
+    assert "createCommitOnBranch" in metadata_job
+    assert "expectedHeadOid" in metadata_job
+    assert "git commit" not in metadata_job
+    assert "git push" not in metadata_job
+    assert "git config --local user" not in metadata_job
 
 
 def test_distribution_publication_runs_only_from_main() -> None:
@@ -307,7 +355,6 @@ def test_github_release_publishes_the_verified_supply_chain_assets_atomically() 
     assert "--draft" in github_release_job
     assert "--clobber" in github_release_job
     assert "isDraft" in github_release_job
-    assert "targetCommitish" in github_release_job
     assert "dist/*.whl" in github_release_job
     assert "dist/*.tar.gz" in github_release_job
     assert "dist/*.spdx.json" in github_release_job
