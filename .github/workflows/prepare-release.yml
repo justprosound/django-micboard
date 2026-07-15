@@ -374,3 +374,14 @@ jobs:
             --ref main \
             --field expected_sha="$MERGE_SHA" \
             --field version="$RELEASE_VERSION"
+          {
+            echo "### Sign release tag before production approval"
+            echo
+            echo '```bash'
+            echo "git fetch --tags origin main"
+            echo "git tag -s v$RELEASE_VERSION $MERGE_SHA -m 'Release $RELEASE_VERSION'"
+            echo "git push origin refs/tags/v$RELEASE_VERSION"
+            echo '```'
+            echo
+            echo "Approve the pypi-release environment only after GitHub verifies this tag."
+          } >> "$GITHUB_STEP_SUMMARY"
