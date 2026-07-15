@@ -259,6 +259,7 @@ def test_github_release_publishes_the_verified_supply_chain_assets_atomically() 
     assert "dist/*.spdx.json" in github_release_job
     assert "dist/*.publish.attestation" in github_release_job
     assert "dist/SHA256SUMS" in github_release_job
+    assert github_release_job.count('--repo "$GITHUB_REPOSITORY"') == 4
     assert 'gh release edit "$RELEASE_TAG" --draft=false' in github_release_job
     assert github_release_job.index("gh release create") < github_release_job.index(
         "gh release upload"
