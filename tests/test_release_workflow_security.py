@@ -19,20 +19,33 @@ def test_release_workflows_have_single_responsibility_names() -> None:
     assert (WORKFLOW_ROOT / "prepare-release.yml").is_file()
 
 
-def test_release_version_defaults_to_the_current_utc_calver() -> None:
-    """Maintainers may omit the version while retaining a validated backfill override."""
+def test_release_version_defaults_to_the_next_utc_calver() -> None:
+    """Blank versions increment safely while retaining a validated backfill override."""
     preparation = _workflow("prepare-release.yml")
 
     assert (
-        'description: "CalVer override (YY.MM.DD); blank uses the current UTC date"' in preparation
+        'description: "CalVer override (YY.MM.DD[.N]); blank uses the next UTC daily release"'
+        in preparation
     )
     assert "required: false" in preparation
     assert "REQUESTED_VERSION: ${{ inputs.version }}" in preparation
-    assert 'RELEASE_VERSION="${REQUESTED_VERSION:-$(date -u +%y.%m.%d)}"' in preparation
+    assert "uses: ./.github/actions/setup-uv-python" in preparation
+    assert 'CALVER_ARGS=(--requested "$REQUESTED_VERSION")' in preparation
+    assert (
+        'uv run --no-project python scripts/calculate_calver.py "${CALVER_ARGS[@]}"' in preparation
+    )
     assert 'echo "### Preparing release v$RELEASE_VERSION" >> "$GITHUB_STEP_SUMMARY"' in preparation
     assert (
         "run-name: \"Prepare release · ${{ inputs.version || 'automatic CalVer' }}\"" in preparation
     )
+
+
+def test_release_workflows_accept_positive_same_day_calver_revisions() -> None:
+    """Preparation and publication must agree on the collision-safe version grammar."""
+    version_pattern = "^[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}(\\.[1-9][0-9]*)?$"
+
+    assert version_pattern in _workflow("prepare-release.yml")
+    assert version_pattern in _workflow("publish-release.yml")
 
 
 def test_workflow_topology_is_documented() -> None:
@@ -259,6 +272,7 @@ def test_github_release_publishes_the_verified_supply_chain_assets_atomically() 
     assert "dist/*.spdx.json" in github_release_job
     assert "dist/*.publish.attestation" in github_release_job
     assert "dist/SHA256SUMS" in github_release_job
+    assert github_release_job.count('--repo "$GITHUB_REPOSITORY"') == 4
     assert 'gh release edit "$RELEASE_TAG" --draft=false' in github_release_job
     assert github_release_job.index("gh release create") < github_release_job.index(
         "gh release upload"
