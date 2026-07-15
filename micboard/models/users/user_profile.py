@@ -80,11 +80,11 @@ class UserProfile(models.Model):
     def __str__(self) -> str:
         return f"{self.user.get_full_name() or self.user.username} ({self.get_user_type_display()})"
 
-    def get_monitoring_groups(self):
+    def get_monitoring_groups(self) -> models.QuerySet:
         """Get all monitoring groups this user is a member of."""
         return self.user.monitoring_groups.filter(is_active=True)
 
-    def get_accessible_performers(self):
+    def get_accessible_performers(self) -> models.QuerySet:
         """Get all performers accessible through user's monitoring groups."""
         from micboard.models.monitoring.performer import Performer
         from micboard.models.monitoring.performer_assignment import PerformerAssignment
@@ -95,7 +95,7 @@ class UserProfile(models.Model):
 
         return Performer.objects.filter(id__in=performer_ids, is_active=True)
 
-    def get_accessible_devices(self):
+    def get_accessible_devices(self) -> models.QuerySet:
         """Get all wireless units accessible through user's monitoring groups."""
         from micboard.models.hardware.wireless_unit import WirelessUnit
         from micboard.models.monitoring.performer_assignment import PerformerAssignment
@@ -104,4 +104,4 @@ class UserProfile(models.Model):
             monitoring_group__in=self.get_monitoring_groups(), is_active=True
         ).values_list("wireless_unit_id", flat=True)
 
-        return WirelessUnit.objects.filter(id__in=unit_ids, is_active=True)
+        return WirelessUnit.objects.filter(id__in=unit_ids)

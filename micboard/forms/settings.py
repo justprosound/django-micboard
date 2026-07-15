@@ -9,17 +9,22 @@ from django.apps import apps
 from django.contrib.sites.models import Site
 from django.core.exceptions import ValidationError
 
-from micboard.models.settings.registry import Setting, SettingDefinition
-from micboard.services.settings.dtos import SettingsVisibilityScope
+from micboard.models.settings.registry import SettingDefinition
+from micboard.services.settings.dtos import (
+    SettingsVisibilityScope,
+    SettingsWriteRequest,
+    SettingWriteItem,
+    SettingWriteTarget,
+)
+from micboard.services.settings.persistence_service import SettingsPersistenceService
 from micboard.services.settings.visibility_service import settings_visibility
-from micboard.services.shared.settings_registry import SettingsRegistry
 
 
 def _scope_for_user(user: Any | None) -> SettingsVisibilityScope:
     """Return unrestricted scope for trusted non-request callers."""
     if user is None:
         return SettingsVisibilityScope()
-    return settings_visibility.for_user(user=user)
+    return settings_visibility.for_management_user(user=user)
 
 
 def _has_choices(identifiers: frozenset[int] | None) -> bool:
@@ -225,49 +230,43 @@ class BulkSettingConfigForm(forms.Form):
         if not self.is_valid():
             raise ValidationError("Form is not valid")
 
-        results: dict[str, Any] = {"saved": 0, "errors": []}
         scope = self.cleaned_data["scope"]
         organization = self.cleaned_data.get("organization")
         site = self.cleaned_data.get("site")
         manufacturer = self.cleaned_data.get("manufacturer")
 
-        # Get all setting definitions
-        definitions = SettingDefinition.objects.filter(is_active=True, scope=scope)
-
-        for defn in definitions:
-            field_name = f"setting_{defn.id}"
-            value = self.cleaned_data.get(field_name)
-
-            # Skip empty values
-            if value == "" or value is None:
-                continue
-
-            try:
-                # Serialize value according to type
-                serialized = defn.serialize_value(value)
-
-                # Get or create Setting
-                Setting.objects.update_or_create(
-                    definition=defn,
-                    organization_id=getattr(organization, "pk", None)
+        items = [
+            SettingWriteItem(
+                definition_id=int(field_name.removeprefix("setting_")),
+                value=value,
+                label=field_name,
+            )
+            for field_name, value in self.cleaned_data.items()
+            if field_name.startswith("setting_") and value not in ("", None)
+        ]
+        request = SettingsWriteRequest(
+            target=SettingWriteTarget(
+                scope=scope,
+                organization_id=(
+                    getattr(organization, "pk", None)
                     if scope == SettingDefinition.SCOPE_ORGANIZATION
-                    else None,
-                    site=site if scope == SettingDefinition.SCOPE_SITE else None,
-                    manufacturer_id=getattr(manufacturer, "pk", None)
+                    else None
+                ),
+                site_id=(
+                    getattr(site, "pk", None) if scope == SettingDefinition.SCOPE_SITE else None
+                ),
+                manufacturer_id=(
+                    getattr(manufacturer, "pk", None)
                     if scope == SettingDefinition.SCOPE_MANUFACTURER
-                    else None,
-                    defaults={"value": serialized},
-                )
-
-                results["saved"] += 1
-
-                # Invalidate cache
-                SettingsRegistry.invalidate_cache(defn.key)
-
-            except Exception as e:
-                results["errors"].append(f"Error setting {defn.label}: {e}")
-
-        return results
+                    else None
+                ),
+            ),
+            items=items,
+        )
+        return SettingsPersistenceService.save(
+            request=request,
+            visibility_scope=self.visibility_scope,
+        ).model_dump()
 
 
 class ManufacturerSettingsForm(forms.Form):
@@ -328,6 +327,17 @@ class ManufacturerSettingsForm(forms.Form):
         label="Supports Health Check",
     )
 
+    FIELD_MAPPING = {
+        "battery_good_level": "battery_good_level",
+        "battery_low_level": "battery_low_level",
+        "battery_critical_level": "battery_critical_level",
+        "health_check_interval": "health_check_interval",
+        "api_timeout": "api_timeout",
+        "device_max_requests_per_call": "device_max_requests_per_call",
+        "supports_discovery_ips": "supports_discovery_ips",
+        "supports_health_check": "supports_health_check",
+    }
+
     def __init__(self, *args: Any, user: Any | None = None, **kwargs: Any) -> None:
         """Initialize the manufacturer settings form and load manufacturer queryset."""
         super().__init__(*args, **kwargs)
@@ -347,59 +357,24 @@ class ManufacturerSettingsForm(forms.Form):
             raise ValidationError("Form is not valid")
 
         manufacturer = self.cleaned_data["manufacturer"]
-        if not settings_visibility.can_manage_scope(
-            self.visibility_scope,
-            organization_id=None,
-            site_id=None,
-            manufacturer_id=manufacturer.pk,
-        ):
-            raise ValidationError("You cannot manage settings for the selected manufacturer")
-        results: dict[str, Any] = {"saved": 0, "errors": []}
-
-        # Map form fields to setting keys
-        field_mapping = {
-            "battery_good_level": "battery_good_level",
-            "battery_low_level": "battery_low_level",
-            "battery_critical_level": "battery_critical_level",
-            "health_check_interval": "health_check_interval",
-            "api_timeout": "api_timeout",
-            "device_max_requests_per_call": "device_max_requests_per_call",
-            "supports_discovery_ips": "supports_discovery_ips",
-            "supports_health_check": "supports_health_check",
-        }
-
-        for field_name, setting_key in field_mapping.items():
-            value = self.cleaned_data.get(field_name)
-
-            # Skip empty values
-            if value == "" or value is None:
-                continue
-
-            try:
-                # Get definition
-                defn = SettingDefinition.objects.get(
-                    key=setting_key,
-                    scope=SettingDefinition.SCOPE_MANUFACTURER,
-                )
-
-                # Serialize
-                serialized = defn.serialize_value(value)
-
-                # Save
-                Setting.objects.update_or_create(
-                    definition=defn,
-                    manufacturer_id=manufacturer.pk,
-                    organization_id=None,
-                    site=None,
-                    defaults={"value": serialized},
-                )
-
-                results["saved"] += 1
-                SettingsRegistry.invalidate_cache(setting_key)
-
-            except SettingDefinition.DoesNotExist:
-                results["errors"].append(f"Setting definition not found for {setting_key}")
-            except Exception as e:
-                results["errors"].append(f"Error saving {field_name}: {e}")
-
-        return results
+        items = [
+            SettingWriteItem(key=setting_key, value=value, label=field_name)
+            for field_name, setting_key in self.FIELD_MAPPING.items()
+            if (value := self.cleaned_data.get(field_name)) not in ("", None)
+        ]
+        request = SettingsWriteRequest(
+            target=SettingWriteTarget(
+                scope=SettingDefinition.SCOPE_MANUFACTURER,
+                manufacturer_id=manufacturer.pk,
+            ),
+            items=items,
+        )
+        try:
+            return SettingsPersistenceService.save(
+                request=request,
+                visibility_scope=self.visibility_scope,
+            ).model_dump()
+        except ValidationError as exc:
+            raise ValidationError(
+                "You cannot manage settings for the selected manufacturer"
+            ) from exc

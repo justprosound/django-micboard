@@ -7,6 +7,16 @@ import importlib
 import pytest
 
 DOMAIN_EXPORTS = {
+    "micboard.models.audit": ("ActivityLog", "ConfigurationAuditLog"),
+    "micboard.models.discovery": ("Manufacturer", "DiscoveryJob"),
+    "micboard.models.hardware": ("WirelessChassis", "WirelessUnit"),
+    "micboard.models.locations": ("Building", "Location"),
+    "micboard.models.monitoring": ("Alert", "MonitoringGroup"),
+    "micboard.models.realtime": ("RealTimeConnection",),
+    "micboard.models.rf_coordination": ("RFChannel", "RegulatoryDomain"),
+    "micboard.models.settings": ("Setting", "SettingDefinition"),
+    "micboard.models.telemetry": ("APIHealthLog", "WirelessUnitSample"),
+    "micboard.models.users": ("UserProfile", "UserView"),
     "micboard.services.common.base": ("BaseHTTPClient", "ManufacturerPlugin"),
     "micboard.services.core": ("HardwareService", "PerformerAssignmentService"),
     "micboard.services.deduplication": ("DeduplicationResult", "check_device"),

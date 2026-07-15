@@ -2,7 +2,7 @@
 
 **Status:** Implemented
 **Date:** 2026-05-20
-**Updated:** 2026-07-13
+**Updated:** 2026-07-14
 **Deciders:** (to be assigned)
 
 ## Context
@@ -12,7 +12,8 @@ concerns:
 
 1. **The removed runtime settings proxy** read from the host `MICBOARD_CONFIG` dictionary and
    exposed overlapping convenience properties.
-2. **`micboard/services/shared/settings_registry.py`** (292 lines) — `SettingsRegistryService` resolves DB-backed `Setting` values through a scope hierarchy (global → site → organization → manufacturer), with Django cache (TTL: 300s).
+2. **The former shared settings registry** resolved DB-backed `Setting` values but also exposed
+   writes, bulk reads, and cache controls as a second public API.
 
 Additionally, **~20 files** accessed `settings.MICBOARD_CONFIG` directly rather than through
 either service, scattering the reading surface across management commands, app startup, HTTP
@@ -40,8 +41,10 @@ The duplicate APIs caused:
    ```
 
    The optional scope arguments select organization-, site-, or manufacturer-specific database
-   values. Resolution then falls back through the host configuration dictionary, feature flags,
-   app defaults, and the caller's explicit default.
+   values. Each definition selects one exact database scope; settings never fall through from one
+   tenant scope to another. Immutable deployment controls (`MICBOARD_*`) resolve from Django host
+   settings first. Other keys resolve through the exact stored value, host configuration
+   dictionary, app defaults, definition defaults, and the caller's explicit default.
 
 2. **Former proxy feature flags become registered keys** in the unified service. Callers use
    `settings.get("msp_enabled")` or the corresponding convenience property.
@@ -53,16 +56,25 @@ The duplicate APIs caused:
    public singleton or service class from its defining module,
    `micboard.services.settings.settings_service`.
 
-5. **Enforcement:** Add a lint rule forbidding raw host configuration reads outside the unified
+5. **Keep the registry private to the settings domain.**
+   `micboard/services/settings/registry.py` implements scoped lookup and cache mechanics. Runtime
+   callers do not import it. Authorized forms and admin workflows write through
+   `SettingsPersistenceService`; `SettingsService` owns public cache invalidation.
+
+6. **Enforcement:** An AST architecture test forbids direct `MICBOARD_*` reads outside the unified
    service.
 
 ## Consequences
 
-- **Positive:** Single entry point for all configuration reads — one interface to test, one file to audit. Scope semantics centralized. A caller never needs to know whether a setting comes from Django config or the database.
+- **Positive:** Single entry point for all configuration reads — one interface to test, one file
+  to audit. Scope semantics and deployment-control precedence are centralized.
 - **Negative:** Existing callers must move directly to the canonical service API.
 - **Migration:** Implement the unified service, migrate every caller, and delete the obsolete
   proxy rather than retaining a compatibility shim.
 
 ## Compliance
 
-- CI will enforce: no imports of `django.conf.settings` combined with `settings.MICBOARD_CONFIG` in any file outside the settings service.
+- CI enforces no direct `MICBOARD_*` attribute or literal `getattr` reads outside the settings
+  service.
+- Runtime code does not import `SettingsRegistry`; only settings-domain implementation tests may
+  exercise it directly.

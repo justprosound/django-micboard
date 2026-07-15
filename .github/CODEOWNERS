@@ -1,0 +1,8 @@
+# Security-sensitive automation, release metadata, and agent policy.
+/.github/workflows/ @justprosound/code-owners
+/.github/actions/ @justprosound/code-owners
+/.github/CODEOWNERS @justprosound/code-owners
+/.github/copilot-instructions.md @justprosound/code-owners
+/AGENTS.md @justprosound/code-owners
+/pyproject.toml @justprosound/code-owners
+/uv.lock @justprosound/code-owners

@@ -41,26 +41,27 @@ WirelessUnit (Field Device)
 
 ### 1. WirelessChassis Band Plan Checks (Foundational)
 
-The `WirelessChassis` model includes band plan regulatory checking:
+The hardware domain modules provide band-plan regulatory checking without model delegation
+methods:
 
-#### Methods Available on WirelessChassis
+#### Functions for WirelessChassis
 
-**`get_regulatory_domain()`**
-- Returns the applicable `RegulatoryDomain` based on chassis location
+**`rf_channel_service.get_regulatory_domain_for_location(chassis.location)`**
+- Returns the applicable `RegulatoryDomain` from the location
 - Checks location.regulatory_domain first, then country code lookup
 
-**`has_band_plan()`**
+**`chassis_regulatory_service.get_band_plan_status(chassis)`**
 - Returns True if chassis has band plan configured (min/max MHz)
 
-**`has_band_plan_regulatory_coverage()`**
+**`chassis_regulatory_service.has_band_plan_regulatory_coverage(chassis)`**
 - Returns `True` if the entire band plan range is covered by regulatory data
 - Returns `False` if no band plan, no regulatory domain, or insufficient coverage
 
-**`needs_band_plan_regulatory_update` (property)**
+**`chassis_regulatory_service.get_needs_band_plan_regulatory_update(chassis)`**
 - Flags online chassis with band plans that lack regulatory coverage
 - Used to trigger admin alerts
 
-**`get_band_plan_regulatory_status()`**
+**`chassis_regulatory_service.get_band_plan_regulatory_status(chassis)`**
 - Returns comprehensive status dictionary including:
   - `has_band_plan`: bool
   - `has_coverage`: bool

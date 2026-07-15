@@ -7,26 +7,165 @@ reporting for wireless chassis, separated from the model layer per ADR-002.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from micboard.services.hardware.dtos import BandPlanInfo
 from micboard.services.hardware.rf_channel_service import (
     get_regulatory_domain_for_location,
 )
-from micboard.services.hardware.wireless_chassis_service import get_band_plan_status
 
 if TYPE_CHECKING:
     from micboard.models.hardware.wireless_chassis import WirelessChassis
-    from micboard.models.rf_coordination.compliance import RegulatoryDomain
 
 logger = logging.getLogger(__name__)
 
 
-def get_regulatory_domain(chassis: WirelessChassis) -> RegulatoryDomain | None:
-    """Get the applicable regulatory domain for a wireless chassis.
+def get_band_plan_status(chassis: WirelessChassis) -> bool:
+    """Return whether both chassis band-plan bounds form an ordered range."""
+    return (
+        chassis.band_plan_min_mhz is not None
+        and chassis.band_plan_max_mhz is not None
+        and chassis.band_plan_max_mhz > chassis.band_plan_min_mhz
+    )
 
-    Delegates to the shared location resolution function in rf_channel_service.
-    """
-    return get_regulatory_domain_for_location(chassis.location)
+
+def detect_band_plan_from_api_data(
+    chassis: WirelessChassis,
+    *,
+    api_band_value: str | None = None,
+) -> BandPlanInfo:
+    """Resolve chassis band-plan metadata from API evidence, then model evidence."""
+    if not chassis.manufacturer:
+        return BandPlanInfo(message="Manufacturer not set")
+
+    manufacturer_code = getattr(chassis.manufacturer, "code", "unknown").lower()
+
+    from micboard.models.band_plans import (
+        detect_band_plan_from_api_string,
+        get_band_plan,
+        get_band_plan_from_model_code,
+    )
+
+    if api_band_value:
+        detected_name = detect_band_plan_from_api_string(
+            api_band_value=api_band_value,
+            manufacturer=manufacturer_code,
+        )
+        if detected_name:
+            detected = _detected_band_plan_info(
+                manufacturer_code=manufacturer_code,
+                detected_name=detected_name,
+                source="api",
+                message=f"Detected from API frequencyBand '{api_band_value}'",
+                get_band_plan=get_band_plan,
+            )
+            if detected:
+                return detected
+
+    if chassis.model:
+        detected_name = get_band_plan_from_model_code(
+            manufacturer=manufacturer_code,
+            model=chassis.model,
+        )
+        if detected_name:
+            detected = _detected_band_plan_info(
+                manufacturer_code=manufacturer_code,
+                detected_name=detected_name,
+                source="model",
+                message=f"Inferred from model code '{chassis.model}'",
+                get_band_plan=get_band_plan,
+            )
+            if detected:
+                return detected
+
+    return BandPlanInfo(message="No band plan detected from API or model")
+
+
+def apply_detected_band_plan(
+    chassis: WirelessChassis,
+    *,
+    api_band_value: str | None = None,
+) -> bool:
+    """Apply a detected band plan to a chassis, returning whether detection succeeded."""
+    detected = detect_band_plan_from_api_data(chassis, api_band_value=api_band_value)
+    if detected.name is None:
+        return False
+    chassis.band_plan_name = detected.name
+    chassis.band_plan_min_mhz = detected.min_mhz
+    chassis.band_plan_max_mhz = detected.max_mhz
+    return True
+
+
+def prepare_chassis_regulatory_fields(chassis: WirelessChassis) -> None:
+    """Apply device specifications and fill missing chassis band-plan fields."""
+    if not chassis.manufacturer or not chassis.model:
+        return
+
+    from micboard.models.band_plans import (
+        get_band_plan,
+        get_band_plan_from_model_code,
+        parse_band_plan_from_name,
+    )
+    from micboard.models.device_specs import get_device_role
+    from micboard.services.core.device_specs import DeviceSpecService
+
+    DeviceSpecService.apply_specs_to_chassis(chassis)
+    manufacturer_code = getattr(chassis.manufacturer, "code", "unknown").lower()
+    if not chassis.role:
+        chassis.role = get_device_role(manufacturer=manufacturer_code, model=chassis.model)
+
+    if chassis.band_plan_name:
+        if chassis.band_plan_min_mhz is None or chassis.band_plan_max_mhz is None:
+            parsed = parse_band_plan_from_name(name=chassis.band_plan_name)
+            if parsed:
+                _apply_band_plan_fields(chassis, parsed)
+        return
+
+    detected_name = get_band_plan_from_model_code(
+        manufacturer=manufacturer_code,
+        model=chassis.model,
+    )
+    if not detected_name:
+        return
+    chassis.band_plan_name = detected_name
+    band_plan = get_band_plan(
+        manufacturer=manufacturer_code,
+        band_plan_key=_band_plan_key(detected_name),
+    )
+    if band_plan:
+        _apply_band_plan_fields(chassis, band_plan)
+
+
+def _band_plan_key(name: str) -> str:
+    return name.lower().replace(" ", "_").replace("-", "_")
+
+
+def _detected_band_plan_info(
+    *,
+    manufacturer_code: str,
+    detected_name: str,
+    source: str,
+    message: str,
+    get_band_plan: Any,
+) -> BandPlanInfo | None:
+    band_plan = get_band_plan(
+        manufacturer=manufacturer_code,
+        band_plan_key=_band_plan_key(detected_name),
+    )
+    if not band_plan:
+        return None
+    return BandPlanInfo(
+        name=detected_name,
+        min_mhz=band_plan["min_mhz"],
+        max_mhz=band_plan["max_mhz"],
+        source=source,
+        message=message,
+    )
+
+
+def _apply_band_plan_fields(chassis: WirelessChassis, band_plan: dict[str, Any]) -> None:
+    chassis.band_plan_min_mhz = band_plan["min_mhz"]
+    chassis.band_plan_max_mhz = band_plan["max_mhz"]
 
 
 def has_band_plan_regulatory_coverage(chassis: WirelessChassis) -> bool:
@@ -38,7 +177,7 @@ def has_band_plan_regulatory_coverage(chassis: WirelessChassis) -> bool:
     if not get_band_plan_status(chassis):
         return False
 
-    domain = get_regulatory_domain(chassis)
+    domain = get_regulatory_domain_for_location(chassis.location)
     if not domain:
         return False
 
@@ -95,7 +234,7 @@ def get_band_plan_regulatory_status(chassis: WirelessChassis) -> dict[str, str |
     - needs_update: bool - Flag for admin attention
     - message: str - Human-readable status message
     """
-    domain = get_regulatory_domain(chassis)
+    domain = get_regulatory_domain_for_location(chassis.location)
     has_plan = get_band_plan_status(chassis)
     has_coverage = has_band_plan_regulatory_coverage(chassis)
 

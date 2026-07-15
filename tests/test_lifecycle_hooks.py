@@ -20,8 +20,6 @@ import pytest
 from micboard import model_lifecycle
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
-from micboard.services.hardware.dtos import ChassisDiscoveryCleanup
 
 
 @pytest.mark.parametrize(
@@ -33,12 +31,12 @@ from micboard.services.hardware.dtos import ChassisDiscoveryCleanup
             {"created": True, "using": "default", "update_fields": None},
         ),
         (model_lifecycle._prepare_charger, {"using": "default"}),
-        (model_lifecycle._prepare_unit, {}),
+        (model_lifecycle._prepare_unit, {"using": "default"}),
         (
             model_lifecycle._finish_unit,
             {"using": "default", "update_fields": None},
         ),
-        (model_lifecycle._prepare_channel, {}),
+        (model_lifecycle._prepare_channel, {"using": "default"}),
         (
             model_lifecycle._finish_channel,
             {"using": "default", "update_fields": None},
@@ -278,94 +276,58 @@ class TestBroadcastEvents:
 class TestDiscoveryScheduling:
     """Test that post-save discovery is submitted exactly once."""
 
-    @override_settings(TESTING=True)
-    @patch("micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin")
-    def test_testing_mode_skips_remote_discovery_registration(self, mock_get_plugin, chassis):
-        """Model factories must not write to manufacturer APIs during tests."""
-        HardwarePostSaveHooks._add_ip_to_discovery(chassis)
-
-        mock_get_plugin.assert_not_called()
-
     @override_settings(TESTING=False)
     @patch("micboard.utils.dependencies.enqueue_huey_task")
     @patch("micboard.utils.dependencies.huey_is_configured", return_value=True)
-    @patch("micboard.tasks.sync.discovery.sync_receiver_discovery")
+    @patch("micboard.tasks.sync.discovery.run_manufacturer_discovery_task")
     def test_huey_discovery_is_enqueued_once(
         self,
-        mock_sync_receiver_discovery,
+        run_manufacturer_discovery,
         _mock_huey_is_configured,
         mock_enqueue_huey_task,
         chassis,
     ):
-        from micboard.model_lifecycle import _dispatch_chassis_discovery
+        from micboard.services.sync.discovery_trigger_service import (
+            _dispatch_scheduled_discovery,
+        )
 
-        _dispatch_chassis_discovery(chassis_id=chassis.pk, using="default")
+        _dispatch_scheduled_discovery(
+            manufacturer_id=chassis.manufacturer_id,
+            scan_cidrs=False,
+            scan_fqdns=False,
+        )
 
         mock_enqueue_huey_task.assert_called_once_with(
-            mock_sync_receiver_discovery,
-            chassis.pk,
-            using="default",
+            run_manufacturer_discovery,
+            chassis.manufacturer_id,
+            False,
+            False,
         )
-        mock_sync_receiver_discovery.assert_not_called()
+        run_manufacturer_discovery.assert_not_called()
 
     @override_settings(TESTING=False)
     @patch("micboard.utils.dependencies.enqueue_huey_task")
     @patch("micboard.utils.dependencies.huey_is_configured", return_value=False)
-    @patch("micboard.tasks.sync.discovery.sync_receiver_discovery")
+    @patch("micboard.tasks.sync.discovery.run_manufacturer_discovery_task")
     def test_unconfigured_huey_never_runs_discovery_inline(
         self,
-        mock_sync_receiver_discovery,
+        run_manufacturer_discovery,
         _mock_huey_is_configured,
         mock_enqueue_huey_task,
         chassis,
     ):
-        from micboard.model_lifecycle import _dispatch_chassis_discovery
+        from micboard.services.sync.discovery_trigger_service import (
+            _dispatch_scheduled_discovery,
+        )
 
-        _dispatch_chassis_discovery(chassis_id=chassis.pk, using="default")
+        _dispatch_scheduled_discovery(
+            manufacturer_id=chassis.manufacturer_id,
+            scan_cidrs=False,
+            scan_fqdns=False,
+        )
 
         mock_enqueue_huey_task.assert_not_called()
-        mock_sync_receiver_discovery.assert_not_called()
-
-    @patch("micboard.services.sync.discovery_service.DiscoveryService.add_discovery_candidate")
-    def test_discovery_task_preserves_database_alias(
-        self,
-        add_discovery_candidate,
-        chassis,
-    ):
-        """Deferred discovery reads and checks inventory on the originating database."""
-        from micboard.tasks.sync.discovery import sync_receiver_discovery
-
-        sync_receiver_discovery(chassis.pk, using="default")
-
-        add_discovery_candidate.assert_called_once_with(
-            str(chassis.ip),
-            chassis.manufacturer,
-            source="chassis_save",
-            using="default",
-        )
-
-    @override_settings(TESTING=False)
-    @patch("micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin")
-    def test_delete_cleanup_resolves_current_manufacturer_metadata(
-        self,
-        mock_get_plugin,
-        manufacturer,
-    ):
-        """Cleanup snapshots retain IDs and resolve current vendor metadata after commit."""
-        plugin = mock_get_plugin.return_value
-        plugin.remove_discovery_ips.return_value = True
-        target = ChassisDiscoveryCleanup(
-            manufacturer_id=manufacturer.pk,
-            ip="192.0.2.10",
-        )
-
-        HardwarePostSaveHooks._remove_ips_from_discovery(
-            targets=(target,),
-            using="default",
-        )
-
-        mock_get_plugin.assert_called_once_with(manufacturer.code, manufacturer)
-        plugin.remove_discovery_ips.assert_called_once_with(["192.0.2.10"])
+        run_manufacturer_discovery.assert_not_called()
 
 
 @pytest.mark.django_db

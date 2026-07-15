@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -61,9 +62,12 @@ class SennheiserSystemAPIClient(BaseHTTPClient):
         """Return Sennheiser-specific rate limit exception class."""
         return SennheiserAPIRateLimitError
 
-    async def connect_and_subscribe(self, device_id: str, callback) -> None:
-        """Establishes WebSocket connection and subscribes to device updates.
+    async def connect_and_subscribe(
+        self,
+        device_id: str,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        """Establish an SSCv2 SSE subscription for one device."""
+        from .sse_client import connect_and_subscribe
 
-        SSCv2 uses SSE for subscriptions, not WebSocket.
-        """
-        raise NotImplementedError("SSE subscription not yet implemented for Sennheiser")
+        await connect_and_subscribe(self, device_id, callback)

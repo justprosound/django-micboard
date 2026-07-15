@@ -3,10 +3,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Final
 
-from django.conf import settings
+from django.core.exceptions import PermissionDenied
+from django.db import router
 
+from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.access_policy import tenant_role_access
 from micboard.utils.dependencies import (
-    HAS_ADMIN_SORTABLE,
     HAS_IMPORT_EXPORT,
     HAS_RANGE_FILTER,
     HAS_SIMPLE_HISTORY,
@@ -16,7 +18,6 @@ from micboard.utils.dependencies import (
 )
 
 logger = logging.getLogger(__name__)
-_UNSET = object()
 
 # Host-wide catalogs allowed in tenant-owned admin relationship widgets. Keep
 # this list model-based and deliberately small: adding a label requires proving
@@ -25,30 +26,6 @@ SHARED_ADMIN_REFERENCE_MODEL_LABELS: Final[frozenset[str]] = frozenset(
     {
         "micboard.manufacturer",  # Host-wide hardware vendor catalog.
         "micboard.settingdefinition",  # Host-wide schema selected by Setting forms.
-    }
-)
-
-# Explicit host-wide administration surfaces. These models do not carry a
-# tenant key, so tenant-aware query construction must fail closed for ordinary
-# users. A platform superuser still needs to manage them when multi-site mode
-# is enabled. Do not infer this policy from a missing tenant field: every new
-# entry requires an ownership review.
-PLATFORM_GLOBAL_ADMIN_MODEL_LABELS: Final[frozenset[str]] = frozenset(
-    {
-        "micboard.activitylog",  # Host-wide audit trail has no tenant ownership key.
-        "micboard.configurationauditlog",
-        "micboard.discovereddevice",  # Pre-import inventory is not assigned to a site.
-        "micboard.discoverycidr",  # Host-wide manufacturer discovery configuration.
-        "micboard.discoveryfqdn",  # Host-wide manufacturer discovery configuration.
-        "micboard.discoveryjob",  # Host-wide discovery execution history.
-        "micboard.discoveryqueue",  # Pre-import inventory is not assigned to a site.
-        "micboard.manufacturer",
-        "micboard.manufacturerapiserver",
-        "micboard.manufacturerconfiguration",
-        "micboard.micboardconfig",
-        "micboard.servicesynclog",  # Host-wide manufacturer synchronization history.
-        "micboard.settingdefinition",
-        "micboard.useralertpreference",  # Host-wide user preference record.
     }
 )
 
@@ -92,16 +69,7 @@ if HAS_IMPORT_EXPORT and HAS_UNFOLD_IMPORT_EXPORT:
         logger.debug("Unfold import-export forms are unavailable")
 
 
-# 2. Sortable Support
-if HAS_ADMIN_SORTABLE:
-    from adminsortable2.admin import SortableAdminMixin as BaseSortableAdmin
-else:
-
-    class BaseSortableAdmin:  # type: ignore
-        pass
-
-
-# 3. Simple History Support
+# 2. Simple History Support
 if HAS_SIMPLE_HISTORY:
     from simple_history.admin import SimpleHistoryAdmin as BaseHistoryAdmin
 else:
@@ -164,6 +132,29 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
         """Deny bulk exports until resources enforce request tenant scope."""
         return False
 
+    def has_add_permission(self, request: Any) -> bool:
+        """Require both Django permission and an administering tenant role."""
+        return bool(
+            super().has_add_permission(request)
+            and tenant_role_access.can_add_model(user=request.user, model=self.model)
+        )
+
+    def has_change_permission(self, request: Any, obj: Any = None) -> bool:
+        """Require an administering role for the exact object when available."""
+        if not super().has_change_permission(request, obj):
+            return False
+        if obj is None:
+            return tenant_role_access.can_manage_model(user=request.user, model=self.model)
+        return tenant_role_access.can_manage_object(user=request.user, obj=obj)
+
+    def has_delete_permission(self, request: Any, obj: Any = None) -> bool:
+        """Require an administering role for every delete boundary."""
+        if not super().has_delete_permission(request, obj):
+            return False
+        if obj is None:
+            return tenant_role_access.can_manage_model(user=request.user, model=self.model)
+        return tenant_role_access.can_manage_object(user=request.user, obj=obj)
+
     @staticmethod
     def _scope_queryset_for_user(queryset: Any, *, user: Any) -> Any:
         """Intersect a queryset with the user's active tenant memberships.
@@ -172,24 +163,19 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
         managers use the same tenant lookup contract; models without a safe
         tenant path fail closed while MSP mode is enabled.
         """
-        msp_enabled = getattr(settings, "MICBOARD_MSP_ENABLED", False)
-        multi_site_enabled = getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
+        msp_enabled = micboard_settings.msp_enabled
+        multi_site_enabled = micboard_settings.multi_site_mode
         if not (msp_enabled or multi_site_enabled):
             return queryset
         if (
             msp_enabled
             and not multi_site_enabled
             and user.is_superuser
-            and getattr(settings, "MICBOARD_ALLOW_CROSS_ORG_VIEW", True)
+            and micboard_settings.allow_cross_org_view
         ):
             return queryset
 
-        model_label = getattr(getattr(queryset.model, "_meta", None), "label_lower", "")
-        if (
-            multi_site_enabled
-            and user.is_superuser
-            and model_label in PLATFORM_GLOBAL_ADMIN_MODEL_LABELS
-        ):
+        if user.is_superuser and tenant_role_access.is_platform_global_model(queryset.model):
             return queryset
 
         manager = getattr(queryset.model, "objects", queryset.model._default_manager)
@@ -211,14 +197,38 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
     def get_queryset(self, request: Any) -> Any:
         """Return only objects visible through the request user's tenant scope."""
         queryset = super().get_queryset(request)
-        return self._scope_queryset_for_user(queryset, user=request.user)
+        if request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}:
+            queryset = queryset.using(router.db_for_write(self.model))
+        queryset = self._scope_queryset_for_user(queryset, user=request.user)
+        if request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}:
+            return tenant_role_access.scope_manageable_queryset(
+                queryset,
+                user=request.user,
+            )
+        return queryset
+
+    def delete_model(self, request: Any, obj: Any) -> None:
+        """Reject direct deletion when the object's membership role is read-only."""
+        if not tenant_role_access.can_manage_object(
+            user=getattr(request, "user", None),
+            obj=obj,
+        ):
+            raise PermissionDenied
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request: Any, queryset: Any) -> None:
+        """Reject mixed-role bulk deletes instead of partially applying them."""
+        manageable = tenant_role_access.scope_manageable_queryset(
+            queryset,
+            user=getattr(request, "user", None),
+        )
+        if manageable.count() != queryset.count():
+            raise PermissionDenied
+        super().delete_queryset(request, manageable)
 
     def _scope_related_queryset(self, db_field: Any, request: Any, kwargs: dict[str, Any]) -> None:
         """Limit a relationship widget to tenant-visible target objects."""
-        if not (
-            getattr(settings, "MICBOARD_MSP_ENABLED", False)
-            or getattr(settings, "MICBOARD_MULTI_SITE_MODE", False)
-        ):
+        if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
             return
 
         related_model = db_field.remote_field.model
@@ -234,8 +244,12 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
                 manager = manager.db_manager(database)
             queryset = manager.all()
 
-        kwargs["queryset"] = self._scope_queryset_for_user(
+        visible_queryset = self._scope_queryset_for_user(
             queryset,
+            user=request.user,
+        )
+        kwargs["queryset"] = tenant_role_access.scope_manageable_queryset(
+            visible_queryset,
             user=request.user,
         )
 
@@ -260,26 +274,37 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 
-class MicboardSortableAdmin(BaseSortableAdmin, MicboardModelAdmin):
-    """Sortable version of MicboardModelAdmin."""
+class TenantScopedAdminInlineMixin:
+    """Apply the shared tenant boundary to editable inline relationships."""
 
-    _change_list_template_override: Any = _UNSET
+    @staticmethod
+    def _scope_queryset_for_user(queryset: Any, *, user: Any) -> Any:
+        return MicboardModelAdmin._scope_queryset_for_user(queryset, user=user)
 
-    @property
-    def change_list_template(self) -> Any:
-        """Compose admin-sortable's base template with import-export's override."""
-        if self._change_list_template_override is not _UNSET:
-            return self._change_list_template_override
-        return super().change_list_template  # type: ignore[misc]
+    def _scope_related_queryset(
+        self,
+        db_field: Any,
+        request: Any,
+        kwargs: dict[str, Any],
+    ) -> None:
+        MicboardModelAdmin._scope_related_queryset(self, db_field, request, kwargs)  # type: ignore[arg-type]
 
-    @change_list_template.setter
-    def change_list_template(self, value: Any) -> None:
-        self._change_list_template_override = value
+    def formfield_for_foreignkey(
+        self,
+        db_field: Any,
+        request: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Build an inline foreign-key widget without cross-tenant choices."""
+        self._scope_related_queryset(db_field, request, kwargs)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)  # type: ignore[misc]
 
-    if HAS_UNFOLD and HAS_ADMIN_SORTABLE:
-        # Override templates to use Unfold compatible ones if needed,
-        # or at least ensure we don't crash when adminsortable2
-        # looks for its own templates.
-        # Actually, adminsortable2 often works if we just let Unfold
-        # take over the rendering but keep the mixin logic.
-        pass
+    def formfield_for_manytomany(
+        self,
+        db_field: Any,
+        request: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Build an inline many-to-many widget without cross-tenant choices."""
+        self._scope_related_queryset(db_field, request, kwargs)
+        return super().formfield_for_manytomany(db_field, request, **kwargs)  # type: ignore[misc]

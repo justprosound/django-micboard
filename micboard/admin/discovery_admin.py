@@ -151,15 +151,20 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
 
     @admin.display(description="Conflict Analysis")
     def conflict_analysis(self, obj: DiscoveryQueue) -> str:
-        """Display conflict details from check_for_duplicates."""
-        conflicts = obj.check_for_duplicates()
-        if not conflicts:
+        """Display typed conflict details from the deduplication module."""
+        from micboard.services.deduplication.queue_conflict_service import (
+            DiscoveryQueueConflictService,
+        )
+
+        conflicts = DiscoveryQueueConflictService.check(obj)
+        if not conflicts.has_conflict:
             return "✓ No conflicts detected"
 
-        parts = []
-        for key, value in conflicts.items():
-            if value:
-                parts.append(f"{key}: {value}")
+        parts = [f"conflict_type: {conflicts.conflict_type}"]
+        if conflicts.existing_device is not None:
+            parts.append(f"existing_device: {conflicts.existing_device}")
+        if conflicts.existing_charger is not None:
+            parts.append(f"existing_charger: {conflicts.existing_charger}")
         return " | ".join(parts)
 
     @admin.action(permissions=["change"], description="Approve selected devices for import")

@@ -6,18 +6,14 @@ pre/post-save events into service-layer calls and task-layer dispatches.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from functools import partial
 from typing import Any
 
-from django.conf import settings
-from django.db import transaction
 from django.db.models.signals import post_delete, post_save, pre_delete, pre_save
 
-logger = logging.getLogger(__name__)
+from micboard.services.sync.discovery_trigger_service import schedule_discovery_on_commit
 
 _CHASSIS_CONTEXT = "_micboard_chassis_save_context"
 _CHANNEL_CONTEXT = "_micboard_channel_save_context"
@@ -28,11 +24,11 @@ _chassis_delete_hooks_enabled: ContextVar[bool] = ContextVar(
 )
 
 
-def _remember_context(instance: Any, name: str, context: dict[str, Any]) -> None:
+def _remember_context(instance: Any, name: str, context: Any) -> None:
     setattr(instance, name, context)
 
 
-def _take_context(instance: Any, name: str) -> dict[str, Any]:
+def _take_context(instance: Any, name: str) -> Any:
     context = getattr(instance, name, {})
     if hasattr(instance, name):
         delattr(instance, name)
@@ -46,7 +42,7 @@ def _originates_from_model(origin: Any, model: type[Any]) -> bool:
 
 def _persist_derived_fields(
     instance: Any,
-    context: dict[str, Any],
+    context: Any,
     *,
     using: str,
     update_fields: frozenset[str] | None,
@@ -54,7 +50,10 @@ def _persist_derived_fields(
     """Persist lifecycle fields omitted by a caller's partial update."""
     if update_fields is None or instance.pk is None:
         return
-    derived_fields = set(context.get("update_fields", ())) - set(update_fields)
+    context_update_fields = getattr(context, "update_fields", None)
+    if context_update_fields is None and isinstance(context, dict):
+        context_update_fields = context.get("update_fields", ())
+    derived_fields = set(context_update_fields or ()) - set(update_fields)
     if not derived_fields:
         return
     values = {field: getattr(instance, field) for field in derived_fields}
@@ -64,14 +63,30 @@ def _persist_derived_fields(
 def _prepare_chassis(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
     if kwargs.get("raw", False):
         return
+    from micboard.services.hardware.chassis_lifecycle_service import prepare_chassis_for_save
     from micboard.services.hardware.ip_ownership_service import HardwareIPOwnershipService
-    from micboard.services.hardware.wireless_chassis_service import prepare_chassis_for_save
+    from micboard.services.sync.chassis_discovery_schedule_service import (
+        ChassisDiscoveryScheduleService,
+    )
 
     HardwareIPOwnershipService.validate_for_instance(instance=instance, using=using)
+    context = prepare_chassis_for_save(instance, using=using)
+    context = context.model_copy(
+        update={
+            "discovery_manufacturer_ids": tuple(
+                ChassisDiscoveryScheduleService.affected_manufacturer_ids(
+                    instance,
+                    created=context.created,
+                    using=using,
+                    update_fields=kwargs.get("update_fields"),
+                )
+            )
+        }
+    )
     _remember_context(
         instance,
         _CHASSIS_CONTEXT,
-        prepare_chassis_for_save(instance, using=using),
+        context,
     )
 
 
@@ -86,7 +101,7 @@ def _finish_chassis(
     if kwargs.get("raw", False):
         return
     from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
-    from micboard.services.hardware.wireless_chassis_service import finalize_chassis_save
+    from micboard.services.hardware.chassis_lifecycle_service import finalize_chassis_save
 
     context = _take_context(instance, _CHASSIS_CONTEXT)
     _persist_derived_fields(instance, context, using=using, update_fields=update_fields)
@@ -96,26 +111,13 @@ def _finish_chassis(
         created=created,
         using=using,
     )
-    transaction.on_commit(
-        partial(_dispatch_chassis_discovery, chassis_id=instance.pk, using=using),
-        using=using,
-        robust=True,
-    )
-
-
-def _dispatch_chassis_discovery(*, chassis_id: int, using: str) -> None:
-    if getattr(settings, "TESTING", False):
-        return
-    try:
-        from micboard.tasks.sync.discovery import sync_receiver_discovery
-        from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
-
-        if huey_is_configured():
-            enqueue_huey_task(sync_receiver_discovery, chassis_id, using=using)
-        else:
-            logger.debug("Native Huey is unavailable or unconfigured; skipping chassis discovery")
-    except Exception:
-        logger.exception("Failed to schedule discovery for chassis %s", chassis_id)
+    for manufacturer_id in context.discovery_manufacturer_ids:
+        schedule_discovery_on_commit(
+            manufacturer_id=manufacturer_id,
+            scan_cidrs=False,
+            scan_fqdns=False,
+            using=using,
+        )
 
 
 def _delete_chassis(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
@@ -148,12 +150,16 @@ def _prepare_charger(sender: type[Any], instance: Any, using: str, **kwargs: Any
     HardwareIPOwnershipService.validate_for_instance(instance=instance, using=using)
 
 
-def _prepare_unit(sender: type[Any], instance: Any, **kwargs: Any) -> None:
+def _prepare_unit(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
     if kwargs.get("raw", False):
         return
     from micboard.services.hardware.wireless_unit_service import prepare_unit_for_save
 
-    _remember_context(instance, _UNIT_CONTEXT, prepare_unit_for_save(instance))
+    _remember_context(
+        instance,
+        _UNIT_CONTEXT,
+        prepare_unit_for_save(instance, using=using),
+    )
 
 
 def _finish_unit(
@@ -169,15 +175,19 @@ def _finish_unit(
 
     context = _take_context(instance, _UNIT_CONTEXT)
     _persist_derived_fields(instance, context, using=using, update_fields=update_fields)
-    finalize_unit_save(instance, context)
+    finalize_unit_save(instance, context, using=using)
 
 
-def _prepare_channel(sender: type[Any], instance: Any, **kwargs: Any) -> None:
+def _prepare_channel(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
     if kwargs.get("raw", False):
         return
     from micboard.services.hardware.rf_channel_service import prepare_channel_for_save
 
-    _remember_context(instance, _CHANNEL_CONTEXT, prepare_channel_for_save(instance))
+    _remember_context(
+        instance,
+        _CHANNEL_CONTEXT,
+        prepare_channel_for_save(instance, using=using),
+    )
 
 
 def _finish_channel(
@@ -193,7 +203,7 @@ def _finish_channel(
 
     context = _take_context(instance, _CHANNEL_CONTEXT)
     _persist_derived_fields(instance, context, using=using, update_fields=update_fields)
-    finalize_channel_save(instance, context)
+    finalize_channel_save(instance, context, using=using)
 
 
 def _prepare_building(sender: type[Any], instance: Any, **kwargs: Any) -> None:
@@ -244,9 +254,10 @@ def _finish_manufacturer(
         manufacturer=instance,
         created=created,
         old_active=context.get("old_active", False),
+        using=using,
     )
     if should_discover:
-        _schedule_manufacturer_discovery(
+        schedule_discovery_on_commit(
             manufacturer_id=instance.pk,
             scan_cidrs=False,
             scan_fqdns=False,
@@ -254,49 +265,10 @@ def _finish_manufacturer(
         )
 
 
-def _delete_manufacturer(sender: type[Any], instance: Any, **kwargs: Any) -> None:
+def _delete_manufacturer(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
     from micboard.services.manufacturer.signals import handle_manufacturer_delete
 
-    handle_manufacturer_delete(manufacturer=instance)
-
-
-def _schedule_manufacturer_discovery(
-    *,
-    manufacturer_id: int,
-    scan_cidrs: bool,
-    scan_fqdns: bool,
-    using: str,
-) -> None:
-    connection = transaction.get_connection(using)
-    savepoints = set(connection.savepoint_ids)
-    discovery_key = (manufacturer_id, scan_cidrs, scan_fqdns)
-    if any(
-        callback_savepoints == savepoints
-        and getattr(callback, "_micboard_discovery_key", None) == discovery_key
-        for callback_savepoints, callback, _robust in connection.run_on_commit
-    ):
-        return
-
-    callback = partial(
-        _dispatch_manufacturer_discovery,
-        manufacturer_id=manufacturer_id,
-        scan_cidrs=scan_cidrs,
-        scan_fqdns=scan_fqdns,
-    )
-    callback.__dict__["_micboard_discovery_key"] = discovery_key
-    transaction.on_commit(callback, using=using, robust=True)
-
-
-def _dispatch_manufacturer_discovery(
-    *, manufacturer_id: int, scan_cidrs: bool, scan_fqdns: bool
-) -> None:
-    from micboard.tasks.sync.discovery import dispatch_manufacturer_discovery
-
-    dispatch_manufacturer_discovery(
-        manufacturer_id,
-        scan_cidrs=scan_cidrs,
-        scan_fqdns=scan_fqdns,
-    )
+    handle_manufacturer_delete(manufacturer=instance, using=using)
 
 
 def _config_saved(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
@@ -305,7 +277,7 @@ def _config_saved(sender: type[Any], instance: Any, using: str, **kwargs: Any) -
     from micboard.services.discovery.registry_service import discovery_manufacturer_for_config
 
     if manufacturer_id := discovery_manufacturer_for_config(instance):
-        _schedule_manufacturer_discovery(
+        schedule_discovery_on_commit(
             manufacturer_id=manufacturer_id,
             scan_cidrs=True,
             scan_fqdns=True,
@@ -323,7 +295,7 @@ def _registry_entry_changed(sender: type[Any], instance: Any, using: str, **kwar
     from micboard.services.discovery.registry_service import discovery_manufacturer_for_entry
 
     if manufacturer_id := discovery_manufacturer_for_entry(instance):
-        _schedule_manufacturer_discovery(
+        schedule_discovery_on_commit(
             manufacturer_id=manufacturer_id,
             scan_cidrs=True,
             scan_fqdns=True,

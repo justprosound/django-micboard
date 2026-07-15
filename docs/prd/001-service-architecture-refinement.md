@@ -1,7 +1,8 @@
 # PRD-001: Service Architecture Refinement
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-05-20
+**Updated:** 2026-07-14
 
 ## Problem Statement
 
@@ -11,7 +12,8 @@ The services layer (`micboard/services/`) has grown without architectural discip
 
 1. Every service file ≤400 lines with a single documented responsibility.
 2. All model `save()` overrides are idempotent and side-effect-free; business logic lives in services.
-3. Consistent exception handling using custom exception classes from `shared/exceptions.py`.
+3. Consistent exception boundaries through the canonical hierarchy in `micboard/exceptions.py`,
+   while retaining Django and Pydantic exceptions where their frameworks require them.
 
 ## Non-Goals
 
@@ -31,8 +33,11 @@ The services layer (`micboard/services/`) has grown without architectural discip
 
 - **Split strategy:** Each oversized module splits by operational concern (not arbitrary chunking). Discovery splits into scanner, queue manager, and mapper submodules. Hardware lifecycle splits into events and validation submodules.
 - **Extraction strategy:** For each model with embedded logic, (a) introduce a service method, (b) update all call sites, (c) remove the `save()` override.
-- **Error strategy:** Audit all service files; replace raw Django/Python exceptions with custom exception classes.
-- **Backward compatibility:** Original modules re-export from new submodules via `__init__.py` during a deprecation window, then remove re-exports.
+- **Error strategy:** Put public operational errors under `MicboardError`, preserve typed transport
+  metadata, translate only unexpected failures at named external seams, and retain native
+  authorization, validation, DTO, and programmer errors at their intended boundaries.
+- **Import migration:** Update every caller to the owning module in the same change. Do not retain
+  aliases, compatibility modules, or package re-exports.
 
 ## Success Metrics
 
@@ -40,7 +45,8 @@ The services layer (`micboard/services/`) has grown without architectural discip
 - hardware_lifecycle.py ≤400 lines
 - No model `save()` overrides contain DB writes, external calls, or signal emission
 - `uv run ruff check .` passes
-- All existing tests pass without modification
+- No service module defines an alternate exception root
+- All existing tests pass
 
 ## Risks
 

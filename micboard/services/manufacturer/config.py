@@ -10,6 +10,7 @@ import logging
 
 from micboard.models.discovery.configuration import ManufacturerConfiguration
 from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +44,28 @@ def validate_manufacturer_config(
                 if not client:
                     errors.append(f"Plugin client initialization failed for {config.code}")
             except Exception as health_err:
-                errors.append(f"Plugin health check failed: {health_err!s}")
-    except ImportError:
-        logger.exception("Manufacturer plugin import failed for %s", config.code)
+                logger.exception(
+                    "Manufacturer plugin health check failed for %s",
+                    config.code,
+                    exc_info=sanitized_exception_info(health_err),
+                )
+                errors.append(
+                    f"Plugin health check failed ({type(health_err).__name__}); details redacted."
+                )
+    except ImportError as exc:
+        logger.exception(
+            "Manufacturer plugin import failed for %s",
+            config.code,
+            exc_info=sanitized_exception_info(exc),
+        )
         errors.append(f"Plugin import failed for {config.code}")
-    except Exception as e:
-        errors.append(f"Plugin initialization failed: {e!s}")
+    except Exception as exc:
+        logger.exception(
+            "Manufacturer plugin initialization failed for %s",
+            config.code,
+            exc_info=sanitized_exception_info(exc),
+        )
+        errors.append(f"Plugin initialization failed ({type(exc).__name__}); details redacted.")
 
     required_fields = REQUIRED_FIELDS_MAP.get(config.code, [])
     for field in required_fields:
@@ -94,10 +111,11 @@ def apply_manufacturer_config(
             extra={"code": config.code},
         )
         return True
-    except Exception as e:
-        logger.error(
-            f"Failed to validate configuration for {config.code}: {e}",
-            exc_info=True,
+    except Exception as exc:
+        logger.exception(
+            "Failed to validate configuration for %s",
+            config.code,
+            exc_info=sanitized_exception_info(exc),
             extra={"code": config.code},
         )
         return False

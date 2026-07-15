@@ -4,7 +4,11 @@
     <h1>All Buildings</h1>
     <ul>
         {% for building in buildings %}
-            <li><a href="{% url 'micboard:single_building_view' building=building.name %}">{{ building.name }}</a></li>
+            <li>
+                <a href="{% url 'micboard:single_building_view' building_id=building.pk %}">{{ building.name }}</a>
+                &middot;
+                <a href="{% url 'micboard:rooms_in_building_view' building_id=building.pk %}">Rooms</a>
+            </li>
         {% endfor %}
     </ul>
 {% endblock %}

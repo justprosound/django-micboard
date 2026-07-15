@@ -4,8 +4,6 @@ from typing import Any
 
 from micboard.utils.dependencies import HAS_DJANGO_FILTER
 
-HAS_DJANGO_FILTERS = HAS_DJANGO_FILTER
-
 
 def _build_filter_classes() -> tuple[Any, Any]:
     if not HAS_DJANGO_FILTER:

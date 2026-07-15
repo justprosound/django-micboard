@@ -59,18 +59,6 @@ class ShurePlugin(ManufacturerPlugin):
         """Transform transmitter data from Shure format to micboard format."""
         return self.transformer.transform_transmitter_data(tx_data, channel_num)
 
-    def get_device_identity(self, device_id: str) -> dict[str, Any] | None:
-        """Fetch device identity info from Shure API."""
-        return self.get_client().devices.get_device_identity(device_id)
-
-    def get_device_network(self, device_id: str) -> dict[str, Any] | None:
-        """Fetch device network info from Shure API."""
-        return self.get_client().devices.get_device_network(device_id)
-
-    def get_device_status(self, device_id: str) -> dict[str, Any] | None:
-        """Fetch device status info from Shure API."""
-        return self.get_client().devices.get_device_status(device_id)
-
     async def connect_and_subscribe(
         self, device_id: str, callback: Callable[[dict[str, Any]], None]
     ) -> None:

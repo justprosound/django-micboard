@@ -2,27 +2,32 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 
 
-def validate_ipv4_list(ips: list[str], log_prefix: str = "") -> list[str]:
+def validate_ipv4_list(ips: Iterable[object], log_prefix: str = "") -> list[str]:
     valid_ips: list[str] = []
+    rejected_count = 0
     for ip in ips:
+        if not isinstance(ip, str):
+            rejected_count += 1
+            continue
         try:
             addr = ipaddress.ip_address(ip)
             if addr.version == 4:
-                valid_ips.append(ip)
+                valid_ips.append(str(addr))
             else:
-                if log_prefix:
-                    logger.warning("%s: Ignoring non-IPv4 address: %s", log_prefix, ip)
-                else:
-                    logger.warning("Ignoring non-IPv4 address: %s", ip)
+                rejected_count += 1
         except ValueError:
-            if log_prefix:
-                logger.warning("%s: Ignoring invalid IP: %s", log_prefix, ip)
-            else:
-                logger.warning("Ignoring invalid IP: %s", ip)
+            rejected_count += 1
+    if rejected_count:
+        logger.warning(
+            "%sRejected %d invalid or non-IPv4 addresses",
+            f"{log_prefix}: " if log_prefix else "",
+            rejected_count,
+        )
     return valid_ips
 
 

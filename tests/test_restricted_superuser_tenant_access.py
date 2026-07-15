@@ -1,6 +1,7 @@
 """Restricted-superuser tenant isolation regression tests."""
 
 from django.contrib.auth.models import User
+from django.contrib.sites.models import Site
 from django.core.exceptions import PermissionDenied
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -8,7 +9,7 @@ from django.urls import reverse
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
-from micboard.models.locations import Building, Location, Room
+from micboard.models.locations.structure import Building, Location, Room
 from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
@@ -16,6 +17,7 @@ from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.multitenancy.models import Organization, OrganizationMembership
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.core.performer_assignment_dtos import CreatePerformerAssignment
 from micboard.services.monitoring.alerts import acknowledge_alert, get_alerts_for_user
 from micboard.services.monitoring.monitoring_access import MonitoringService
 
@@ -159,7 +161,7 @@ class RestrictedSuperuserTenantAccessTests(TestCase):
         self.assertNotContains(response, self.denied_building.name)
         self.assertEqual(
             self.client.get(
-                reverse("micboard:single_building_view", args=[self.denied_building.name])
+                reverse("micboard:single_building_view", args=[self.denied_building.pk])
             ).status_code,
             404,
         )
@@ -167,7 +169,7 @@ class RestrictedSuperuserTenantAccessTests(TestCase):
             self.client.get(
                 reverse(
                     "micboard:room_view",
-                    args=[self.denied_building.name, self.denied_room.name],
+                    args=[self.denied_room.pk],
                 )
             ).status_code,
             404,
@@ -229,9 +231,11 @@ class RestrictedSuperuserTenantAccessTests(TestCase):
 
         with self.assertRaises(PermissionDenied):
             PerformerAssignmentService.create_assignment(
-                performer_id=self.performer.pk,
-                unit_id=self.assignment_target.pk,
-                group_id=self.denied_group.pk,
+                command=CreatePerformerAssignment(
+                    performer_id=self.performer.pk,
+                    unit_id=self.assignment_target.pk,
+                    group_id=self.denied_group.pk,
+                ),
                 user=self.superuser,
             )
 
@@ -251,3 +255,58 @@ class RestrictedSuperuserTenantAccessTests(TestCase):
                 wireless_unit=self.assignment_target,
             ).exists()
         )
+
+
+@override_settings(
+    MICBOARD_ALLOW_CROSS_ORG_VIEW=True,
+    MICBOARD_MSP_ENABLED=False,
+    MICBOARD_MULTI_SITE_MODE=True,
+)
+class MultiSiteMonitoringGroupIsolationTests(TestCase):
+    """Platform-wide reads must still honor the active Django Site boundary."""
+
+    def setUp(self) -> None:
+        self.user = User.objects.create_superuser(
+            username="multi-site-superuser",
+            password="test-pass",
+        )
+        self.current_site = Site.objects.create(domain="current.example", name="Current")
+        foreign_site = Site.objects.create(domain="foreign.example", name="Foreign")
+        current_building = Building.objects.create(name="Current Building", site=self.current_site)
+        foreign_building = Building.objects.create(name="Foreign Building", site=foreign_site)
+        current_location = Location.objects.create(
+            building=current_building,
+            name="Current Location",
+        )
+        foreign_location = Location.objects.create(
+            building=foreign_building,
+            name="Foreign Location",
+        )
+        self.current_group = MonitoringGroup.objects.create(name="Current Site Group")
+        self.current_group.locations.add(current_location)
+        self.foreign_group = MonitoringGroup.objects.create(name="Foreign Site Group")
+        self.foreign_group.locations.add(foreign_location)
+        self.client.force_login(self.user)
+
+    def test_group_queries_and_form_are_limited_to_the_active_site(self) -> None:
+        with self.settings(SITE_ID=self.current_site.pk):
+            groups = MonitoringService.get_user_monitoring_groups(self.user)
+            response = self.client.get(reverse("micboard:create_assignment"))
+
+        self.assertEqual(set(groups.values_list("pk", flat=True)), {self.current_group.pk})
+        self.assertContains(response, self.current_group.name)
+        self.assertNotContains(response, self.foreign_group.name)
+
+    def test_assignment_service_rejects_a_foreign_site_group(self) -> None:
+        with (
+            self.settings(SITE_ID=self.current_site.pk),
+            self.assertRaises(PermissionDenied),
+        ):
+            PerformerAssignmentService.create_assignment(
+                command=CreatePerformerAssignment(
+                    performer_id=1,
+                    unit_id=1,
+                    group_id=self.foreign_group.pk,
+                ),
+                user=self.user,
+            )

@@ -1,14 +1,21 @@
 """Rate limiting service logic for micboard."""
 
+from __future__ import annotations
+
 import logging
 import time
 
 from django.core.cache import cache
+from django.http import HttpRequest
 
 logger = logging.getLogger(__name__)
 
 
-def check_rate_limit(cache_key, max_requests, window_seconds):
+def check_rate_limit(
+    cache_key: str,
+    max_requests: int,
+    window_seconds: int,
+) -> tuple[bool, int | None, list[float]]:
     """Check and update rate limit for a given cache key."""
     now = time.time()
     window_key = f"{cache_key}_window"
@@ -43,7 +50,7 @@ def check_rate_limit(cache_key, max_requests, window_seconds):
     return True, None, request_times
 
 
-def get_client_ip(request):
+def get_client_ip(request: HttpRequest) -> str:
     """Extract client IP address from request, considering proxies."""
     x_forwarded_for = request.headers.get("x-forwarded-for")
     ip = (
@@ -54,9 +61,9 @@ def get_client_ip(request):
     return ip
 
 
-def get_user_cache_key(request, view_func_name):
+def get_user_cache_key(request: HttpRequest, view_func_name: str) -> str:
+    """Return a stable authenticated-user or anonymous-client cache key."""
     if hasattr(request, "user") and getattr(request.user, "is_authenticated", False):
         return f"rate_limit_user_{request.user.id}"
-    else:
-        ip = get_client_ip(request)
-        return f"rate_limit_anon_{view_func_name}_{ip}"
+    ip = get_client_ip(request)
+    return f"rate_limit_anon_{view_func_name}_{ip}"

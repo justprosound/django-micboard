@@ -2,21 +2,17 @@
 
 Handles side effects that must occur after a chassis is saved or deleted:
 - Auto-provisioning of RF channels to match model capacity
-- Bi-directional sync: adding/removing IPs from manufacturer's discovery list
-- Scheduling background discovery tasks
+- Removing deleted IPs from manufacturer discovery lists
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
-from functools import partial
 
-from django.conf import settings
-from django.db import DEFAULT_DB_ALIAS, transaction
+from django.db import DEFAULT_DB_ALIAS
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.hardware.dtos import ChassisDiscoveryCleanup
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -32,44 +28,14 @@ class HardwarePostSaveHooks:
         """Handle transactional and post-commit effects of saving a chassis."""
         HardwarePostSaveHooks._ensure_channel_count(chassis, using=using)
 
-        if chassis.pk is None:  # pragma: no cover - save contract guard
-            raise ValueError("A persisted chassis is required for post-save hooks.")
-        transaction.on_commit(
-            partial(
-                HardwarePostSaveHooks._run_external_save_hooks,
-                chassis_id=chassis.pk,
-                created=created,
-                using=using,
-            ),
-            using=using,
-            robust=True,
-        )
-
         if created:
-            logger.info("Chassis created: %s at %s", chassis.name, chassis.ip)
+            logger.info(
+                "Wireless chassis %s created for manufacturer %s",
+                chassis.pk,
+                chassis.manufacturer_id,
+            )
         else:
-            logger.debug("Chassis updated: %s", chassis.name)
-
-    @staticmethod
-    def _run_external_save_hooks(
-        *,
-        chassis_id: int,
-        created: bool,
-        using: str = "default",
-    ) -> None:
-        """Run manufacturer effects after durable persistence."""
-        if getattr(settings, "TESTING", False):
-            return
-        chassis = (
-            WirelessChassis.objects.using(using)
-            .select_related("manufacturer")
-            .filter(pk=chassis_id)
-            .first()
-        )
-        if chassis is None:
-            return
-        if created:
-            HardwarePostSaveHooks._add_ip_to_discovery(chassis)
+            logger.debug("Wireless chassis %s updated", chassis.pk)
 
     @staticmethod
     def _ensure_channel_count(
@@ -86,49 +52,21 @@ class HardwarePostSaveHooks:
             )
             if created_count > 0:
                 logger.info(
-                    "Auto-created %d RF channels for %s (%s)",
+                    "Auto-created %d RF channels for wireless chassis %s",
                     created_count,
-                    chassis.name,
-                    chassis.model,
+                    chassis.pk,
                 )
             if deleted_count > 0:
                 logger.info(
-                    "Auto-deleted %d excess RF channels for %s",
+                    "Auto-deleted %d excess RF channels for wireless chassis %s",
                     deleted_count,
-                    chassis.name,
+                    chassis.pk,
                 )
-        except Exception:
-            logger.exception("Error ensuring channel count for chassis: %s", chassis.name)
-
-    @staticmethod
-    def _add_ip_to_discovery(chassis: WirelessChassis) -> None:
-        if getattr(settings, "TESTING", False) or not chassis.ip or not chassis.manufacturer:
-            return
-
-        from micboard.services.manufacturer.plugin_registry import PluginRegistry
-
-        try:
-            plugin = PluginRegistry.get_plugin(chassis.manufacturer.code, chassis.manufacturer)
-            if not plugin or not hasattr(plugin, "add_discovery_ips"):
-                return
-            success = plugin.add_discovery_ips([chassis.ip])
-            if success:
-                logger.info(
-                    "Added %s to %s discovery list for automatic monitoring",
-                    chassis.ip,
-                    chassis.manufacturer.name,
-                )
-            else:
-                logger.warning(
-                    "Could not add %s to %s discovery list",
-                    chassis.ip,
-                    chassis.manufacturer.name,
-                )
-        except Exception:
+        except Exception as exc:
             logger.exception(
-                "Failed to add IP %s to discovery list for %s",
-                chassis.ip,
-                chassis.manufacturer.code,
+                "Error ensuring channel count for chassis %s",
+                chassis.pk,
+                exc_info=sanitized_exception_info(exc),
             )
 
     @staticmethod
@@ -137,8 +75,12 @@ class HardwarePostSaveHooks:
         chassis: WirelessChassis,
         using: str = "default",
     ) -> None:
-        """Register manufacturer cleanup after one chassis deletion commits."""
-        logger.info("Chassis deleted: %s (%s)", chassis.name, chassis.api_device_id)
+        """Register manufacturer reconciliation after one chassis deletion commits."""
+        logger.info(
+            "Wireless chassis %s deleted for manufacturer %s",
+            chassis.pk,
+            chassis.manufacturer_id,
+        )
         HardwarePostSaveHooks.handle_chassis_bulk_delete(
             chassis_list=[chassis],
             using=using,
@@ -150,79 +92,20 @@ class HardwarePostSaveHooks:
         chassis_list: list[WirelessChassis],
         using: str = "default",
     ) -> None:
-        """Register one grouped discovery cleanup for a chassis deletion batch."""
-        targets = tuple(
-            ChassisDiscoveryCleanup(
-                manufacturer_id=chassis.manufacturer_id,
-                ip=str(chassis.ip),
-            )
-            for chassis in chassis_list
-            if chassis.ip and chassis.manufacturer_id is not None
-        )
-        if targets:
-            connection = transaction.get_connection(using)
-            savepoints = set(connection.savepoint_ids)
-            for callback_savepoints, callback, _robust in connection.run_on_commit:
-                pending_targets = getattr(
-                    callback,
-                    "_micboard_chassis_cleanup_targets",
-                    None,
-                )
-                if callback_savepoints == savepoints and pending_targets is not None:
-                    pending_targets.extend(targets)
-                    return
+        """Register one claimed discovery reconciliation per affected manufacturer."""
+        from micboard.services.sync.discovery_trigger_service import schedule_discovery_on_commit
 
-            pending_targets = list(targets)
-            callback = partial(
-                HardwarePostSaveHooks._remove_ips_from_discovery,
-                targets=pending_targets,
+        manufacturer_ids = sorted(
+            {
+                chassis.manufacturer_id
+                for chassis in chassis_list
+                if chassis.manufacturer_id is not None
+            }
+        )
+        for manufacturer_id in manufacturer_ids:
+            schedule_discovery_on_commit(
+                manufacturer_id=manufacturer_id,
+                scan_cidrs=False,
+                scan_fqdns=False,
                 using=using,
             )
-            callback.__dict__["_micboard_chassis_cleanup_targets"] = pending_targets
-            transaction.on_commit(callback, using=using, robust=True)
-
-    @staticmethod
-    def _remove_ips_from_discovery(
-        *,
-        targets: Sequence[ChassisDiscoveryCleanup],
-        using: str = "default",
-    ) -> None:
-        """Remove committed chassis IPs from each manufacturer's discovery list."""
-        if getattr(settings, "TESTING", False):
-            return
-
-        from micboard.models.discovery.manufacturer import Manufacturer
-        from micboard.services.manufacturer.plugin_registry import PluginRegistry
-
-        targets_by_manufacturer: dict[int, list[ChassisDiscoveryCleanup]] = {}
-        for target in targets:
-            targets_by_manufacturer.setdefault(target.manufacturer_id, []).append(target)
-
-        for manufacturer_id, manufacturer_targets in targets_by_manufacturer.items():
-            manufacturer = Manufacturer.objects.using(using).filter(pk=manufacturer_id).first()
-            if manufacturer is None:
-                continue
-            ips = [target.ip for target in manufacturer_targets]
-            try:
-                plugin = PluginRegistry.get_plugin(manufacturer.code, manufacturer)
-
-                if plugin and hasattr(plugin, "remove_discovery_ips"):
-                    success = plugin.remove_discovery_ips(ips)
-                    if success:
-                        logger.info(
-                            "Removed %s from %s discovery list",
-                            ", ".join(ips),
-                            manufacturer.name,
-                        )
-                    else:
-                        logger.warning(
-                            "Could not remove %s from %s discovery list",
-                            ", ".join(ips),
-                            manufacturer.name,
-                        )
-            except Exception:
-                logger.exception(
-                    "Failed to remove IPs %s from discovery list for %s",
-                    ", ".join(ips),
-                    manufacturer.code,
-                )

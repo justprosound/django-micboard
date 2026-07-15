@@ -1,30 +1,29 @@
-"""Management command to start WebSocket subscriptions for Shure devices."""
+"""Start the bounded Shure WebSocket supervisor from the command line."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import signal
-import sys
 from typing import Any
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
 
-from asgiref.sync import sync_to_async
-
-from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.common.base.plugin import get_manufacturer_plugin
-from micboard.services.sync.device_update_service import DeviceUpdateService
+from micboard.services.realtime.shure_websocket_subscription_service import (
+    run_shure_websocket_subscriptions,
+)
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Start WebSocket subscriptions for Shure devices"
+    """Thin foreground adapter for the Shure WebSocket subscription service."""
 
-    def add_arguments(self, parser):
+    help = "Start bounded WebSocket subscriptions for Shure devices"
+
+    def add_arguments(self, parser: CommandParser) -> None:
+        """Register the supported manufacturer and optional device selector."""
         parser.add_argument(
             "--manufacturer",
             type=str,
@@ -34,150 +33,44 @@ class Command(BaseCommand):
         parser.add_argument(
             "--device",
             type=str,
-            help=(
-                "Specific device ID to subscribe to. "
-                "If not provided, subscribes to all active devices."
-            ),
+            help="Optional API device ID to subscribe to",
         )
 
-    def handle(self, *args, **options):
-        manufacturer_code = options.get("manufacturer")
+    def handle(self, *args: Any, **options: Any) -> None:
+        """Validate Shure availability and run the shared singleton supervisor."""
+        manufacturer_code = str(options.get("manufacturer") or "shure")
         device_id = options.get("device")
-
         try:
             manufacturer = Manufacturer.objects.get(code=manufacturer_code)
         except Manufacturer.DoesNotExist:
             self.stderr.write(self.style.ERROR(f"Manufacturer '{manufacturer_code}' not found"))
             return
 
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
-
-        # Get devices to subscribe to
-        if device_id:
-            devices = [device_id]
-        else:
-            devices = list(
-                WirelessChassis.objects.filter(
-                    manufacturer=manufacturer,
-                    status__in=("online", "degraded", "provisioning"),
-                ).values_list("api_device_id", flat=True)
+        if manufacturer.code != "shure":
+            self.stderr.write(
+                self.style.ERROR("WebSocket subscriptions are only supported for Shure")
             )
-
-        if not devices:
-            self.stdout.write("No active devices found to subscribe to")
             return
 
-        self.stdout.write(f"Starting WebSocket subscriptions for {len(devices)} device(s)...")
+        chassis_id = None
+        if device_id:
+            try:
+                chassis_id = WirelessChassis.objects.get(
+                    manufacturer=manufacturer,
+                    api_device_id=device_id,
+                ).pk
+            except WirelessChassis.DoesNotExist:
+                self.stderr.write(self.style.ERROR("Selected device was not found"))
+                return
 
-        # Set up signal handlers for graceful shutdown
-        def signal_handler(signum, frame):
-            self.stdout.write("\nShutting down WebSocket subscriptions...")
-            sys.exit(0)
-
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-
-        # Start subscriptions
         try:
-            asyncio.run(self._run_subscriptions(plugin, devices))
+            run_shure_websocket_subscriptions(manufacturer.pk, chassis_id=chassis_id)
         except KeyboardInterrupt:
             self.stdout.write("WebSocket subscriptions stopped by user")
-        except Exception as e:
-            self.stderr.write(self.style.ERROR(f"Error in WebSocket subscriptions: {e}"))
-            logger.exception("WebSocket subscription error")
-
-    async def _run_subscriptions(self, plugin, device_ids: list[str]):
-        """Run WebSocket subscriptions for multiple devices concurrently."""
-        tasks = []
-
-        for device_id in device_ids:
-            task = asyncio.create_task(self._subscribe_device(plugin, device_id))
-            tasks.append(task)
-
-        # Wait for all tasks (they run indefinitely until cancelled)
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-    async def _subscribe_device(self, plugin, device_id: str):
-        """Subscribe to a single device and handle updates."""
-        client = None
-        try:
-            # Get receiver info for connection
-            receiver = await sync_to_async(
-                WirelessChassis.objects.get,
-                thread_sensitive=True,
-            )(
-                manufacturer=plugin.manufacturer,
-                api_device_id=device_id,
+        except Exception as exc:
+            logger.exception(
+                "WebSocket subscription command failed for manufacturer %s",
+                manufacturer.pk,
+                exc_info=sanitized_exception_info(exc),
             )
-
-            # Create API client for the WebSocket connection
-            from micboard.integrations.shure.client import ShureSystemAPIClient
-
-            # Manufacturer credentials must only cross authenticated TLS.
-            base_url = f"https://{receiver.ip}:{getattr(receiver, 'port', 443)}"
-
-            client = await sync_to_async(
-                ShureSystemAPIClient,
-                thread_sensitive=True,
-            )(base_url=base_url)
-
-            # Set up callback for updates
-            async def update_callback(data: dict[str, Any]) -> None:
-                """Handle incoming WebSocket data."""
-                self.stdout.write(f"Received update for {device_id}: {data}")
-                # Process the update data and update models
-                await self._process_websocket_update(plugin, device_id, data)
-
-            # Connect and subscribe using the WebSocket function
-            await connect_and_subscribe(client, device_id, update_callback)
-
-        except WirelessChassis.DoesNotExist:
-            self.stderr.write(self.style.ERROR(f"Receiver not found for device {device_id}"))
-        except Exception:
-            logger.exception("Error subscribing to device %s", device_id)
-            self.stderr.write(self.style.ERROR(f"Failed to subscribe to {device_id}"))
-        finally:
-            if client is not None:
-                try:
-                    await sync_to_async(client.close, thread_sensitive=True)()
-                except Exception:
-                    logger.exception("Failed to close WebSocket API client for %s", device_id)
-
-    async def _process_websocket_update(self, plugin, device_id: str, data: dict[str, Any]):
-        """Process WebSocket update data and update models."""
-        try:
-            # The WebSocket data should contain updated device information
-            # For now, assume it's similar to the full device data from REST API
-            # In practice, it might be partial updates, but let's treat it as full updates
-
-            # Get the manufacturer from the plugin
-            manufacturer = plugin.manufacturer
-
-            # Transform the data using the plugin
-            transformed_data = plugin.transform_device_data(data)
-            if transformed_data:
-                # Update the specific device
-                api_data = [data]  # Wrap in list for the update function
-                updated_count = await sync_to_async(
-                    DeviceUpdateService.update_models_from_api_data,
-                    thread_sensitive=True,
-                )(
-                    api_data=api_data,
-                    manufacturer=manufacturer,
-                    plugin=plugin,
-                )
-                if updated_count > 0:
-                    self.stdout.write(
-                        f"Updated {updated_count} device(s) from WebSocket for {device_id}"
-                    )
-                else:
-                    logger.debug("No updates from WebSocket data for %s", device_id)
-            else:
-                logger.debug("Could not transform WebSocket data for %s", device_id)
-
-        except Exception:
-            logger.exception("Error processing WebSocket update for %s", device_id)
-            self.stderr.write(
-                self.style.ERROR(f"Error processing WebSocket update for {device_id}")
-            )
+            self.stderr.write(self.style.ERROR("WebSocket subscription failed; details redacted"))

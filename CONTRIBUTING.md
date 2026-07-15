@@ -50,8 +50,8 @@ uv run --no-sync pytest -m unit
 uv run --no-sync pytest -m integration
 ```
 
-CI enforces the current **49%** non-regression floor while coverage is ratcheted toward the
-documented 60% target.
+CI enforces a **95% branch-coverage** non-regression floor across every distributable Python
+module. Run `just coverage` before opening a pull request.
 
 ### Model Factories
 
@@ -320,11 +320,15 @@ Include:
 Maintainers follow this process:
 
 1. Collect changes in `CHANGELOG.md` under `[Unreleased]`
-2. Bump version (CalVer: YY.MM.DD)
-3. Update `[Unreleased]` to new version with date
-4. Run full test suite and linting
-5. Build and publish to PyPI
-6. Tag release on GitHub
+2. Run the **Prepare Release PR** workflow from `main` with a CalVer version (`YY.MM.DD`)
+3. Let the workflow open a release pull request and dispatch CI and documentation checks
+4. Let protected-branch auto-merge merge the pull request only after every required check passes
+5. Let the workflow publish the exact merge commit to TestPyPI or PyPI through trusted publishing
+6. Confirm that the publication workflow creates the matching GitHub release and tag
+
+Release preparation never pushes directly to `main` and never receives an OIDC publishing token.
+The separate publication workflow accepts only a commit already merged into protected `main` and
+uses the appropriate protected GitHub environment for package publication.
 
 ## Questions?
 

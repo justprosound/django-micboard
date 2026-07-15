@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import importlib.resources
 import logging
+import re
 from typing import Any
+
+from micboard.utils.exception_logging import sanitized_exception_info
 
 # Ensure 'yaml' is typed as optional module to satisfy static type checkers
 yaml: Any = None
@@ -33,26 +36,15 @@ def _load_band_plans() -> dict[str, dict[str, dict]]:
         return {}
 
     try:
-        # Try Python 3.9+ importlib.resources
-        if hasattr(importlib.resources, "files"):
-            fixture_path = importlib.resources.files("micboard").joinpath(
-                "fixtures/band_plans.yaml"
-            )
-            spec_yaml = fixture_path.read_text()
-        else:
-            # Fallback for older Python versions
-            import os
-
-            fixture_file = os.path.join(
-                os.path.dirname(__file__), "..", "fixtures", "band_plans.yaml"
-            )
-            with open(fixture_file) as f:
-                spec_yaml = f.read()
+        fixture_path = importlib.resources.files("micboard").joinpath("fixtures/band_plans.yaml")
+        spec_yaml = fixture_path.read_text()
 
         return yaml.safe_load(spec_yaml) or {}
-    except Exception:
-        # If band plans fixture doesn't exist, return empty dict (non-critical)
-        logger.exception("Failed to load band plan specifications")
+    except Exception as exc:
+        logger.exception(
+            "Failed to load band plan specifications; details redacted",
+            exc_info=sanitized_exception_info(exc),
+        )
         return {}
 
 
@@ -117,8 +109,6 @@ def parse_band_plan_from_name(*, name: str) -> dict | None:
         Dict with 'min_mhz' and 'max_mhz' if parsing successful
         None if unable to parse
     """
-    import re
-
     # Match pattern like "470-534 MHz" or "470-534MHz"
     match = re.search(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*MHz", name, re.IGNORECASE)
     if match:
@@ -135,22 +125,15 @@ def _normalize_band_key(val: str) -> str:
 
 
 def _extract_band_code(val: str) -> str | None:
-    import re
-
     m = re.match(r"^([a-zA-Z0-9]+)", val)
     return m.group(1).lower() if m else None
 
 
 def _extract_freq_range(val: str) -> tuple[float, float] | None:
-    import re
-
     m = re.search(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)", val)
     if not m:
         return None
-    try:
-        return float(m.group(1)), float(m.group(2))
-    except (ValueError, TypeError):
-        return None
+    return float(m.group(1)), float(m.group(2))
 
 
 def _find_plan_by_code(band_plans: dict[str, dict], api_band_value: str) -> str | None:
@@ -234,8 +217,6 @@ def get_band_plan_from_model_code(*, manufacturer: str | None, model: str | None
     # Parse model for band hints
     # e.g., "ULXD4Q-G50" → G50
     # e.g., "EM 6062-G3 (-E)" → G band (not specific enough)
-    import re
-
     # Try to extract band code from model string
     # Patterns like "G50", "G5", "Aw+" etc.
     band_patterns = [

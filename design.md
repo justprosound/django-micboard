@@ -8,8 +8,7 @@ The app keeps a reusable Django package layout with a configuration registry, ma
 
 - Configuration access: `micboard/services/settings/settings_service.py` for feature flags, host
   configuration, app defaults, and scoped settings.
-- Manufacturer registry: `micboard/services/manufacturer/plugin_registry.py` and
-  `micboard/services/manufacturer/manufacturer_config_registry.py`.
+- Manufacturer registry: `micboard/services/manufacturer/plugin_registry.py`.
 - Tenant scoping: tenant-aware QuerySet/Manager helpers and middleware that attaches request context.
 - Admin overrides view: admin-facing UI showing differences between scoped settings and global defaults.
 
@@ -17,19 +16,20 @@ The app keeps a reusable Django package layout with a configuration registry, ma
 
 1. Request arrives with tenant context resolved via middleware.
 2. Services query models using tenant-aware helpers (organization/site/campus).
-3. Manufacturer-specific operations resolve plugin + config through registries.
-4. Configuration values are resolved using settings registry fallback order.
+3. Manufacturer-specific operations resolve plugins and scoped settings through their canonical
+   services.
+4. Each configuration definition selects one exact scope; missing values use the documented
+   non-database fallback order.
 5. Admin settings diff view computes global value + scoped overrides for display.
 
 ## Settings Resolution Order
 
-1. Manufacturer-scoped overrides (if applicable).
-2. Site-scoped overrides (if applicable).
-3. Organization-scoped overrides (if applicable).
-4. Global stored setting value.
-5. SettingDefinition default.
+1. Host setting for immutable `MICBOARD_*` deployment controls.
+2. Stored value at the definition's exact declared scope.
+3. Host `MICBOARD_CONFIG` value.
+4. Package default.
+5. `SettingDefinition` default.
 6. Caller-provided default.
-7. Raise if required.
 
 ## Error Handling
 

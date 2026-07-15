@@ -5,17 +5,23 @@ from typing import Any
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView
 
+from micboard.forms.assignments import CreateAssignmentForm, UpdateAssignmentForm
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.core.performer_assignment_dtos import (
+    CreatePerformerAssignment,
+    UpdatePerformerAssignment,
+)
 from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +31,8 @@ ALERT_OPTIONS = (
     ("alert_on_audio_low", "Low audio"),
     ("alert_on_hardware_offline", "Hardware offline"),
 )
+ASSIGNMENT_SAVE_ERROR = "Unable to save the assignment. Please try again."
+ASSIGNMENT_FORM_ERROR = "Correct the invalid assignment values and try again."
 
 
 def _assignment_form_context(
@@ -32,10 +40,12 @@ def _assignment_form_context(
     user: Any,
     assignment: PerformerAssignment | None = None,
     error: str | None = None,
+    form: CreateAssignmentForm | UpdateAssignmentForm | None = None,
 ) -> dict[str, Any]:
     """Build the user-scoped assignment form context."""
     context: dict[str, Any] = {
         "assignment": assignment,
+        "form": form,
         "performers": Performer.objects.for_user(user=user),
         "wireless_units": WirelessUnit.objects.for_user(user=user),
         "monitoring_groups": MonitoringService.get_user_monitoring_groups(user),
@@ -55,18 +65,38 @@ def _assignment_form_context(
     return context
 
 
+def _optional_form_value(
+    form: CreateAssignmentForm | UpdateAssignmentForm,
+    field_name: str,
+) -> Any:
+    """Return a cleaned value only when the client submitted that field."""
+    return form.cleaned_data[field_name] if field_name in form.data else None
+
+
 class AssignmentListView(LoginRequiredMixin, ListView):
     """List all performer assignments."""
 
     model = PerformerAssignment
     template_name = "micboard/assignments.html"
     context_object_name = "assignments"
-    paginate_by = 50
+    paginate_by: int | None = PerformerAssignmentService.PAGE_SIZE
 
     def get_queryset(self):
         """Filter assignments by user permissions and monitoring groups they manage."""
-        return PerformerAssignment.objects.for_user(user=self.request.user).select_related(
-            "performer", "wireless_unit", "monitoring_group"
+        return PerformerAssignmentService.get_visible_assignments(user=self.request.user)
+
+
+class AssignmentRowsView(AssignmentListView):
+    """Render only the bounded assignment rows used for live refreshes."""
+
+    template_name = "micboard/partials/assignment_rows.html"
+    paginate_by = None
+
+    def get_queryset(self):
+        """Return the requested row slice without full-page pagination metadata."""
+        return PerformerAssignmentService.get_visible_assignment_rows(
+            user=self.request.user,
+            page=self.request.GET.get("page", 1),
         )
 
 
@@ -81,47 +111,60 @@ def create_assignment(request: HttpRequest) -> HttpResponse:
             _assignment_form_context(user=request.user),
         )
 
-    # POST: delegate business logic to the service layer
-    performer_id = request.POST.get("performer_id")
-    wireless_unit_id = request.POST.get("wireless_unit_id")
-    monitoring_group_id = request.POST.get("monitoring_group_id")
-
-    # Basic validation and authorization (controller-level)
-    if not performer_id or not wireless_unit_id or not monitoring_group_id:
+    form = CreateAssignmentForm(request.POST)
+    if not form.is_valid():
         return render(
             request,
             "micboard/assignments/form.html",
             _assignment_form_context(
                 user=request.user,
-                error="Performer, Wireless Unit, and Monitoring Group are required",
+                error=ASSIGNMENT_FORM_ERROR,
+                form=form,
             ),
+            status=400,
         )
 
+    cleaned = form.cleaned_data
     try:
-        PerformerAssignmentService.create_assignment(
-            performer_id=int(performer_id),
-            unit_id=int(wireless_unit_id),
-            group_id=int(monitoring_group_id),
-            priority=request.POST.get("priority", "normal"),
-            notes=request.POST.get("notes", ""),
-            alert_on_battery_low=request.POST.get("alert_on_battery_low") == "on",
-            alert_on_signal_loss=request.POST.get("alert_on_signal_loss") == "on",
-            alert_on_audio_low=request.POST.get("alert_on_audio_low") == "on",
-            alert_on_hardware_offline=request.POST.get("alert_on_hardware_offline") == "on",
-            user=request.user,
+        command = CreatePerformerAssignment(
+            performer_id=cleaned["performer_id"],
+            unit_id=cleaned["wireless_unit_id"],
+            group_id=cleaned["monitoring_group_id"],
+            priority=cleaned["priority"] or "normal",
+            notes=cleaned["notes"],
+            alert_on_battery_low=_optional_form_value(form, "alert_on_battery_low"),
+            alert_on_signal_loss=_optional_form_value(form, "alert_on_signal_loss"),
+            alert_on_audio_low=_optional_form_value(form, "alert_on_audio_low"),
+            alert_on_hardware_offline=_optional_form_value(form, "alert_on_hardware_offline"),
         )
+        PerformerAssignmentService.create_assignment(command=command, user=request.user)
         return redirect("micboard:assignments")
     except PermissionDenied:
         return HttpResponseForbidden("Unauthorized")
-    except Exception as exc:
-        logger.exception("Failed to create performer assignment")
+    except ValidationError:
         return render(
             request,
             "micboard/assignments/form.html",
             _assignment_form_context(
                 user=request.user,
-                error=f"Error creating assignment: {exc}",
+                error=ASSIGNMENT_FORM_ERROR,
+                form=form,
             ),
+            status=400,
+        )
+    except Exception as exc:
+        logger.exception(
+            "Failed to create performer assignment",
+            exc_info=sanitized_exception_info(exc),
+        )
+        return render(
+            request,
+            "micboard/assignments/form.html",
+            _assignment_form_context(
+                user=request.user,
+                error=ASSIGNMENT_SAVE_ERROR,
+            ),
+            status=500,
         )
 
 
@@ -141,42 +184,65 @@ def update_assignment(request: HttpRequest, pk: int) -> HttpResponse:
             _assignment_form_context(user=request.user, assignment=assignment),
         )
 
-    # POST: delegate update to service
-    priority = request.POST.get("priority", assignment.priority)
-    notes = request.POST.get("notes", assignment.notes)
-    is_active = request.POST.get("is_active") == "on"
-    alert_battery_low = request.POST.get("alert_on_battery_low") == "on"
-    alert_signal_loss = request.POST.get("alert_on_signal_loss") == "on"
-    alert_audio_low = request.POST.get("alert_on_audio_low") == "on"
-    alert_hardware_offline = request.POST.get("alert_on_hardware_offline") == "on"
-
-    try:
-        PerformerAssignmentService.update_assignment(
-            assignment_id=assignment.id,
-            user=request.user,
-            priority=priority,
-            notes=notes,
-            is_active=is_active,
-            alert_on_battery_low=alert_battery_low,
-            alert_on_signal_loss=alert_signal_loss,
-            alert_on_audio_low=alert_audio_low,
-            alert_on_hardware_offline=alert_hardware_offline,
-        )
-        return redirect("micboard:assignments")
-    except PerformerAssignment.DoesNotExist:
-        return HttpResponseForbidden("Assignment not found")
-    except PermissionDenied:
-        return HttpResponseForbidden("Unauthorized")
-    except Exception as exc:
-        logger.exception("Failed to update performer assignment %s", assignment.pk)
+    form = UpdateAssignmentForm(request.POST)
+    if not form.is_valid():
         return render(
             request,
             "micboard/assignments/form.html",
             _assignment_form_context(
                 user=request.user,
                 assignment=assignment,
-                error=f"Error updating assignment: {exc}",
+                error=ASSIGNMENT_FORM_ERROR,
+                form=form,
             ),
+            status=400,
+        )
+
+    cleaned = form.cleaned_data
+    try:
+        command = UpdatePerformerAssignment(
+            assignment_id=assignment.id,
+            priority=cleaned["priority"] or None,
+            notes=_optional_form_value(form, "notes"),
+            is_active=_optional_form_value(form, "is_active"),
+            alert_on_battery_low=_optional_form_value(form, "alert_on_battery_low"),
+            alert_on_signal_loss=_optional_form_value(form, "alert_on_signal_loss"),
+            alert_on_audio_low=_optional_form_value(form, "alert_on_audio_low"),
+            alert_on_hardware_offline=_optional_form_value(form, "alert_on_hardware_offline"),
+        )
+        PerformerAssignmentService.update_assignment(command=command, user=request.user)
+        return redirect("micboard:assignments")
+    except PerformerAssignment.DoesNotExist:
+        return HttpResponseForbidden("Assignment not found")
+    except PermissionDenied:
+        return HttpResponseForbidden("Unauthorized")
+    except ValidationError:
+        return render(
+            request,
+            "micboard/assignments/form.html",
+            _assignment_form_context(
+                user=request.user,
+                assignment=assignment,
+                error=ASSIGNMENT_FORM_ERROR,
+                form=form,
+            ),
+            status=400,
+        )
+    except Exception as exc:
+        logger.exception(
+            "Failed to update performer assignment %s",
+            assignment.pk,
+            exc_info=sanitized_exception_info(exc),
+        )
+        return render(
+            request,
+            "micboard/assignments/form.html",
+            _assignment_form_context(
+                user=request.user,
+                assignment=assignment,
+                error=ASSIGNMENT_SAVE_ERROR,
+            ),
+            status=500,
         )
 
 

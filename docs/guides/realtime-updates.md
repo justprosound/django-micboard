@@ -18,62 +18,61 @@ Device, connection, alert, and system-health events share the authenticated `/ws
 
 ## Real-time Data Types
 
-### Device Metrics
+### Bounded device projections
 
-**Battery Information:**
+Polling and discovery publish persisted chassis projections in bounded, resumable batches:
+
 ```json
 {
   "type": "device_update",
-  "device_id": "SHURE001",
-  "battery_level": 85,
-  "charging": false,
-  "battery_status": "good"
+  "data": {
+    "manufacturer_code": "shure",
+    "receivers": [
+      {
+        "id": 1,
+        "api_device_id": "receiver-1",
+        "name": "Stage receiver",
+        "ip": "192.0.2.10",
+        "status": "online",
+        "model": "ULXD4Q"
+      }
+    ],
+    "snapshot_id": "shared-across-resumed-batches",
+    "chunk_index": 0,
+    "is_final_chunk": true,
+    "inventory_complete": false,
+    "next_cursor": 42,
+    "broadcast_namespace": "poll"
+  }
 }
 ```
 
-**RF Signal Data:**
-```json
-{
-  "type": "device_update",
-  "device_id": "SHURE001",
-  "rf_signal": -45,
-  "rf_quality": "excellent",
-  "interference": false
-}
-```
-
-**Audio Levels:**
-```json
-{
-  "type": "device_update",
-  "device_id": "SHURE001",
-  "audio_level": -12,
-  "peak_level": -6,
-  "mute_status": false
-}
-```
+`is_final_chunk` ends the current invocation's chunk sequence; only `inventory_complete` ends the
+full projection. Preserve rows by `snapshot_id` across invocations until that flag is true.
 
 ### Connection Status
 
-**WebSocket Connection Health:**
+**Persisted device status:**
 ```json
 {
-  "type": "connection_update",
-  "manufacturer": "shure",
-  "status": "connected",
-  "latency_ms": 45,
-  "last_update": "2024-01-22T10:30:00Z"
+  "type": "device_status_update",
+  "service_code": "shure",
+  "device_id": 1,
+  "device_type": "WirelessChassis",
+  "status": "online",
+  "is_active": true
 }
 ```
 
 **API Connection Status:**
 ```json
 {
-  "type": "api_health",
-  "endpoint": "https://shure-system.local",
-  "status": "healthy",
-  "response_time_ms": 234,
-  "error_count": 0
+  "type": "api_health_update",
+  "manufacturer_code": "shure",
+  "health_data": {
+    "status": "healthy",
+    "response_time": 0.234
+  }
 }
 ```
 
@@ -234,6 +233,7 @@ import os
 
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "your_project.settings")
@@ -243,22 +243,68 @@ from micboard.websockets.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
+    "websocket": AllowedHostsOriginValidator(
+        AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+    ),
 })
 ```
 
+### Running subscription supervisors
+
+Subscription supervisors are explicit long-running processes. Polling never starts or enqueues a
+supervisor. The management commands run in the foreground until the subscriptions end or the
+process is interrupted, so run them under your normal process supervisor:
+
+```bash
+# Shure WebSocket supervisor
+uv run --no-sync python manage.py websocket_subscribe
+
+# Sennheiser SSE supervisor
+uv run --no-sync python manage.py sse_subscribe --manufacturer sennheiser
+
+# Optional single-device diagnostic selection
+uv run --no-sync python manage.py sse_subscribe \
+  --manufacturer sennheiser --device DEVICE_ID
+```
+
+For queue-managed deployments, Micboard registers
+`start_shure_websocket_subscriptions` and `start_sse_subscriptions` as native Huey task
+entrypoints. The host deployment or scheduler must explicitly enqueue the appropriate entrypoint
+once; recurring device polls do not do so. These long-running tasks consume a Huey worker slot,
+so reserve worker capacity accordingly.
+
+Every command and Huey entrypoint uses the same renewable singleton lease. A deployment with more
+than one process must point `MICBOARD_REALTIME_CACHE_ALIAS` (default: `"default"`) at a
+process-shared Django cache. A local-memory cache only deduplicates inside one process. The
+following settings bound each supervisor:
+
+- `MICBOARD_REALTIME_MAX_DEVICES`: 64 by default, hard-capped at 256.
+- `MICBOARD_REALTIME_MAX_CONCURRENCY`: 16 by default, hard-capped at 64 and never greater than the
+  device limit.
+- `MICBOARD_REALTIME_ROTATION_SECONDS`: 300 by default, hard-capped at 3,600. A long-lived
+  connection is cancelled after its turn so a fixed worker cannot starve later selected devices.
+- `MICBOARD_REALTIME_RECONNECT_DELAY_SECONDS`: 1 by default, hard-capped at 60. This pause applies
+  between repeated connection rounds.
+
+Each supervisor uses at most the configured concurrency count of worker tasks. Inventory selection
+uses a shared-cache circular primary-key cursor. Each completed connection round reloads the next
+bounded window under the same lease, and restarts resume from the persisted cursor. Point the cache
+alias at process-shared storage to preserve this fairness across workers. Explicit single-device
+diagnostics do not advance that cursor.
+
+The lease is renewed every 15 seconds. After a crash or clean stop, wait up to 60 seconds before
+restarting the same transport. Micboard deliberately lets the token expire because Django's
+generic cache API cannot safely compare and delete a lease owned by a particular process.
+
 ### Initial Hardware Queries
 
-The bundled `MicboardConsumer` handles authenticated WebSocket updates. Use the hardware query
-service when a view needs an initial snapshot:
+The bundled `MicboardConsumer` handles authenticated WebSocket updates. Use the user-scoped
+manager when a view needs an initial snapshot:
 
 ```python
-from micboard.services.core.hardware_query import HardwareQueryService
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-chassis = HardwareQueryService.get_active_chassis(
-    organization_id=organization_id,
-    campus_id=campus_id,
-)
+chassis = WirelessChassis.objects.for_user(user=request.user).active()
 snapshot = list(chassis.values("id", "name", "status"))
 ```
 
@@ -273,6 +319,9 @@ uv run --no-sync python manage.py poll_devices --manufacturer shure --async
 ```
 
 Use your deployment scheduler to enqueue this one-shot command at the required interval.
+
+Polling and realtime subscriptions have separate lifecycles. Increasing the poll frequency does
+not create, restart, or reconcile subscription supervisors.
 
 **Adaptive Polling:**
 - Normal devices: 30-second intervals

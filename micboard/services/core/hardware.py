@@ -1,24 +1,16 @@
-"""Hardware service layer for managing chassis and field units.
-
-Handles hardware lifecycle operations, status synchronization, and queries.
-Consolidates logic from legacy device services.
-
-This module is a facade - implementation is split across:
-- hardware_query: read operations (get, search, count)
-- hardware_sync: write operations (sync status, battery, channels, capabilities)
-"""
+"""Manufacturer-neutral normalization for hardware payloads."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
-from micboard.services.core.hardware_query import HardwareQueryService
-from micboard.services.core.hardware_sync import HardwareSyncService
+from pydantic import field_validator
+
+from micboard.services.shared.base_dto import PydanticBaseDTO
+from micboard.utils.mac_address import canonicalize_mac_address
 
 
-@dataclass(slots=True)
-class NormalizedHardware:
+class NormalizedHardware(PydanticBaseDTO):
     """Normalized hardware payload independent of manufacturer key names."""
 
     api_device_id: str
@@ -35,6 +27,12 @@ class NormalizedHardware:
     gateway: str | None
     network_mode: str
     interface_id: str
+
+    @field_validator("mac_address", mode="before")
+    @classmethod
+    def canonicalize_mac(cls, value: Any) -> str:
+        """Canonicalize hardware identity on creation and assignment."""
+        return canonicalize_mac_address(value) or ""
 
     @classmethod
     def from_api(cls, data: dict[str, Any]) -> NormalizedHardware | None:
@@ -55,8 +53,11 @@ class NormalizedHardware:
             data.get("serial_number") or data.get("serialNumber") or data.get("serial") or ""
         ).strip()
         mac_address = (
-            data.get("mac_address") or data.get("macAddress") or data.get("mac") or ""
-        ).strip()
+            canonicalize_mac_address(
+                (data.get("mac_address") or data.get("macAddress") or data.get("mac") or "").strip()
+            )
+            or ""
+        )
 
         return cls(
             api_device_id=api_device_id,
@@ -79,34 +80,3 @@ class NormalizedHardware:
             network_mode=(data.get("network_mode") or data.get("networkMode") or "auto").strip(),
             interface_id=(data.get("interface_id") or data.get("interfaceId") or "").strip(),
         )
-
-
-class HardwareService:
-    """Business logic for hardware management and synchronization.
-
-    Encapsulates operations on chassis, wireless units, and related logic.
-    """
-
-    # Query operations - delegated to HardwareQueryService
-    get_active_chassis = HardwareQueryService.get_active_chassis
-    get_active_units = HardwareQueryService.get_active_units
-    get_chassis_by_ip = HardwareQueryService.get_chassis_by_ip
-    get_chassis_by_id = HardwareQueryService.get_chassis_by_id
-    get_unit_by_id = HardwareQueryService.get_unit_by_id
-    count_online_hardware = HardwareQueryService.count_online_hardware
-    search_hardware = HardwareQueryService.search_hardware
-
-    # Sync operations - delegated to HardwareSyncService
-    sync_hardware_status = HardwareSyncService.sync_hardware_status
-    sync_unit_battery = HardwareSyncService.sync_unit_battery
-    ensure_channel_count = HardwareSyncService.ensure_channel_count
-    update_device_capabilities = HardwareSyncService.update_device_capabilities
-    async_sync_hardware_status = HardwareSyncService.async_sync_hardware_status
-
-    # Async query operations - delegated to HardwareQueryService
-    aget_active_chassis = HardwareQueryService.aget_active_chassis
-    aget_online_chassis = HardwareQueryService.aget_online_chassis
-    aget_chassis_by_id = HardwareQueryService.aget_chassis_by_id
-    aget_active_units = HardwareQueryService.aget_active_units
-    aget_unit_by_id = HardwareQueryService.aget_unit_by_id
-    aget_low_battery_units = HardwareQueryService.aget_low_battery_units

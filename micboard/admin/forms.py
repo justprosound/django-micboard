@@ -5,13 +5,24 @@ from __future__ import annotations
 from typing import cast
 
 from django import forms
+from django.core.exceptions import PermissionDenied
 
+from micboard.exceptions import OrganizationDeviceQuotaExceededError
 from micboard.models.band_plans import get_available_band_plans
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.hardware.chassis_admin_service import (
+    CHASSIS_ADMIN_WRITE_FIELDS,
+    ChassisAdminService,
+)
+from micboard.services.hardware.wireless_chassis_persistence_service import (
+    WirelessChassisPersistenceService,
+)
 
 
 class WirelessChassisAdminForm(forms.ModelForm):
     """Custom admin form for WirelessChassis with band plan selection."""
+
+    scope_user = None
 
     band_plan_selector = forms.ChoiceField(
         required=False,
@@ -21,42 +32,7 @@ class WirelessChassisAdminForm(forms.ModelForm):
 
     class Meta:
         model = WirelessChassis
-        fields = [
-            "role",
-            "manufacturer",
-            "api_device_id",
-            "serial_number",
-            "mac_address",
-            "model",
-            "name",
-            "fqdn",
-            "description",
-            "protocol_family",
-            "wmas_capable",
-            "licensed_resource_count",
-            "ip",
-            "subnet_mask",
-            "gateway",
-            "network_mode",
-            "interface_id",
-            "mac_address_secondary",
-            "ip_address_secondary",
-            "firmware_version",
-            "hosted_firmware_version",
-            "location",
-            "order",
-            "status",
-            "last_seen",
-            "is_online",
-            "last_online_at",
-            "last_offline_at",
-            "total_uptime_minutes",
-            "max_channels",
-            "dante_capable",
-            "band_plan_min_mhz",
-            "band_plan_max_mhz",
-            "band_plan_name",
-        ]
+        fields = CHASSIS_ADMIN_WRITE_FIELDS
 
     def __init__(self, *args, **kwargs):
         """Initialize the form and populate dynamic band plan choices."""
@@ -116,5 +92,21 @@ class WirelessChassisAdminForm(forms.ModelForm):
                 if key == band_plan_selector:
                     cleaned_data["band_plan_name"] = name
                     break
+
+        scope_user = type(self).scope_user
+        if scope_user is not None and "location" not in self.errors:
+            location = cleaned_data.get("location")
+            try:
+                ChassisAdminService.ensure_location_write_allowed(
+                    user=scope_user,
+                    location=location,
+                )
+                WirelessChassisPersistenceService.validate_location_quota(
+                    chassis_id=self.instance.pk,
+                    location=location,
+                    using=self.instance._state.db,
+                )
+            except (PermissionDenied, OrganizationDeviceQuotaExceededError) as exc:
+                self.add_error("location", str(exc))
 
         return cleaned_data

@@ -14,6 +14,8 @@ from django.core.mail import EmailMessage, get_connection
 from django.template.loader import render_to_string
 from django.utils import timezone
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 if TYPE_CHECKING:  # pragma: no cover
     from micboard.models.monitoring.alert import Alert
 
@@ -26,7 +28,7 @@ class EmailService:
     Uses Django's email backend for reliable delivery.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Prepare an email backend connection for sending messages."""
         self.connection = get_connection()
 
@@ -81,49 +83,12 @@ class EmailService:
                 logger.error("Failed to send alert notification for alert %s", alert.id)
                 return False
 
-        except Exception as e:
-            logger.exception("Error sending alert notification for alert %s: %s", alert.id, e)
-            return False
-
-    def send_system_notification(
-        self, subject: str, message: str, recipients: list[str] | None = None
-    ) -> bool:
-        """Send system notification email.
-
-        Args:
-            subject: Email subject
-            message: Email message body
-            recipients: List of email addresses, or None to use default
-
-        Returns:
-            bool: True if email was sent successfully
-        """
-        if not recipients:
-            recipients = self._get_default_recipients()
-
-        if not recipients:
-            logger.warning("No email recipients configured for system notifications")
-            return False
-
-        try:
-            email = EmailMessage(
-                subject=f"Micboard System: {subject}",
-                body=message,
-                from_email=self._get_from_email(),
-                to=recipients,
-                connection=self.connection,
+        except Exception as exc:
+            logger.exception(
+                "Error sending alert notification for alert %s",
+                alert.id,
+                exc_info=sanitized_exception_info(exc),
             )
-
-            sent = email.send()
-            if sent:
-                logger.info("System notification sent to %s recipients", len(recipients))
-                return True
-            else:
-                logger.error("Failed to send system notification")
-                return False
-
-        except Exception as e:
-            logger.exception("Error sending system notification: %s", e)
             return False
 
     def _get_default_recipients(self) -> list[str]:
@@ -151,32 +116,5 @@ class EmailService:
         )
 
 
-# Global email service instance
+# Canonical email service instance.
 email_service = EmailService()
-
-
-def send_alert_email(alert: Alert, recipients: list[str] | None = None) -> bool:
-    """Convenience function to send alert email.
-
-    Args:
-        alert: Alert instance
-        recipients: Optional list of email addresses
-
-    Returns:
-        bool: True if email was sent successfully
-    """
-    return email_service.send_alert_notification(alert, recipients)
-
-
-def send_system_email(subject: str, message: str, recipients: list[str] | None = None) -> bool:
-    """Convenience function to send system email.
-
-    Args:
-        subject: Email subject
-        message: Email message
-        recipients: Optional list of email addresses
-
-    Returns:
-        bool: True if email was sent successfully
-    """
-    return email_service.send_system_notification(subject, message, recipients)

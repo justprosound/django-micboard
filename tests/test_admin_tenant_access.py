@@ -8,23 +8,27 @@ from django.contrib import admin
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Permission, User
 from django.contrib.sites.models import Site
+from django.core.exceptions import ValidationError
 from django.test import RequestFactory, override_settings
 
 import pytest
 
-from micboard.admin.display_wall import WallSectionAdmin
+from micboard.admin.display_wall import WallSectionAdmin, WallSectionInline
 from micboard.admin.manufacturers import ManufacturerAdmin
-from micboard.admin.mixins import PLATFORM_GLOBAL_ADMIN_MODEL_LABELS
 from micboard.admin.realtime import RealTimeConnectionAdmin
+from micboard.admin.receiver_inlines import RFChannelInline
 from micboard.admin.receivers import WirelessChassisAdmin
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.charger import Charger
-from micboard.models.hardware.display_wall import WallSection
+from micboard.models.hardware.display_wall import DisplayWall, WallSection
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.locations.structure import Building, Location
+from micboard.models.monitoring.group import MonitoringGroup, MonitoringGroupLocation
 from micboard.models.realtime.connection import RealTimeConnection
 from micboard.multitenancy.admin import SuperuserOnlyAdmin
 from micboard.multitenancy.models import Campus, Organization, OrganizationMembership
+from micboard.services.shared.access_policy import PLATFORM_GLOBAL_ADMIN_MODEL_LABELS
+from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
 
 
 @dataclass(frozen=True)
@@ -314,6 +318,98 @@ def test_admin_many_to_many_choices_are_tenant_scoped(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("msp_enabled", "multi_site_enabled"),
+    [(True, False), (False, True)],
+    ids=["msp", "multi-site"],
+)
+def test_wall_section_inline_rejects_cross_tenant_chargers(
+    tenant_admin_graph: TenantAdminGraph,
+    settings,
+    msp_enabled: bool,
+    multi_site_enabled: bool,
+) -> None:
+    """Inline widgets and forged values share the standalone admin tenant boundary."""
+    settings.MICBOARD_MSP_ENABLED = msp_enabled
+    settings.MICBOARD_MULTI_SITE_MODE = multi_site_enabled
+    settings.MICBOARD_ALLOW_CROSS_ORG_VIEW = False
+    if multi_site_enabled:
+        site, _created = Site.objects.get_or_create(
+            pk=settings.SITE_ID,
+            defaults={"domain": "allowed.example.test", "name": "Allowed Site"},
+        )
+        tenant_admin_graph.allowed_location.building.site = site
+        tenant_admin_graph.allowed_location.building.save(update_fields=["site"])
+    inline = WallSectionInline(DisplayWall, AdminSite())
+
+    formfield = inline.formfield_for_manytomany(
+        WallSection._meta.get_field("chargers"),
+        _request_for(tenant_admin_graph.staff_user),
+    )
+
+    assert set(formfield.queryset.values_list("pk", flat=True)) == {
+        tenant_admin_graph.allowed_charger.pk,
+    }
+    with pytest.raises(ValidationError, match="valid choice"):
+        formfield.clean([tenant_admin_graph.denied_campus_charger.pk])
+
+
+@pytest.mark.django_db
+@override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
+def test_rf_channel_inline_scopes_and_binds_active_units_to_parent_chassis(
+    tenant_admin_graph: TenantAdminGraph,
+) -> None:
+    """RF inline choices cannot cross either tenant or chassis boundaries."""
+    user = tenant_admin_graph.staff_user
+    user.user_permissions.add(
+        Permission.objects.get(codename="view_rfchannel"),
+        Permission.objects.get(codename="add_rfchannel"),
+        Permission.objects.get(codename="change_rfchannel"),
+    )
+    allowed_unit = WirelessUnitFactory(
+        base_chassis=tenant_admin_graph.allowed_chassis,
+        manufacturer=tenant_admin_graph.allowed_chassis.manufacturer,
+    )
+    same_tenant_chassis = WirelessChassisFactory(
+        manufacturer=tenant_admin_graph.allowed_chassis.manufacturer,
+        location=tenant_admin_graph.allowed_location,
+    )
+    same_tenant_other_unit = WirelessUnitFactory(
+        base_chassis=same_tenant_chassis,
+        manufacturer=same_tenant_chassis.manufacturer,
+    )
+    denied_unit = WirelessUnitFactory(
+        base_chassis=tenant_admin_graph.denied_campus_chassis,
+        manufacturer=tenant_admin_graph.denied_campus_chassis.manufacturer,
+    )
+    monitoring_group = MonitoringGroup.objects.create(name="Inline Allowed Hardware")
+    monitoring_group.users.add(user)
+    MonitoringGroupLocation.objects.create(
+        monitoring_group=monitoring_group,
+        location=tenant_admin_graph.allowed_location,
+    )
+    inline = RFChannelInline(WirelessChassis, AdminSite())
+    request = _request_for(user)
+
+    tenant_field = inline.formfield_for_foreignkey(
+        inline.model._meta.get_field("active_wireless_unit"),
+        request,
+    )
+    assert set(tenant_field.queryset.values_list("pk", flat=True)) == {
+        allowed_unit.pk,
+        same_tenant_other_unit.pk,
+    }
+    assert denied_unit.pk not in tenant_field.queryset.values_list("pk", flat=True)
+
+    formset_class = inline.get_formset(request, tenant_admin_graph.allowed_chassis)
+    formset = formset_class(instance=tenant_admin_graph.allowed_chassis)
+    active_unit_field = formset.forms[0].fields["active_wireless_unit"]
+    assert set(active_unit_field.queryset.values_list("pk", flat=True)) == {allowed_unit.pk}
+    with pytest.raises(ValidationError, match="valid choice"):
+        active_unit_field.clean(same_tenant_other_unit.pk)
+
+
+@pytest.mark.django_db
 @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
 def test_unscoped_admin_model_fails_closed(tenant_admin_graph: TenantAdminGraph) -> None:
     """Models without a safe tenant lookup cannot leak through admin in MSP mode."""
@@ -348,28 +444,6 @@ def test_global_catalog_still_fails_closed_for_non_superuser(
     model_admin = ManufacturerAdmin(Manufacturer, admin.site)
 
     assert not model_admin.get_queryset(_request_for(tenant_admin_graph.staff_user)).exists()
-
-
-@pytest.mark.django_db
-@override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
-def test_unscoped_admin_custom_view_fails_closed(
-    tenant_admin_graph: TenantAdminGraph,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Custom admin URLs must apply the same tenant boundary as changelists."""
-    tenant_admin_graph.staff_user.user_permissions.add(
-        Permission.objects.get(codename="view_manufacturer")
-    )
-    manufacturer = Manufacturer.objects.get(code="tenant-admin-manufacturer")
-    model_admin = ManufacturerAdmin(Manufacturer, admin.site)
-    monkeypatch.setattr(model_admin, "message_user", lambda *args, **kwargs: None)
-
-    response = model_admin.discovery_ips_view(
-        _request_for(tenant_admin_graph.staff_user),
-        manufacturer.pk,
-    )
-
-    assert response.status_code == 302
 
 
 @pytest.mark.django_db

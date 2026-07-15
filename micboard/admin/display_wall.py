@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from django.contrib import admin
 
-from micboard.admin.mixins import MicboardModelAdmin
+from micboard.admin.mixins import MicboardModelAdmin, TenantScopedAdminInlineMixin
 from micboard.models.hardware.display_wall import DisplayWall, WallSection
 
 
-class WallSectionInline(admin.TabularInline):
+class WallSectionInline(TenantScopedAdminInlineMixin, admin.TabularInline):
     """Inline admin for wall sections."""
 
     model = WallSection

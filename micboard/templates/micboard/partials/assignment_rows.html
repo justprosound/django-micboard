@@ -1,0 +1,7 @@
+{% for assignment in assignments %}
+    {% include "micboard/partials/assignment_row.html" %}
+{% empty %}
+<tr>
+    <td colspan="6" class="text-center py-4 text-muted">No assignments found.</td>
+</tr>
+{% endfor %}

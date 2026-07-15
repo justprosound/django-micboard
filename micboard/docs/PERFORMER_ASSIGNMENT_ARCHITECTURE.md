@@ -32,16 +32,19 @@ objects:
 
 ```python
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.core.performer_assignment_dtos import CreatePerformerAssignment
 
 assignment = PerformerAssignmentService.create_assignment(
-    performer_id=performer.id,
-    unit_id=wireless_unit.id,
-    group_id=monitoring_group.id,
+    command=CreatePerformerAssignment(
+        performer_id=performer.id,
+        unit_id=wireless_unit.id,
+        group_id=monitoring_group.id,
+        priority="high",
+        alert_on_battery_low=True,
+        alert_on_signal_loss=True,
+        alert_on_hardware_offline=True,
+    ),
     user=request.user,
-    priority="high",
-    alert_on_battery_low=True,
-    alert_on_signal_loss=True,
-    alert_on_hardware_offline=True,
 )
 ```
 

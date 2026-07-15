@@ -8,6 +8,9 @@ from typing import Any
 
 from django.conf import settings
 
+from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.utils.exception_logging import sanitized_exception_info
+
 logger = logging.getLogger(__name__)
 
 GLOBAL_UPDATES_GROUP = "micboard_updates"
@@ -68,8 +71,8 @@ class RealtimeRoutingService:
         Campus events also go to the parent organization group so organization-wide
         members retain visibility into their complete estate.
         """
-        if not getattr(settings, "MICBOARD_MSP_ENABLED", False):
-            if not getattr(settings, "MICBOARD_MULTI_SITE_MODE", False):
+        if not micboard_settings.msp_enabled:
+            if not micboard_settings.multi_site_mode:
                 return (GLOBAL_UPDATES_GROUP,)
             resolved_site_id = site_id or cls.normalize_identifier(
                 getattr(settings, "SITE_ID", None)
@@ -94,14 +97,12 @@ class RealtimeRoutingService:
                 "location__building__site_id",
             )
             return {device_id: site_id for device_id, site_id in rows if site_id is not None}
-        except Exception:
-            logger.exception("Failed to resolve chassis site routes")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve chassis site routes",
+                exc_info=sanitized_exception_info(exc),
+            )
             return {}
-
-    @classmethod
-    def chassis_site_id(cls, chassis_id: int) -> int | None:
-        """Resolve one chassis ID to its Django Site ID."""
-        return cls.chassis_site_ids((chassis_id,)).get(chassis_id)
 
     @staticmethod
     def chassis_tenant_scopes(chassis_ids: Iterable[int]) -> dict[int, TenantScope]:
@@ -119,14 +120,12 @@ class RealtimeRoutingService:
                 for device_id, organization_id, campus_id in rows
                 if organization_id is not None
             }
-        except Exception:
-            logger.exception("Failed to resolve chassis tenant routes")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve chassis tenant routes",
+                exc_info=sanitized_exception_info(exc),
+            )
             return {}
-
-    @classmethod
-    def chassis_tenant_scope(cls, chassis_id: int) -> TenantScope | None:
-        """Resolve one chassis ID to its building tenant scope."""
-        return cls.chassis_tenant_scopes((chassis_id,)).get(chassis_id)
 
     @classmethod
     def hardware_tenant_scope(
@@ -137,7 +136,7 @@ class RealtimeRoutingService:
     ) -> TenantScope | None:
         """Resolve a supported hardware model ID without cross-model ambiguity."""
         if device_type == "WirelessChassis":
-            return cls.chassis_tenant_scope(device_id)
+            return cls.chassis_tenant_scopes((device_id,)).get(device_id)
         if device_type != "WirelessUnit":
             logger.warning("Skipped realtime route for unknown device type: %s", device_type)
             return None
@@ -153,8 +152,11 @@ class RealtimeRoutingService:
                 )
                 .first()
             )
-        except Exception:
-            logger.exception("Failed to resolve wireless unit tenant route")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve wireless unit tenant route",
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
         if row is None or row[0] is None:
@@ -165,7 +167,7 @@ class RealtimeRoutingService:
     def hardware_site_id(cls, *, device_type: str, device_id: int) -> int | None:
         """Resolve a supported hardware model ID to its Django Site."""
         if device_type == "WirelessChassis":
-            return cls.chassis_site_id(device_id)
+            return cls.chassis_site_ids((device_id,)).get(device_id)
         if device_type != "WirelessUnit":
             logger.warning("Skipped realtime route for unknown device type: %s", device_type)
             return None
@@ -178,8 +180,11 @@ class RealtimeRoutingService:
                 .values_list("base_chassis__location__building__site_id", flat=True)
                 .first()
             )
-        except Exception:
-            logger.exception("Failed to resolve wireless unit site route")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve wireless unit site route",
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
     @staticmethod
@@ -208,8 +213,11 @@ class RealtimeRoutingService:
                 for organization_id, campus_id in rows
                 if organization_id is not None
             )
-        except Exception:
-            logger.exception("Failed to resolve manufacturer tenant routes")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve manufacturer tenant routes",
+                exc_info=sanitized_exception_info(exc),
+            )
             return ()
 
     @staticmethod
@@ -230,6 +238,9 @@ class RealtimeRoutingService:
                 .values_list("location__building__site_id", flat=True)
                 .distinct()
             )
-        except Exception:
-            logger.exception("Failed to resolve manufacturer site routes")
+        except Exception as exc:
+            logger.exception(
+                "Failed to resolve manufacturer site routes",
+                exc_info=sanitized_exception_info(exc),
+            )
             return ()

@@ -1,0 +1,70 @@
+{% extends "micboard/base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-4">
+        <h1 class="mb-0">{{ browse.title }}</h1>
+        <span class="text-muted">{{ browse.total_count }} device{{ browse.total_count|pluralize }}</span>
+    </div>
+
+    <div class="row g-3" role="list" aria-label="Wireless chassis">
+        {% for receiver in browse.items %}
+            <div class="col-md-6 col-xl-4" role="listitem">
+                <article class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between gap-2">
+                            <h2 class="card-title h5">{{ receiver.name }}</h2>
+                            <span class="badge text-bg-success">{{ receiver.status_label }}</span>
+                        </div>
+                        <p class="card-text mb-2">
+                            {{ receiver.manufacturer_name }}{% if receiver.model_name %} {{ receiver.model_name }}{% endif %}
+                        </p>
+                        <dl class="row small mb-0">
+                            <dt class="col-4">Role</dt>
+                            <dd class="col-8">{{ receiver.role_label }}</dd>
+                            <dt class="col-4">Address</dt>
+                            <dd class="col-8"><code>{{ receiver.ip_address }}</code></dd>
+                            <dt class="col-4">Location</dt>
+                            <dd class="col-8">
+                                {% if receiver.building_name %}
+                                    {{ receiver.building_name }}{% if receiver.room_name %} / {{ receiver.room_name }}{% endif %}
+                                {% else %}
+                                    Unassigned
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </article>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <p class="text-muted">No online wireless chassis match this view.</p>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if browse.total_pages > 1 %}
+        <nav class="mt-4" aria-label="Receiver pages">
+            <ul class="pagination justify-content-center">
+                <li class="page-item{% if not browse.has_previous %} disabled{% endif %}">
+                    {% if browse.has_previous %}
+                        <a class="page-link" href="?{% if browse.query_string %}{{ browse.query_string }}&amp;{% endif %}page={{ browse.previous_page }}">Previous</a>
+                    {% else %}
+                        <span class="page-link">Previous</span>
+                    {% endif %}
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">Page {{ browse.page_number }} of {{ browse.total_pages }}</span>
+                </li>
+                <li class="page-item{% if not browse.has_next %} disabled{% endif %}">
+                    {% if browse.has_next %}
+                        <a class="page-link" href="?{% if browse.query_string %}{{ browse.query_string }}&amp;{% endif %}page={{ browse.next_page }}">Next</a>
+                    {% else %}
+                        <span class="page-link">Next</span>
+                    {% endif %}
+                </li>
+            </ul>
+        </nav>
+    {% endif %}
+</div>
+{% endblock %}

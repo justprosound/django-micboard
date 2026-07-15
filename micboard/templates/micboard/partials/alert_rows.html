@@ -1,0 +1,53 @@
+{% for alert in browse.items %}
+<tr class="{% if alert.is_overdue and alert.status == 'pending' %}table-warning{% endif %}">
+    <td>
+        <span class="text-muted">{{ alert.created_at|date:"M d, H:i" }}</span><br>
+        <span class="visually-hidden">Time since alert: </span><span>{{ alert.created_at|timesince }}</span>
+    </td>
+    <td><span class="badge bg-secondary">{{ alert.alert_type_label }}</span></td>
+    <td>
+        {{ alert.channel_label }}
+        {% if alert.performer_name %}<br><span class="text-muted">{{ alert.performer_name }}</span>{% endif %}
+    </td>
+    <td>{{ alert.user_display_name }}</td>
+    <td>
+        {% if alert.status == "pending" %}
+            <span class="badge bg-warning">Pending</span>
+        {% elif alert.status == "acknowledged" %}
+            <span class="badge bg-info">Acknowledged</span>
+        {% elif alert.status == "resolved" %}
+            <span class="badge bg-success">Resolved</span>
+        {% elif alert.status == "failed" %}
+            <span class="badge bg-danger">Failed</span>
+        {% else %}
+            <span class="badge bg-secondary">{{ alert.status_label }}</span>
+        {% endif %}
+        {% if alert.is_overdue and alert.status == "pending" %}<br><span class="text-danger">Overdue</span>{% endif %}
+    </td>
+    <td>
+        {{ alert.message_preview }}
+        {% if alert.message_is_truncated %}<br><a href="{% url 'micboard:alert_detail' alert.id %}" class="small">View full message</a>{% endif %}
+    </td>
+    <td>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Alert actions">
+            <a href="{% url 'micboard:alert_detail' alert.id %}" class="btn btn-outline-primary btn-sm">View</a>
+            {% if alert.status == "pending" %}
+            <form method="post" action="{% url 'micboard:acknowledge_alert' alert.id %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-info btn-sm">Acknowledge</button>
+            </form>
+            {% endif %}
+            {% if alert.status == "pending" or alert.status == "acknowledged" %}
+            <form method="post" action="{% url 'micboard:resolve_alert' alert.id %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-success btn-sm">Resolve</button>
+            </form>
+            {% endif %}
+        </div>
+    </td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="7" class="text-center py-4 text-muted">No alerts found matching the current filters.</td>
+</tr>
+{% endfor %}

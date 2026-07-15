@@ -75,6 +75,7 @@ nav:
           - ADR 009 - Consolidate Exception Hierarchy: adr/009-consolidate-exception-hierarchy.md
           - ADR 010 - Split Base HTTP Client: adr/010-split-base-http-client.md
           - ADR 011 - Introduce Event Bus: adr/011-introduce-eventbus.md
+          - ADR 012 - Bound Live Projections: adr/012-bound-live-projections.md
       - Product Requirements:
           - PRD 001 - Service Architecture: prd/001-service-architecture-refinement.md
           - PRD 002 - Admin Modernization: prd/002-admin-modernization.md

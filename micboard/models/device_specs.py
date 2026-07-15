@@ -16,6 +16,8 @@ import importlib.resources
 import logging
 from typing import Any
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 # Ensure 'yaml' is typed as optional module to satisfy static type checkers
 yaml: Any = None
 try:
@@ -38,33 +40,25 @@ def _load_device_specifications() -> dict[str, dict[str, dict]]:
         return {}
 
     try:
-        # Try Python 3.9+ importlib.resources
-        if hasattr(importlib.resources, "files"):
-            fixture_path = importlib.resources.files("micboard").joinpath(
-                "fixtures/device_specifications.yaml"
-            )
-            spec_yaml = fixture_path.read_text()
-        else:
-            # Fallback for older Python versions
-            import os
+        fixture_path = importlib.resources.files("micboard").joinpath(
+            "fixtures/device_specifications.yaml"
+        )
+        spec_yaml = fixture_path.read_text()
 
-            fixture_file = os.path.join(
-                os.path.dirname(__file__), "..", "fixtures", "device_specifications.yaml"
-            )
-            with open(fixture_file) as f:
-                spec_yaml = f.read()
-
-        return yaml.safe_load(spec_yaml) or {}
-    except Exception:
-        logger.exception("Failed to load device specifications fixture")
+        specifications = yaml.safe_load(spec_yaml) or {}
+        if not specifications:
+            logger.warning("Device specifications fixture is empty or unavailable")
+        return specifications
+    except Exception as exc:
+        logger.exception(
+            "Failed to load device specifications fixture; details redacted",
+            exc_info=sanitized_exception_info(exc),
+        )
         return {}
 
 
 # Unified device specifications by manufacturer
 DEVICE_SPECIFICATIONS: dict[str, dict[str, dict]] = _load_device_specifications()
-
-if not DEVICE_SPECIFICATIONS:
-    logger.warning("Device specifications fixture is empty or unavailable")
 
 
 def get_device_spec(*, manufacturer: str | None, model: str | None) -> dict | None:

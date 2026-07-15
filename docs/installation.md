@@ -83,7 +83,9 @@ services:
 
 ### Basic Setup
 
-Add to your Django `settings.py`:
+Add to your Django `settings.py`. Keep Django's built-in `SecurityMiddleware` enabled and
+configure any Content Security Policy in the host project; Micboard does not replace host
+security headers.
 
 ```python
 # settings.py
@@ -247,6 +249,7 @@ import os
 
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myproject.settings")
@@ -257,7 +260,9 @@ from micboard.websockets.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
+    "websocket": AllowedHostsOriginValidator(
+        AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+    ),
 })
 ```
 

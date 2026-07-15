@@ -7,7 +7,7 @@ default settings, signal registration, and startup configuration validation.
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar
+from typing import Any
 
 from django.apps import AppConfig
 from django.core.exceptions import ImproperlyConfigured
@@ -20,34 +20,12 @@ class MicboardConfig(AppConfig):
     name = "micboard"
     verbose_name = "Micboard - Wireless Hardware Monitoring"
 
-    # Store resolved configuration (merged defaults + user settings)
-    _resolved_config: ClassVar[dict[str, Any] | None] = None
-
-    @classmethod
-    def get_config(cls) -> dict[str, Any]:
-        """Get resolved configuration (merged defaults + user settings).
-
-        Returns:
-            Merged configuration dictionary.
-
-        Raises:
-            RuntimeError: If configuration not yet initialized (Django apps not loaded).
-        """
-        if cls._resolved_config is None:
-            raise RuntimeError(
-                "Micboard configuration not yet initialized. "
-                "Ensure Django apps are loaded before accessing config."
-            )
-        # NOTE: Manufacturer-specific config is now resolved via SettingsRegistry, not here.
-        return cls._resolved_config
-
     def ready(self) -> None:
         """Initialize app when Django starts."""
         from micboard.services.settings.settings_service import settings as micboard_settings
 
         # Resolve configuration through the app's single settings seam.
         resolved_config = micboard_settings.get_config_dict()
-        type(self)._resolved_config = resolved_config
 
         # Validate merged configuration
         self._validate_configuration(resolved_config)
@@ -64,8 +42,8 @@ class MicboardConfig(AppConfig):
         register(check_micboard_configuration, Tags.compatibility)
 
         # Advise about recommended middleware and context processors (do not modify settings)
-        self._register_security_middleware()
-        self._register_context_processors()
+        self._recommend_security_middleware()
+        self._recommend_context_processors()
         self._register_background_tasks()
 
         logger.info("Micboard app initialized (configuration validated)")
@@ -81,6 +59,7 @@ class MicboardConfig(AppConfig):
         from micboard.tasks.monitoring.health import (
             check_manufacturer_api_health,
             check_realtime_connection_health,
+            check_selected_api_server_connections,
         )
         from micboard.tasks.monitoring.sse import start_sse_subscriptions
         from micboard.tasks.monitoring.websocket import start_shure_websocket_subscriptions
@@ -88,9 +67,9 @@ class MicboardConfig(AppConfig):
             cache_all_discovery_candidates,
             run_discovery_sync_task,
             run_manufacturer_discovery_task,
-            sync_receiver_discovery,
         )
         from micboard.tasks.sync.polling import (
+            poll_api_server_device,
             poll_manufacturer_devices,
             refresh_selected_chassis,
         )
@@ -99,20 +78,21 @@ class MicboardConfig(AppConfig):
             poll_charger_data,
             check_manufacturer_api_health,
             check_realtime_connection_health,
+            check_selected_api_server_connections,
             start_sse_subscriptions,
             start_shure_websocket_subscriptions,
             cache_all_discovery_candidates,
             run_discovery_sync_task,
             run_manufacturer_discovery_task,
-            sync_receiver_discovery,
+            poll_api_server_device,
             poll_manufacturer_devices,
             refresh_selected_chassis,
         )
         for task_function in task_functions:
             register_huey_task(task_function)
 
-    def _register_context_processors(self):
-        """Register context processors if not already present."""
+    def _recommend_context_processors(self) -> None:
+        """Report context processors the host has not configured."""
         from django.conf import settings
 
         context_processors = [
@@ -150,14 +130,11 @@ class MicboardConfig(AppConfig):
                 + "\n".join(f"    '{p}'," for p in missing_processors)
             )
 
-    def _register_security_middleware(self):
-        """Register security middleware if not already present."""
+    def _recommend_security_middleware(self) -> None:
+        """Report built-in security middleware the host has not configured."""
         from django.conf import settings
 
-        middleware_classes = [
-            "micboard.middleware.SecurityHeadersMiddleware",
-            "micboard.middleware.RequestLoggingMiddleware",
-        ]
+        middleware_classes = ["django.middleware.security.SecurityMiddleware"]
 
         if not hasattr(settings, "MIDDLEWARE"):
             logger.warning(
@@ -185,9 +162,8 @@ class MicboardConfig(AppConfig):
         Raises:
             ImproperlyConfigured: If configuration is invalid.
         """
-        # NOTE: Manufacturer-specific config (e.g., SHURE_API_*) is validated via
-        #       SettingsRegistry.get() with required=True. Do not hardcode manufacturer
-        #       requirements here—this applies only to generic app settings.
+        # Manufacturer-specific values are validated by their setting definitions and
+        # persistence DTOs. Keep startup validation limited to generic host configuration.
         #
         # Generic settings validation (manufacturer-agnostic)
         numeric_settings = [

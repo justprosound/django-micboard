@@ -82,7 +82,7 @@
     </div>
     <div class="card">
         <div class="card-body">
-            {% if alerts %}
+            {% if browse.items %}
             <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
                 <table class="table table-striped" aria-describedby="alertsTableCaption">
                     <caption id="alertsTableCaption" class="visually-hidden">List of system alerts with status, type, and actions</caption>
@@ -97,78 +97,28 @@
                             <th scope="col">Actions</th>
                         </tr>
                     </thead>
-                    <tbody hx-get="{% url 'micboard:alerts' %}" hx-trigger="every 5s" hx-swap="innerHTML" hx-select="tbody > *">
-                        {% for alert in alerts %}
-                        <tr class="{% if alert.is_overdue and alert.status == 'pending' %}table-warning{% endif %}">
-                            <td>
-                                <span class="text-muted">{{ alert.created_at|date:"M d, H:i" }}</span><br>
-                                <span class="visually-hidden">Time since alert: </span><span>{{ alert.created_at|timesince }}</span>
-                            </td>
-                            <td>
-                                <span class="badge bg-secondary">{{ alert.get_alert_type_display }}</span>
-                            </td>
-                            <td>
-                                <a href="#">{{ alert.channel }}</a>
-                                {% if alert.assignment %}<br><span class="text-muted">{{ alert.assignment.performer.name }}</span>{% endif %}
-                            </td>
-                            <td>{{ alert.user.get_full_name|default:alert.user.username }}</td>
-                            <td>
-                                {% if alert.status == "pending" %}
-                                    <span class="badge bg-warning">Pending</span>
-                                {% elif alert.status == "acknowledged" %}
-                                    <span class="badge bg-info">Acknowledged</span>
-                                {% elif alert.status == "resolved" %}
-                                    <span class="badge bg-success">Resolved</span>
-                                {% elif alert.status == "failed" %}
-                                    <span class="badge bg-danger">Failed</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ alert.get_status_display }}</span>
-                                {% endif %}
-                                {% if alert.is_overdue and alert.status == "pending" %}<br><span class="text-danger">Overdue</span>{% endif %}
-                            </td>
-                            <td>
-                                {{ alert.message|truncatechars:50 }}
-                                {% if alert.message|length > 50 %}<br><a href="{% url 'micboard:alert_detail' alert.id %}" class="small">View full message</a>{% endif %}
-                            </td>
-                            <td>
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Alert actions">
-                                    <a href="{% url 'micboard:alert_detail' alert.id %}" class="btn btn-outline-primary btn-sm">View</a>
-                                    {% if alert.status == "pending" %}
-                                    <form method="post" action="{% url 'micboard:acknowledge_alert' alert.id %}" style="display: inline;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-outline-info btn-sm">Acknowledge</button>
-                                    </form>
-                                    {% endif %}
-                                    {% if alert.status == "pending" or alert.status == "acknowledged" %}
-                                    <form method="post" action="{% url 'micboard:resolve_alert' alert.id %}" style="display: inline;">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-outline-success btn-sm">Resolve</button>
-                                    </form>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
+                    <tbody hx-get="{% url 'micboard:alert_rows' %}?{{ browse.poll_query_string }}" hx-trigger="every 5s" hx-swap="innerHTML">
+                        {% include "micboard/partials/alert_rows.html" %}
                     </tbody>
                 </table>
             </div>
-            {% if alerts.has_other_pages %}
+            {% if browse.total_pages > 1 %}
             <nav aria-label="Alert pagination" class="mt-3">
                 <ul class="pagination justify-content-center">
-                    {% if alerts.has_previous %}
-                    <li class="page-item"><a class="page-link" href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if alert_type_filter %}type={{ alert_type_filter }}&{% endif %}page={{ alerts.previous_page_number }}">Previous</a></li>
+                    {% if browse.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if alert_type_filter %}type={{ alert_type_filter }}&{% endif %}page={{ browse.previous_page }}">Previous</a></li>
                     {% else %}
                     <li class="page-item disabled"><span class="page-link">Previous</span></li>
                     {% endif %}
-                    {% for page_num in alerts.paginator.page_range %}
-                    {% if alerts.number == page_num %}
+                    {% for page_num in browse.page_numbers %}
+                    {% if browse.page_number == page_num %}
                     <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
-                    {% elif page_num > alerts.number|add:-3 and page_num < alerts.number|add:3 %}
+                    {% else %}
                     <li class="page-item"><a class="page-link" href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if alert_type_filter %}type={{ alert_type_filter }}&{% endif %}page={{ page_num }}">{{ page_num }}</a></li>
                     {% endif %}
                     {% endfor %}
-                    {% if alerts.has_next %}
-                    <li class="page-item"><a class="page-link" href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if alert_type_filter %}type={{ alert_type_filter }}&{% endif %}page={{ alerts.next_page_number }}">Next</a></li>
+                    {% if browse.has_next %}
+                    <li class="page-item"><a class="page-link" href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if alert_type_filter %}type={{ alert_type_filter }}&{% endif %}page={{ browse.next_page }}">Next</a></li>
                     {% else %}
                     <li class="page-item disabled"><span class="page-link">Next</span></li>
                     {% endif %}

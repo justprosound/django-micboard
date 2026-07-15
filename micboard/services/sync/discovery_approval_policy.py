@@ -6,8 +6,8 @@ from django.core.exceptions import ValidationError
 
 from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.models.hardware.charger import Charger
+from micboard.services.sync.discovery_approval_inventory import ApprovalIPOwners
 from micboard.services.sync.discovery_approval_resolution import (
-    ApprovalIPOwners,
     ChassisApprovalTarget,
     DiscoveryApprovalResolver,
 )

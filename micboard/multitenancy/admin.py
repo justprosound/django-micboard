@@ -5,8 +5,9 @@ Provides organization and campus management in Django admin.
 
 from __future__ import annotations
 
-from django.conf import settings
 from django.contrib import admin
+
+from micboard.services.settings.settings_service import settings as micboard_settings
 
 
 class SuperuserOnlyAdmin(admin.ModelAdmin):
@@ -39,7 +40,7 @@ class SuperuserOnlyAdmin(admin.ModelAdmin):
 
 
 # Only register admin if MSP enabled
-if getattr(settings, "MICBOARD_MSP_ENABLED", False):
+if micboard_settings.msp_enabled:
     from .models import Campus, Organization, OrganizationMembership
 
     @admin.register(Organization)

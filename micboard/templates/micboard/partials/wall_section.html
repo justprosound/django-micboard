@@ -1,6 +1,40 @@
-<section class="wall-section" aria-label="Wall section {{ section.title }}" style="background-color:#fff;color:#111;border:2px solid #111;padding:1rem;">
-  <h2 style="color:#111;">{{ section.title }}</h2>
+<section class="wall-section" aria-label="Wall section {{ snapshot.name|default:'Default Section' }}" style="background-color:#fff;color:#111;border:2px solid #111;padding:1rem;">
+  <h2 style="color:#111;">{{ snapshot.name|default:"Default Section" }}</h2>
+  {% if snapshot.chargers_truncated %}
+    <p class="projection-overflow" role="status">
+      Showing the first {{ snapshot.charger_limit }} chargers. Additional chargers are not shown.
+    </p>
+  {% endif %}
+  {% if snapshot.occupied_slots_truncated %}
+    <p class="projection-overflow" role="status">
+      Some chargers have additional occupied slots. Additional performers are not shown.
+    </p>
+  {% endif %}
   <div class="wall-content" style="color:#444;">
-    {{ section.content|safe }}
+    {% for charger_group in snapshot.performers %}
+      <section class="charger-group" aria-label="Charger {{ charger_group.charger.name }}">
+        <h3>{{ charger_group.charger.name }}</h3>
+        <ul class="performers-list">
+          {% for performer in charger_group.performers %}
+            <li class="performer">
+              <strong>{{ performer.performer_name|default:"Unassigned performer" }}</strong>
+              {% if performer.performer_title %}
+                <span class="performer-title">{{ performer.performer_title }}</span>
+              {% endif %}
+              {% if performer.unit_battery_percent != None %}
+                <span class="performer-battery">Battery: {{ performer.unit_battery_percent }}%</span>
+              {% endif %}
+              {% if performer.unit_rf_level != None %}
+                <span class="performer-rf">RF: {{ performer.unit_rf_level }}</span>
+              {% endif %}
+            </li>
+          {% empty %}
+            <li>No performers assigned</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% empty %}
+      <p>No performers assigned</p>
+    {% endfor %}
   </div>
 </section>

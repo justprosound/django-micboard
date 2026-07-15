@@ -66,40 +66,27 @@
 
 ## Component Details
 
-### 1. Plugin Architecture (`micboard/plugins/`)
-**Purpose**: Extensible system for supporting multiple wireless microphone manufacturers
+### 1. Plugin Architecture
+
+**Purpose**: Extensible support for manufacturer protocols without duplicating shared transport
+and safety behavior.
 
 **Key Components**:
-- `ManufacturerPlugin` - Abstract base class defining plugin interface
-- `get_manufacturer_plugin()` - Dynamic plugin loading function
-- Manufacturer-specific plugins (e.g., `ShurePlugin`, `SennheiserPlugin`)
+- `micboard.services.common.base.plugin.ManufacturerPlugin` - Plugin contract
+- `micboard.services.manufacturer.plugin_registry.PluginRegistry` - Cached construction boundary
+- `micboard.services.common.base.client.BaseHTTPClient` - Shared verified HTTP transport
+- `micboard.integrations.<vendor>` - Manufacturer-local clients, discovery, transforms, and streams
 
-**Plugin Interface**:
-```python
-class ManufacturerPlugin(ABC):
-    @property
-    @abstractmethod
-    def manufacturer_code(self) -> str: ...
-
-    @property
-    @abstractmethod
-    def manufacturer_name(self) -> str: ...
-
-    @abstractmethod
-    def get_devices(self) -> List[Dict[str, Any]]: ...
-
-    @abstractmethod
-    def transform_device_data(self, device_data: Dict[str, Any]) -> Dict[str, Any]: ...
-
-    @abstractmethod
-    def check_health(self) -> Dict[str, Any]: ...
-```
+The contract exposes `name`, `code`, inventory and per-device reads, transformation, health,
+discovery-IP management, and a client boundary. Protocol details remain in each integration. See
+[Manufacturer plugin development](../plugin-development.md) for the complete live contract and a
+copy-safe implementation workflow.
 
 **Features**:
-- Dynamic plugin discovery and loading
+- Convention-based plugin discovery and cached construction
+- Shared response bounds, retries, TLS validation, rate limiting, and exception behavior
 - Manufacturer data isolation
-- Standardized API interface across manufacturers
-- Easy extensibility for new manufacturers
+- Independently testable protocol adapters
 
 ### 2. Polling Service (`poll_devices.py`)
 **Purpose**: One-shot command and service that fetch data from multiple manufacturers
@@ -196,7 +183,9 @@ class ManufacturerPlugin(ABC):
 
 The Django admin includes a "Hardware Layout Overview" to provide a compact, hardware-first view of receivers grouped by manufacturer and location. It focuses on the mapping Receiver -> Channel -> Frequency and optionally the assigned user. This view is useful for site technicians to quickly confirm physical configurations.
 
-API health is aggregated per-manufacturer and surfaced in the public UI as a footer indicator; each plugin exposes a `check_health()` method and the application aggregates these results via a context processor to show overall and per-manufacturer statuses.
+API health is probed by native Huey tasks and surfaced in the public UI as a footer indicator.
+The context processor reads a bounded aggregate from cache, falling back to the latest persisted
+per-manufacturer health logs; public request rendering never performs manufacturer network I/O.
 
 ### 5. Views and API Endpoints
 
@@ -225,7 +214,8 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 **Device Polling** (`poll_devices`):
 - Poll manufacturer APIs for device data
 - Update models and broadcast via WebSocket
-- Start real-time subscriptions after queued polling
+- Evaluate a hard-bounded set of alert-eligible wireless units
+- Never start or enqueue real-time subscription supervisors
 - Support for async execution with native Huey
 
 ### 6. Admin Interface
@@ -274,14 +264,15 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 
 ### Real-time Updates (WebSocket + SSE)
 ```
-1. poll_devices --async enqueues manufacturer polling
-2. After polling completes, start real-time subscriptions:
-   a. For Shure: Start WebSocket subscriptions
-   b. For Sennheiser: Start SSE subscriptions
-3. RealTimeConnection models track subscription status
-4. Health monitoring tasks check connection health
-5. Updates broadcast via WebSocket to connected clients
-6. Automatic reconnection on failures
+1. The host explicitly launches a foreground command or native Huey task entrypoint:
+   a. For Shure: start the WebSocket supervisor
+   b. For Sennheiser: start the SSE supervisor
+2. A process-shared cache lease permits one supervisor per transport/manufacturer
+3. Hard device and concurrency limits bound subscription work
+4. RealTimeConnection models track subscription status
+5. Health monitoring tasks check connection health
+6. Updates broadcast via WebSocket to connected clients
+7. Polling runs independently and never starts supervisors
 ```
 
 ### API Request Flow
@@ -298,23 +289,24 @@ API health is aggregated per-manufacturer and surfaced in the public UI as a foo
 ## Plugin System
 
 ### Plugin Discovery
-Plugins are automatically discovered through the `get_manufacturer_plugin()` function:
+`PluginRegistry` discovers plugins from the manufacturer code and caches the selected class:
 
 ```python
-def get_manufacturer_plugin(manufacturer: Manufacturer) -> ManufacturerPlugin:
-    """Load and return the appropriate plugin for a manufacturer"""
-    plugin_class = _PLUGIN_CLASSES.get(manufacturer.code)
-    if not plugin_class:
-        raise ValueError(f"No plugin found for manufacturer: {manufacturer.code}")
-    return plugin_class(manufacturer)
+from micboard.services.manufacturer.plugin_registry import PluginRegistry
+
+plugin_class = PluginRegistry.get_plugin_class("shure")
+plugin = PluginRegistry.get_plugin("shure", manufacturer=manufacturer)
 ```
 
+For code `acme_audio`, class discovery imports `micboard.integrations.acme_audio.plugin` and
+prefers `AcmeAudioPlugin`. No package initializer or registry map needs editing.
+
 ### Adding New Manufacturers
-1. Create a new plugin class inheriting from `ManufacturerPlugin`
-2. Implement required methods and properties
-3. Register the plugin in `micboard/plugins/__init__.py`
-4. Configure the manufacturer in the database
-5. Restart the application
+1. Create `micboard/integrations/<code>/plugin.py`.
+2. Implement a concrete, conventionally named `ManufacturerPlugin` subclass.
+3. Keep device, discovery, transform, and streaming behavior in that integration package.
+4. Create or enable a `Manufacturer` row whose `code` matches the package name.
+5. Verify `PluginRegistry.get_plugin_class("<code>")` resolves the class.
 
 ### Data Isolation
 - Each manufacturer's data is stored with manufacturer relationships

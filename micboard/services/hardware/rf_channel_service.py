@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from micboard.services.hardware.dtos import RegulatoryDomainDTO
+
 if TYPE_CHECKING:
     from micboard.models.locations.structure import Location
     from micboard.models.rf_coordination.compliance import RegulatoryDomain
@@ -73,16 +75,7 @@ def has_regulatory_coverage(channel: RFChannel) -> bool:
     if not domain or not channel.frequency:
         return False
 
-    if domain.min_frequency_mhz <= channel.frequency <= domain.max_frequency_mhz:
-        return True
-
-    from micboard.models.rf_coordination.compliance import FrequencyBand
-
-    return FrequencyBand.objects.filter(
-        regulatory_domain=domain,
-        start_frequency_mhz__lte=channel.frequency,
-        end_frequency_mhz__gte=channel.frequency,
-    ).exists()
+    return domain.min_frequency_mhz <= channel.frequency <= domain.max_frequency_mhz
 
 
 def get_needs_regulatory_update(channel: RFChannel) -> bool:
@@ -99,34 +92,50 @@ def get_needs_regulatory_update(channel: RFChannel) -> bool:
     return not has_regulatory_coverage(channel)
 
 
-def get_regulatory_status(channel: RFChannel) -> dict[str, str | bool | float | None]:
-    """Get comprehensive regulatory status information for admin UI.
+def get_regulatory_status_for_domain(
+    channel: RFChannel,
+    regulatory_domain: RegulatoryDomain | RegulatoryDomainDTO | None,
+) -> dict[str, str | bool | float | None]:
+    """Build regulatory status from an already-resolved domain projection.
 
-    Returns dict with regulatory coverage status and admin action flags.
+    Query-oriented callers use this boundary to avoid resolving the same domain
+    once per rendered row.
     """
-    domain = get_regulatory_domain(channel)
-    coverage = has_regulatory_coverage(channel)
+    frequency = channel.frequency
+    coverage = bool(
+        regulatory_domain
+        and frequency
+        and regulatory_domain.min_frequency_mhz <= frequency <= regulatory_domain.max_frequency_mhz
+    )
+    needs_update = bool(
+        channel.resource_state in ("active", "reserved") and frequency and not coverage
+    )
 
     status: dict[str, str | bool | float | None] = {
         "has_coverage": coverage,
-        "regulatory_domain": domain.code if domain else None,
-        "operating_frequency_mhz": channel.frequency,
-        "needs_update": get_needs_regulatory_update(channel),
+        "regulatory_domain": regulatory_domain.code if regulatory_domain else None,
+        "operating_frequency_mhz": frequency,
+        "needs_update": needs_update,
     }
 
-    if not domain:
+    if not regulatory_domain:
         status["message"] = "\u26a0\ufe0f No regulatory domain set for chassis location"
-    elif not channel.frequency:
+    elif not frequency:
         status["message"] = "\u2139\ufe0f No operating frequency configured"
     elif not coverage:
         status["message"] = (
-            f"\u26a0\ufe0f Frequency {channel.frequency} MHz not covered by {domain.code} "
+            f"\u26a0\ufe0f Frequency {frequency} MHz not covered by {regulatory_domain.code} "
             "regulatory data - admin needs to update"
         )
     else:
-        status["message"] = f"\u2705 Regulatory coverage OK ({domain.code})"
+        status["message"] = f"\u2705 Regulatory coverage OK ({regulatory_domain.code})"
 
     return status
+
+
+def get_regulatory_status(channel: RFChannel) -> dict[str, str | bool | float | None]:
+    """Get comprehensive regulatory status information for admin UI."""
+    return get_regulatory_status_for_domain(channel, get_regulatory_domain(channel))
 
 
 def is_receive_channel(channel: RFChannel) -> bool:
@@ -139,7 +148,7 @@ def is_send_channel(channel: RFChannel) -> bool:
     return channel.link_direction in ("send", "bidirectional")
 
 
-def prepare_channel_for_save(channel: RFChannel) -> dict[str, Any]:
+def prepare_channel_for_save(channel: RFChannel, *, using: str = "default") -> dict[str, Any]:
     """Validate a channel and prepare derived lifecycle fields for persistence."""
     from django.core.exceptions import ValidationError
 
@@ -149,7 +158,9 @@ def prepare_channel_for_save(channel: RFChannel) -> dict[str, Any]:
         "update_fields": set(),
     }
     if not channel._state.adding:
-        previous = type(channel).objects.only("resource_state", "enabled").get(pk=channel.pk)
+        previous = (
+            type(channel).objects.using(using).only("resource_state", "enabled").get(pk=channel.pk)
+        )
         context["old_resource_state"] = previous.resource_state
 
         if previous.enabled and not channel.enabled:
@@ -179,7 +190,12 @@ def prepare_channel_for_save(channel: RFChannel) -> dict[str, Any]:
     return context
 
 
-def finalize_channel_save(channel: RFChannel, context: dict[str, Any]) -> None:
+def finalize_channel_save(
+    channel: RFChannel,
+    context: dict[str, Any],
+    *,
+    using: str = "default",
+) -> None:
     """Write the audit event for a persisted channel state transition."""
     if context["state_changed"]:
         from micboard.services.maintenance.audit import AuditService
@@ -194,4 +210,5 @@ def finalize_channel_save(channel: RFChannel, context: dict[str, Any]) -> None:
             obj=channel,
             old_values={"resource_state": context["old_resource_state"]},
             new_values={"resource_state": channel.resource_state},
+            using=using,
         )

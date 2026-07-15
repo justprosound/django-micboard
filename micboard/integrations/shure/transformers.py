@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from micboard.utils.exception_logging import sanitized_exception_info
+
 if TYPE_CHECKING:
     pass
 
@@ -39,12 +41,7 @@ class ShureDataTransformer:
 
             identity = ShureDataTransformer.identify_device_model(api_data)
             device_type = identity["type"]
-            logger.debug(
-                "Transforming device %s (type: %s, model: %s)",
-                device_id,
-                device_type,
-                identity.get("model"),
-            )
+            logger.debug("Transforming Shure device payload")
 
             result = {
                 "api_device_id": device_id,
@@ -77,7 +74,7 @@ class ShureDataTransformer:
 
             # Transform channel data
             channels_data = api_data.get("channels", [])
-            logger.debug("Processing %d channels for device %s", len(channels_data), device_id)
+            logger.debug("Processing %d Shure channel payloads", len(channels_data))
 
             for channel_data in channels_data:
                 channel_num = channel_data.get("channel", channel_data.get("channelNumber", 0))
@@ -97,19 +94,19 @@ class ShureDataTransformer:
                         )
                 else:
                     logger.debug(
-                        "No transmitter data for device %s channel %d",
-                        device_id,
-                        channel_num,
+                        "Shure channel payload contains no transmitter data",
                     )
 
             logger.debug(
-                "Successfully transformed device %s with %d channels",
-                device_id,
+                "Successfully transformed Shure device payload with %d channels",
                 len(result["channels"]),
             )
             return result
-        except Exception:
-            logger.exception("Error transforming device data for device %s", api_data.get("id"))
+        except Exception as exc:
+            logger.exception(
+                "Error transforming Shure device data; payload redacted",
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
     @staticmethod
@@ -240,8 +237,11 @@ class ShureDataTransformer:
                 "slot": slot,
                 "extra": extra,
             }
-        except Exception:
-            logger.exception("Error transforming transmitter data for channel %d", channel_num)
+        except Exception as exc:
+            logger.exception(
+                "Error transforming Shure transmitter payload",
+                exc_info=sanitized_exception_info(exc),
+            )
             return None
 
     @staticmethod

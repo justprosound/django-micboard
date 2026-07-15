@@ -81,13 +81,16 @@ class PluginRegistryTests(TestCase):
             PluginRegistry.get_plugin_class("fake")
             self.assertEqual(mock_get.call_count, 1)
 
+    @patch("micboard.services.manufacturer.plugin_registry.logger")
     @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
-    def test_plugin_loading_error_handling(self, mock_get_plugin):
+    def test_plugin_loading_error_handling(self, mock_get_plugin, mock_logger):
         """Test error handling when plugin loading fails."""
-        mock_get_plugin.side_effect = ImportError("Import failed")
+        secret = "import-path-secret"
+        mock_get_plugin.side_effect = ImportError(secret)
 
         with self.assertRaises(ImportError):
             PluginRegistry.get_plugin_class("fake")
+        self.assertNotIn(secret, str(mock_logger.error.call_args))
 
     @patch("micboard.services.common.base.plugin.get_manufacturer_plugin")
     def test_get_all_active_plugins(self, mock_get_plugin):

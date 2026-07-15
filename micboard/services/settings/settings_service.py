@@ -8,10 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.conf import settings as django_settings
-
-from micboard.services.shared.settings_registry import SettingsRegistry as _SettingsRegistry
+from micboard.services.settings.registry import SettingsRegistry
 from micboard.settings.defaults import DEFAULT_CONFIG
+from micboard.settings.deployment_controls import deployment_controls
 
 _NOT_FOUND = object()
 
@@ -21,9 +20,9 @@ class SettingsService:
 
     Resolution order for ``get()``:
 
-    1. DB Setting with scope (org/site/manufacturer) via ``SettingsRegistry``
-    2. ``settings.MICBOARD_CONFIG`` dict key
-    3. Feature flag Django setting (``MICBOARD_*``) via key mapping
+    1. Deployment controls mapped to immutable Django ``MICBOARD_*`` settings
+    2. DB Setting with scope (org/site/manufacturer) via ``SettingsRegistry``
+    3. ``settings.MICBOARD_CONFIG`` dict key
     4. Package defaults (``POLL_INTERVAL``, etc.)
     5. Registered ``SettingDefinition`` default
     6. Provided *default*
@@ -48,7 +47,7 @@ class SettingsService:
     }
 
     def __init__(self) -> None:
-        self._registry = _SettingsRegistry
+        self._registry = SettingsRegistry
 
     # ------------------------------------------------------------------
     # Public API
@@ -75,6 +74,13 @@ class SettingsService:
         Returns:
             Resolved value or *default*.
         """
+        if key.startswith("MICBOARD_"):
+            return deployment_controls.get(key, default)
+
+        flag_name = self._FEATURE_FLAG_KEYS.get(key)
+        if flag_name is not None:
+            return deployment_controls.get(flag_name, default)
+
         value = self._registry.get(
             key,
             default=None,
@@ -86,13 +92,9 @@ class SettingsService:
         if value is not None:
             return value
 
-        micboard_config = getattr(django_settings, "MICBOARD_CONFIG", {})
+        micboard_config = deployment_controls.get("MICBOARD_CONFIG", {})
         if key in micboard_config:
             return micboard_config[key]
-
-        flag_name = self._FEATURE_FLAG_KEYS.get(key)
-        if flag_name is not None and hasattr(django_settings, flag_name):
-            return getattr(django_settings, flag_name)
 
         if key in DEFAULT_CONFIG:
             return DEFAULT_CONFIG[key]
@@ -105,13 +107,16 @@ class SettingsService:
 
     def get_config_dict(self) -> dict[str, Any]:
         """Return ``MICBOARD_CONFIG`` merged with package defaults."""
-        micboard_config = getattr(django_settings, "MICBOARD_CONFIG", {})
+        micboard_config = deployment_controls.get("MICBOARD_CONFIG", {})
         return {**DEFAULT_CONFIG, **micboard_config}
 
-    @property
-    def testing(self) -> bool:
-        """Whether Django is running tests."""
-        return getattr(django_settings, "TESTING", False)
+    def invalidate_value_cache(self, key: str | None = None) -> None:
+        """Invalidate one resolved database value or every cached value."""
+        self._registry.invalidate_cache(key)
+
+    def invalidate_definition_cache(self, key: str | None = None) -> None:
+        """Invalidate definition metadata and every value derived from it."""
+        self._registry.invalidate_definition(key)
 
     # ------------------------------------------------------------------
     # Feature-flag convenience properties

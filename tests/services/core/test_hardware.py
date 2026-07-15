@@ -1,19 +1,15 @@
-"""Behavior tests for the public core hardware facade."""
+"""Behavior tests for hardware normalization and persistence hooks."""
 
 from __future__ import annotations
 
 from unittest.mock import Mock, call, patch
 
-from django.utils import timezone
-
 import pytest
 
-from micboard.services.core.hardware import HardwareService, NormalizedHardware
+from micboard.services.core.hardware import NormalizedHardware
 from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
-from micboard.services.core.hardware_query import HardwareQueryService
 from micboard.services.core.hardware_sync import HardwareSyncService
-from tests.async_utils import run_async_with_heartbeat
-from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
+from tests.factories.hardware import WirelessChassisFactory
 
 
 @pytest.mark.parametrize(
@@ -62,6 +58,22 @@ def test_normalization_accepts_vendor_aliases_and_trims_values() -> None:
     assert normalized.gateway == "192.0.2.1"
 
 
+def test_normalization_canonicalizes_mac_identity_only() -> None:
+    """Vendor case and delimiter choices do not change hardware identity."""
+    normalized = NormalizedHardware.from_api(
+        {
+            "id": "receiver-2",
+            "ip": "192.0.2.12",
+            "macAddress": "AABBCCDDEEFF",
+            "name": "AA-BB is a name, not a MAC",
+        }
+    )
+
+    assert normalized is not None
+    assert normalized.mac_address == "aa:bb:cc:dd:ee:ff"
+    assert normalized.name == "AA-BB is a name, not a MAC"
+
+
 def test_normalization_prefers_canonical_keys_and_supplies_safe_defaults() -> None:
     """Prefer canonical values when aliases coexist and default optional data."""
     normalized = NormalizedHardware.from_api(
@@ -84,73 +96,12 @@ def test_normalization_prefers_canonical_keys_and_supplies_safe_defaults() -> No
     assert normalized.subnet_mask is None
 
 
-@pytest.mark.django_db
-def test_facade_delegates_queries_and_writes_to_domain_services() -> None:
-    """Keep the public facade useful while implementations remain decomposed."""
-    chassis = WirelessChassisFactory(name="Spotlight Rack", status="online")
-    unit = WirelessUnitFactory(
-        base_chassis=chassis,
-        manufacturer=chassis.manufacturer,
-        name="Spotlight Pack",
-        status="online",
-    )
-
-    assert HardwareService.get_chassis_by_ip(ip=chassis.ip) == chassis
-    assert HardwareService.count_online_hardware() == {"chassis": 1, "units": 1}
-    assert set(HardwareService.search_hardware(query="Spotlight")) == {chassis, unit}
-
-    HardwareService.sync_unit_battery(unit=unit, battery_level=128)
-    unit.refresh_from_db()
-    assert unit.battery == 128
-
-
-@pytest.mark.django_db(transaction=True)
-def test_async_hardware_queries_materialize_results_before_returning() -> None:
-    """Async query APIs never leak lazy ORM evaluation into the event loop."""
-    online_chassis = WirelessChassisFactory(status="online", is_online=True)
-    WirelessChassisFactory(status="offline", is_online=False)
-    active_unit = WirelessUnitFactory(
-        base_chassis=online_chassis,
-        manufacturer=online_chassis.manufacturer,
-        status="online",
-        last_seen=timezone.now(),
-        battery=10,
-    )
-
-    async def evaluate_results() -> tuple[list[int], list[int], list[int], list[int]]:
-        active_chassis = await HardwareQueryService.aget_active_chassis()
-        online = await HardwareQueryService.aget_online_chassis()
-        active_units = await HardwareQueryService.aget_active_units()
-        low_battery = await HardwareQueryService.aget_low_battery_units(threshold=20)
-
-        assert isinstance(active_chassis, list)
-        assert isinstance(online, list)
-        assert isinstance(active_units, list)
-        assert isinstance(low_battery, list)
-        return (
-            [chassis.pk for chassis in active_chassis],
-            [chassis.pk for chassis in online],
-            [unit.pk for unit in active_units],
-            [unit.pk for unit in low_battery],
-        )
-
-    active_ids, online_ids, active_unit_ids, low_battery_ids = run_async_with_heartbeat(
-        evaluate_results()
-    )
-
-    assert active_ids == [online_chassis.pk]
-    assert online_ids == [online_chassis.pk]
-    assert active_unit_ids == [active_unit.pk]
-    assert low_battery_ids == [active_unit.pk]
-
-
 def test_chassis_save_hook_threads_database_alias_to_channel_sync() -> None:
     """Provision channels on the same database used for the chassis write."""
     chassis = WirelessChassisFactory.build(id=17)
 
     with (
         patch.object(HardwareSyncService, "ensure_channel_count", return_value=(0, 0)) as ensure,
-        patch("micboard.services.core.hardware_post_save_hooks.transaction.on_commit"),
     ):
         HardwarePostSaveHooks.handle_chassis_save(
             chassis=chassis,
@@ -159,6 +110,43 @@ def test_chassis_save_hook_threads_database_alias_to_channel_sync() -> None:
         )
 
     ensure.assert_called_once_with(chassis=chassis, using="inventory")
+
+
+@pytest.mark.parametrize(("online", "expected_status"), [(True, "online"), (False, "offline")])
+def test_hardware_status_sync_persists_the_requested_state(
+    online: bool,
+    expected_status: str,
+) -> None:
+    """Persist the canonical lifecycle status without a forwarding async API."""
+    chassis = Mock(status="discovered")
+
+    HardwareSyncService.sync_hardware_status(obj=chassis, online=online)
+
+    assert chassis.status == expected_status
+    chassis.save.assert_called_once_with(update_fields=["status"])
+
+
+def test_chassis_lifecycle_logs_redact_vendor_hardware_identity() -> None:
+    """Save/delete hooks retain numeric context without names, addresses, or vendor IDs."""
+    private_identity = "private-chassis-identity"
+    chassis = WirelessChassisFactory.build(
+        id=17,
+        name=private_identity,
+        api_device_id=private_identity,
+        ip="192.0.2.199",
+    )
+    with (
+        patch.object(HardwareSyncService, "ensure_channel_count", return_value=(1, 1)),
+        patch.object(HardwarePostSaveHooks, "handle_chassis_bulk_delete") as bulk_delete,
+        patch("micboard.services.core.hardware_post_save_hooks.logger") as logger,
+    ):
+        HardwarePostSaveHooks.handle_chassis_save(chassis=chassis, created=True)
+        HardwarePostSaveHooks.handle_chassis_delete(chassis=chassis)
+
+    bulk_delete.assert_called_once_with(chassis_list=[chassis], using="default")
+    rendered_calls = str(logger.method_calls)
+    assert private_identity not in rendered_calls
+    assert str(chassis.ip) not in rendered_calls
 
 
 def test_channel_sync_binds_all_reads_and_writes_to_database_alias() -> None:
@@ -172,7 +160,7 @@ def test_channel_sync_binds_all_reads_and_writes_to_database_alias() -> None:
     alias_channels.filter.side_effect = [existing_channels, excess_channel]
 
     with patch(
-        "micboard.models.rf_coordination.RFChannel.objects.using",
+        "micboard.models.rf_coordination.rf_channel.RFChannel.objects.using",
         return_value=alias_channels,
     ) as using:
         result = HardwareSyncService.ensure_channel_count(
@@ -192,3 +180,30 @@ def test_channel_sync_binds_all_reads_and_writes_to_database_alias() -> None:
         link_direction="receive",
     )
     excess_channel.delete.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    ("role", "expected_direction"),
+    [("transmitter", "send"), ("transceiver", "bidirectional")],
+)
+def test_channel_sync_derives_link_direction_from_chassis_role(
+    role: str,
+    expected_direction: str,
+) -> None:
+    """Create missing channels with the chassis role's RF direction."""
+    chassis = Mock(pk=17, role=role)
+    chassis.get_expected_channel_count.return_value = 1
+    alias_channels = Mock()
+    alias_channels.filter.return_value.values_list.return_value = []
+
+    with patch(
+        "micboard.models.rf_coordination.rf_channel.RFChannel.objects.using",
+        return_value=alias_channels,
+    ):
+        assert HardwareSyncService.ensure_channel_count(chassis=chassis) == (1, 0)
+
+    alias_channels.create.assert_called_once_with(
+        chassis_id=17,
+        channel_number=1,
+        link_direction=expected_direction,
+    )

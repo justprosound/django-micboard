@@ -6,12 +6,12 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.test import TestCase
 
+from micboard.exceptions import SettingNotFoundError
 from micboard.forms.settings import BulkSettingConfigForm
-from micboard.models.discovery import Manufacturer
-from micboard.models.settings import Setting, SettingDefinition
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.models.settings.registry import Setting, SettingDefinition
 from micboard.multitenancy.models import Organization
-from micboard.services.manufacturer.manufacturer_config_registry import ManufacturerConfigRegistry
-from micboard.services.shared.settings_registry import SettingNotFoundError, SettingsRegistry
+from micboard.services.settings.registry import SettingsRegistry
 
 
 class SettingDefinitionTests(TestCase):
@@ -391,16 +391,20 @@ class SettingsRegistryTests(TestCase):
         with self.assertRaises(SettingNotFoundError):
             SettingsRegistry.get("required_test", required=True)
 
-    def test_set_and_get(self):
-        """Test setting a value and retrieving it."""
-        SettingDefinition.objects.create(
+    def test_database_override_is_resolved(self):
+        """A stored override is resolved through the internal registry implementation."""
+        definition = SettingDefinition.objects.create(
             key="set_test",
             label="Set Test",
             setting_type=SettingDefinition.TYPE_STRING,
             scope=SettingDefinition.SCOPE_ORGANIZATION,
         )
 
-        SettingsRegistry.set("set_test", "new_value", organization=self.org)
+        Setting.objects.create(
+            definition=definition,
+            organization_id=self.org.pk,
+            value="new_value",
+        )
 
         value = SettingsRegistry.get("set_test", organization=self.org)
         self.assertEqual(value, "new_value")
@@ -516,29 +520,6 @@ class SettingsRegistryTests(TestCase):
 
         self.assertEqual(cache.get("host-application-key"), "preserved")
 
-    def test_get_all_for_scope(self):
-        """Test bulk retrieval for a scope."""
-        defn1 = SettingDefinition.objects.create(
-            key="bulk_test_1",
-            label="Bulk Test 1",
-            setting_type=SettingDefinition.TYPE_STRING,
-            scope=SettingDefinition.SCOPE_ORGANIZATION,
-        )
-        defn2 = SettingDefinition.objects.create(
-            key="bulk_test_2",
-            label="Bulk Test 2",
-            setting_type=SettingDefinition.TYPE_INTEGER,
-            scope=SettingDefinition.SCOPE_ORGANIZATION,
-        )
-
-        Setting.objects.create(definition=defn1, organization_id=self.org.id, value="value1")
-        Setting.objects.create(definition=defn2, organization_id=self.org.id, value="42")
-
-        all_settings = SettingsRegistry.get_all_for_scope(organization=self.org)
-
-        self.assertEqual(all_settings["bulk_test_1"], "value1")
-        self.assertEqual(all_settings["bulk_test_2"], 42)
-
 
 class SettingsFormTests(TestCase):
     """Bulk settings forms must preserve each declared value type."""
@@ -565,72 +546,6 @@ class SettingsFormTests(TestCase):
         self.assertEqual(setting.get_parsed_value(), {"enabled": True, "levels": [1, 2]})
 
 
-class ManufacturerConfigRegistryTests(TestCase):
-    """Test ManufacturerConfigRegistry service."""
-
-    def setUp(self):
-        self.mfg = Manufacturer.objects.create(name="Shure", code="shure")
-
-    def test_get_shure_defaults(self):
-        """Test getting Shure manufacturer defaults."""
-        config = ManufacturerConfigRegistry.get("shure", manufacturer=self.mfg)
-
-        self.assertEqual(config.battery_thresholds["good"], 90)
-        self.assertEqual(config.battery_thresholds["low"], 20)
-        self.assertEqual(config.battery_thresholds["critical"], 0)
-
-    def test_override_with_database_setting(self):
-        """Test that database settings override defaults."""
-        defn = SettingDefinition.objects.create(
-            key="battery_good_level",
-            label="Battery Good Level",
-            setting_type=SettingDefinition.TYPE_INTEGER,
-            scope=SettingDefinition.SCOPE_MANUFACTURER,
-            default_value="90",
-        )
-
-        Setting.objects.create(
-            definition=defn,
-            manufacturer_id=self.mfg.id,
-            value="95",
-        )
-
-        config = ManufacturerConfigRegistry.get("shure", manufacturer=self.mfg)
-
-        # Should use override, not default
-        self.assertEqual(config.battery_thresholds["good"], 95)
-
-    def test_set_override_round_trips_canonical_key_without_mutating_defaults(self):
-        """Canonical manufacturer keys apply only to the requested config copy."""
-        SettingDefinition.objects.create(
-            key="api_timeout",
-            label="API Timeout",
-            setting_type=SettingDefinition.TYPE_INTEGER,
-            scope=SettingDefinition.SCOPE_MANUFACTURER,
-            default_value="30",
-        )
-
-        ManufacturerConfigRegistry.set_override(
-            "shure",
-            "api_timeout",
-            45,
-            manufacturer=self.mfg,
-        )
-
-        self.assertEqual(
-            ManufacturerConfigRegistry.get("shure", manufacturer=self.mfg).api_timeout,
-            45,
-        )
-        self.assertEqual(ManufacturerConfigRegistry.get("shure").api_timeout, 30)
-
-    def test_missing_manufacturer(self):
-        """Test behavior for unknown manufacturer."""
-        config = ManufacturerConfigRegistry.get("unknown", manufacturer=self.mfg)
-
-        # Should return defaults (empty config)
-        self.assertIsNotNone(config)
-
-
 class SettingIntegrationTests(TestCase):
     """Integration tests for settings workflow."""
 
@@ -649,8 +564,8 @@ class SettingIntegrationTests(TestCase):
         site = Site.objects.create(domain="test.example.com", name="Test Site")
         org = Organization.objects.create(name="Test Org", slug="test-org", site=site)
 
-        # 2. Configure value via registry
-        SettingsRegistry.set("workflow_test", 250, organization=org)
+        # 2. Configure a stored override
+        Setting.objects.create(definition=defn, organization_id=org.pk, value="250")
 
         # 3. Retrieve and verify
         value = SettingsRegistry.get("workflow_test", organization=org)
@@ -662,7 +577,7 @@ class SettingIntegrationTests(TestCase):
 
     def test_multi_tenant_isolation(self):
         """Test that settings are properly isolated by tenant."""
-        SettingDefinition.objects.create(
+        definition = SettingDefinition.objects.create(
             key="tenant_test",
             label="Tenant Test",
             setting_type=SettingDefinition.TYPE_STRING,
@@ -674,8 +589,16 @@ class SettingIntegrationTests(TestCase):
         org2 = Organization.objects.create(name="Org 2", slug="org-2", site=site)
 
         # Different values per org
-        SettingsRegistry.set("tenant_test", "org1_value", organization=org1)
-        SettingsRegistry.set("tenant_test", "org2_value", organization=org2)
+        Setting.objects.create(
+            definition=definition,
+            organization_id=org1.pk,
+            value="org1_value",
+        )
+        Setting.objects.create(
+            definition=definition,
+            organization_id=org2.pk,
+            value="org2_value",
+        )
 
         # Verify isolation
         value1 = SettingsRegistry.get("tenant_test", organization=org1)

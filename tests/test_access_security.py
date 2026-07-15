@@ -14,12 +14,13 @@ from micboard.models.hardware.charger import Charger, ChargerSlot
 from micboard.models.hardware.display_wall import DisplayWall, WallSection
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
-from micboard.models.locations import Building, Location
+from micboard.models.locations.structure import Building, Location
 from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.core.performer_assignment_dtos import UpdatePerformerAssignment
 
 
 class AlertAccessTests(TestCase):
@@ -317,13 +318,30 @@ class PerformerAssignmentAccessTests(TestCase):
         self.assertNotContains(response, self.other_unit.name)
         self.assertNotContains(response, self.other_assignment.monitoring_group.name)
 
+    def test_assignment_page_and_live_rows_keep_scope_and_page_state(self) -> None:
+        page_response = self.client.get(reverse("micboard:assignments"))
+        rows_response = self.client.get(
+            reverse("micboard:assignment_rows"),
+            {"page": 1},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertContains(
+            page_response,
+            f"{reverse('micboard:assignment_rows')}?page=1",
+        )
+        self.assertTemplateUsed(rows_response, "micboard/partials/assignment_rows.html")
+        self.assertContains(rows_response, self.performer.name)
+        self.assertNotContains(rows_response, self.other_performer.name)
+
     def test_invalid_create_rerenders_form(self) -> None:
         response = self.client.post(reverse("micboard:create_assignment"), {})
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         self.assertContains(
             response,
-            "Performer, Wireless Unit, and Monitoring Group are required",
+            "Correct the invalid assignment values and try again.",
+            status_code=400,
         )
 
     def test_unassigned_performer_can_receive_first_assignment(self) -> None:
@@ -417,9 +435,11 @@ class PerformerAssignmentAccessTests(TestCase):
     def test_service_rejects_cross_scope_assignment_update(self) -> None:
         with self.assertRaises(PerformerAssignment.DoesNotExist):
             PerformerAssignmentService.update_assignment(
-                assignment_id=self.other_assignment.pk,
+                command=UpdatePerformerAssignment(
+                    assignment_id=self.other_assignment.pk,
+                    notes="cross-scope update",
+                ),
                 user=self.user,
-                notes="cross-scope update",
             )
 
         self.other_assignment.refresh_from_db()
@@ -437,15 +457,6 @@ class PerformerAssignmentAccessTests(TestCase):
 
 class ChargerAndKioskAuthenticationTests(TestCase):
     """Operational displays must not expose hardware or performer data anonymously."""
-
-    def test_charger_display_requires_login(self) -> None:
-        response = self.client.get(reverse("micboard:charger_display"))
-
-        self.assertRedirects(
-            response,
-            f"{settings.LOGIN_URL}?next={reverse('micboard:charger_display')}",
-            fetch_redirect_response=False,
-        )
 
     def test_kiosk_display_requires_login(self) -> None:
         building = Building.objects.create(name="Kiosk Authentication Building")
@@ -545,19 +556,12 @@ class ChargerAndKioskScopeTests(TestCase):
 
         self.client.force_login(self.user)
 
-    def test_charger_display_excludes_foreign_location(self) -> None:
-        response = self.client.get(reverse("micboard:charger_display"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.own_charger.name)
-        self.assertNotContains(response, self.foreign_charger.name)
-        self.assertNotContains(response, "FOREIGN-MIC")
-
     def test_foreign_display_wall_routes_return_not_found(self) -> None:
         urls = [
             reverse("micboard:display_wall_detail", args=[self.foreign_wall.pk]),
             reverse("micboard:wall_section_list", args=[self.foreign_wall.pk]),
             reverse("micboard:kiosk_data", args=[self.foreign_wall.pk]),
+            reverse("micboard:kiosk_content", args=[self.foreign_wall.pk]),
             reverse("micboard:kiosk_health", args=[self.foreign_wall.pk]),
             reverse("micboard:kiosk_display", args=[self.foreign_wall.kiosk_id]),
             reverse("micboard:wall_section_partial", args=[self.foreign_section.pk]),

@@ -16,15 +16,17 @@ import pytest
 
 from micboard.integrations.shure.websocket import _read_and_dispatch_messages
 from micboard.management.commands.realtime_status import Command as RealtimeStatusCommand
-from micboard.models.audit import ActivityLog
+from micboard.models.audit.activity_log import ActivityLog
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.maintenance.audit import AuditService
 from micboard.services.maintenance.logging_mode import LoggingModeService
+from micboard.services.realtime.shure_websocket_subscription_service import (
+    run_shure_websocket_subscriptions,
+)
 from micboard.services.sync.device_promotion_service import DevicePromotionService
 from micboard.services.sync.device_update_service import DeviceUpdateService
-from micboard.tasks.monitoring.websocket import start_shure_websocket_subscriptions
 
 
 def test_websocket_dispatch_awaits_async_callback() -> None:
@@ -105,11 +107,11 @@ def test_offline_chassis_checks_attached_wireless_units() -> None:
 
     with (
         patch(
-            "micboard.services.core.hardware_lifecycle.get_lifecycle_manager",
+            "micboard.services.core.hardware_lifecycle.HardwareLifecycleManager",
             return_value=lifecycle,
         ),
         patch(
-            "micboard.services.sync.device_update_service.check_hardware_offline_alerts"
+            "micboard.services.sync.device_update_service.alert_manager.check_hardware_offline_alerts"
         ) as check_alerts,
     ):
         DeviceUpdateService.mark_offline_receivers(
@@ -121,68 +123,40 @@ def test_offline_chassis_checks_attached_wireless_units() -> None:
     assert check_alerts.call_args.args[0] == unit
 
 
-def test_websocket_task_instantiates_plugin_and_uses_chassis_status() -> None:
+def test_websocket_service_instantiates_plugin_and_uses_chassis_status() -> None:
     """WebSocket startup honors plugin-class and WirelessChassis field contracts."""
-    manufacturer = Mock(code="shure", name="Shure")
+    manufacturer = Mock(pk=14, code="shure", name="Shure")
     plugin_class = Mock()
 
     with (
         patch(
             "micboard.models.discovery.manufacturer.Manufacturer.objects.get",
             return_value=manufacturer,
-        ),
+        ) as get_manufacturer,
         patch(
-            "micboard.tasks.monitoring.websocket.get_manufacturer_plugin",
+            "micboard.services.realtime.shure_websocket_subscription_service."
+            "get_manufacturer_plugin",
             return_value=plugin_class,
         ),
         patch(
             "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.filter",
             return_value=[],
         ) as filter_chassis,
+        patch(
+            "micboard.services.realtime.shure_websocket_subscription_service."
+            "RealtimeSubscriptionSupervisor.select_fair_queryset_batch",
+            return_value=[],
+        ),
     ):
-        start_shure_websocket_subscriptions()
+        run_shure_websocket_subscriptions(14)
 
+    get_manufacturer.assert_called_once_with(pk=14, code="shure", is_active=True)
     plugin_class.assert_called_once_with(manufacturer)
-    filter_chassis.assert_called_once_with(manufacturer=manufacturer, status="online")
-
-
-@pytest.mark.parametrize(
-    "command_path",
-    [
-        "micboard.management.commands.websocket_subscribe.Command",
-        "micboard.management.commands.sse_subscribe.Command",
-    ],
-)
-def test_subscription_commands_select_active_chassis_by_status(command_path: str) -> None:
-    """Subscription commands query real WirelessChassis fields."""
-    command_module, _separator, _class_name = command_path.rpartition(".")
-    manufacturer = Mock(code="vendor", name="Vendor")
-    plugin = Mock()
-    plugin_class = Mock(return_value=plugin)
-    queryset = Mock()
-    queryset.values_list.return_value = ["device-1"]
-
-    with (
-        patch(f"{command_module}.Manufacturer.objects.get", return_value=manufacturer),
-        patch(f"{command_module}.get_manufacturer_plugin", return_value=plugin_class),
-        patch(f"{command_module}.WirelessChassis.objects.filter", return_value=queryset) as filter_,
-        patch(f"{command_module}.signal.signal"),
-        patch(f"{command_module}.asyncio.run") as run,
-    ):
-        command_class = __import__(command_module, fromlist=["Command"]).Command
-        command = command_class()
-        with patch.object(command, "_run_subscriptions") as run_subscriptions:
-            command.handle(manufacturer="vendor", device=None)
-        queued_coroutine = run.call_args.args[0]
-        queued_coroutine.close()
-
-    plugin_class.assert_called_once_with(manufacturer)
-    filter_.assert_called_once_with(
-        manufacturer=manufacturer,
+    filter_chassis.assert_called_once_with(
+        manufacturer_id=14,
+        manufacturer__is_active=True,
         status__in=("online", "degraded", "provisioning"),
     )
-    run_subscriptions.assert_called_once_with(plugin, ["device-1"])
-    run.assert_called_once()
 
 
 def test_set_logging_mode_converts_minutes_to_service_ttl() -> None:

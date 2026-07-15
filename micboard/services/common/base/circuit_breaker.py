@@ -3,13 +3,9 @@ from __future__ import annotations
 import logging
 import time
 
-from .exceptions import APIError
+from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
-
-
-class CircuitOpenError(APIError):
-    """Raised when a circuit breaker is open for an endpoint."""
 
 
 class CircuitBreaker:
@@ -52,8 +48,11 @@ class CircuitBreaker:
                         success=True,
                     )
                 )
-            except Exception:
-                logger.debug("Metrics recording for circuit_closed failed", exc_info=True)
+            except Exception as exc:
+                logger.debug(
+                    "Metrics recording for circuit_closed failed",
+                    exc_info=sanitized_exception_info(exc),
+                )
 
     def record_failure(self) -> None:
         prev = self._state
@@ -83,8 +82,11 @@ class CircuitBreaker:
                             metadata={"failures": self._failures},
                         )
                     )
-                except Exception:
-                    logger.debug("Metrics recording for circuit_open failed", exc_info=True)
+                except Exception as exc:
+                    logger.debug(
+                        "Metrics recording for circuit_open failed",
+                        exc_info=sanitized_exception_info(exc),
+                    )
 
     @property
     def state(self) -> str:

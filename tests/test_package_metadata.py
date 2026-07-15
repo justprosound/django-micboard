@@ -8,8 +8,6 @@ import micboard.models as model_api
 import micboard.models.telemetry.sessions as telemetry_sessions
 import micboard.services as services
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
-from micboard.services.core.location import LocationService
-from micboard.services.monitoring.connection import ConnectionHealthService
 
 
 def test_runtime_version_uses_distribution_metadata() -> None:
@@ -24,10 +22,8 @@ def test_removed_compatibility_names_are_not_public() -> None:
         "APIServerPollingService",
         "ConnectionError",
         "ConnectionHealthService",
-        "DeviceAPIHealthChecker",
         "DeviceAPISyncService",
         "DeviceHealthService",
-        "DeviceProbeService",
         "DiscoveryError",
         "HardwareLifecycleManager",
         "HardwareNotFoundError",
@@ -52,7 +48,6 @@ def test_removed_compatibility_names_are_not_public() -> None:
         "get_lifecycle_manager",
         "get_polling_service",
         "paginate_queryset",
-        "probe_device_ip",
     )
     for name in removed_service_exports:
         assert not hasattr(services, name)
@@ -101,13 +96,10 @@ def test_removed_compatibility_names_are_not_public() -> None:
         assert not hasattr(model_api, name)
 
     assert not hasattr(HardwareLifecycleManager, "transition")
-    assert not hasattr(ConnectionHealthService, "get_connections_for_manufacturer")
-    assert not hasattr(ConnectionHealthService, "update_heartbeat")
-    assert not hasattr(ConnectionHealthService, "is_connection_healthy")
-    assert not hasattr(LocationService, "list_all_locations")
 
 
 def test_removed_compatibility_modules_are_absent() -> None:
     """Old integration import paths must stay deleted instead of becoming shims."""
     assert find_spec("micboard.integrations.sennheiser.rate_limiter") is None
     assert find_spec("micboard.integrations.shure.discovery_sync") is None
+    assert find_spec("micboard.services.monitoring.connection") is None
