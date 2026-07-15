@@ -82,6 +82,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   publish production from the same sealed workflow run, make named artifacts and draft releases
   safe to resume after job retries, and publish GitHub releases only after every integrity asset
   is attached
+- **Automatic release CalVer**: Default blank release dispatches to the current UTC `YY.MM.DD`
+  while retaining a validated manual override for backfills
 - **Hardened build dependencies**: Upgrade the exactly pinned build backend to setuptools 83.0.0
   and wheel 0.47.0, and lock Twine plus the PEP 740 signer through uv
 - **Credential-safe workflow checkouts**: Disable persisted Git credentials for every read-only
