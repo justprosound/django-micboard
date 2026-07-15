@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 WORKFLOW_ROOT = Path(__file__).parents[1] / ".github" / "workflows"
@@ -61,6 +62,9 @@ def test_solo_maintainer_release_gate_is_documented() -> None:
     assert "strict, GitHub-Actions-bound checks" in guide
     assert "production `pypi-release` environment" in guide
     assert "`testpypi` environment" in guide
+    assert "Allow GitHub Actions to create and approve pull requests" in guide
+    assert "first-time contributors" in guide
+    assert "`github-actions[bot]`" in guide
 
 
 def test_workflow_runs_have_contextual_ui_names() -> None:
@@ -178,6 +182,15 @@ def test_release_artifacts_include_a_signed_spdx_sbom() -> None:
     assert "./*.spdx.json" in build_job
     assert "sbom-path: dist/django-micboard-" in attestation_job
     assert attestation_job.count("actions/attest@") == 2
+
+
+def test_sbom_generator_uses_a_valid_syft_release_tag() -> None:
+    """The SBOM action must receive Syft's v-prefixed GitHub release tag."""
+    publication = _workflow("publish-release.yml")
+    build_job = publication[publication.index("  build-release:") :]
+    build_job = build_job[: build_job.index("  attest-release:")]
+
+    assert re.search(r'syft-version: "v\d+\.\d+\.\d+"', build_job)
 
 
 def test_release_artifact_uploads_are_retry_safe() -> None:

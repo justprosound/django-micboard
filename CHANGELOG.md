@@ -7,6 +7,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Release SBOM generation**: Pass Syft's v-prefixed release tag to the pinned Anchore action and
+  document the GitHub Actions permissions required by automated release pull requests.
+
 ## [26.07.15] - 2026-07-15
 
 2370c40 - feat(release): Default to current CalVer (#105) (bandwith)
