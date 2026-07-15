@@ -9,6 +9,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- **Same-day releases**: Calculate collision-safe daily CalVer versions automatically, retaining
+  `YY.MM.DD` for the first release and incrementing `.1`, `.2`, and later revisions as needed.
 - **Release SBOM generation**: Pass Syft's v-prefixed release tag to the pinned Anchore action and
   document the GitHub Actions permissions required by automated release pull requests.
 - **GitHub release assembly**: Pass explicit repository context to release CLI commands that run

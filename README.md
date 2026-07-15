@@ -301,8 +301,9 @@ uv run --no-sync pre-commit run --all-files
 ## Release Notes
 
 - Update CHANGELOG.md under [Unreleased] with notable changes.
-- Run the **Prepare Release PR** workflow from `main`. Leave the version blank to use the current
-  UTC calendar date automatically, or enter a `YY.MM.DD` override for a backfill.
+- Run the **Prepare Release PR** workflow from `main`. Leave the version blank to select the next
+  UTC daily release automatically (`YY.MM.DD`, then `.1`, `.2`, and so on), or enter an explicit
+  version for a backfill.
 - Release metadata reaches `main` through a protected pull request and required checks.
 - The publication workflow builds the protected merge commit once, signs Sigstore provenance and
   SPDX SBOM attestations, verifies the sealed files through TestPyPI, and publishes with

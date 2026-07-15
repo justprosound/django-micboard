@@ -9,7 +9,7 @@ on:
         description: "Merge commit selected by the protected release workflow"
         required: true
       version:
-        description: "CalVer version already merged to main (YY.MM.DD)"
+        description: "CalVer version already merged to main (YY.MM.DD[.N])"
         required: true
 
 permissions:
@@ -55,7 +55,7 @@ jobs:
             echo "Selected release merge is not part of protected main"
             exit 1
           fi
-          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}$ ]]; then
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[1-9][0-9]*)?$ ]]; then
             echo "Invalid CalVer format: $RELEASE_VERSION"
             exit 1
           fi

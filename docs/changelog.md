@@ -2,7 +2,7 @@
 
 All notable changes to django-micboard are documented here.
 
-**Version format:** CalVer (YY.MM.DD)
+**Version format:** CalVer (`YY.MM.DD`, with `.N` for additional same-day releases)
 
 **Status:** Active development, not production-ready
 
