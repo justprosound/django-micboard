@@ -99,14 +99,14 @@ def test_externally_triggered_privileged_jobs_avoid_local_actions() -> None:
 
 
 def test_every_checkout_declares_credential_persistence() -> None:
-    """Read-only jobs must not leave the workflow token in local Git configuration."""
+    """No job may leave its workflow token in local Git configuration."""
     workflows = [path.read_text(encoding="utf-8") for path in WORKFLOWS.glob("*.yml")]
     checkout_count = sum(workflow.count("uses: actions/checkout@") for workflow in workflows)
     persistence_count = sum(workflow.count("persist-credentials:") for workflow in workflows)
     explicit_writers = sum(workflow.count("persist-credentials: true") for workflow in workflows)
 
     assert checkout_count == persistence_count
-    assert explicit_writers == 1
+    assert explicit_writers == 0
 
 
 def test_warden_limits_secrets_to_trusted_review_execution() -> None:

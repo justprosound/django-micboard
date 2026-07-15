@@ -303,8 +303,12 @@ uv run --no-sync pre-commit run --all-files
 - Update CHANGELOG.md under [Unreleased] with notable changes.
 - Run the **Prepare Release PR** workflow from `main` with a calendar version (e.g., `26.01.29`).
 - Release metadata reaches `main` through a protected pull request and required checks.
-- The publication workflow builds the protected merge commit, publishes through trusted
-  publishing, and creates the matching GitHub tag and release.
+- The publication workflow builds the protected merge commit once, signs Sigstore provenance and
+  SPDX SBOM attestations, verifies the sealed files through TestPyPI, and publishes with
+  environment-bound PEP 740 attestations.
+- Stable publication pauses for production-environment approval before PyPI. GitHub receives the
+  exact registry-signed wheel, source archive, SPDX SBOM, publish attestations, and checksums in a
+  draft-first release suitable for immutable-release enforcement.
 
 ## Development Workflow
 

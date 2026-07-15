@@ -30,6 +30,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   lockfile during push, pull-request, manual, and weekly CI runs
 - **Signed release provenance**: Attest sealed wheel and source distributions with isolated
   Sigstore-backed GitHub build provenance before either package registry can publish them
+- **Attested release SBOMs**: Generate an SPDX JSON bill of materials, bind it to the wheel and
+  source archive with a Sigstore SBOM attestation, and ship it with the release checksums
+- **PEP 740 package attestations**: Sign each registry upload with its environment-bound OIDC
+  identity and publish the matching attestations alongside immutable GitHub release assets
 - **NIST SSDF workflow evidence**: Map checked-in automation controls to the final SSDF 1.1
   practices while identifying SSDF 1.2 as a draft
 - **Complete model factory catalog**: Domain-grouped Factory Boy adapters for every installed
@@ -73,6 +77,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Observed release checks**: Dispatch CI, dependency-review, and documentation checks for the
   exact release head, wait for those workflow runs to succeed before merge, and separate Actions
   dispatch, repository write, and publication dispatch permissions across jobs
+- **Verified release promotion**: Create release metadata through GitHub's signed commit API,
+  build without workspace source overrides, verify TestPyPI digests before production approval,
+  and publish draft GitHub releases only after every integrity asset is attached
+- **Hardened build dependencies**: Upgrade the exactly pinned build backend to setuptools 83.0.0
+  and wheel 0.47.0, and lock Twine plus the PEP 740 signer through uv
 - **Credential-safe workflow checkouts**: Disable persisted Git credentials for every read-only
   checkout, scope Warden provider secrets to its trusted review step, and request maintainer review
   for workflow, toolchain, lockfile, and agent-policy changes through CODEOWNERS

@@ -8,8 +8,8 @@ on:
       version:
         description: "CalVer version (YY.MM.DD)"
         required: true
-      prerelease:
-        description: "Publish to TestPyPI instead of PyPI"
+      test_only:
+        description: "Stop after verified TestPyPI publication"
         required: false
         type: boolean
         default: false
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
         with:
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up uv and Python
         uses: ./.github/actions/setup-uv-python
@@ -108,7 +108,6 @@ jobs:
             echo "main changed after this release workflow started; dispatch a new release"
             exit 1
           fi
-          git switch -C "$RELEASE_BRANCH"
 
       - name: Update release metadata
         env:
@@ -150,16 +149,73 @@ jobs:
             echo "$UNEXPECTED"
             exit 1
           fi
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add pyproject.toml uv.lock CHANGELOG.md
-          if git diff --cached --quiet; then
+          if git diff --quiet; then
             echo "Release metadata did not change"
             exit 1
           fi
-          git diff --cached
-          git commit -m "chore: bump version to $RELEASE_VERSION"
-          git push --force-with-lease origin HEAD:"$RELEASE_BRANCH"
+          git diff --check
+          git diff
+
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$RELEASE_BRANCH" \
+            >/dev/null 2>&1; then
+            gh api \
+              --method PATCH \
+              "repos/$GITHUB_REPOSITORY/git/refs/heads/$RELEASE_BRANCH" \
+              -f sha="$GITHUB_SHA" \
+              -F force=true \
+              >/dev/null
+          else
+            gh api \
+              --method POST \
+              "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/heads/$RELEASE_BRANCH" \
+              -f sha="$GITHUB_SHA" \
+              >/dev/null
+          fi
+
+          jq \
+            --null-input \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg branch "$RELEASE_BRANCH" \
+            --arg expected_head_oid "$GITHUB_SHA" \
+            --arg message "chore: bump version to $RELEASE_VERSION" \
+            --rawfile changelog CHANGELOG.md \
+            --rawfile pyproject pyproject.toml \
+            --rawfile lockfile uv.lock \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
+              variables: {
+                input: {
+                  branch: {
+                    repositoryNameWithOwner: $repository,
+                    branchName: $branch
+                  },
+                  message: {headline: $message},
+                  expectedHeadOid: $expected_head_oid,
+                  fileChanges: {
+                    additions: [
+                      {path: "CHANGELOG.md", contents: ($changelog | @base64)},
+                      {path: "pyproject.toml", contents: ($pyproject | @base64)},
+                      {path: "uv.lock", contents: ($lockfile | @base64)}
+                    ]
+                  }
+                }
+              }
+            }' > "$RUNNER_TEMP/release-commit.json"
+          RELEASE_SHA="$(gh api graphql \
+            --input "$RUNNER_TEMP/release-commit.json" \
+            --jq '.data.createCommitOnBranch.commit.oid')"
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "GitHub did not return a valid release commit"
+            exit 1
+          fi
+          VERIFIED="$(gh api \
+            "repos/$GITHUB_REPOSITORY/commits/$RELEASE_SHA" \
+            --jq '.commit.verification.verified')"
+          if [ "$VERIFIED" != "true" ]; then
+            echo "GitHub did not verify the generated release commit"
+            exit 1
+          fi
 
           PR_URL="$(gh pr list --base main --head "$RELEASE_BRANCH" --state open --json url --jq '.[0].url')"
           if [ -z "$PR_URL" ]; then
@@ -172,7 +228,7 @@ jobs:
           PR_NUMBER="$(gh pr view "$PR_URL" --json number --jq '.number')"
           echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
           echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
 
   validate-release-pr:
@@ -302,12 +358,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MERGE_SHA: ${{ needs.merge-release-pr.outputs.sha }}
-          PRERELEASE: ${{ inputs.prerelease }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+          TEST_ONLY: ${{ inputs.test_only }}
         run: |
           gh workflow run publish-release.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             --field expected_sha="$MERGE_SHA" \
-            --field prerelease="$PRERELEASE" \
+            --field test_only="$TEST_ONLY" \
             --field version="$RELEASE_VERSION"

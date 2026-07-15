@@ -66,6 +66,17 @@ def test_release_metadata_reaches_main_through_a_pull_request() -> None:
     assert "gh pr create" in release_workflow
 
 
+def test_release_metadata_commit_is_verified_without_a_stored_signing_key() -> None:
+    """GitHub must author the generated commit so signed-commit protection remains enforceable."""
+    release_workflow = _workflow("prepare-release.yml")
+
+    assert "createCommitOnBranch" in release_workflow
+    assert "expectedHeadOid" in release_workflow
+    assert "git commit" not in release_workflow
+    assert "git push" not in release_workflow
+    assert "git config --local user" not in release_workflow
+
+
 def test_distribution_publication_runs_only_from_main() -> None:
     """Preparing a release PR must not expose package-publishing credentials."""
     preparation_workflow = _workflow("prepare-release.yml")
@@ -129,8 +140,103 @@ def test_release_artifacts_receive_build_provenance_before_publication() -> None
     assert "sha256sum --check SHA256SUMS" in attestation_job
     assert "actions/checkout@" not in attestation_job
     assert "uses: ./.github/actions/" not in attestation_job
-    assert publication.count("needs: [validate-release, build-release, attest-release]") == 2
+    assert "needs: [validate-release, build-release, attest-release]" in publication
+    assert (
+        "needs: [validate-release, build-release, attest-release, verify-testpypi]" in publication
+    )
     assert "needs.attest-release.result == 'success'" in publication
+
+
+def test_release_artifacts_include_a_signed_spdx_sbom() -> None:
+    """Consumers must receive an SBOM bound to the exact wheel and source distribution."""
+    publication = _workflow("publish-release.yml")
+    build_job = publication[publication.index("  build-release:") :]
+    build_job = build_job[: build_job.index("  attest-release:")]
+    attestation_job = publication[publication.index("  attest-release:") :]
+    attestation_job = attestation_job[: attestation_job.index("  publish-testpypi:")]
+
+    assert "anchore/sbom-action@" in build_job
+    assert "format: spdx-json" in build_job
+    assert "output-file: dist/django-micboard-" in build_job
+    assert "upload-artifact: false" in build_job
+    assert "./*.spdx.json" in build_job
+    assert "sbom-path: dist/django-micboard-" in attestation_job
+    assert attestation_job.count("actions/attest@") == 2
+
+
+def test_registry_publishers_create_environment_bound_pep740_attestations() -> None:
+    """Each registry upload must carry publish attestations signed by its own OIDC identity."""
+    publication = _workflow("publish-release.yml")
+    build_job = publication[publication.index("  build-release:") :]
+    build_job = build_job[: build_job.index("  attest-release:")]
+
+    assert "uv export --locked --only-group release" in build_job
+    assert "release-attestation-tools" in build_job
+    for start, end in (
+        ("  publish-testpypi:", "  publish-pypi:"),
+        ("  publish-pypi:", "  create-github-release:"),
+    ):
+        publish_job = publication[publication.index(start) : publication.index(end)]
+        signing = publish_job.index("python -m pypi_attestations sign")
+        upload = publish_job.index("uv publish --trusted-publishing always --no-config")
+
+        assert "release-attestation-tools" in publish_job
+        assert "--with-requirements release-tools.txt" in publish_job
+        assert "*.publish.attestation" in publish_job
+        assert signing < upload
+
+
+def test_production_promotes_the_testpypi_verified_build() -> None:
+    """Production approval must follow an integrity check of the same files on TestPyPI."""
+    publication = _workflow("publish-release.yml")
+    testpypi_job = publication[publication.index("  publish-testpypi:") :]
+    testpypi_job = testpypi_job[: testpypi_job.index("  verify-testpypi:")]
+    verification_job = publication[publication.index("  verify-testpypi:") :]
+    verification_job = verification_job[: verification_job.index("  publish-pypi:")]
+    pypi_job = publication[publication.index("  publish-pypi:") :]
+    pypi_job = pypi_job[: pypi_job.index("  create-github-release:")]
+
+    assert "if: inputs.test_only" not in testpypi_job
+    assert "needs: [validate-release, build-release, attest-release]" in testpypi_job
+    assert "needs: [validate-release, build-release, publish-testpypi]" in verification_job
+    assert "test.pypi.org/pypi/django-micboard/" in verification_job
+    assert "SHA256SUMS" in verification_job
+    assert "needs: [validate-release, build-release, attest-release, verify-testpypi]" in pypi_job
+    assert "if: ${{ ! inputs.test_only }}" in pypi_job
+
+
+def test_github_release_publishes_the_verified_supply_chain_assets_atomically() -> None:
+    """GitHub releases must expose sealed artifacts and stay draft until every asset is attached."""
+    publication = _workflow("publish-release.yml")
+    github_release_job = publication[publication.index("  create-github-release:") :]
+
+    assert "softprops/action-gh-release@" not in github_release_job
+    assert "actions/download-artifact@" in github_release_job
+    assert "gh release create" in github_release_job
+    assert "--draft" in github_release_job
+    assert "dist/*.whl" in github_release_job
+    assert "dist/*.tar.gz" in github_release_job
+    assert "dist/*.spdx.json" in github_release_job
+    assert "dist/*.publish.attestation" in github_release_job
+    assert "dist/SHA256SUMS" in github_release_job
+    assert 'gh release edit "$RELEASE_TAG" --draft=false' in github_release_job
+    assert github_release_job.index("gh release create") < github_release_job.index(
+        'gh release edit "$RELEASE_TAG" --draft=false'
+    )
+
+
+def test_testpypi_only_run_does_not_consume_the_production_version_tag() -> None:
+    """A TestPyPI rehearsal must leave the exact version available for production promotion."""
+    preparation = _workflow("prepare-release.yml")
+    publication = _workflow("publish-release.yml")
+    github_release_job = publication[publication.index("  create-github-release:") :]
+
+    assert "test_only:" in preparation
+    assert '--field test_only="$TEST_ONLY"' in preparation
+    assert "test_only:" in publication
+    assert "! inputs.test_only" in github_release_job
+    assert "testpypi-distribution-" not in github_release_job
+    assert "--prerelease" not in github_release_job
 
 
 def test_ssdf_workflow_evidence_is_documented() -> None:

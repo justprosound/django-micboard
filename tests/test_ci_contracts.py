@@ -89,9 +89,12 @@ def test_release_artifacts_are_built_once_and_digest_sealed() -> None:
     assert "id-token: write" not in build_job
     assert "ref: ${{ needs.validate-release.outputs.sha }}" in build_job
     assert "persist-credentials: false" in build_job
-    assert "uv build --sdist --clear" in build_job
-    assert "uv build --wheel dist/*.tar.gz" in build_job
-    assert "sha256sum ./*.whl ./*.tar.gz > SHA256SUMS" in build_job
+    assert "uv build --no-sources --sdist --clear" in build_job
+    assert "uv build --no-sources --wheel dist/*.tar.gz" in build_job
+    assert "uvx" not in build_job
+    assert "--with-requirements release-tools.txt" in build_job
+    assert "twine check dist/*" in build_job
+    assert "sha256sum ./*.whl ./*.tar.gz ./*.spdx.json > SHA256SUMS" in build_job
     assert "sha256sum --check SHA256SUMS" in build_job
     assert "actions/upload-artifact@" in build_job
 
@@ -108,11 +111,20 @@ def test_release_publishers_only_verify_and_publish_sealed_artifacts() -> None:
         assert "contents: read" in publish_job
         assert "contents: write" not in publish_job
         assert "id-token: write" in publish_job
-        assert actions == ["astral-sh/setup-uv", "actions/download-artifact"]
+        assert actions == [
+            "astral-sh/setup-uv",
+            "actions/download-artifact",
+            "actions/download-artifact",
+            "actions/upload-artifact",
+        ]
         assert "actions/checkout@" not in publish_job
         assert "sha256sum --check SHA256SUMS" in publish_job
+        assert "release-attestation-tools" in publish_job
+        assert "--with-requirements release-tools.txt" in publish_job
+        assert "python -m pypi_attestations sign" in publish_job
         assert "uv publish --trusted-publishing always --no-config" in publish_job
-        for mutable_command in ("uv sync", "uv run", "uvx", "uv build", "python -m"):
+        assert publish_job.count("uv run") == 1
+        for mutable_command in ("uv sync", "uvx", "uv build"):
             assert mutable_command not in publish_job
 
 
@@ -132,7 +144,10 @@ def test_release_writers_have_narrow_responsibilities() -> None:
     assert metadata_job.index("actions/checkout@") < metadata_job.index(
         "uses: ./.github/actions/setup-uv-python"
     )
-    assert "persist-credentials: true" in metadata_job
+    assert "persist-credentials: false" in metadata_job
+    assert "createCommitOnBranch" in metadata_job
+    assert "git commit" not in metadata_job
+    assert "git push" not in metadata_job
     assert "uv lock" in metadata_job
     assert "uv build" not in metadata_job
     assert "uv publish" not in metadata_job
@@ -146,7 +161,10 @@ def test_release_writers_have_narrow_responsibilities() -> None:
 
     assert "contents: write" in github_release_job
     assert "id-token: write" not in github_release_job
-    assert "softprops/action-gh-release@" in github_release_job
+    assert "softprops/action-gh-release@" not in github_release_job
+    assert "actions/download-artifact@" in github_release_job
+    assert "gh release create" in github_release_job
+    assert "gh release edit" in github_release_job
     assert "actions/checkout@" not in github_release_job
     assert "setup-uv@" not in github_release_job
     assert "uv " not in github_release_job
@@ -182,8 +200,8 @@ def test_build_backend_dependencies_are_exactly_pinned() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 
     assert pyproject["build-system"]["requires"] == [
-        "setuptools==80.9.0",
-        "wheel==0.45.1",
+        "setuptools==83.0.0",
+        "wheel==0.47.0",
     ]
 
 
@@ -211,6 +229,8 @@ def test_local_wheel_recipe_runs_the_ci_smoke_contract_in_development_mode() -> 
     release_workflow = (WORKFLOWS / "publish-release.yml").read_text()
     smoke_script = (ROOT / "scripts" / "smoke_test_installed_wheel.py").read_text()
 
+    assert "uv build --no-sources --sdist --clear" in justfile
+    assert "uv build --no-sources --wheel" in justfile
     assert "scripts/smoke_test_installed_wheel.py" in justfile
     assert "scripts/smoke_test_installed_wheel.py" in release_workflow
     assert "scripts/validate_wheel.py" in release_workflow
