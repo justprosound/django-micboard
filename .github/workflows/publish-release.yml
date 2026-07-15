@@ -62,10 +62,6 @@ jobs:
           fi
           grep -Fqx "version = \"$RELEASE_VERSION\"" pyproject.toml
           grep -q "^## \[$RELEASE_VERSION\]" CHANGELOG.md
-          if git show-ref --verify --quiet "refs/tags/v$RELEASE_VERSION"; then
-            echo "Release v$RELEASE_VERSION already exists"
-            exit 1
-          fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "source-date-epoch=$(git show -s --format=%ct HEAD)" >> "$GITHUB_OUTPUT"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
@@ -306,6 +302,30 @@ jobs:
       url: https://pypi.org/p/django-micboard/${{ needs.validate-release.outputs.version }}
 
     steps:
+      - name: Verify maintainer-signed release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.validate-release.outputs.sha }}
+          RELEASE_TAG: v${{ needs.validate-release.outputs.version }}
+        run: |
+          TAG_OBJECT_SHA="$(gh api \
+            "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+            --jq 'select(.object.type == "tag") | .object.sha')"
+          if [[ ! "$TAG_OBJECT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Release tag $RELEASE_TAG must be an annotated tag"
+            exit 1
+          fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/tags/$TAG_OBJECT_SHA" \
+            | jq --exit-status \
+              --arg expected_sha "$RELEASE_SHA" \
+              '.object.type == "commit" and
+               .object.sha == $expected_sha and
+               .verification.verified == true' \
+            >/dev/null; then
+            echo "Release tag $RELEASE_TAG must be verified and target $RELEASE_SHA"
+            exit 1
+          fi
+
       - name: Install uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
         with:
@@ -393,19 +413,32 @@ jobs:
           RELEASE_FLAGS=(
             --draft
             --notes "$RELEASE_NOTES"
-            --target "$RELEASE_SHA"
             --title "$RELEASE_TITLE"
+            --verify-tag
           )
+          TAG_OBJECT_SHA="$(gh api \
+            "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
+            --jq 'select(.object.type == "tag") | .object.sha')"
+          if [[ ! "$TAG_OBJECT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Release tag $RELEASE_TAG must be an annotated tag"
+            exit 1
+          fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/tags/$TAG_OBJECT_SHA" \
+            | jq --exit-status \
+              --arg expected_sha "$RELEASE_SHA" \
+              '.object.type == "commit" and
+               .object.sha == $expected_sha and
+               .verification.verified == true' \
+            >/dev/null; then
+            echo "Release tag $RELEASE_TAG must be verified and target $RELEASE_SHA"
+            exit 1
+          fi
           RELEASE_STATE="$RUNNER_TEMP/github-release.json"
           if gh release view "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --json isDraft,targetCommitish > "$RELEASE_STATE" 2>/dev/null; then
+            --json isDraft > "$RELEASE_STATE" 2>/dev/null; then
             if [ "$(jq --raw-output '.isDraft' "$RELEASE_STATE")" != "true" ]; then
               echo "Release $RELEASE_TAG is already published"
-              exit 1
-            fi
-            if [ "$(jq --raw-output '.targetCommitish' "$RELEASE_STATE")" != "$RELEASE_SHA" ]; then
-              echo "Existing draft release does not target $RELEASE_SHA"
               exit 1
             fi
           else

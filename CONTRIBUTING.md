@@ -325,12 +325,16 @@ Maintainers follow this process:
    explicit backfill version
 3. Let the workflow open a release pull request and dispatch CI and documentation checks
 4. Let protected-branch auto-merge merge the pull request only after every required check passes
-5. Let the workflow publish the exact merge commit to TestPyPI or PyPI through trusted publishing
-6. Confirm that the publication workflow creates the matching GitHub release and tag
+5. Copy the exact commands from the preparation run summary to create and push the signed annotated
+   tag for the merge commit, then confirm GitHub marks that tag verified
+6. Approve the production `pypi-release` environment only after the signed tag exists; publication
+   rejects lightweight, unverified, or wrong-commit tags before PyPI
+7. Confirm that the publication workflow creates the matching GitHub release from the existing tag
 
 Release preparation never pushes directly to `main` and never receives an OIDC publishing token.
 The separate publication workflow accepts only a commit already merged into protected `main` and
-uses the appropriate protected GitHub environment for package publication.
+uses the appropriate protected GitHub environment for package publication. Safe retries may reuse
+the exact verified tag, but preparation still refuses a CalVer already claimed by any tag.
 
 ## Questions?
 

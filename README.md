@@ -305,15 +305,19 @@ uv run --no-sync pre-commit run --all-files
   UTC daily release automatically (`YY.MM.DD`, then `.1`, `.2`, and so on), or enter an explicit
   version for a backfill.
 - Release metadata reaches `main` through a protected pull request and required checks.
+- After that pull request merges, use the exact commands in the preparation run summary to create
+  and push a signed annotated tag for the merge commit. Wait for GitHub to mark the tag verified.
 - The publication workflow builds the protected merge commit once, signs Sigstore provenance and
   SPDX SBOM attestations, verifies the sealed files through TestPyPI, and publishes with
   environment-bound PEP 740 attestations.
-- Stable publication pauses for production-environment approval before PyPI. GitHub receives the
-  exact registry-signed wheel, source archive, SPDX SBOM, publish attestations, and checksums in a
-  draft-first release suitable for immutable-release enforcement.
+- Stable publication pauses for production-environment approval before PyPI. Approve only after
+  the signed tag exists; publication verifies that GitHub recognizes its signature and that its
+  target is the exact release commit. GitHub receives the exact registry-signed wheel, source
+  archive, SPDX SBOM, publish attestations, and checksums in a draft-first release suitable for
+  immutable-release enforcement.
 - If only GitHub release assembly fails after PyPI succeeds, use the audited recovery workflow with
-  the failed run ID; it reverifies and reuses the original retained artifact without rebuilding or
-  touching either package registry.
+  the failed run ID and the same verified signed tag; it reverifies and reuses the original retained
+  artifact without rebuilding or touching either package registry.
 
 ## Development Workflow
 

@@ -55,13 +55,16 @@ The release lifecycle is **prepare -> validate -> merge -> attest -> publish**:
    PEP 740 publish attestations, then uploads the wheel and source archive with those attestations.
 8. A read-only job compares TestPyPI's published digests with `SHA256SUMS`; production cannot reach
    approval until this promotion check succeeds.
-9. The same workflow run pauses at the protected `pypi-release` environment until the Code Owners
-   team explicitly approves the deployment. That job signs fresh PyPI-environment PEP 740
-   attestations for the same sealed files and publishes through OIDC Trusted Publishing. Keeping
-   both registries in one run prevents a later rebuild from reusing an already-published version.
-10. The GitHub release job downloads the registry-signed files, verifies their checksums, creates a
-    draft release with the wheel, source archive, SPDX SBOM, PEP 740 attestations, and checksum
-    manifest, then publishes only after every asset is attached.
+9. After the release pull request merges, the maintainer uses the exact commands in the preparation
+   run summary to create and push a signed annotated tag for that merge commit.
+10. The same workflow run pauses at the protected `pypi-release` environment until the Code Owners
+    team explicitly approves the deployment. The job requires GitHub to verify the tag signature
+    and exact commit target, signs fresh PyPI-environment PEP 740 attestations for the same sealed
+    files, and publishes through OIDC Trusted Publishing. Keeping both registries in one run
+    prevents a later rebuild from reusing an already-published version.
+11. The GitHub release job rechecks the signed tag, downloads the registry-signed files, verifies
+    their checksums, creates a draft release with the wheel, source archive, SPDX SBOM, PEP 740
+    attestations, and checksum manifest, then publishes only after every asset is attached.
 
 Preparation never receives an OIDC token. Publishing jobs cannot modify repository contents, and
 the GitHub release job cannot publish Python distributions. Explicit workflow-run observation
@@ -77,7 +80,8 @@ commit, and its CalVer version. Recovery rejects any other workflow shape, downl
 `pypi-distribution` artifact instead of rebuilding it, and verifies its checksum manifest, package
 version, source contents, and GitHub Sigstore attestations in a read-only job. A one-day intermediate
 artifact then crosses into a separate `contents: write` job, which pauses for `pypi-release`
-environment approval before creating a draft, attaching every original asset, and publishing it.
+environment approval, requires the same GitHub-verified signed tag to target the released commit,
+then creates a draft, attaches every original asset, and publishes it.
 
 Do not start a new publication run to recover an existing registry version. Registry indexes must
 never be used as permission to replace or reconstruct the original release attestations.
@@ -144,7 +148,7 @@ so it informs future work but is not represented as a final requirement.
 | `PO.3` Implement Supporting Toolchains | One pinned uv bootstrap, immutable action SHAs, Renovate-managed updates, and `uv.lock` |
 | `PO.4` Define and Use Criteria for Software Security Checks | Static workflow contracts, pre-commit, mypy, Bandit, CodeQL, package checks, and a 95% coverage floor |
 | `PO.5` Implement and Maintain Secure Environments | GitHub-hosted runners, explicit timeouts and concurrency, least-privilege job tokens, protected publishing environments, and explicit production deployment approval |
-| `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Mandatory pull requests, strict app-bound checks, signed linear history, CODEOWNERS routing, non-persisted read tokens, and exact-SHA release validation |
+| `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Mandatory pull requests, strict app-bound checks, signed linear history, CODEOWNERS routing, non-persisted read tokens, and a GitHub-verified maintainer-signed release tag bound to the exact release SHA |
 | `PS.2` Provide a Mechanism for Verifying Software Release Integrity | SHA-256 manifests, signed Sigstore build-provenance and SPDX SBOM attestations, and environment-bound PEP 740 publish attestations |
 | `PS.3` Archive and Protect Each Software Release | Draft-first immutable GitHub releases containing the exact wheel, source archive, SPDX SBOM, PEP 740 attestations, and checksum manifest |
 | `PW.4` Reuse Existing, Well-Secured Software When Feasible | Locked Python dependencies, full-lock auditing, and dependency review for new vulnerabilities and OpenSSF signals |

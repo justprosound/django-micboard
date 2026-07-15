@@ -9,6 +9,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- **Signed release identity**: Require a GitHub-verified maintainer-signed annotated tag for the
+  exact release commit before PyPI or GitHub publication, consume that existing tag without
+  workflow-scope escalation, and keep safe pre-publication retries possible.
 - **Release recovery**: Add a least-privilege, approval-gated recovery workflow that verifies and
   reuses the original PyPI artifact after GitHub release assembly fails, and make distribution
   archives reproducible across safe retries with `SOURCE_DATE_EPOCH`.
