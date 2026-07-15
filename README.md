@@ -311,6 +311,9 @@ uv run --no-sync pre-commit run --all-files
 - Stable publication pauses for production-environment approval before PyPI. GitHub receives the
   exact registry-signed wheel, source archive, SPDX SBOM, publish attestations, and checksums in a
   draft-first release suitable for immutable-release enforcement.
+- If only GitHub release assembly fails after PyPI succeeds, use the audited recovery workflow with
+  the failed run ID; it reverifies and reuses the original retained artifact without rebuilding or
+  touching either package registry.
 
 ## Development Workflow
 
