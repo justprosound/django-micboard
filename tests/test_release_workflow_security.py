@@ -18,6 +18,22 @@ def test_release_workflows_have_single_responsibility_names() -> None:
     assert (WORKFLOW_ROOT / "prepare-release.yml").is_file()
 
 
+def test_release_version_defaults_to_the_current_utc_calver() -> None:
+    """Maintainers may omit the version while retaining a validated backfill override."""
+    preparation = _workflow("prepare-release.yml")
+
+    assert (
+        'description: "CalVer override (YY.MM.DD); blank uses the current UTC date"' in preparation
+    )
+    assert "required: false" in preparation
+    assert "REQUESTED_VERSION: ${{ inputs.version }}" in preparation
+    assert 'RELEASE_VERSION="${REQUESTED_VERSION:-$(date -u +%y.%m.%d)}"' in preparation
+    assert 'echo "### Preparing release v$RELEASE_VERSION" >> "$GITHUB_STEP_SUMMARY"' in preparation
+    assert (
+        "run-name: \"Prepare release · ${{ inputs.version || 'automatic CalVer' }}\"" in preparation
+    )
+
+
 def test_workflow_topology_is_documented() -> None:
     """Maintainers must be able to discover every workflow and the release sequence."""
     guide = (WORKFLOW_ROOT / "README.md").read_text(encoding="utf-8")

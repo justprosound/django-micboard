@@ -35,8 +35,9 @@ repository.
 
 The release lifecycle is **prepare -> validate -> merge -> attest -> publish**:
 
-1. `prepare-release.yml` validates CalVer input, asks GitHub to create a verified bot-signed
-   metadata commit, and opens a release pull request.
+1. `prepare-release.yml` derives the current UTC CalVer when its optional override is blank,
+   validates the resolved version, asks GitHub to create a verified bot-signed metadata commit,
+   and opens a release pull request.
 2. A token limited to Actions dispatches `ci.yml`, `dependency-review.yml`, and `docs.yml` for the
    exact release head, finds those workflow runs by head SHA and dispatch time, and waits for all
    three to succeed.
