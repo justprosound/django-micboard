@@ -24,13 +24,14 @@ def test_workflow_topology_is_documented() -> None:
 
     for workflow_name in (
         "ci.yml",
+        "dependency-review.yml",
         "docs.yml",
         "prepare-release.yml",
         "publish-release.yml",
         "warden.yml",
     ):
         assert f"`{workflow_name}`" in guide
-    assert "prepare -> validate -> merge -> publish" in guide
+    assert "prepare -> validate -> merge -> attest -> publish" in guide
 
 
 def test_workflow_runs_have_contextual_ui_names() -> None:
@@ -63,17 +64,70 @@ def test_distribution_publication_runs_only_from_main() -> None:
 
 
 def test_release_pr_passes_required_checks_before_merge_and_publication() -> None:
-    """Publishing must follow required checks and the protected pull-request merge."""
+    """Publishing must follow observed successful checks and the pull-request merge."""
     release_workflow = _workflow("prepare-release.yml")
 
     ci_dispatch = release_workflow.index("gh workflow run ci.yml")
+    dependency_dispatch = release_workflow.index("gh workflow run dependency-review.yml")
     docs_dispatch = release_workflow.index("gh workflow run docs.yml")
+    check_wait = release_workflow.index('gh run watch "$CI_RUN_ID"')
+    dependency_wait = release_workflow.index('gh run watch "$DEPENDENCY_RUN_ID"')
     auto_merge = release_workflow.index("gh pr merge")
     publication_dispatch = release_workflow.index("gh workflow run publish-release.yml")
 
-    assert ci_dispatch < auto_merge
-    assert docs_dispatch < auto_merge
+    assert ci_dispatch < check_wait < auto_merge
+    assert dependency_dispatch < dependency_wait < auto_merge
+    assert docs_dispatch < check_wait
     assert auto_merge < publication_dispatch
+
+
+def test_release_authority_is_separated_by_job() -> None:
+    """Workflow dispatch, repository writes, and publication dispatch must not share a token."""
+    release_workflow = _workflow("prepare-release.yml")
+    validate_job = release_workflow[release_workflow.index("  validate-release-pr:") :]
+    validate_job = validate_job[: validate_job.index("  merge-release-pr:")]
+    merge_job = release_workflow[release_workflow.index("  merge-release-pr:") :]
+    merge_job = merge_job[: merge_job.index("  dispatch-publication:")]
+    publish_job = release_workflow[release_workflow.index("  dispatch-publication:") :]
+
+    assert "actions: write" in validate_job
+    assert "contents: write" not in validate_job
+    assert "pull-requests: write" not in validate_job
+    assert "needs: [prepare-release, open-release-pr, validate-release-pr]" in merge_job
+    assert "contents: write" in merge_job
+    assert "pull-requests: write" in merge_job
+    assert "actions: write" not in merge_job
+    assert "needs: [prepare-release, merge-release-pr]" in publish_job
+    assert "actions: write" in publish_job
+    assert "contents: write" not in publish_job
+    assert "pull-requests: write" not in publish_job
+
+
+def test_release_artifacts_receive_build_provenance_before_publication() -> None:
+    """Each sealed distribution must have signed provenance before either registry receives it."""
+    publication = _workflow("publish-release.yml")
+    attestation_job = publication[publication.index("  attest-release:") :]
+    attestation_job = attestation_job[: attestation_job.index("  publish-testpypi:")]
+
+    assert "attestations: write" in attestation_job
+    assert "id-token: write" in attestation_job
+    assert "actions/attest@" in attestation_job
+    assert "actions/download-artifact@" in attestation_job
+    assert "sha256sum --check SHA256SUMS" in attestation_job
+    assert "actions/checkout@" not in attestation_job
+    assert "uses: ./.github/actions/" not in attestation_job
+    assert publication.count("needs: [validate-release, build-release, attest-release]") == 2
+    assert "needs.attest-release.result == 'success'" in publication
+
+
+def test_ssdf_workflow_evidence_is_documented() -> None:
+    """Maintainers must be able to trace workflow controls to the final SSDF baseline."""
+    guide = _workflow("README.md")
+
+    assert "NIST SP 800-218 SSDF 1.1" in guide
+    assert "SSDF 1.2" in guide
+    for practice in ("PO.3", "PO.4", "PO.5", "PS.1", "PS.2", "PW.7", "PW.8", "RV.1"):
+        assert f"`{practice}`" in guide
 
 
 def test_publication_builds_the_exact_release_merge() -> None:

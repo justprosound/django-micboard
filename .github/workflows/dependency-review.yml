@@ -1,0 +1,42 @@
+---
+name: Dependency Review
+run-name: "Dependencies · ${{ github.head_ref || inputs.head_ref || github.ref_name }}"
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Trusted base ref for release dependency comparison
+        required: true
+        default: main
+      head_ref:
+        description: Generated release ref to review
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Reject vulnerable dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
+        with:
+          base-ref: ${{ inputs.base_ref || github.event.pull_request.base.sha }}
+          fail-on-severity: moderate
+          fail-on-scopes: runtime, development, unknown
+          head-ref: ${{ inputs.head_ref || github.event.pull_request.head.sha }}
+          show-openssf-scorecard: true
+          show-patched-versions: true

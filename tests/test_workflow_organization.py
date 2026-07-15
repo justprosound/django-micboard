@@ -89,9 +89,33 @@ def test_externally_triggered_privileged_jobs_avoid_local_actions() -> None:
     privileged_jobs = (
         _workflow_job("ci.yml", "codeql"),
         _workflow_job("warden.yml", "review"),
+        _workflow_job("publish-release.yml", "attest-release"),
         _workflow_job("publish-release.yml", "publish-testpypi"),
         _workflow_job("publish-release.yml", "publish-pypi"),
     )
 
     for job in privileged_jobs:
         assert "uses: ./.github/actions/" not in job
+
+
+def test_every_checkout_declares_credential_persistence() -> None:
+    """Read-only jobs must not leave the workflow token in local Git configuration."""
+    workflows = [path.read_text(encoding="utf-8") for path in WORKFLOWS.glob("*.yml")]
+    checkout_count = sum(workflow.count("uses: actions/checkout@") for workflow in workflows)
+    persistence_count = sum(workflow.count("persist-credentials:") for workflow in workflows)
+    explicit_writers = sum(workflow.count("persist-credentials: true") for workflow in workflows)
+
+    assert checkout_count == persistence_count
+    assert explicit_writers == 1
+
+
+def test_warden_limits_secrets_to_trusted_review_execution() -> None:
+    """Fork code must not receive Warden credentials or a write-capable review token."""
+    review_job = _workflow_job("warden.yml", "review")
+    action_step = review_job[review_job.index("uses: getsentry/warden@") :]
+    job_before_steps = review_job[: review_job.index("steps:")]
+
+    assert "if: github.event.pull_request.head.repo.full_name == github.repository" in review_job
+    assert "${{ secrets." not in job_before_steps
+    assert "WARDEN_OPENAI_API_KEY: ${{ secrets.WARDEN_OPENAI_API_KEY }}" in action_step
+    assert "WARDEN_ANTHROPIC_API_KEY: ${{ secrets.WARDEN_ANTHROPIC_API_KEY }}" in action_step

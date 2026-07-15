@@ -25,6 +25,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Reusable-app host coverage**: Core-only and custom-user host settings, migration integrity,
   package API, installed-wheel, query-budget, and WebSocket routing regression tests
 - **Release verification**: Wheel-content validation and installed-wheel smoke testing
+- **Dependency-change security gate**: Reject pull requests that introduce moderate-or-higher
+  vulnerabilities across runtime, development, or unknown dependency scopes, and audit the full
+  lockfile during push, pull-request, manual, and weekly CI runs
+- **Signed release provenance**: Attest sealed wheel and source distributions with isolated
+  Sigstore-backed GitHub build provenance before either package registry can publish them
+- **NIST SSDF workflow evidence**: Map checked-in automation controls to the final SSDF 1.1
+  practices while identifying SSDF 1.2 as a draft
 - **Complete model factory catalog**: Domain-grouped Factory Boy adapters for every installed
   project model, with registry completeness, persistence, validation, optional-app, and
   swappable-user coverage
@@ -57,7 +64,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 - **Organized GitHub Actions bootstrap**: Reuse one pinned uv/Python setup action across
   repository-controlled jobs, retain direct immutable setup in privileged jobs, enforce explicit
-  job timeouts, and document the workflow trust boundaries
+  job timeouts, expose one stable aggregate check for branch protection, assign valid code owners,
+  and document the workflow trust boundaries
+- **Observed release checks**: Dispatch CI, dependency-review, and documentation checks for the
+  exact release head, wait for those workflow runs to succeed before merge, and separate Actions
+  dispatch, repository write, and publication dispatch permissions across jobs
+- **Credential-safe workflow checkouts**: Disable persisted Git credentials for every read-only
+  checkout, scope Warden provider secrets to its trusted review step, and request maintainer review
+  for workflow, toolchain, lockfile, and agent-policy changes through CODEOWNERS
 - **Tenant-safe chassis admin writes**: Validate final location ownership in request-bound forms,
   reject tenant-to-platform inventory escapes, and route admin creates and updates through the
   canonical organization-quota persistence seam
@@ -340,6 +354,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Security
 
+- Update `cryptography` to 48.0.1 and `msgpack` to 1.2.1 to resolve
+  `GHSA-537c-gmf6-5ccf` and `GHSA-6v7p-g79w-8964` in the locked dependency graph
 - Enforce the same group-to-unit tenant invariant for performer-assignment updates, deletions, and
   deactivations, locking the authorization graph inside each mutation transaction
 - Restrict optional sortable-admin writes to the request user's exact manageable queryset on the
