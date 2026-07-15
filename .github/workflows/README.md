@@ -10,7 +10,7 @@ and `tests/test_release_workflow_security.py`.
 | `dependency-review.yml` | Reject newly introduced vulnerable runtime and development dependencies | Pull request |
 | `docs.yml` | Build and validate MkDocs output | Push, pull request, or manual dispatch |
 | `prepare-release.yml` | Create the metadata pull request, observe exact required workflow runs, merge, and dispatch publication | Manual dispatch from `main` |
-| `publish-release.yml` | Build and attest the exact merged commit, publish through an environment-bound OIDC token, and create the GitHub release | Dispatch from the preparation workflow on `main` |
+| `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from the preparation workflow on `main` |
 | `warden.yml` | Review same-repository pull-request changes without exposing provider secrets to fork heads | Pull-request activity |
 
 ## Shared setup action
@@ -25,34 +25,67 @@ actions. CodeQL retains its direct pinned setup while holding `security-events: 
 runs only its pinned review action; and the isolated attestation and publishing jobs hold
 `id-token: write`, use immutable remote actions, and never check out the repository.
 
-All read-only checkouts set `persist-credentials: false`. The sole exception is the metadata
-writer that must push a generated release branch. Warden provider secrets exist only on its
+All checkouts set `persist-credentials: false`. The metadata writer creates one atomic commit with
+GitHub's API and no custom author, committer, or signature fields; GitHub signs that bot commit and
+the workflow verifies it before opening the pull request. Warden provider secrets exist only on its
 review step, and that job runs only when the pull-request head belongs to this repository.
 
 ## Release sequence
 
 The release lifecycle is **prepare -> validate -> merge -> attest -> publish**:
 
-1. `prepare-release.yml` validates CalVer input and opens a release pull request.
+1. `prepare-release.yml` validates CalVer input, asks GitHub to create a verified bot-signed
+   metadata commit, and opens a release pull request.
 2. A token limited to Actions dispatches `ci.yml`, `dependency-review.yml`, and `docs.yml` for the
    exact release head, finds those workflow runs by head SHA and dispatch time, and waits for all
    three to succeed.
 3. A separate repository-write token requests the protected pull-request merge.
 4. A third token limited to Actions passes the merge commit SHA to `publish-release.yml`.
-5. Publication verifies that SHA belongs to `main`, builds it once, and seals the distributions
-   with SHA-256 checksums.
-6. An isolated OIDC job creates signed Sigstore build-provenance attestations for the sealed files.
-7. Prereleases publish automatically through the protected `testpypi` environment after
-   attestation succeeds.
-8. Production releases pause at the protected `pypi-release` environment until the Code Owners
-   team explicitly approves the deployment, then publish through the environment-bound OIDC
-   token.
+5. Publication verifies that SHA belongs to `main`, builds with registry-standard dependency
+   metadata, generates an SPDX JSON SBOM, and seals the wheel, source archive, and SBOM with
+   SHA-256 checksums.
+6. An isolated OIDC job creates separate Sigstore build-provenance and SBOM attestations for the
+   sealed wheel and source archive.
+7. The protected `testpypi` job uses a hash-locked, uv-exported toolchain to sign environment-bound
+   PEP 740 publish attestations, then uploads the wheel and source archive with those attestations.
+8. A read-only job compares TestPyPI's published digests with `SHA256SUMS`. A test-only run stops
+   here without consuming the version tag; production cannot reach approval until this promotion
+   check succeeds.
+9. Production releases pause at the protected `pypi-release` environment until the Code Owners
+   team explicitly approves the deployment. That job signs fresh PyPI-environment PEP 740
+   attestations for the same sealed files and publishes through OIDC Trusted Publishing.
+10. The GitHub release job downloads the registry-signed files, verifies their checksums, creates a
+    draft release with the wheel, source archive, SPDX SBOM, PEP 740 attestations, and checksum
+    manifest, then publishes only after every asset is attached.
 
 Preparation never receives an OIDC token. Publishing jobs cannot modify repository contents, and
 the GitHub release job cannot publish Python distributions. Explicit workflow-run observation
 keeps the release gate effective even when repository branch rules are incomplete. The production
 environment approval is intentionally separate from pull-request validation so a single human
 maintainer can operate the repository without weakening the automated release gates.
+
+## First-release registry and immutability setup
+
+Before the first publication, create pending Trusted Publishers on both PyPI and TestPyPI with
+project name `django-micboard`, owner `justprosound`, repository `django-micboard`, workflow
+`publish-release.yml`, and the matching environment name: `pypi-release` or `testpypi`. Do not add
+registry API tokens or passwords; both registries exchange the environment-bound GitHub OIDC
+identity for a short-lived upload token.
+
+In repository **Settings**, scroll to **Releases** and select **Enable release immutability** before
+creating the first release. GitHub applies this only to future releases. The workflow deliberately
+creates a draft, attaches every integrity asset, and publishes it last so the completed release is
+ready for immutable enforcement.
+
+Consumers can verify build provenance with:
+
+```bash
+gh attestation verify django_micboard-<version>-py3-none-any.whl \
+  --repo justprosound/django-micboard
+gh attestation verify django_micboard-<version>-py3-none-any.whl \
+  --repo justprosound/django-micboard \
+  --predicate-type https://spdx.dev/Document/v2.3
+```
 
 ## Branch protection contract
 
@@ -70,7 +103,7 @@ Protect the production `pypi-release` environment with the `@justprosound/code-o
 required reviewer, allow self-review so the sole team member can release, and limit deployments to
 protected branches. Disallow administrator bypass so every production publication records an
 explicit approval. Keep the `testpypi` environment limited to protected branches without a reviewer
-so prerelease validation remains automated. This moves the one deliberate human decision to the
+so TestPyPI validation remains automated. This moves the one deliberate human decision to the
 point of production publication while every source change still passes the exact automated branch
 gates.
 
@@ -86,8 +119,8 @@ so it informs future work but is not represented as a final requirement.
 | `PO.4` Define and Use Criteria for Software Security Checks | Static workflow contracts, pre-commit, mypy, Bandit, CodeQL, package checks, and a 95% coverage floor |
 | `PO.5` Implement and Maintain Secure Environments | GitHub-hosted runners, explicit timeouts and concurrency, least-privilege job tokens, protected publishing environments, and explicit production deployment approval |
 | `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Mandatory pull requests, strict app-bound checks, signed linear history, CODEOWNERS routing, non-persisted read tokens, and exact-SHA release validation |
-| `PS.2` Provide a Mechanism for Verifying Software Release Integrity | SHA-256 manifests plus signed Sigstore build-provenance attestations |
-| `PS.3` Archive and Protect Each Software Release | Immutable workflow artifacts, exact-commit GitHub releases, and retained checksum manifests |
+| `PS.2` Provide a Mechanism for Verifying Software Release Integrity | SHA-256 manifests, signed Sigstore build-provenance and SPDX SBOM attestations, and environment-bound PEP 740 publish attestations |
+| `PS.3` Archive and Protect Each Software Release | Draft-first immutable GitHub releases containing the exact wheel, source archive, SPDX SBOM, PEP 740 attestations, and checksum manifest |
 | `PW.4` Reuse Existing, Well-Secured Software When Feasible | Locked Python dependencies, full-lock auditing, and dependency review for new vulnerabilities and OpenSSF signals |
 | `PW.7` Review and Analyze Human-Readable Code | Ruff, mypy, Bandit, CodeQL, pre-commit, Warden, and maintainer ownership rules |
 | `PW.8` Test Executable Code | Django compatibility matrix, branch coverage, reusable-app validation, and installed-wheel smoke tests |

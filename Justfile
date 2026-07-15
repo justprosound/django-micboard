@@ -62,8 +62,8 @@ example: uv-check
 
 # Build the distributable artifact, verify its contents, and import it outside the source tree.
 wheel: uv-check
-    uv build --sdist --clear
-    uv build --wheel dist/django_micboard-*.tar.gz
+    uv build --no-sources --sdist --clear
+    uv build --no-sources --wheel dist/django_micboard-*.tar.gz
     uv run --no-project python scripts/validate_wheel.py dist/django_micboard-*.whl
     uv run --no-project --with dist/django_micboard-*.whl \
         python scripts/smoke_test_installed_wheel.py
