@@ -164,6 +164,14 @@ def test_release_artifacts_include_a_signed_spdx_sbom() -> None:
     assert attestation_job.count("actions/attest@") == 2
 
 
+def test_release_artifact_uploads_are_retry_safe() -> None:
+    """A failed job attempt must be able to replace its own immutable named artifact."""
+    publication = _workflow("publish-release.yml")
+
+    assert publication.count("actions/upload-artifact@") == 4
+    assert publication.count("overwrite: true") == 4
+
+
 def test_registry_publishers_create_environment_bound_pep740_attestations() -> None:
     """Each registry upload must carry publish attestations signed by its own OIDC identity."""
     publication = _workflow("publish-release.yml")
@@ -196,13 +204,11 @@ def test_production_promotes_the_testpypi_verified_build() -> None:
     pypi_job = publication[publication.index("  publish-pypi:") :]
     pypi_job = pypi_job[: pypi_job.index("  create-github-release:")]
 
-    assert "if: inputs.test_only" not in testpypi_job
     assert "needs: [validate-release, build-release, attest-release]" in testpypi_job
     assert "needs: [validate-release, build-release, publish-testpypi]" in verification_job
     assert "test.pypi.org/pypi/django-micboard/" in verification_job
     assert "SHA256SUMS" in verification_job
     assert "needs: [validate-release, build-release, attest-release, verify-testpypi]" in pypi_job
-    assert "if: ${{ ! inputs.test_only }}" in pypi_job
 
 
 def test_github_release_publishes_the_verified_supply_chain_assets_atomically() -> None:
@@ -213,7 +219,12 @@ def test_github_release_publishes_the_verified_supply_chain_assets_atomically() 
     assert "softprops/action-gh-release@" not in github_release_job
     assert "actions/download-artifact@" in github_release_job
     assert "gh release create" in github_release_job
+    assert "gh release view" in github_release_job
+    assert "gh release upload" in github_release_job
     assert "--draft" in github_release_job
+    assert "--clobber" in github_release_job
+    assert "isDraft" in github_release_job
+    assert "targetCommitish" in github_release_job
     assert "dist/*.whl" in github_release_job
     assert "dist/*.tar.gz" in github_release_job
     assert "dist/*.spdx.json" in github_release_job
@@ -221,22 +232,27 @@ def test_github_release_publishes_the_verified_supply_chain_assets_atomically() 
     assert "dist/SHA256SUMS" in github_release_job
     assert 'gh release edit "$RELEASE_TAG" --draft=false' in github_release_job
     assert github_release_job.index("gh release create") < github_release_job.index(
+        "gh release upload"
+    )
+    assert github_release_job.index("gh release upload") < github_release_job.index(
         'gh release edit "$RELEASE_TAG" --draft=false'
     )
 
 
-def test_testpypi_only_run_does_not_consume_the_production_version_tag() -> None:
-    """A TestPyPI rehearsal must leave the exact version available for production promotion."""
+def test_testpypi_verification_and_production_are_one_atomic_release() -> None:
+    """A release must not rebuild a TestPyPI version in a later production workflow run."""
     preparation = _workflow("prepare-release.yml")
     publication = _workflow("publish-release.yml")
+    pypi_job = publication[publication.index("  publish-pypi:") :]
+    pypi_job = pypi_job[: pypi_job.index("  create-github-release:")]
     github_release_job = publication[publication.index("  create-github-release:") :]
 
-    assert "test_only:" in preparation
-    assert '--field test_only="$TEST_ONLY"' in preparation
-    assert "test_only:" in publication
-    assert "! inputs.test_only" in github_release_job
-    assert "testpypi-distribution-" not in github_release_job
-    assert "--prerelease" not in github_release_job
+    assert "test_only:" not in preparation
+    assert "test_only:" not in publication
+    assert "needs: [validate-release, build-release, attest-release, verify-testpypi]" in pypi_job
+    assert "if:" not in pypi_job
+    assert "always()" in github_release_job
+    assert "inputs.test_only" not in github_release_job
 
 
 def test_ssdf_workflow_evidence_is_documented() -> None:
