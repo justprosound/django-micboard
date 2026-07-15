@@ -320,7 +320,9 @@ Include:
 Maintainers follow this process:
 
 1. Collect changes in `CHANGELOG.md` under `[Unreleased]`
-2. Run the **Prepare Release PR** workflow from `main` with a CalVer version (`YY.MM.DD`)
+2. Run the **Prepare Release PR** workflow from `main`; it selects the next UTC CalVer
+   (`YY.MM.DD`, then `.1`, `.2`, and so on for additional same-day releases), or accepts an
+   explicit backfill version
 3. Let the workflow open a release pull request and dispatch CI and documentation checks
 4. Let protected-branch auto-merge merge the pull request only after every required check passes
 5. Let the workflow publish the exact merge commit to TestPyPI or PyPI through trusted publishing
