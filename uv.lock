@@ -765,6 +765,13 @@ tasks = [
 ]
 
 [package.dev-dependencies]
+dev = [
+    { name = "mkdocs-git-revision-date-localized-plugin" },
+    { name = "mkdocs-material" },
+    { name = "mkdocs-minify-plugin" },
+    { name = "mkdocstrings-python" },
+    { name = "pymdown-extensions" },
+]
 release = [
     { name = "pypi-attestations" },
     { name = "twine" },
@@ -905,6 +912,13 @@ requires-dist = [
 provides-extras = ["standard", "tasks", "realtime", "shure", "api", "admin-ui", "import-export", "admin-theme", "audit", "performance", "security", "fixtures", "media", "dev", "docs", "all"]
 
 [package.metadata.requires-dev]
+dev = [
+    { name = "mkdocs-git-revision-date-localized-plugin" },
+    { name = "mkdocs-material" },
+    { name = "mkdocs-minify-plugin" },
+    { name = "mkdocstrings-python" },
+    { name = "pymdown-extensions" },
+]
 release = [
     { name = "pypi-attestations", specifier = "==0.0.29" },
     { name = "twine", specifier = "==6.2.0" },
