@@ -92,4 +92,4 @@ There is no aggregate `alert_enabled` service argument. Callers update only the 
 - Use canonical queryset helpers for access checks instead of duplicating tenant predicates.
 - Add access tests for different organizations, campuses, monitoring groups, and membership roles whenever assignment behavior changes.
 
-See the repository-root [`PERFORMER_QUICKREF.md`](../PERFORMER_QUICKREF.md) for current call examples.
+See the repository-root [Performer Quickref](performer-quickref.md) for current call examples.

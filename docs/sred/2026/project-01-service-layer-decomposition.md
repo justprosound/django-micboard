@@ -67,7 +67,7 @@ Decompose the services layer into domain-focused modules each ≤400 lines with 
 **Project Docs:**
 - [ADR-001 Service Layer Decomposition](../../adr/001-service-layer-decomposition.md)
 - [ADR-002 Extract Business Logic from Models](../../adr/002-extract-model-business-logic.md)
-- [CONTEXT.md](../../CONTEXT.md) (domain architecture reference)
+- [CONTEXT.md](../../development/context.md) (domain architecture reference)
 
 **PRs:**
 - (main decomposition PR)

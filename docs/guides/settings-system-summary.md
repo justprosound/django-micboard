@@ -49,4 +49,4 @@ uv run --no-sync ruff check micboard/services/settings tests/services/settings
 uv run --no-sync python -m mypy micboard/services/settings
 ```
 
-See [Settings Management](settings-management.md) for usage and [ADR-005](adr/005-unify-settings-proxy.md) for the decision.
+See [Settings Management](settings-management.md) for usage and [ADR-005](../adr/005-unify-settings-proxy.md) for the decision.

@@ -81,7 +81,7 @@ Extract all orchestration from model persistence methods into explicit domain se
 
 **Project Docs:**
 - [ADR-002 Extract Business Logic from Models](../../adr/002-extract-model-business-logic.md)
-- [CONTEXT.md](../../CONTEXT.md) (domain model reference)
+- [CONTEXT.md](../../development/context.md) (domain model reference)
 
 **PRs:**
 - (per-model extraction PRs: ManufacturerConfiguration, DiscoveredDevice, WirelessUnit, RFChannel, WirelessChassis)

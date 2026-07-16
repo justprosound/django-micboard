@@ -83,7 +83,7 @@ Build factory-based test infrastructure from zero to 95% branch-coverage floor a
 
 **Project Docs:**
 - [ADR-006 Test Infrastructure Overhaul](../../adr/006-test-infrastructure-overhaul.md)
-- [CONTEXT.md](../../CONTEXT.md) (testing strategy section)
+- [CONTEXT.md](../../development/context.md) (testing strategy section)
 
 **PRs:**
 - (factory registry PR)

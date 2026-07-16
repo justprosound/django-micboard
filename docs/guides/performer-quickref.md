@@ -114,4 +114,4 @@ Use `PerformerAssignment.objects.needing_alerts()` to select active assignments 
 - `assigned_by` records the user who created the assignment.
 - Deactivated rows remain queryable but are excluded by `.active()`.
 
-For the complete design and security boundaries, see [`micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md`](micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md).
+For the complete design and security boundaries, see [Performer Assignment Architecture](performer-assignment-architecture.md).

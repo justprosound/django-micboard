@@ -81,7 +81,7 @@ Consolidate into a single `SettingsService` under `micboard/services/settings/se
 
 **Project Docs:**
 - [ADR-005 Unify Settings Proxy](../../adr/005-unify-settings-proxy.md)
-- [CONTEXT.md](../../CONTEXT.md) (settings system reference)
+- [CONTEXT.md](../../development/context.md) (settings system reference)
 
 **PRs:**
 - (unified service PR)

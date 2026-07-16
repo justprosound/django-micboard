@@ -62,7 +62,7 @@ Build live pages from primitive Pydantic snapshot DTOs rather than passing ORM g
 
 **Project Docs:**
 - [ADR-012 Bound Live Monitoring Projections](../../adr/012-bound-live-projections.md)
-- [CONTEXT.md](../../CONTEXT.md) (monitoring architecture)
+- [CONTEXT.md](../../development/context.md) (monitoring architecture)
 
 **PRs:**
 - (projection DTOs PR)

@@ -72,7 +72,7 @@ plugin = PluginRegistry.get_plugin("shure", manufacturer=shure_obj)
 plugins = PluginRegistry.get_all_active_plugins()
 ```
 
-**Implementing a New Plugin:** Create `micboard/integrations/<code>/plugin.py` with a concrete, conventionally named `ManufacturerPlugin` subclass. For code `my_manufacturer`, the loader prefers `MyManufacturerPlugin`. Create a matching active `Manufacturer` row, then verify discovery with `PluginRegistry.get_plugin_class("my_manufacturer")`. There is no central registration map or package re-export to edit. See [Manufacturer plugin development](../plugin-development.md) for the complete contract.
+**Implementing a New Plugin:** Create `micboard/integrations/<code>/plugin.py` with a concrete, conventionally named `ManufacturerPlugin` subclass. For code `my_manufacturer`, the loader prefers `MyManufacturerPlugin`. Create a matching active `Manufacturer` row, then verify discovery with `PluginRegistry.get_plugin_class("my_manufacturer")`. There is no central registration map or package re-export to edit. See [Manufacturer plugin development](plugin-development.md) for the complete contract.
 
 ### 3. Multi-Tenancy
 
@@ -198,8 +198,6 @@ uv run --no-sync pytest --cov=micboard  # With coverage
 
 ## Further Reading
 
-- [Settings Management](../guides/settings-management.md)
-- [Plugin System](../plugin-development.md)
-- [Models](../models/)
-- [Contributing](../CONTRIBUTING.md)
-- [Tests](../tests/)
+- [Settings Management](guides/settings-management.md)
+- [Plugin System](plugin-development.md)
+- [Contributing](https://github.com/justprosound/django-micboard/blob/main/CONTRIBUTING.md)
