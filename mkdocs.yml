@@ -7,7 +7,7 @@ repo_name: django-micboard
 copyright: Licensed under AGPL-3.0-or-later | Community-driven open source project
 
 theme:
-  name: mkdocs
+  name: material
   features:
     - navigation.instant
     - navigation.tracking
@@ -22,9 +22,26 @@ theme:
     - content.tooltips
     - toc.follow
     - toc.integrate
+    - header.autohide
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   font:
     text: Roboto
     code: Roboto Mono
+  icon:
+    logo: material/database
+    repo: fontawesome/brands/github
 
 nav:
   - Home: index.md
@@ -117,6 +134,34 @@ nav:
 
 plugins:
   - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [micboard]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            merge_init_into_class: true
+            docstring_section_style: list
+            annotations_path: brief
+            annotations: true
+            inheritance: true
+            summary: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: datetime
+      locale: en
+      timezone: UTC
+  - minify:
+      minify_html: true
+      minify_css: true
+      minify_js: true
+  # - sitemap:
+  #     changefreq: weekly
+  #     priority: 0.8
 
 markdown_extensions:
   - abbr
@@ -133,6 +178,34 @@ markdown_extensions:
   - fenced_code
   - tables
   - meta
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
 
 extra:
   version:
@@ -141,6 +214,9 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/justprosound/django-micboard
   generator: false
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX
 
 extra_css:
   - stylesheets/extra.css
