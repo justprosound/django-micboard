@@ -1,7 +1,6 @@
 # Performer Assignment Quick Reference
 
-Performers are the people using wireless units. They are separate from Django users, who are
-the operators managing those assignments.
+Performers are the people using wireless units. They are separate from Django users, who are the operators managing those assignments.
 
 ## Imports
 
@@ -18,14 +17,11 @@ The root `micboard.models` and `micboard.services` packages do not re-export dom
 
 ## Create a performer
 
-Performer CRUD is available through the tenant-scoped Django admin. Application workflows should
-use `Performer.objects.for_user(user=request.user)` for reads and
-`PerformerAssignmentService` for every device binding; there is no unscoped performer facade.
+Performer CRUD is available through the tenant-scoped Django admin. Application workflows should use `Performer.objects.for_user(user=request.user)` for reads and `PerformerAssignmentService` for every device binding; there is no unscoped performer facade.
 
 ## Create an assignment
 
-All assignment writes require the acting user and object IDs. The service resolves every object
-through that user's scope before writing:
+All assignment writes require the acting user and object IDs. The service resolves every object through that user's scope before writing:
 
 ```python
 from micboard.services.core.performer_assignment_dtos import CreatePerformerAssignment
@@ -46,9 +42,7 @@ assignment = PerformerAssignmentService.create_assignment(
 )
 ```
 
-In MSP mode, the user must have an active `operator`, `admin`, or `owner` membership covering the
-unit's organization and campus. `viewer` memberships are read-only. References outside the user's
-monitoring-group or tenant scope raise `PermissionDenied`.
+In MSP mode, the user must have an active `operator`, `admin`, or `owner` membership covering the unit's organization and campus. `viewer` memberships are read-only. References outside the user's monitoring-group or tenant scope raise `PermissionDenied`.
 
 ## Read scoped assignments
 
@@ -63,9 +57,7 @@ performers = Performer.objects.for_user(user=request.user).active()
 units = WirelessUnit.objects.for_user(user=request.user)
 ```
 
-Use `for_user()` at request and task boundaries. In single-tenant mode, an unassigned performer is
-visible so an operator can create its first assignment. In MSP mode, a performer without a
-tenant-scoped assignment fails closed.
+Use `for_user()` at request and task boundaries. In single-tenant mode, an unassigned performer is visible so an operator can create its first assignment. In MSP mode, a performer without a tenant-scoped assignment fails closed.
 
 ## Update or remove an assignment
 
@@ -92,8 +84,7 @@ was_deleted = PerformerAssignmentService.delete_assignment(
 )
 ```
 
-`deactivate_assignment()` preserves history. `delete_assignment()` permanently removes the row.
-Both return `False` when the scoped assignment does not exist.
+`deactivate_assignment()` preserves history. `delete_assignment()` permanently removes the row. Both return `False` when the scoped assignment does not exist.
 
 ## Alert preferences
 
@@ -114,8 +105,7 @@ preferences = {
 # }
 ```
 
-Use `PerformerAssignment.objects.needing_alerts()` to select active assignments with at least one
-supported alert flag enabled.
+Use `PerformerAssignment.objects.needing_alerts()` to select active assignments with at least one supported alert flag enabled.
 
 ## Data constraints
 
@@ -124,5 +114,4 @@ supported alert flag enabled.
 - `assigned_by` records the user who created the assignment.
 - Deactivated rows remain queryable but are excluded by `.active()`.
 
-For the complete design and security boundaries, see
-[`micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md`](micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md).
+For the complete design and security boundaries, see [`micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md`](micboard/docs/PERFORMER_ASSIGNMENT_ARCHITECTURE.md).

@@ -272,6 +272,6 @@ All Micboard runtime configuration reads now use the canonical settings service.
 
 ---
 
-**Last Updated:** 2026-01-28
-**Applies to:** django-micboard v26.01.27 and later
+**Last Updated:** 2026-01-28  
+**Applies to:** django-micboard v26.01.27 and later  
 **Migration Time:** ~15-30 minutes for typical projects

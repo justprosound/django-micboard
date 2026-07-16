@@ -1,8 +1,6 @@
-# Development tooling
+# Development Tooling
 
-django-micboard uses one reproducible toolchain: `uv` for dependency/environment management,
-`just` for repository recipes, and local pre-commit hooks that execute inside the uv-managed
-environment.
+django-micboard uses one reproducible toolchain: `uv` for dependency/environment management, `just` for repository recipes, and local pre-commit hooks that execute inside the uv-managed environment.
 
 ## Bootstrap
 
@@ -19,10 +17,9 @@ The equivalent recipe is:
 just install
 ```
 
-Every Justfile recipe depends on `uv-check`, which fails before running when `uv` is unavailable.
-Do not create environments or install project dependencies with other Python package managers.
+Every Justfile recipe depends on `uv-check`, which fails before running when `uv` is unavailable. Do not create environments or install project dependencies with other Python package managers.
 
-## Justfile recipes
+## Justfile Recipes
 
 Run `just` to display the canonical list.
 
@@ -48,10 +45,9 @@ just coverage
 just example
 ```
 
-`manage.py` lives at repository root and points to `example_project.settings`; do not change into
-`example_project/` before invoking it.
+`manage.py` lives at repository root and points to `example_project.settings`; do not change into `example_project/` before invoking it.
 
-## Local setup script
+## Local Setup Script
 
 `start-dev.sh` provides an end-to-end local bootstrap:
 
@@ -59,15 +55,13 @@ just example
 ./start-dev.sh
 ```
 
-It syncs the locked environment, installs the hook, runs Django checks, verifies migration drift
-without writing migration files, applies checked-in migrations, and starts the example server.
-Docker is optional. Use check-only mode when a server should not remain running:
+It syncs the locked environment, installs the hook, runs Django checks, verifies migration drift without writing migration files, applies checked-in migrations, and starts the example server. Docker is optional. Use check-only mode when a server should not remain running:
 
 ```bash
 ./start-dev.sh --check-only
 ```
 
-## Pre-commit hooks
+## Pre-commit Hooks
 
 The checked-in configuration is the source of truth. Current hooks cover:
 
@@ -91,10 +85,9 @@ Run one hook:
 uv run --no-sync pre-commit run ruff-check --all-files
 ```
 
-The repository does not configure a commit-message hook. Commit messages still follow the
-Conventional Commits format documented in `CONTRIBUTING.md`.
+The repository does not configure a commit-message hook. Commit messages still follow the Conventional Commits format documented in `CONTRIBUTING.md`.
 
-## Direct commands
+## Direct Commands
 
 Recipes are preferred, but direct commands remain useful for focused work:
 
@@ -109,10 +102,9 @@ uv run --no-sync mkdocs build
 
 After `uv sync`, use `--no-sync` for repeatable commands that must not alter the environment.
 
-## Migration policy
+## Migration Policy
 
-Never edit existing files under `micboard/migrations/`. Schema changes must be represented by a
-migration generated through Django's `makemigrations` command and reviewed before commit.
+Never edit existing files under `micboard/migrations/`. Schema changes must be represented by a migration generated through Django's `makemigrations` command and reviewed before commit.
 
 Check for drift without creating files:
 
@@ -127,7 +119,7 @@ Apply checked-in migrations:
 uv run --no-sync python manage.py migrate
 ```
 
-## Dependency changes
+## Dependency Changes
 
 Edit `pyproject.toml` through uv commands and commit the resulting `uv.lock` update:
 
@@ -172,8 +164,7 @@ just pre-commit
 
 ### Migration drift fails
 
-Do not hand-edit a migration to silence the check. Confirm whether a model change is intentional,
-then generate a new migration with Django and review its operations and SQL.
+Do not hand-edit a migration to silence the check. Confirm whether a model change is intentional, then generate a new migration with Django and review its operations and SQL.
 
 ## References
 

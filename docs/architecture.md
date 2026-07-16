@@ -1,9 +1,8 @@
-"""Django Micboard - Architecture & Developer Guide
+# Django Micboard - Architecture & Developer Guide
 
 ## Core Architecture
 
-Django Micboard is a reusable Django app for monitoring multi-manufacturer
-wireless audio hardware. It emphasizes:
+Django Micboard is a reusable Django app for monitoring multi-manufacturer wireless audio hardware. It emphasizes:
 
 - **DRY Code**: Reduced duplication through registries and base classes
 - **Manufacturer-Agnostic Core**: Plugin architecture for manufacturer-specific logic
@@ -40,10 +39,7 @@ allowed = micboard_settings.allow_cross_org_view
 
 ### 2. Plugin Architecture (Manufacturer-Agnostic)
 
-Manufacturer-specific protocol logic lives in `micboard/integrations/<manufacturer>/`. Shared
-transport, response bounds, retries, rate limiting, health behavior, and plugin contracts live in
-`micboard/services/common/base/`; the common exception hierarchy lives in
-`micboard/exceptions.py`.
+Manufacturer-specific protocol logic lives in `micboard/integrations/<manufacturer>/`. Shared transport, response bounds, retries, rate limiting, health behavior, and plugin contracts live in `micboard/services/common/base/`; the common exception hierarchy lives in `micboard/exceptions.py`.
 
 ```
 micboard/
@@ -76,12 +72,7 @@ plugin = PluginRegistry.get_plugin("shure", manufacturer=shure_obj)
 plugins = PluginRegistry.get_all_active_plugins()
 ```
 
-**Implementing a New Plugin:** Create `micboard/integrations/<code>/plugin.py` with a concrete,
-conventionally named `ManufacturerPlugin` subclass. For code `my_manufacturer`, the loader prefers
-`MyManufacturerPlugin`. Create a matching active `Manufacturer` row, then verify discovery with
-`PluginRegistry.get_plugin_class("my_manufacturer")`. There is no central registration map or
-package re-export to edit. See [Manufacturer plugin development](../docs/plugin-development.md) for
-the complete contract.
+**Implementing a New Plugin:** Create `micboard/integrations/<code>/plugin.py` with a concrete, conventionally named `ManufacturerPlugin` subclass. For code `my_manufacturer`, the loader prefers `MyManufacturerPlugin`. Create a matching active `Manufacturer` row, then verify discovery with `PluginRegistry.get_plugin_class("my_manufacturer")`. There is no central registration map or package re-export to edit. See [Manufacturer plugin development](../plugin-development.md) for the complete contract.
 
 ### 3. Multi-Tenancy
 
@@ -207,8 +198,8 @@ uv run --no-sync pytest --cov=micboard  # With coverage
 
 ## Further Reading
 
-- [Settings System](../SETTINGS_MANAGEMENT.md)
-- [Plugin System](../docs/plugin-development.md)
-- [Models](models/)
+- [Settings Management](../guides/settings-management.md)
+- [Plugin System](../plugin-development.md)
+- [Models](../models/)
 - [Contributing](../CONTRIBUTING.md)
 - [Tests](../tests/)

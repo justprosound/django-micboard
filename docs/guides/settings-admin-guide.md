@@ -113,13 +113,9 @@ When you enter a value, the system validates it based on type:
 
 ## 🔍 Exact Scope (How Values Are Resolved)
 
-Each setting definition declares exactly one scope. A manufacturer definition checks the selected
-manufacturer only; site and organization definitions behave the same way for their own scope.
-Global definitions check only the global row. Missing rows use host/package/definition defaults;
-they never fall through to another tenant scope.
+Each setting definition declares exactly one scope. A manufacturer definition checks the selected manufacturer only; site and organization definitions behave the same way for their own scope. Global definitions check only the global row. Missing rows use host/package/definition defaults; they **never** fall through to another tenant scope.
 
-**Example**: A manufacturer-scoped battery threshold for Shure uses the Shure row. An organization
-or site row with the same key is invalid and cannot override that definition.
+**Example**: A manufacturer-scoped battery threshold for Shure uses the Shure row. An organization or site row with the same key is invalid and cannot override that definition.
 
 ---
 
@@ -145,18 +141,18 @@ or site row with the same key is invalid and cannot override that definition.
 2. **Definition**: "API Timeout (seconds)" → Set to **30**
 3. **Manufacturer**: Shure → **Save**
 
-2. Click **Add Setting**
-3. **Definition**: "Max Devices Per API Call" → Set to **100**
-4. **Manufacturer**: Shure → **Save**
+4. Click **Add Setting**
+5. **Definition**: "Max Devices Per API Call" → Set to **100**
+6. **Manufacturer**: Shure → **Save**
 
 #### Step 3: Feature Flags
 1. Click **Add Setting**
 2. **Definition**: "Supports Discovery IPs" → Set to **true**
 3. **Manufacturer**: Shure → **Save**
 
-2. Click **Add Setting**
-3. **Definition**: "Supports Health Check API" → Set to **true**
-4. **Manufacturer**: Shure → **Save**
+4. Click **Add Setting**
+5. **Definition**: "Supports Health Check API" → Set to **true**
+6. **Manufacturer**: Shure → **Save**
 
 ✅ **Done! Shure is now configured.**
 
@@ -309,12 +305,12 @@ A: No, only Django admins can access the settings interface.
 
 ## 🔗 Need Help?
 
-- **Admin User Guide**: See SETTINGS_MANAGEMENT.md
-- **Developer Documentation**: See SETTINGS_INTEGRATION.md
-- **Examples & Tests**: See tests/test_settings.py
-- **System Technical**: See SETTINGS_SYSTEM_SUMMARY.md
+- **Admin User Guide**: See [Settings Management](settings-management.md)
+- **Developer Documentation**: See [Settings Integration](settings-integration.md)
+- **Examples & Tests**: See `tests/test_settings.py`
+- **System Technical**: See [Settings System Summary](settings-system-summary.md)
 
 ---
 
-**Last Updated**: January 28, 2026
+**Last Updated**: January 28, 2026  
 **System**: django-micboard Settings Management v1.0

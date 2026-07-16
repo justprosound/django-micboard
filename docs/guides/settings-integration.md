@@ -8,8 +8,7 @@ from micboard.services.settings.settings_service import settings as micboard_set
 
 ## Scoped configurable values
 
-Pass the scope already owned by the workflow. Do not rediscover tenant context inside the settings
-layer.
+Pass the scope already owned by the workflow. Do not rediscover tenant context inside the settings layer.
 
 ```python
 poll_interval = micboard_settings.get(
@@ -21,8 +20,7 @@ poll_interval = micboard_settings.get(
 )
 ```
 
-The most specific stored value wins. If no stored value matches, resolution continues through host
-`MICBOARD_CONFIG`, package defaults, the registered definition default, and the explicit default.
+The most specific stored value wins. If no stored value matches, resolution continues through host `MICBOARD_CONFIG`, package defaults, the registered definition default, and the explicit default.
 
 ## Deployment controls
 
@@ -38,10 +36,7 @@ These values are deliberately host-owned. Database settings cannot override them
 
 ## Typed writes
 
-Views, forms, and commands must delegate writes to
-`SettingsPersistenceService`. Build the DTO accepted by the service and pass the authenticated
-actor plus explicit scope. The service validates authorization, definition type, serialized value,
-and scope before upsert, then invalidates caches.
+Views, forms, and commands must delegate writes to `SettingsPersistenceService`. Build the DTO accepted by the service and pass the authenticated actor plus explicit scope. The service validates authorization, definition type, serialized value, and scope before upsert, then invalidates caches.
 
 Never:
 
@@ -52,9 +47,7 @@ Never:
 
 ## Performance
 
-Resolution is cached per definition and exact scope. Prefer one service read per logical workflow
-and pass the resolved value down when processing a batch. Database-backed settings should not be
-loaded in a row loop.
+Resolution is cached per definition and exact scope. Prefer one service read per logical workflow and pass the resolved value down when processing a batch. Database-backed settings should not be loaded in a row loop.
 
 ## Testing an integration
 
@@ -76,4 +69,4 @@ uv run --no-sync ruff check micboard/services/settings tests/services/settings
 uv run --no-sync python -m mypy micboard/services/settings
 ```
 
-See `SETTINGS_MANAGEMENT.md` and `docs/adr/005-unify-settings-proxy.md` for the complete contract.
+See [Settings Management](settings-management.md) and [ADR-005: Unify Settings Proxy](../adr/005-unify-settings-proxy.md) for the complete contract.

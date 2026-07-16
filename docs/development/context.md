@@ -20,8 +20,7 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 - **DiscoveryCIDR / DiscoveryFQDN** - Network ranges and hosts where the system scans for devices.
 - **DiscoveredDevice** - A device found during network discovery but not yet adopted.
 - **DiscoveryQueue** - Pending adoption items: devices found during discovery awaiting user review.
-- **DiscoveryApprovalPlan** - A bounded, locked mapping from selected DiscoveryQueue rows to
-  validated inventory targets, conflict decisions, and least-privilege write permissions.
+- **DiscoveryApprovalPlan** - A bounded, locked mapping from selected DiscoveryQueue rows to validated inventory targets, conflict decisions, and least-privilege write permissions.
 - **DiscoveryJob** - Tracks a scan run: manufacturer, action, status, item counts.
 - **DeviceMovementLog** - Records when a device's IP or location changes.
 
@@ -42,11 +41,9 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 ### Settings & Configuration
 
 - **SettingDefinition** - Schema for a configurable setting (key, label, type, scope, default).
-- **Setting** - A value stored at its definition's one declared scope: global, site, organization,
-  or manufacturer.
+- **Setting** - A value stored at its definition's one declared scope: global, site, organization, or manufacturer.
 - **ManufacturerConfiguration** - JSON-based manufacturer-specific configuration with validation.
-- **SettingsService** - Runtime settings service merging host settings, feature flags, app
-  defaults, and scoped database configuration.
+- **SettingsService** - Runtime settings service merging host settings, feature flags, app defaults, and scoped database configuration.
 
 ### Multi-Tenancy
 
@@ -64,33 +61,22 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 
 ## Architecture Patterns
 
-- **Django and HTMX UI** - Tenant-scoped Django views provide monitoring workflows; Django admin
-  provides configuration and operator workflows. No REST API layer exists.
-- **Service Layer** - Business logic lives in concern-named modules under
-  `micboard/services/<domain>/`. Services orchestrate models, plugins, and external APIs.
+- **Django and HTMX UI** - Tenant-scoped Django views provide monitoring workflows; Django admin provides configuration and operator workflows. No REST API layer exists.
+- **Service Layer** - Business logic lives in concern-named modules under `micboard/services/<domain>/`. Services orchestrate models, plugins, and external APIs.
 - **Plugin System** - Manufacturer integrations live in `micboard/integrations/<manufacturer>/` with a `plugin.py`, `client.py`, `discovery_client.py`, `transformers.py`, and optional `websocket.py`/`sse_client.py`.
 - **Background Tasks** - Discovery, polling, health checks, and WebSocket subscriptions run via native Huey tasks in `micboard/tasks/<domain>/`.
 - **Async Real-Time** - Server-sent events (SSE) and WebSocket connections for live monitoring.
 - **Multi-Tenancy** - Row-level tenant isolation via `TenantOptimizedQuerySet` / `TenantOptimizedManager`.
-- **Settings Resolution** - Each definition resolves only at its declared scope, then falls back to
-  host configuration, package/definition defaults, and the caller default.
-- **Self-Contained Verification** - CI enforces coverage locally and publishes HTML/XML artifacts.
-  External reporting services are optional and must not become required until the repository is
-  explicitly onboarded.
+- **Settings Resolution** - Each definition resolves only at its declared scope, then falls back to host configuration, package/definition defaults, and the caller default.
+- **Self-Contained Verification** - CI enforces coverage locally and publishes HTML/XML artifacts. External reporting services are optional and must not become required until the repository is explicitly onboarded.
 
 ## Known Architectural Debt
 
-1. ~~**Service layer monoliths** - Oversized discovery and lifecycle services were split into
-   domain-focused modules.~~
-2. ~~**Model embedded logic** - Model overrides were replaced by domain services and the documented
-   lifecycle adapter contract (ADR-002).~~
-3. ~~**Admin dashboard monolith** - The former dashboard module was split into focused admin and
-   view modules.~~
-4. ~~**Manufacturer plugin duplication** - Shared transport, resilience, health, rate-limit,
-   registry, and exception seams are established; protocol-specific clients remain deliberately
-   separate (ADR-004).~~
-5. ~~**Thin test coverage** - Branch coverage now exceeds 95%, with model factories plus service,
-   integration, command, admin, and host-configuration contracts enforced in CI.~~
+1. ~~**Service layer monoliths** - Oversized discovery and lifecycle services were split into domain-focused modules.~~
+2. ~~**Model embedded logic** - Model overrides were replaced by domain services and the documented lifecycle adapter contract (ADR-002).~~
+3. ~~**Admin dashboard monolith** - The former dashboard module was split into focused admin and view modules.~~
+4. ~~**Manufacturer plugin duplication** - Shared transport, resilience, health, rate-limit, registry, and exception seams are established; protocol-specific clients remain deliberately separate (ADR-004).~~
+5. ~~**Thin test coverage** - Branch coverage now exceeds 95%, with model factories plus service, integration, command, admin, and host-configuration contracts enforced in CI.~~
 6. ~~**Compat shim** - `micboard/manufacturers/` was a backward-compat shim. Now removed (ADR-008).~~
 
 ## Key File Locations
