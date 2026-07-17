@@ -51,6 +51,7 @@ class PerformerAssignmentQuerySet(TenantOptimizedQuerySet):
             models.Q(alert_on_battery_low=True)
             | models.Q(alert_on_signal_loss=True)
             | models.Q(alert_on_hardware_offline=True)
+            | models.Q(alert_on_audio_low=True)
         )
         if after:
             qs = qs.filter(updated_at__gte=after)
