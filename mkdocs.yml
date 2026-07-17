@@ -214,9 +214,6 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/justprosound/django-micboard
   generator: false
-  analytics:
-    provider: google
-    property: G-XXXXXXXXXX
 
 extra_css:
   - stylesheets/extra.css
