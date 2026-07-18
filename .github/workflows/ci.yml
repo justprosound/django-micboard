@@ -154,7 +154,7 @@ jobs:
 
       - name: Run Bandit security check
         # bandit scans source AST — no package install required
-        run: uv run --no-sync bandit -r micboard -ll
+        run: uvx bandit -r micboard -ll
 
   codeql:
     runs-on: ubuntu-latest
