@@ -1,20 +1,20 @@
 import re
-import sys
 from pathlib import Path
+
 
 def fix_file(filepath: str, errors: list[str]):
     try:
         path = Path(filepath)
         content = path.read_text().splitlines()
-        
+
         needs_any = False
         errors.sort(key=lambda x: int(x.split(":")[1]), reverse=True)
-        
+
         for err in errors:
             parts = err.split(":")
             line_num = int(parts[1]) - 1
             msg = ":".join(parts[2:])
-            
+
             if "[type-arg]" in msg:
                 match = re.search(r'Missing type parameters for generic type "([^"]+)"', msg)
                 if match:
@@ -22,10 +22,10 @@ def fix_file(filepath: str, errors: list[str]):
                     if gen_type in ["list", "dict", "tuple", "set", "QuerySet", "type"]:
                         needs_any = True
                         if gen_type == "dict":
-                            content[line_num] = re.sub(rf'\b{gen_type}\b(?!\[)', f'{gen_type}[Any, Any]', content[line_num])
+                            content[line_num] = re.sub(rf"\b{gen_type}\b(?!\[)", f"{gen_type}[Any, Any]", content[line_num])
                         else:
-                            content[line_num] = re.sub(rf'\b{gen_type}\b(?!\[)', f'{gen_type}[Any]', content[line_num])
-            
+                            content[line_num] = re.sub(rf"\b{gen_type}\b(?!\[)", f"{gen_type}[Any]", content[line_num])
+
         if needs_any:
             has_typing_any = any("from typing import" in line and "Any" in line for line in content)
             if not has_typing_any:
@@ -37,7 +37,7 @@ def fix_file(filepath: str, errors: list[str]):
                         # Skip docstring if it's the first line
                         pass
                 content.insert(insert_idx, "from typing import Any")
-                        
+
         path.write_text("\n".join(content) + "\n")
     except Exception as e:
         print(f"Failed {filepath}: {e}")
@@ -45,7 +45,7 @@ def fix_file(filepath: str, errors: list[str]):
 def main():
     with open(".mypy_errors.txt") as f:
         lines = f.readlines()
-        
+
     file_errors = {}
     for line in lines:
         if not line.startswith("micboard/"):
@@ -54,7 +54,7 @@ def main():
         if filepath not in file_errors:
             file_errors[filepath] = []
         file_errors[filepath].append(line.strip())
-        
+
     for filepath, errors in file_errors.items():
         fix_file(filepath, errors)
 
