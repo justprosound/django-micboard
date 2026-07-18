@@ -46,7 +46,12 @@ _for_user = cast(Any, TenantOptimizedQuerySet.for_user)
 
 
 def _queryset_with_model(**attributes: object) -> Any:
-    """Helper to queryset with model."""
+    """
+    Build a mock queryset and assign it a dynamically created model class.
+
+    This helper streamlines the mock setup for tenant scoping tests, significantly
+    improving test setup brevity and readability.
+    """
     queryset = MagicMock()
     queryset.model = type("TenantModel", (), attributes)
     return queryset
