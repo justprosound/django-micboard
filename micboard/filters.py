@@ -19,9 +19,10 @@ def _build_filter_classes() -> tuple[Any, Any]:
         return UnavailableFilter, UnavailableFilter
 
     if not TYPE_CHECKING:
+        global FilterSet
         import django_filters
 
-        FilterSet = django_filters.FilterSet  # noqa: N806
+        FilterSet = django_filters.FilterSet
 
     from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.models.hardware.wireless_unit import WirelessUnit
