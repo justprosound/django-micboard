@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -188,7 +188,7 @@ def track_service_metrics(func: Callable) -> Callable:
 
 
 @contextmanager
-def measure_operation(operation_name: str) -> Any:
+def measure_operation(operation_name: str) -> Iterator[None]:
     """Context manager to measure operation duration.
 
     Args:
@@ -219,12 +219,12 @@ class PerformanceMonitor:
         self.name = name
         self.start_time: float | None = None
 
-    def __enter__(self) -> Any:
+    def __enter__(self) -> PerformanceMonitor:
         """Start monitoring."""
         self.start_time = time.time()
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Stop monitoring and log results."""
         if self.start_time:
             duration_ms = (time.time() - self.start_time) * 1000

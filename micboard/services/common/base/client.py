@@ -31,7 +31,9 @@ class BaseAPIClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def _make_request(self, *args: Any, **kwargs: Any) -> Any:
+    def _make_request(
+        self, method: str, endpoint: str, **request_kwargs: Any
+    ) -> dict[str, Any] | list[Any] | str | None:
         raise NotImplementedError()
 
 
@@ -161,10 +163,12 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
                 error=f"Health check failed ({type(exc).__name__}); details redacted.",
             )
 
-    def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any | None:
+    def _make_request(
+        self, method: str, endpoint: str, **request_kwargs: Any
+    ) -> dict[str, Any] | list[Any] | str | None:
         url = f"{self.base_url}{endpoint}"
         logger.debug("Making %s request for %s", method, self._get_config_prefix())
-        kwargs.setdefault("timeout", self.timeout)
+        request_kwargs.setdefault("timeout", self.timeout)
 
         if getattr(self, "_circuit", None) and not self._circuit.allow_request():
             logger.error(
@@ -185,7 +189,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         attempt = 0
         while True:
             try:
-                response = self._send_bounded_request(method, url, **kwargs)
+                response = self._send_bounded_request(method, url, **request_kwargs)
             except RequestError as exc:
                 self._record_request_failure()
                 if attempt < max_retries:
@@ -294,7 +298,9 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         if delay > 0:
             time.sleep(delay)
 
-    def _handle_response(self, response: httpx.Response, method: str, url: str) -> Any | None:
+    def _handle_response(
+        self, response: httpx.Response, method: str, url: str
+    ) -> dict[str, Any] | list[Any] | str | None:
         status = response.status_code
 
         if status >= 400:

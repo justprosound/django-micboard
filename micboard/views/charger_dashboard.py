@@ -2,6 +2,7 @@ from typing import Any, cast
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
@@ -16,7 +17,7 @@ class ChargerDashboardView(LoginRequiredMixin, TemplateView):
 
     template_name = "micboard/charger_dashboard.html"
 
-    def get_context_data(self, **kwargs: Any) -> Any:
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """Add display preferences and one primitive charger projection."""
         context = super().get_context_data(**kwargs)
         user = cast(User, self.request.user)
@@ -29,7 +30,7 @@ class ChargerDashboardView(LoginRequiredMixin, TemplateView):
         )
         return context
 
-    def post(self, request: Any, *args: Any, **kwargs: Any) -> Any:
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Handle display width updates."""
         form = DisplayWidthForm(request.POST)
         if not form.is_valid():
@@ -53,7 +54,7 @@ class ChargerGridView(LoginRequiredMixin, TemplateView):
 
     template_name = "micboard/partials/charger_grid.html"
 
-    def get_context_data(self, **kwargs: Any) -> Any:
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         """Load the typed grid snapshot without full-page profile work."""
         context = super().get_context_data(**kwargs)
         context["snapshot"] = ChargerDashboardService.get_snapshot(user=self.request.user)

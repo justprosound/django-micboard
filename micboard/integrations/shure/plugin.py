@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from micboard.services.common.base.plugin import ManufacturerPlugin
+
+if TYPE_CHECKING:
+    from micboard.models.hardware.manufacturer import Manufacturer
 
 from .client import ShureSystemAPIClient
 from .transformers import ShureDataTransformer
@@ -25,7 +28,7 @@ class ShurePlugin(ManufacturerPlugin):
     def code(self) -> str:
         return "shure"
 
-    def __init__(self, manufacturer: Any) -> None:
+    def __init__(self, manufacturer: Manufacturer | None) -> None:
         """Initialize Shure plugin and its transformer and lazy client."""
         super().__init__(manufacturer)
         self.transformer = ShureDataTransformer()

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, ClassVar, cast
 
 from django.db import models
+from django.db.models import QuerySet
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
 from micboard.settings.deployment_controls import deployment_controls
@@ -144,7 +145,7 @@ class Performer(models.Model):
         role = f" ({self.title})" if self.title else ""
         return f"{self.name}{role}"
 
-    def get_assigned_units(self) -> Any:
+    def get_assigned_units(self) -> QuerySet[Any]:
         """Get all wireless units assigned to this performer."""
         from micboard.models.hardware.wireless_unit import WirelessUnit
 
@@ -153,6 +154,6 @@ class Performer(models.Model):
             status__in=["online", "degraded", "provisioning"],
         )
 
-    def get_monitoring_groups(self) -> Any:
+    def get_monitoring_groups(self) -> QuerySet[Any]:
         """Get all monitoring groups that manage this performer."""
         return self.assignments.values_list("monitoring_group", flat=True).distinct()

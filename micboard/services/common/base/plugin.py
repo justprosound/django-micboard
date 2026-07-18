@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from micboard.models.hardware.manufacturer import Manufacturer
+
     from .client import BaseAPIClient
 
 
@@ -50,7 +52,7 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
 
 
 class BasePlugin(ABC):
-    def __init__(self, manufacturer: Any | None = None) -> None:
+    def __init__(self, manufacturer: Manufacturer | None = None) -> None:
         self.manufacturer = manufacturer
 
     @property
