@@ -47,10 +47,6 @@ dependencies = [
     "Django>=5.1,<6.1",
     "Pillow>=10.0.0",
     "httpx>=0.27",
-    "mkdocs-git-revision-date-localized-plugin>=1.5.3",
-    "mkdocs-material>=9.7.6",
-    "mkdocs-minify-plugin>=0.8.0",
-    "mkdocstrings[python]>=1.0.6",
     "pydantic>=2.0",
     "python-dateutil>=2.8",
 ]
@@ -166,6 +162,11 @@ dev = [
 ]
 docs = [
     "mkdocs>=1.6",
+    "mkdocs-git-revision-date-localized-plugin>=1.5.3",
+    "mkdocs-material>=9.7.6",
+    "mkdocs-minify-plugin>=0.8.0",
+    "mkdocstrings[python]>=1.0.6",
+    "pymdown-extensions",
 ]
 all = [
     "djangorestframework",
@@ -436,13 +437,6 @@ skip_authors = true
 skip_changelog = true
 
 [dependency-groups]
-dev = [
-    "mkdocs-git-revision-date-localized-plugin",
-    "mkdocs-material",
-    "mkdocs-minify-plugin",
-    "mkdocstrings-python",
-    "pymdown-extensions",
-]
 release = [
     "pypi-attestations==0.0.29",
     "twine==6.2.0",

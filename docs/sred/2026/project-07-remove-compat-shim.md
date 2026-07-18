@@ -1,9 +1,9 @@
+# SRED Project Summary — 2026 Remove Compat Shim Layer
+
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words
 </aside>
-
-# SRED Project Summary — 2026 Remove Compat Shim Layer
 
 ## Project Description
 
@@ -11,7 +11,12 @@ Each project submission has to be reduced to around 400 words
 
 ## Project Goals
 
-Remove `micboard/manufacturers/` entirely in a single PR. Update all import references from `micboard.manufacturers.*` to `micboard.integrations.*`. Use canonical contracts in `micboard/services/common/base/`; do not create another shared hierarchy or compatibility export. Remove all `sys.modules` patching logic. Verify by grepping for `micboard.manufacturers` across the entire repo. CI fails if any file imports from `micboard.manufacturers`.
+Remove `micboard/manufacturers/` entirely in a single PR. Update all import references from
+`micboard.manufacturers.*` to `micboard.integrations.*`. Use canonical contracts in
+`micboard/services/common/base/`; do not create another shared hierarchy or compatibility export.
+Remove all `sys.modules` patching logic. Audit import statements from the repository root,
+including tests and configuration code. Historical ADR and SRED documents may name the removed
+namespace, but no executable file may import it.
 
 ## Technical Uncertainties
 
@@ -27,7 +32,8 @@ Remove `micboard/manufacturers/` entirely in a single PR. Update all import refe
 **Results / Learnings / Success:**
 - 23 import sites updated in single PR; `micboard/manufacturers/` deleted (191 lines removed)
 - CI passed on first push; no follow-up fixes needed
-- CI guard added: `grep -r "micboard.manufacturers" micboard/` in pre-commit + CI
+- Repository-root audit confirmed no executable import of `micboard.manufacturers`; historical
+  documentation references remain as an explicit exception
 
 **Uncertainty-Specific Documentation & Links:**
 - **ADR:** [ADR-008 Remove Compat Shim Layer](../../adr/008-remove-compat-shim.md)

@@ -312,5 +312,5 @@ A: No, only Django admins can access the settings interface.
 
 ---
 
-**Last Updated**: January 28, 2026  
+**Last Updated**: January 28, 2026
 **System**: django-micboard Settings Management v1.0

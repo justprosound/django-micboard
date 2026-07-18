@@ -1,9 +1,9 @@
+# SRED Project Summary — 2026 Split Base HTTP Client (Superseded — Plan Abandoned)
+
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words
 </aside>
-
-# SRED Project Summary — 2026 Split Base HTTP Client (Superseded — Plan Abandoned)
 
 ## Project Description
 
@@ -16,7 +16,8 @@ Each project submission has to be reduced to around 400 words
 | **Health Tracking** | ~100 | Health recording methods, status computation, health metadata |
 
 The class diagram was:
-```
+
+```text
 BaseHTTPClient (HTTP transport + health tracking)
       └── former polling mixin (mixed in via cooperative inheritance)
              ├── ShureSystemAPIClient
@@ -47,7 +48,9 @@ This approach achieved the same goals (separation of transport bounds, circuit b
 
 **Experiments:**
 - Attempted: keep `BaseHTTPClient` as subclass of all three, delegate via `super()` — circular import risk with `polling_orchestrator` depending on transport seam
-- Adopted: `BaseHTTPClient` instantiates three components in `__init__`; exposes `.transport`, `.health`, `.polling` properties; overridden methods in vendor clients (`ShureSystemAPIClient`, `SennheiserSystemAPIClient`) updated to call `self.transport.request()` / `self.polling.run()` explicitly
+- Proposed: `BaseHTTPClient` would instantiate three components in `__init__`, expose
+  `.transport`, `.health`, and `.polling` properties, and update vendor clients to delegate
+  explicitly. This experiment was not adopted.
 
 **Results / Learnings / Success:**
 - (Plan abandoned) — the team found the existing composite pattern with abstract vendor methods was more maintainable and didn't require breaking vendor client APIs
@@ -58,7 +61,9 @@ This approach achieved the same goals (separation of transport bounds, circuit b
 
 **Experiments:**
 - Attempted: `import-linter` contract — complex config for this case
-- Adopted: custom AST check in `tests/architecture/test_http_transport_isolation.py` — parses `http_transport.py`, asserts no imports from `polling_orchestrator` or `health_tracker`; runs in CI
+- Proposed: a custom AST check in `tests/architecture/test_http_transport_isolation.py` would
+  parse `http_transport.py` and reject imports from polling or health modules. This test was not
+  created.
 
 **Results / Learnings / Success:**
 - (Plan abandoned) — no such test file exists because the three-module split was never implemented
@@ -70,8 +75,8 @@ This approach achieved the same goals (separation of transport bounds, circuit b
 | Name | Role | % Yearly Time | Contribution |
 |------|------|---------------|--------------|
 | (team lead) | Architecture / Composition Design | ~20% | ADR-010, module boundaries, dependency direction |
-| (engineer) | Transport / Health Implementation | ~30% | `http_transport.py`, `health_tracker.py`, vendor client updates |
-| (engineer) | Polling Orchestrator / Tests | ~30% | `polling_orchestrator.py`, fake transport, CI enforcement |
+| (engineer) | Transport / Health Analysis | ~30% | Evaluated the proposed transport and health boundaries |
+| (engineer) | Polling / Test Analysis | ~30% | Prototyped delegation and isolation-test approaches |
 
 ---
 

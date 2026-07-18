@@ -9,6 +9,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- **Audio alert selection**: Include assignments configured only for low-audio alerts when
+  selecting active performer assignments that need alert processing.
+- **Documentation organization**: Move contributor and architecture references into the published
+  documentation tree, repair internal links and SRED status records, and keep MkDocs tooling in the
+  opt-in documentation dependency extra.
 - **Signed release identity**: Require a GitHub-verified maintainer-signed annotated tag for the
   exact release commit before PyPI or GitHub publication, consume that existing tag without
   workflow-scope escalation, and keep safe pre-publication retries possible.

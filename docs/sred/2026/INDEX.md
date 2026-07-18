@@ -1,8 +1,8 @@
 # SRED Project Index — 2026 (FY)
 
-**Project:** django-micboard  
-**Fiscal Year:** 2026 (Calendar year 2026-01-01 to 2026-12-31)  
-**Status:** Living document — updated as projects complete  
+**Project:** django-micboard
+**Fiscal Year:** 2026 (Calendar year 2026-01-01 to 2026-12-31)
+**Status:** Living document — updated as projects complete
 
 ---
 
@@ -60,7 +60,8 @@
 - **Advancement** = new architectural patterns now codified and enforced in CI
 - **Failure was possible** — several approaches were tried and discarded (e.g., base class inheritance for plugins, compatibility shims for service decomposition)
 
-**3 proposed projects (10, 11, 12)** are ready for SRED claim when implementation begins — uncertainties are documented in ADR-007, ADR-011, and ADR-010.
+**2 proposed projects (10 and 11)** are ready for SRED consideration when implementation begins.
+Project 12 is superseded and is retained only as a record of the abandoned plan.
 
 ---
 

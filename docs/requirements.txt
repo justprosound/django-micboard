@@ -396,6 +396,7 @@ pymdown-extensions==11.0.1 \
     --hash=sha256:db3943a62bab7e03af1364f0c4083e64b91fb097675a4b6cceccfbe9a77e5eb2 \
     --hash=sha256:dd2905ae6fc5b75582fafb139a1266ffc754705efa902aa50067fa7ff4f94ec0
     # via
+    #   django-micboard
     #   mkdocs-material
     #   mkdocstrings
 python-dateutil==2.9.0.post0 \

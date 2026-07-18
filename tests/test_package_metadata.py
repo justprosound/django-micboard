@@ -1,13 +1,37 @@
 """Package and public API regression tests."""
 
+import tomllib
 from importlib.metadata import version
 from importlib.util import find_spec
+from pathlib import Path
 
 import micboard
 import micboard.models as model_api
 import micboard.models.telemetry.sessions as telemetry_sessions
 import micboard.services as services
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_documentation_tooling_is_opt_in() -> None:
+    """Runtime installs must not include the MkDocs documentation toolchain."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    runtime_dependencies = project["project"]["dependencies"]
+    docs_dependencies = project["project"]["optional-dependencies"]["docs"]
+    docs_packages = (
+        "mkdocs-git-revision-date-localized-plugin",
+        "mkdocs-material",
+        "mkdocs-minify-plugin",
+        "mkdocstrings[python]",
+        "pymdown-extensions",
+    )
+
+    assert all(not dependency.startswith(docs_packages) for dependency in runtime_dependencies)
+    assert all(
+        any(dependency.startswith(package) for dependency in docs_dependencies)
+        for package in docs_packages
+    )
 
 
 def test_runtime_version_uses_distribution_metadata() -> None:

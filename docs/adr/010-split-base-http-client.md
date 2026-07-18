@@ -17,7 +17,8 @@ This ADR documents a plan that was **NOT implemented**. The three-module split d
 | **Health Tracking** | ~100 | Health recording methods, status computation, health metadata |
 
 The class diagram was:
-```
+
+```text
 BaseHTTPClient (HTTP transport + health tracking)
       └── former polling mixin (mixed in via cooperative inheritance)
              ├── ShureSystemAPIClient
@@ -45,7 +46,7 @@ This achieves the same goals (transport bounds, circuit breaking, health checkin
 
 The original decision was to split into three modules behind the same composite class:
 
-```
+```text
 integrations/
   common/
     http_transport.py    (~250L) — Connection pooling, retry, auth configuration.

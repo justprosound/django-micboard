@@ -1,9 +1,9 @@
+# SRED Project Summary — 2026 Service Layer Decomposition
+
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words
 </aside>
-
-# SRED Project Summary — 2026 Service Layer Decomposition
 
 ## Project Description
 
@@ -11,7 +11,10 @@ The django-micboard services layer comprised ~53 files across 10 domain subpacka
 
 ## Project Goals
 
-Decompose the services layer into domain-focused modules each ≤400 lines with single, documented responsibilities. Eliminate dead code (`BaseCRUDService`, empty `utils.py`). Update all call sites in the same change with no compatibility shims. Enforce the 400-line ceiling via CI.
+Decompose the services layer into domain-focused modules targeting ≤400 lines with single,
+documented responsibilities. Eliminate dead code (`BaseCRUDService`, empty `utils.py`). Update all
+call sites in the same change with no compatibility shims. Review exceptions to the line target
+explicitly; use Ruff's separate 400-statement function limit to prevent oversized functions.
 
 ## Technical Uncertainties
 
@@ -27,7 +30,8 @@ Decompose the services layer into domain-focused modules each ≤400 lines with 
 **Results / Learnings / Success:**
 - 898 lines → 8 modules averaging ~110 lines each
 - Call-site update completed in single PR; no compatibility aliases needed
-- CI now flags any service file >400 lines (`ruff --select=PYL`)
+- Review confirmed each resulting service module met the 400-line target; Ruff separately enforces
+  the configured 400-statement limit per function
 
 **Uncertainty-Specific Documentation & Links:**
 - **ADR:** [ADR-001 Service Layer Decomposition](../../adr/001-service-layer-decomposition.md)

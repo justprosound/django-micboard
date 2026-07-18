@@ -1,9 +1,9 @@
+# SRED Project Summary — 2026 Unify Settings Proxy
+
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words
 </aside>
-
-# SRED Project Summary — 2026 Unify Settings Proxy
 
 ## Project Description
 
@@ -37,8 +37,12 @@ Consolidate into a single `SettingsService` under `micboard/services/settings/se
 **Description:** `SettingsService` owns public cache invalidation but `SettingsRegistry` (scoped lookup + cache mechanics) must remain private — runtime callers must not import it. Yet invalidation must reach the registry's internal caches for the correct scope.
 
 **Experiments:**
-- Attempted: public `invalidate()` on registry — violated privacy rule
-- Adopted: `SettingsService` holds singleton reference to private `SettingsRegistry` instance; `service.invalidate(key, scope_args)` delegates to `registry._invalidate(scope_args)`; only settings-domain implementation tests import `SettingsRegistry` directly
+- Attempted: expose cache invalidation through runtime callers importing `SettingsRegistry` —
+  violated the privacy rule
+- Adopted: `SettingsService.invalidate_value_cache(key=None)` and
+  `invalidate_definition_cache(key=None)` delegate to the private registry's `invalidate_cache()`
+  and `invalidate_definition()` methods; only settings-domain implementation tests import
+  `SettingsRegistry` directly
 
 **Results / Learnings / Success:**
 - Cache invalidation works without exposing registry
@@ -50,14 +54,19 @@ Consolidate into a single `SettingsService` under `micboard/services/settings/se
 
 ### Uncertainty #3: AST Architecture Test for Direct Config Reads
 
-**Description:** Needed compile-time enforcement that no runtime code reads `settings.MICBOARD_CONFIG` or `getattr(settings, "MICBOARD_*")` outside `settings_service.py`. Existing linters (ruff, flake8) don't catch dynamic attribute access patterns.
+**Description:** Needed compile-time enforcement that no runtime code reads `MICBOARD_*`
+attributes or calls `getattr(..., "MICBOARD_*")` outside the canonical settings modules. Existing
+linters do not catch those dynamic attribute access patterns.
 
 **Experiments:**
 - Attempted: ruff custom rule — couldn't express "except in this file"
-- Adopted: custom AST check in `tests/test_settings_architecture.py` — parses all `.py` files under `micboard/` (excluding `services/settings/`), flags any `Attribute` node where `attr` starts with `MICBOARD_` on a `settings` name, or `Subscript` on `settings.MICBOARD_CONFIG`; runs in CI as pytest test
+- Adopted: custom AST check in `tests/test_settings_architecture.py` — parses all `.py` files under
+  `micboard/`, excluding `settings_service.py`, `deployment_controls.py`, and migrations; flags any
+  `Attribute` node whose name starts with `MICBOARD_` and any
+  `getattr(..., "MICBOARD_*")` call; runs in CI as a pytest test
 
 **Results / Learnings / Success:**
-- Catches both `settings.MICBOARD_FOO` and `settings.MICBOARD_CONFIG["FOO"]`
+- Catches direct `MICBOARD_*` attributes and dynamic `getattr(..., "MICBOARD_*")` reads
 - Zero false positives; runs in <500ms
 - New violations fail CI immediately; architecture review required for exceptions
 

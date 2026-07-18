@@ -1,9 +1,9 @@
+# SRED Project Summary — 2026 Admin Dashboard Modularization
+
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words
 </aside>
-
-# SRED Project Summary — 2026 Admin Dashboard Modularization
 
 ## Project Description
 
@@ -25,7 +25,7 @@ Extract each major functional area into its own admin module under `micboard/adm
 - Decision: remove unregistered views entirely in cleanup phase (2026-07-14); no deprecation window
 
 **Results / Learnings / Success:**
-- 2,431 lines → 8 domain modules (largest: `receivers.py` 432L, `configuration.py` 240L)
+- 2,431 lines → 8 domain modules (largest: `receivers.py` 400L, `configuration.py` 240L)
 - Dead code removal eliminated latent security surface
 - Merge conflicts on admin reduced to near-zero
 

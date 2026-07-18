@@ -32,7 +32,10 @@ This document indexes all SRED-eligible projects for the 2026 fiscal year. Each 
 
 ## Summary
 
-**7 SREDable projects** identified from the 2026 work summary. All are implemented with documented uncertainties, experiments, and results. Each project tackled genuine technological uncertainties where the solution was not known in advance and required systematic investigation/experimentation.
+**12 projects** identified from the 2026 work summary: 9 implemented, 2 proposed, and 1
+superseded. Implemented projects document their uncertainties, experiments, and results. Proposed
+projects record work that is not yet eligible for a claim, and the superseded project records an
+abandoned plan.
 
 **Total estimated SRED-eligible effort:** ~70% of engineering capacity across the fiscal year.
 

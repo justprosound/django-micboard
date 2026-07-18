@@ -19,4 +19,5 @@ This release prep focuses on refactoring the reusable app for maintainability an
 ## Constraints
 
 - No database schema changes; migrations must remain untouched.
-- Maintain backwards compatibility for existing APIs and configuration keys where possible.
+- Maintain backwards compatibility for existing APIs and configuration keys. Any exception must
+  document its rationale and provide a migration process before release.

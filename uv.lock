@@ -601,10 +601,6 @@ source = { editable = "." }
 dependencies = [
     { name = "django" },
     { name = "httpx" },
-    { name = "mkdocs-git-revision-date-localized-plugin" },
-    { name = "mkdocs-material" },
-    { name = "mkdocs-minify-plugin" },
-    { name = "mkdocstrings", extra = ["python"] },
     { name = "pillow" },
     { name = "pydantic" },
     { name = "python-dateutil" },
@@ -706,6 +702,11 @@ dev = [
 ]
 docs = [
     { name = "mkdocs" },
+    { name = "mkdocs-git-revision-date-localized-plugin" },
+    { name = "mkdocs-material" },
+    { name = "mkdocs-minify-plugin" },
+    { name = "mkdocstrings", extra = ["python"] },
+    { name = "pymdown-extensions" },
 ]
 fixtures = [
     { name = "pyyaml" },
@@ -765,13 +766,6 @@ tasks = [
 ]
 
 [package.dev-dependencies]
-dev = [
-    { name = "mkdocs-git-revision-date-localized-plugin" },
-    { name = "mkdocs-material" },
-    { name = "mkdocs-minify-plugin" },
-    { name = "mkdocstrings-python" },
-    { name = "pymdown-extensions" },
-]
 release = [
     { name = "pypi-attestations" },
     { name = "twine" },
@@ -863,10 +857,10 @@ requires-dist = [
     { name = "interrogate", marker = "extra == 'dev'", specifier = ">=1.5" },
     { name = "mkdocs", marker = "extra == 'all'", specifier = ">=1.6" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
-    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.5.3" },
-    { name = "mkdocs-material", specifier = ">=9.7.6" },
-    { name = "mkdocs-minify-plugin", specifier = ">=0.8.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6" },
+    { name = "mkdocs-git-revision-date-localized-plugin", marker = "extra == 'docs'", specifier = ">=1.5.3" },
+    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.7.6" },
+    { name = "mkdocs-minify-plugin", marker = "extra == 'docs'", specifier = ">=0.8.0" },
+    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=1.0.6" },
     { name = "mypy", marker = "extra == 'all'", specifier = ">=1.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "pathspec", marker = "extra == 'all'", specifier = "<1.2" },
@@ -880,6 +874,7 @@ requires-dist = [
     { name = "pre-commit-hooks", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pydantic", marker = "extra == 'standard'" },
+    { name = "pymdown-extensions", marker = "extra == 'docs'" },
     { name = "pytest", marker = "extra == 'all'", specifier = ">=7.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pytest-cov", marker = "extra == 'all'", specifier = ">=4.0" },
@@ -912,13 +907,6 @@ requires-dist = [
 provides-extras = ["standard", "tasks", "realtime", "shure", "api", "admin-ui", "import-export", "admin-theme", "audit", "performance", "security", "fixtures", "media", "dev", "docs", "all"]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "mkdocs-git-revision-date-localized-plugin" },
-    { name = "mkdocs-material" },
-    { name = "mkdocs-minify-plugin" },
-    { name = "mkdocstrings-python" },
-    { name = "pymdown-extensions" },
-]
 release = [
     { name = "pypi-attestations", specifier = "==0.0.29" },
     { name = "twine", specifier = "==6.2.0" },

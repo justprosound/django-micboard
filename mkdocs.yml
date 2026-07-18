@@ -217,9 +217,3 @@ extra:
 
 extra_css:
   - stylesheets/extra.css
-
-# Analytics (optional - add when ready)
-# extra:
-#   analytics:
-#     provider: google
-#     property: G-XXXXXXXXXX
