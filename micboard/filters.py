@@ -20,6 +20,7 @@ def _build_filter_classes() -> tuple[Any, Any]:
 
     if not TYPE_CHECKING:
         import django_filters
+
         FilterSet = django_filters.FilterSet  # noqa: N806
 
     from micboard.models.hardware.wireless_chassis import WirelessChassis

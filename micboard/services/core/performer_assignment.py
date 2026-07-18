@@ -223,7 +223,7 @@ class PerformerAssignmentService:
                 "wireless_unit__base_chassis__location__building",
             )
             .select_for_update()
-            .get(id=assignment_id)
+            .get(id=assignment_id),
         )
 
     @staticmethod
