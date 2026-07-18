@@ -111,7 +111,7 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
         return "-"
 
     @admin.action(permissions=["change"], description="Mark as connected")
-    def mark_connected(self, request: Any, queryset: Any) -> Any:
+    def mark_connected(self, request: Any, queryset: Any) -> None:
         """Mark selected connections as connected."""
         updated = queryset.update(
             status="connected",
@@ -123,19 +123,19 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
         self.message_user(request, f"Marked {updated} connection(s) as connected.")
 
     @admin.action(permissions=["change"], description="Mark as disconnected")
-    def mark_disconnected(self, request: Any, queryset: Any) -> Any:
+    def mark_disconnected(self, request: Any, queryset: Any) -> None:
         """Mark selected connections as disconnected."""
         updated = queryset.update(status="disconnected", disconnected_at=timezone.now())
         self.message_user(request, f"Marked {updated} connection(s) as disconnected.")
 
     @admin.action(permissions=["change"], description="Reset error count")
-    def reset_error_count(self, request: Any, queryset: Any) -> Any:
+    def reset_error_count(self, request: Any, queryset: Any) -> None:
         """Reset error count for selected connections."""
         updated = queryset.update(error_count=0, error_message="")
         self.message_user(request, f"Reset error count for {updated} connection(s).")
 
     @admin.action(permissions=["change"], description="Stop connections")
-    def stop_connections(self, request: Any, queryset: Any) -> Any:
+    def stop_connections(self, request: Any, queryset: Any) -> None:
         """Stop selected connections."""
         updated = queryset.update(status="stopped", disconnected_at=timezone.now())
         self.message_user(request, f"Stopped {updated} connection(s).")

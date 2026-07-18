@@ -1,7 +1,12 @@
 """Management command to import Shure devices from System API into Django models."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from micboard.models.locations.structure import Location
 
 from django.core.management.base import BaseCommand
 
@@ -101,13 +106,13 @@ class Command(BaseCommand):
 
     def _import_device(
         self,
-        device: Any,
-        manufacturer: Any,
-        location: Any,
-        server_id: Any,
-        dry_run: Any = False,
-        full: Any = False,
-    ) -> Any:
+        device: dict[str, Any],
+        manufacturer: Manufacturer,
+        location: Location | None,
+        server_id: str | None,
+        dry_run: bool = False,
+        full: bool = False,
+    ) -> tuple[bool, bool]:
         """Delegate import logic to ImportService for testability and reuse."""
         from micboard.services.import_service import ImportService
 

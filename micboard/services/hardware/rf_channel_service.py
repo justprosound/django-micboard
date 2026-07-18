@@ -7,7 +7,7 @@ reporting for RF channels, separated from the model layer per ADR-002.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from micboard.services.hardware.dtos import RegulatoryDomainDTO
 
@@ -46,7 +46,7 @@ def get_regulatory_domain_for_location(location: Location | None) -> RegulatoryD
         return None
 
     if building.regulatory_domain:
-        return building.regulatory_domain  # type: ignore[no-any-return]
+        return cast("RegulatoryDomain", building.regulatory_domain)
 
     if building.country:
         from micboard.models.rf_coordination.compliance import RegulatoryDomain

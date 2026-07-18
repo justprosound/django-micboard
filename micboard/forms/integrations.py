@@ -36,7 +36,7 @@ class ManufacturerAPIServerForm(forms.ModelForm):
         """Preserve an existing key or require one for a new server."""
         shared_key = self.cleaned_data.get("shared_key", "")
         if shared_key:
-            return shared_key  # type: ignore[no-any-return]
+            return str(shared_key)
         if self.instance.pk and self.instance.shared_key:
-            return self.instance.shared_key  # type: ignore[no-any-return]
+            return str(self.instance.shared_key)
         raise forms.ValidationError("A shared key is required.")

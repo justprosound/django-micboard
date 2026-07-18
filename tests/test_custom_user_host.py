@@ -10,7 +10,7 @@ import sys
 def test_django_check_passes_with_custom_user_model() -> None:
     """Micboard model relations must resolve to the host's swappable user."""
     env = {**os.environ, "DJANGO_SETTINGS_MODULE": "tests.custom_user_settings"}
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [
             sys.executable,
             "-c",

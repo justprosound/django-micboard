@@ -245,7 +245,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         permissions=["change"],
         description="Refresh device data from manufacturer API",
     )
-    def refresh_from_api(self, request: Any, queryset: Any) -> Any:
+    def refresh_from_api(self, request: Any, queryset: Any) -> None:
         """Refresh discovered device data from manufacturer API."""
         from micboard.services.sync.device_refresh_service import DeviceRefreshService
 
@@ -267,7 +267,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         permissions=["change"],
         description="Promote selected devices to managed chassis",
     )
-    def promote_to_chassis_action(self, request: Any, queryset: Any) -> Any:
+    def promote_to_chassis_action(self, request: Any, queryset: Any) -> None:
         """Bulk action to promote discovered devices to WirelessChassis."""
         if not self._has_promotion_permission(request):
             raise PermissionDenied
@@ -303,7 +303,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         permissions=["delete"],
         description="Delete and reconcile manufacturer API discovery lists",
     )
-    def delete_and_reconcile_discovery(self, request: Any, queryset: Any) -> Any:
+    def delete_and_reconcile_discovery(self, request: Any, queryset: Any) -> None:
         """Delete staged devices and schedule claimed remote reconciliation."""
         from micboard.services.sync.discovered_device_deletion_service import (
             DiscoveredDeviceDeletionService,

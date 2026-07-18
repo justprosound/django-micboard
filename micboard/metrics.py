@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
-from typing import Any
+from typing import Any, cast
 
 from django.core.cache import cache
 
@@ -86,7 +86,10 @@ class MetricsCollector:
             List of metric dictionaries.
         """
         key = f"{cls.METRICS_KEY_PREFIX}{service_name}:{method_name}"
-        return cache.get(key, [])  # type: ignore[no-any-return]
+        metrics = cache.get(key, [])
+        if not isinstance(metrics, list):
+            return []
+        return cast(list[dict[str, Any]], metrics)
 
     @classmethod
     def get_service_metrics(cls, *, service_name: str) -> dict[str, list[dict[str, Any]]]:

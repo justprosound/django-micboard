@@ -282,7 +282,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         )
 
     @admin.action(permissions=["change"], description="Mark selected chassis as online")
-    def mark_online(self, request: Any, queryset: Any) -> Any:
+    def mark_online(self, request: Any, queryset: Any) -> None:
         """Mark selected chassis as online."""
         from micboard.services.core.hardware_sync import HardwareSyncService
 
@@ -293,7 +293,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         self.message_user(request, f"{updated} chassis marked as online.")
 
     @admin.action(permissions=["change"], description="Mark selected chassis as offline")
-    def mark_offline(self, request: Any, queryset: Any) -> Any:
+    def mark_offline(self, request: Any, queryset: Any) -> None:
         """Mark selected chassis as offline."""
         from micboard.services.core.hardware_sync import HardwareSyncService
 
@@ -304,7 +304,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         self.message_user(request, f"{updated} chassis marked as offline.")
 
     @admin.action(permissions=["change"], description="Sync selected chassis from API")
-    def sync_from_api(self, request: Any, queryset: Any) -> Any:
+    def sync_from_api(self, request: Any, queryset: Any) -> None:
         """Sync exactly the tenant-scoped chassis selected by the operator."""
         from micboard.services.hardware.chassis_refresh_service import (
             MAX_CHASSIS_REFRESH_BATCH,

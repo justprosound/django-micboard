@@ -215,7 +215,8 @@ class PerformerAssignmentService:
         user: Any,
     ) -> PerformerAssignment:
         """Lock and return one user-visible assignment with its authorization graph."""
-        return (  # type: ignore[no-any-return]
+        return cast(
+            PerformerAssignment,
             PerformerAssignment.objects.for_user(user=user)
             .select_related(
                 "monitoring_group",

@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager, HardwareStatus
+from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 from micboard.services.deduplication.identity_mutation_lock import (
     DeviceIdentityMutationLockService,
 )
@@ -259,7 +260,7 @@ class ManufacturerSyncService:
         manufacturer: Any,
         check_device: Any,
         *,
-        identity_index: Any = None,
+        identity_index: DeviceIdentityIndex | None = None,
     ) -> str | None:
         """Persist one normalized device and return its sync outcome."""
         deduplication_kwargs = {

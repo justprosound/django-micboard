@@ -8,11 +8,15 @@ on:
   pull_request_target:
     types: [opened, reopened, synchronize]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 permissions:
   contents: read
 
 jobs:
   update_release_draft:
+    name: Update Release Draft
     permissions:
       contents: write  # for release-drafter/release-drafter to create a github release
       pull-requests: write  # for release-drafter/release-drafter to add label to PR

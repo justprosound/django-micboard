@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from micboard.services.common.base.plugin import ManufacturerPlugin
 
 if TYPE_CHECKING:
-    from micboard.models.hardware.manufacturer import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
 from .client import ShureSystemAPIClient
 from .transformers import ShureDataTransformer
