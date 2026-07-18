@@ -11,7 +11,7 @@ import json
 import logging
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def _json_safe(value: dict[str, Any] | None) -> dict[str, Any]:
     """Return redacted JSON-compatible audit metadata."""
     redacted = redact_secrets(value or {})
-    return json.loads(json.dumps(redacted, cls=DjangoJSONEncoder))  # type: ignore[no-any-return]
+    return cast(dict[str, Any], json.loads(json.dumps(redacted, cls=DjangoJSONEncoder)))
 
 
 class AuditService:

@@ -157,23 +157,27 @@ class SettingsService:
     @property
     def global_device_limit(self) -> int | None:
         val = self.get("global_device_limit", None)
-        return int(val) if val is not None else None
+        return int(val) if val not in (None, "") else None
 
     @property
     def device_limit_warning_threshold(self) -> float:
-        return float(self.get("device_limit_warning_threshold", 0.9))
+        val = self.get("device_limit_warning_threshold", 0.9)
+        return float(val) if val not in (None, "") else 0.9
 
     @property
     def activity_log_retention_days(self) -> int:
-        return int(self.get("activity_log_retention_days", 90))
+        val = self.get("activity_log_retention_days", 90)
+        return int(val) if val not in (None, "") else 90
 
     @property
     def service_sync_log_retention_days(self) -> int:
-        return int(self.get("service_sync_log_retention_days", 30))
+        val = self.get("service_sync_log_retention_days", 30)
+        return int(val) if val not in (None, "") else 30
 
     @property
     def api_health_log_retention_days(self) -> int:
-        return int(self.get("api_health_log_retention_days", 7))
+        val = self.get("api_health_log_retention_days", 7)
+        return int(val) if val not in (None, "") else 7
 
     @property
     def audit_archive_path(self) -> str:

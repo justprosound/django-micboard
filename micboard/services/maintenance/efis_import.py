@@ -11,7 +11,7 @@ import logging
 import time
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from django.utils import timezone
 
@@ -158,7 +158,7 @@ class EFISImportService:
     @classmethod
     def _fetch_regions(cls, session: httpx.Client) -> list[dict]:
         payload = cls._request_json(session=session, path="/regions/all")
-        return payload.get("regions", [])  # type: ignore[no-any-return]
+        return cast(list[dict], payload.get("regions") or [])
 
     @classmethod
     def _fetch_wireless_term_ids(cls, session: httpx.Client) -> set[int]:
