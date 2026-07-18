@@ -24,7 +24,7 @@ class SennheiserPlugin(ManufacturerPlugin):
     def code(self) -> str:
         return "sennheiser"
 
-    def __init__(self, manufacturer: Any):
+    def __init__(self, manufacturer: Any) -> None:
         """Initialize Sennheiser plugin and prepare client/transformer."""
         super().__init__(manufacturer)
         self.client: SennheiserSystemAPIClient = SennheiserSystemAPIClient()

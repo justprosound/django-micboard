@@ -4,6 +4,7 @@ This module provides Django admin interfaces for managing wireless audio hardwar
 """
 
 from __future__ import annotations
+from typing import Any
 
 import logging
 from typing import ClassVar
@@ -58,7 +59,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     date_hierarchy = "last_seen"
     actions: ClassVar[list[str]] = ["mark_online", "mark_offline", "sync_from_api"]
 
-    def get_form(self, request, obj=None, **kwargs):
+    def get_form(self, request: Any, obj: Any=None, **kwargs: Any) -> Any:
         """Bind the requesting actor to candidate ownership validation."""
         form_class = super().get_form(request, obj, **kwargs)
         return type(
@@ -67,7 +68,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             {"scope_user": request.user},
         )
 
-    def save_model(self, request, obj, form, change) -> None:
+    def save_model(self, request: Any, obj: Any, form: Any, change: Any) -> None:
         """Persist the final authorized candidate through the quota-safe service seam."""
         ChassisAdminService.ensure_location_write_allowed(
             user=getattr(request, "user", None),
@@ -85,7 +86,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         persisted = WirelessChassisPersistenceService.create(write=write)
         obj.__dict__.update(persisted.__dict__)
 
-    def delete_queryset(self, request, queryset) -> None:
+    def delete_queryset(self, request: Any, queryset: Any) -> None:
         """Register one post-commit discovery cleanup for bulk deletion."""
         from micboard.model_lifecycle import suppress_chassis_delete_hooks
         from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
@@ -109,7 +110,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             with suppress_chassis_delete_hooks():
                 super().delete_queryset(request, deletion_queryset)
 
-    def get_queryset(self, request):
+    def get_queryset(self, request: Any) -> Any:
         return (
             super()
             .get_queryset(request)
@@ -125,11 +126,11 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         )
 
     @admin.display(description="Channels", ordering="_channel_count")
-    def channel_count_display(self, obj):
+    def channel_count_display(self, obj: Any) -> Any:
         return getattr(obj, "_channel_count", 0)
 
     @admin.display(description="Active Units", ordering="_active_units_count")
-    def active_units_display(self, obj):
+    def active_units_display(self, obj: Any) -> Any:
         return getattr(obj, "_active_units_count", 0)
 
     fieldsets = (
@@ -213,7 +214,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         ),
     )
 
-    def get_urls(self):
+    def get_urls(self) -> Any:
         urls = super().get_urls()
         custom_urls = [
             path(
@@ -224,7 +225,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         ]
         return custom_urls + urls
 
-    def hardware_layout_view(self, request):
+    def hardware_layout_view(self, request: Any) -> Any:
         """Custom view showing hardware layout for all wireless chassis.
 
         Build a compact structure grouped by manufacturer and chassis IP, then
@@ -248,19 +249,19 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         description="Manufacturer",
         ordering="manufacturer__name",
     )
-    def manufacturer_display(self, obj):
+    def manufacturer_display(self, obj: Any) -> Any:
         """Display manufacturer name."""
         return obj.manufacturer.name if obj.manufacturer else "Unknown"
 
     @admin.display(description="Hardware Layout")
-    def get_hardware_summary(self, obj):
+    def get_hardware_summary(self, obj: Any) -> Any:
         """Show hardware summary for this chassis."""
         channels = ChassisAdminService.get_hardware_summary(chassis_id=obj.pk)
         return " | ".join(
             f"CH{channel.channel_number}: {channel.unit_type or 'No Unit'}" for channel in channels
         )
 
-    def changelist_view(self, request, extra_context=None):
+    def changelist_view(self, request: Any, extra_context: Any=None) -> Any:
         extra_context = extra_context or {}
         extra_context["hardware_layout_url"] = "hardware-layout/"
         return super().changelist_view(request, extra_context)
@@ -269,7 +270,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         description="Status",
         ordering="status",
     )
-    def status_indicator(self, obj):
+    def status_indicator(self, obj: Any) -> Any:
         """Display colored status indicator."""
         if obj.is_online:
             return format_html(
@@ -282,7 +283,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         )
 
     @admin.action(permissions=["change"], description="Mark selected chassis as online")
-    def mark_online(self, request, queryset):
+    def mark_online(self, request: Any, queryset: Any) -> Any:
         """Mark selected chassis as online."""
         from micboard.services.core.hardware_sync import HardwareSyncService
 
@@ -293,7 +294,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         self.message_user(request, f"{updated} chassis marked as online.")
 
     @admin.action(permissions=["change"], description="Mark selected chassis as offline")
-    def mark_offline(self, request, queryset):
+    def mark_offline(self, request: Any, queryset: Any) -> Any:
         """Mark selected chassis as offline."""
         from micboard.services.core.hardware_sync import HardwareSyncService
 
@@ -304,7 +305,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         self.message_user(request, f"{updated} chassis marked as offline.")
 
     @admin.action(permissions=["change"], description="Sync selected chassis from API")
-    def sync_from_api(self, request, queryset):
+    def sync_from_api(self, request: Any, queryset: Any) -> Any:
         """Sync exactly the tenant-scoped chassis selected by the operator."""
         from micboard.services.hardware.chassis_refresh_service import (
             MAX_CHASSIS_REFRESH_BATCH,
@@ -360,7 +361,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             )
 
     @admin.display(description="Band Plan")
-    def band_plan_display(self, obj):
+    def band_plan_display(self, obj: Any) -> Any:
         """Display chassis band plan information."""
         from micboard.services.hardware.chassis_regulatory_service import get_band_plan_status
 
@@ -377,7 +378,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         return format_html('<span style="color: gray;">{}</span>', "—")
 
     @admin.display(description="Band Plan Regulatory Status")
-    def band_plan_regulatory_status_display(self, obj):
+    def band_plan_regulatory_status_display(self, obj: Any) -> Any:
         """Display band plan regulatory coverage status with color coding."""
         from micboard.services.hardware.chassis_regulatory_service import (
             get_band_plan_regulatory_status,

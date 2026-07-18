@@ -5,6 +5,7 @@ DeviceMovementLog (movement tracking and acknowledgment).
 """
 
 from __future__ import annotations
+from typing import Any
 
 from typing import TYPE_CHECKING
 
@@ -168,7 +169,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         return " | ".join(parts)
 
     @admin.action(permissions=["change"], description="Approve selected devices for import")
-    def approve_devices(self, request: HttpRequest, queryset):
+    def approve_devices(self, request: HttpRequest, queryset: Any) -> Any:
         """Delegate approval to the atomic discovery service."""
         from micboard.services.sync.discovery_approval_service import DiscoveryApprovalService
 
@@ -187,7 +188,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         )
 
     @admin.action(permissions=["change"], description="Reject selected devices")
-    def reject_devices(self, request: HttpRequest, queryset):
+    def reject_devices(self, request: HttpRequest, queryset: Any) -> Any:
         """Reject devices and prevent import."""
         count = queryset.filter(status="pending").update(
             status="rejected",
@@ -197,7 +198,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         messages.success(request, f"Rejected {count} device(s).")
 
     @admin.action(permissions=["change"], description="Mark as duplicate (no import)")
-    def mark_as_duplicate(self, request: HttpRequest, queryset):
+    def mark_as_duplicate(self, request: HttpRequest, queryset: Any) -> Any:
         """Mark devices as duplicates without importing."""
         count = queryset.filter(status="pending").update(
             status="duplicate",
@@ -337,7 +338,7 @@ class DeviceMovementLogAdmin(MicboardModelAdmin):
         return f"{icon} {obj.movement_type.replace('_', ' ').title()}"
 
     @admin.action(permissions=["change"], description="Acknowledge selected movements")
-    def acknowledge_movements(self, request: HttpRequest, queryset):
+    def acknowledge_movements(self, request: HttpRequest, queryset: Any) -> Any:
         """Mark movements as acknowledged by admin."""
         count = queryset.filter(acknowledged=False).update(
             acknowledged=True,

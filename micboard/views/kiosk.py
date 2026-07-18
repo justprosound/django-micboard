@@ -57,7 +57,7 @@ class DisplayWallListView(ListView):
     context_object_name = "walls"
     paginate_by = 20
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """Get display walls for user's location."""
         return (
             MonitoringService.get_accessible_display_walls(self.request.user)
@@ -79,7 +79,7 @@ class DisplayWallDetailView(DetailView):
     template_name = "micboard/kiosk/wall_detail.html"
     context_object_name = "wall"
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """Limit wall lookup to the authenticated user's locations."""
         return MonitoringService.get_accessible_display_walls(self.request.user).filter(
             is_active=True
@@ -95,7 +95,7 @@ class WallSectionListView(ListView):
     context_object_name = "sections"
     paginate_by = 50
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """Get sections for specified wall."""
         wall_id = self.kwargs.get("wall_id")
         return (

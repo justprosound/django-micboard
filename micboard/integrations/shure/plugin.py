@@ -25,7 +25,7 @@ class ShurePlugin(ManufacturerPlugin):
     def code(self) -> str:
         return "shure"
 
-    def __init__(self, manufacturer: Any):
+    def __init__(self, manufacturer: Any) -> None:
         """Initialize Shure plugin and its transformer and lazy client."""
         super().__init__(manufacturer)
         self.transformer = ShureDataTransformer()

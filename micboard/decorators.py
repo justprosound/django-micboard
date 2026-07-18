@@ -1,3 +1,4 @@
+from typing import Any
 from functools import wraps
 
 from django.http import JsonResponse
@@ -9,12 +10,12 @@ from micboard.services.shared.rate_limiting import (
 )
 
 
-def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=None):
+def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func: Any=None) -> Any:
     """Rate limit decorator for Django views using sliding window algorithm (delegates to service)."""
 
-    def decorator(view_func):
+    def decorator(view_func: Any) -> Any:
         @wraps(view_func)
-        def wrapper(request, *args, **kwargs):
+        def wrapper(request: Any, *args: Any, **kwargs: Any) -> Any:
             if key_func:
                 cache_key = key_func(request)
             else:
@@ -39,11 +40,11 @@ def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func=N
     return decorator
 
 
-def rate_limit_user(max_requests: int = 100, window_seconds: int = 60):
+def rate_limit_user(max_requests: int = 100, window_seconds: int = 60) -> Any:
     """Rate limit decorator for authenticated users (delegates to service for cache key)."""
 
-    def decorator(view_func):
-        def key_func(request):
+    def decorator(view_func: Any) -> Any:
+        def key_func(request: Any) -> Any:
             return get_user_cache_key(request, view_func_name=view_func.__name__)
 
         return rate_limit_view(max_requests, window_seconds, key_func)(view_func)

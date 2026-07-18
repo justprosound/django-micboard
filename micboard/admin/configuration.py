@@ -1,6 +1,7 @@
 """Django admin configuration for configuration models."""
 
 from __future__ import annotations
+from typing import Any
 
 import json
 
@@ -83,7 +84,7 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
 
     actions = ["validate_config", "apply_config", "enable_config", "disable_config"]
 
-    def get_fieldsets(self, request, obj=None):
+    def get_fieldsets(self, request: Any, obj: Any=None) -> Any:
         """Keep raw JSON out of Django's readonly model-field renderer."""
         if obj is not None and not self.has_change_permission(request, obj):
             return replace_field(
@@ -98,11 +99,11 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
         """Display useful configuration structure with credentials masked."""
         return json.dumps(redact_secrets(obj.config), indent=2, sort_keys=True)
 
-    def has_import_permission(self, request) -> bool:
+    def has_import_permission(self, request: Any) -> bool:
         """Prevent secret-bearing configuration from bulk import."""
         return False
 
-    def has_export_permission(self, request) -> bool:
+    def has_export_permission(self, request: Any) -> bool:
         """Prevent secret-bearing configuration from bulk export."""
         return False
 
@@ -155,7 +156,7 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
         return f"\u2717 Invalid: {error_list}"
 
     @admin.action(permissions=["change"], description="Validate selected configurations")
-    def validate_config(self, request, queryset) -> None:
+    def validate_config(self, request: Any, queryset: Any) -> None:
         """Action to validate configuration."""
         from django.utils import timezone
 
@@ -175,7 +176,7 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
         )
 
     @admin.action(permissions=["change"], description="Apply selected configurations to service")
-    def apply_config(self, request, queryset) -> None:
+    def apply_config(self, request: Any, queryset: Any) -> None:
         """Action to apply configuration."""
         applied = 0
         failed = 0
@@ -200,7 +201,7 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
             )
 
     @admin.action(permissions=["change"], description="Enable selected configurations")
-    def enable_config(self, request, queryset) -> None:
+    def enable_config(self, request: Any, queryset: Any) -> None:
         """Action to enable configuration."""
         count = queryset.update(is_active=True)
         self.message_user(
@@ -210,7 +211,7 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
         )
 
     @admin.action(permissions=["change"], description="Disable selected configurations")
-    def disable_config(self, request, queryset) -> None:
+    def disable_config(self, request: Any, queryset: Any) -> None:
         """Action to disable configuration."""
         count = queryset.update(is_active=False)
         self.message_user(
@@ -247,11 +248,11 @@ class ConfigurationAuditLogAdmin(MicboardModelAdmin):
     exclude = ("old_values", "new_values")
     date_hierarchy = "created_at"
 
-    def has_import_permission(self, request) -> bool:
+    def has_import_permission(self, request: Any) -> bool:
         """Prevent audit payloads from bulk import."""
         return False
 
-    def has_export_permission(self, request) -> bool:
+    def has_export_permission(self, request: Any) -> bool:
         """Prevent audit payloads from bulk export."""
         return False
 

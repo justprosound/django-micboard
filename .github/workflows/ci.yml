@@ -112,6 +112,13 @@ jobs:
             htmlcov/
           retention-days: 30
 
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
   security:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -1,6 +1,7 @@
 """Management command to poll device APIs using the service layer."""
 
 from __future__ import annotations
+from typing import Any
 
 import logging
 
@@ -26,7 +27,7 @@ class Command(BaseCommand):
     requires_system_checks: tuple[str, ...] = ()
     requires_migrations_checks = False
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: Any) -> Any:
         parser.add_argument(
             "--manufacturer",
             type=str,
@@ -45,7 +46,7 @@ class Command(BaseCommand):
             help="Force polling even if manufacturer is marked inactive",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         manufacturer_code = options.get("manufacturer")
         use_async = options.get("async", False)
         force = options.get("force", False)
@@ -83,7 +84,7 @@ class Command(BaseCommand):
             )
 
     @staticmethod
-    def _get_manufacturers(manufacturer_code: str | None, *, force: bool):
+    def _get_manufacturers(manufacturer_code: str | None, *, force: bool) -> Any:
         if manufacturer_code:
             try:
                 filters: dict[str, str | bool] = {"code": manufacturer_code}
@@ -100,7 +101,7 @@ class Command(BaseCommand):
         )
         return list(queryset)
 
-    def _enqueue_manufacturer(self, manufacturer, *, force: bool = False) -> None:
+    def _enqueue_manufacturer(self, manufacturer: Any, *, force: bool = False) -> None:
         """Queue one manufacturer poll while preserving an explicit force override."""
         from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
@@ -132,7 +133,7 @@ class Command(BaseCommand):
     def _poll_manufacturer(
         self,
         polling_service: PollingService,
-        manufacturer,
+        manufacturer: Any,
         *,
         force: bool = False,
     ) -> None:

@@ -11,6 +11,7 @@ Links to WirelessChassis base unit and RFChannel for RF path tracking.
 """
 
 from __future__ import annotations
+from typing import Any
 
 from datetime import timedelta
 from typing import ClassVar, cast
@@ -24,7 +25,7 @@ from micboard.models.base_managers import TenantOptimizedManager, TenantOptimize
 class WirelessUnitQuerySet(TenantOptimizedQuerySet):
     """Enhanced queryset for WirelessUnit model with tenant filtering."""
 
-    def for_user(self, *, user) -> WirelessUnitQuerySet:
+    def for_user(self, *, user: Any) -> WirelessUnitQuerySet:
         """Return units reachable through the user's monitoring-group scope."""
         tenant_scope = cast(WirelessUnitQuerySet, super().for_user(user=user))
         if not user.is_authenticated:
@@ -71,7 +72,7 @@ class WirelessUnitManager(TenantOptimizedManager):
         """Get all active wireless units."""
         return self.get_queryset().active()
 
-    def for_user(self, *, user) -> WirelessUnitQuerySet:
+    def for_user(self, *, user: Any) -> WirelessUnitQuerySet:
         """Return wireless units visible to the user."""
         return self.get_queryset().for_user(user=user)
 

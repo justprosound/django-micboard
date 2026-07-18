@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from micboard.multitenancy.models import Organization
 
 
-def _get_org_from_session(request: HttpRequest):
+def _get_org_from_session(request: HttpRequest) -> Any:
     from micboard.multitenancy.models import Organization, OrganizationMembership
 
     if not hasattr(request, "session"):
@@ -50,7 +50,7 @@ def _get_org_from_session(request: HttpRequest):
     return None
 
 
-def _get_org_from_user_profile(request: HttpRequest):
+def _get_org_from_user_profile(request: HttpRequest) -> Any:
     if not request.user.is_authenticated:
         return None
     if hasattr(request.user, "profile") and hasattr(request.user.profile, "default_organization"):
@@ -60,7 +60,7 @@ def _get_org_from_user_profile(request: HttpRequest):
     return None
 
 
-def _get_org_from_membership(request: HttpRequest):
+def _get_org_from_membership(request: HttpRequest) -> Any:
     if not request.user.is_authenticated:
         return None
     from micboard.multitenancy.models import OrganizationMembership
@@ -77,7 +77,7 @@ def _get_org_from_membership(request: HttpRequest):
     return None
 
 
-def _get_org_from_subdomain(request: HttpRequest):
+def _get_org_from_subdomain(request: HttpRequest) -> Any:
     if not micboard_settings.subdomain_routing:
         return None
     host = request.get_host().split(":")[0]
@@ -173,11 +173,11 @@ class TenantMiddleware:
     - request.campus_id: Current Campus ID (or None)
     """
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Any) -> None:
         """Store the downstream response callable."""
         self.get_response = get_response
 
-    def __call__(self, request: HttpRequest):
+    def __call__(self, request: HttpRequest) -> Any:
         """Populate request with tenant context before dispatching."""
         tenant_request: Any = request
         # Attach organization as lazy object (evaluated on access)

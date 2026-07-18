@@ -1,4 +1,5 @@
 """Management command to import Shure devices from System API into Django models."""
+from typing import Any
 
 import logging
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 class Command(BaseCommand):
     help = "Import Shure devices from System API servers into Django models"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: Any) -> Any:
         parser.add_argument(
             "--server-id",
             type=str,
@@ -29,7 +30,7 @@ class Command(BaseCommand):
             help="Show detailed device information",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         from micboard.services.settings.settings_service import settings
 
         # Get API servers configuration
@@ -98,7 +99,7 @@ class Command(BaseCommand):
         if options["dry_run"]:
             self.stdout.write(self.style.WARNING("\n(DRY RUN - No changes made)"))
 
-    def _import_device(self, device, manufacturer, location, server_id, dry_run=False, full=False):
+    def _import_device(self, device: Any, manufacturer: Any, location: Any, server_id: Any, dry_run: Any=False, full: Any=False) -> Any:
         """Delegate import logic to ImportService for testability and reuse."""
         from micboard.services.import_service import ImportService
 

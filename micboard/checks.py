@@ -1,12 +1,13 @@
 """Django system checks for django-micboard."""
 
 from __future__ import annotations
+from typing import Any
 
 from django.conf import settings
 from django.core.checks import CheckMessage, Error
 
 
-def check_micboard_configuration(app_configs, **kwargs) -> list[CheckMessage]:
+def check_micboard_configuration(app_configs: Any, **kwargs: Any) -> list[CheckMessage]:
     """Django system check for Micboard configuration."""
     errors: list[CheckMessage] = []
     if not settings.DEBUG:

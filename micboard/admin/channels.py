@@ -5,6 +5,7 @@ channels and field units.
 """
 
 from __future__ import annotations
+from typing import Any
 
 from django.contrib import admin
 from django.db.models import Exists, OuterRef, Prefetch
@@ -56,7 +57,7 @@ class RFChannelAdmin(MicboardModelAdmin):
         "chassis__location__building__regulatory_domain",
     )
 
-    def get_queryset(self, request):
+    def get_queryset(self, request: Any) -> Any:
         qs = super().get_queryset(request)
 
         # Subquery to check for specific frequency band coverage
@@ -73,14 +74,14 @@ class RFChannelAdmin(MicboardModelAdmin):
         )
 
     @admin.display(description="Active Unit")
-    def active_unit(self, obj):
+    def active_unit(self, obj: Any) -> Any:
         """Show active wireless unit if present."""
         if obj.active_wireless_unit:
             return f"✓ {obj.active_wireless_unit.name} (Slot {obj.active_wireless_unit.slot})"
         return "✗ None"
 
     @admin.display(description="Regulatory Status")
-    def regulatory_status_optimized(self, obj):
+    def regulatory_status_optimized(self, obj: Any) -> Any:
         """Optimized regulatory status display using annotated values."""
         # We still need some basic logic, but we avoid the N+1 DB calls
         # because the necessary objects are in select_related/prefetch_related
@@ -150,7 +151,7 @@ class WirelessUnitAdmin(MicboardModelAdmin):
         "updated_at",
     )
 
-    def get_queryset(self, request):
+    def get_queryset(self, request: Any) -> Any:
         """Eager-load the effective RF channel used by regulatory displays."""
         active_channels = RFChannel.objects.select_related(
             "chassis__location__building__regulatory_domain"

@@ -1,3 +1,4 @@
+from typing import Any
 import logging
 
 from django.core.management.base import BaseCommand
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 class HealthChecker:
     """Perform health checks on Shure System API."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize health checker and configure Shure System API client."""
         base_url = settings.get("SHURE_API_BASE_URL", "https://localhost:10000")
         shared_key = settings.get("SHURE_API_SHARED_KEY")
@@ -34,7 +35,7 @@ class HealthChecker:
             )
             self.error = f"Client initialization failed ({type(exc).__name__}); details redacted."
 
-    def check_connectivity(self):
+    def check_connectivity(self) -> Any:
         logger.info("1. Connectivity Check\n" + "-" * 70)
         if not self.client:
             logger.error("✗ Failed to initialize client: %s", self.error)
@@ -59,7 +60,7 @@ class HealthChecker:
                 "error": f"Connectivity check failed ({type(exc).__name__}); details redacted.",
             }
 
-    def check_devices(self):
+    def check_devices(self) -> Any:
         logger.info("\n2. WirelessChassis Discovery Check\n" + "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
@@ -87,7 +88,7 @@ class HealthChecker:
             )
             return {}
 
-    def check_discovery_ips(self):
+    def check_discovery_ips(self) -> Any:
         logger.info("\n3. Discovery IP Configuration Check\n" + "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
@@ -113,7 +114,7 @@ class HealthChecker:
             )
             return {}
 
-    def check_api_endpoints(self):
+    def check_api_endpoints(self) -> Any:
         logger.info("\n4. API Endpoints Check\n" + "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
@@ -139,7 +140,7 @@ class HealthChecker:
                 results[endpoint] = f"ERROR ({type(exc).__name__}): details redacted."
         return results
 
-    def check_client_config(self):
+    def check_client_config(self) -> Any:
         logger.info("\n5. Client Configuration\n" + "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
@@ -157,7 +158,7 @@ class HealthChecker:
             "is_healthy": self.client.is_healthy(),
         }
 
-    def print_summary(self, full: bool = False):
+    def print_summary(self, full: bool = False) -> Any:
         logger.info("\n" + "=" * 70)
         logger.info("HEALTH CHECK SUMMARY")
         logger.info("=" * 70)
@@ -192,19 +193,19 @@ class HealthChecker:
             logger.info("  • Configure discovery IPs:")
             logger.info("  • python scripts/shure_configure_discovery_ips.py --help")
 
-    def run(self, full: bool = False):
+    def run(self, full: bool = False) -> Any:
         self.print_summary(full=full)
 
 
 class Command(BaseCommand):
     help = "Perform health checks on Shure System API."
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: Any) -> Any:
         parser.add_argument(
             "--full", action="store_true", help="Run full diagnostics including device details"
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         try:
             checker = HealthChecker()
             checker.run(full=options["full"])

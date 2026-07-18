@@ -1,4 +1,5 @@
 """Management command to archive and prune audit logs."""
+from typing import Any
 
 from django.core.management.base import BaseCommand
 
@@ -8,7 +9,7 @@ from micboard.services.maintenance.audit import AuditService
 class Command(BaseCommand):
     help = "Archive old activity logs and prune sync/api health logs"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: Any) -> Any:
         parser.add_argument(
             "--retention-days",
             type=int,
@@ -21,7 +22,7 @@ class Command(BaseCommand):
             help="Archive activity logs only (skip sync/api health pruning)",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         retention_days = options.get("retention_days")
         activity_only = options["activity_only"]
 

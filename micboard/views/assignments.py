@@ -81,7 +81,7 @@ class AssignmentListView(LoginRequiredMixin, ListView):
     context_object_name = "assignments"
     paginate_by: int | None = PerformerAssignmentService.PAGE_SIZE
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """Filter assignments by user permissions and monitoring groups they manage."""
         return PerformerAssignmentService.get_visible_assignments(user=self.request.user)
 
@@ -92,7 +92,7 @@ class AssignmentRowsView(AssignmentListView):
     template_name = "micboard/partials/assignment_rows.html"
     paginate_by = None
 
-    def get_queryset(self):
+    def get_queryset(self) -> Any:
         """Return the requested row slice without full-page pagination metadata."""
         return PerformerAssignmentService.get_visible_assignment_rows(
             user=self.request.user,

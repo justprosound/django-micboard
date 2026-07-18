@@ -148,7 +148,7 @@ def track_service_metrics(func: Callable) -> Callable:
     """
 
     @wraps(func)
-    def wrapper(*args, **kwargs) -> Any:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         start_time = time.time()
         service_name = func.__qualname__.split(".")[0]
         method_name = func.__name__
@@ -188,7 +188,7 @@ def track_service_metrics(func: Callable) -> Callable:
 
 
 @contextmanager
-def measure_operation(operation_name: str):
+def measure_operation(operation_name: str) -> Any:
     """Context manager to measure operation duration.
 
     Args:
@@ -210,7 +210,7 @@ def measure_operation(operation_name: str):
 class PerformanceMonitor:
     """Monitor performance of code blocks."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         """Initialize monitor.
 
         Args:
@@ -219,12 +219,12 @@ class PerformanceMonitor:
         self.name = name
         self.start_time: float | None = None
 
-    def __enter__(self):
+    def __enter__(self) -> Any:
         """Start monitoring."""
         self.start_time = time.time()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
         """Stop monitoring and log results."""
         if self.start_time:
             duration_ms = (time.time() - self.start_time) * 1000

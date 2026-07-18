@@ -153,7 +153,7 @@ class MicboardConfig(AppConfig):
                 "settings.MIDDLEWARE:\n" + "\n".join(f"    {m}" for m in missing)
             )
 
-    def _validate_configuration(self, config: dict[str, Any]):
+    def _validate_configuration(self, config: dict[str, Any]) -> Any:
         """Validate merged configuration.
 
         Args:

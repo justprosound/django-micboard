@@ -1,4 +1,5 @@
 """Management command to initialize settings registry with definitions."""
+from typing import Any
 
 from django.core.management.base import BaseCommand
 
@@ -10,14 +11,14 @@ class Command(BaseCommand):
 
     help = "Initialize settings definitions with standard configuration options"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: Any) -> Any:
         parser.add_argument(
             "--reset",
             action="store_true",
             help="Reset all settings to default state",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         if options["reset"]:
             self.stdout.write(self.style.WARNING("Resetting settings..."))
             SettingDefinition.objects.all().delete()

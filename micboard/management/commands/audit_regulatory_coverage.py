@@ -9,6 +9,7 @@ Checks every active WirelessChassis and RFChannel for:
 Usage:
     uv run --no-sync python manage.py audit_regulatory_coverage [--fix]
 """
+from typing import Any
 
 from django.core.management.base import BaseCommand
 
@@ -27,14 +28,14 @@ from micboard.services.hardware.wireless_chassis_persistence_service import (
 class Command(BaseCommand):
     help = "Audit regulatory coverage for all active devices and channels"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: Any) -> Any:
         parser.add_argument(
             "--fix",
             action="store_true",
             help="Attempt to auto-fix missing band plans using model inference",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         fix_mode = options["fix"]
         self.stdout.write("Starting Regulatory Coverage Audit...\n")
 
@@ -46,7 +47,7 @@ class Command(BaseCommand):
 
         self.stdout.write("\nAudit Complete.")
 
-    def audit_chassis(self, fix_mode):
+    def audit_chassis(self, fix_mode: Any) -> Any:
         """Audit WirelessChassis band plans and regulatory domains."""
         chassis_qs = WirelessChassis.objects.filter(
             status__in=["online", "degraded", "provisioning"]
@@ -126,7 +127,7 @@ class Command(BaseCommand):
 
     def audit_channels(
         self,
-    ):
+    ) -> Any:
         """Audit active RFChannel frequencies."""
         channels_qs = RFChannel.objects.filter(
             resource_state__in=["active", "reserved"], frequency__isnull=False

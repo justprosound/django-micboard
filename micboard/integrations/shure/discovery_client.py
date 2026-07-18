@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ShureDiscoveryClient:
     """Client for managing Shure System API discovery IPs."""
 
-    def __init__(self, api_client: BaseAPIClient):
+    def __init__(self, api_client: BaseAPIClient) -> None:
         """Initialize discovery client with parent API client."""
         self.api_client = api_client
 

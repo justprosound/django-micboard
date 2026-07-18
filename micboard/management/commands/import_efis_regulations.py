@@ -3,6 +3,7 @@
 Imports frequency band data from the ECO Frequency Information System (EFIS).
 Can be run manually or scheduled via cron/tasks.
 """
+from typing import Any
 
 import logging
 import time
@@ -19,7 +20,7 @@ class Command(BaseCommand):
 
     help = "Import regulatory frequency data from EFIS (Annex 1)"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: Any) -> Any:
         parser.add_argument(
             "--force",
             action="store_true",
@@ -31,7 +32,7 @@ class Command(BaseCommand):
             help="Enable verbose output with detailed progress information",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         force = options["force"]
         verbose = options.get("verbose", False)
 

@@ -216,11 +216,11 @@ class ManufacturerSyncService:
 
     @staticmethod
     def _persist_normalized_devices(
-        normalized_devices,
+        normalized_devices: Any,
         *,
-        manufacturer,
-        check_device,
-        identity_index_class,
+        manufacturer: Any,
+        check_device: Any,
+        identity_index_class: Any,
         force: bool = False,
     ) -> tuple[int, int] | None:
         """Serialize identity reads and writes across manufacturer pollers."""
@@ -255,11 +255,11 @@ class ManufacturerSyncService:
 
     @staticmethod
     def _sync_normalized_device(
-        payload,
-        manufacturer,
-        check_device,
+        payload: Any,
+        manufacturer: Any,
+        check_device: Any,
         *,
-        identity_index=None,
+        identity_index: Any=None,
     ) -> str | None:
         """Persist one normalized device and return its sync outcome."""
         deduplication_kwargs = {
@@ -323,7 +323,7 @@ class ManufacturerSyncService:
 
     @staticmethod
     def _normalize_devices(
-        api_devices: Iterable[dict[str, Any]], plugin
+        api_devices: Iterable[dict[str, Any]], plugin: Any
     ) -> list[NormalizedHardware]:
         """Normalize and validate raw API device payloads."""
         from micboard.services.core.hardware import NormalizedHardware

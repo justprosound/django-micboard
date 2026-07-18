@@ -140,7 +140,7 @@ class BulkSettingConfigForm(forms.Form):
         # Load setting definitions dynamically
         self._add_setting_fields()
 
-    def _add_setting_fields(self):
+    def _add_setting_fields(self) -> Any:
         """Dynamically add fields for each active setting definition."""
         definitions = SettingDefinition.objects.filter(is_active=True).order_by("key")
         selected_scope = self.data.get(self.add_prefix("scope")) if self.is_bound else None

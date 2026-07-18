@@ -1,6 +1,7 @@
 """Forms for manufacturer configuration JSON."""
 
 from __future__ import annotations
+from typing import Any
 
 from django import forms
 
@@ -20,7 +21,7 @@ class ManufacturerConfigurationForm(forms.ModelForm):
         model = ManufacturerConfiguration
         fields = ("code", "name", "is_active", "config", "updated_by")
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         if self.instance.pk:
             self.initial["config"] = redact_secrets(self.instance.config)

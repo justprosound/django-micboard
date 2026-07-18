@@ -1,6 +1,7 @@
 """Performer model for device users assigned to wireless units."""
 
 from __future__ import annotations
+from typing import Any
 
 from typing import ClassVar, cast
 
@@ -13,7 +14,7 @@ from micboard.settings.deployment_controls import deployment_controls
 class PerformerQuerySet(TenantOptimizedQuerySet):
     """Query helpers for performers with tenant awareness."""
 
-    def for_user(self, *, user) -> PerformerQuerySet:
+    def for_user(self, *, user: Any) -> PerformerQuerySet:
         """Return performers managed by one of the user's active monitoring groups.
 
         In single-tenant mode, unassigned performers remain available so an
@@ -43,7 +44,7 @@ class PerformerQuerySet(TenantOptimizedQuerySet):
         """Optimize: prefetch related assignments and units."""
         return self.prefetch_related("assignments", "assignments__wireless_unit")
 
-    def by_monitoring_group(self, *, group) -> PerformerQuerySet:
+    def by_monitoring_group(self, *, group: Any) -> PerformerQuerySet:
         """Filter performers by monitoring group (through assignments)."""
         return self.filter(assignments__monitoring_group=group).distinct()
 
@@ -57,7 +58,7 @@ class PerformerManager(TenantOptimizedManager):
     def active(self) -> PerformerQuerySet:
         return self.get_queryset().active()
 
-    def for_user(self, *, user) -> PerformerQuerySet:
+    def for_user(self, *, user: Any) -> PerformerQuerySet:
         """Return performers visible to the user."""
         return self.get_queryset().for_user(user=user)
 
@@ -144,7 +145,7 @@ class Performer(models.Model):
         role = f" ({self.title})" if self.title else ""
         return f"{self.name}{role}"
 
-    def get_assigned_units(self):
+    def get_assigned_units(self) -> Any:
         """Get all wireless units assigned to this performer."""
         from micboard.models.hardware.wireless_unit import WirelessUnit
 
@@ -153,6 +154,6 @@ class Performer(models.Model):
             status__in=["online", "degraded", "provisioning"],
         )
 
-    def get_monitoring_groups(self):
+    def get_monitoring_groups(self) -> Any:
         """Get all monitoring groups that manage this performer."""
         return self.assignments.values_list("monitoring_group", flat=True).distinct()

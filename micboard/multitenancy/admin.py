@@ -4,6 +4,7 @@ Provides organization and campus management in Django admin.
 """
 
 from __future__ import annotations
+from typing import Any
 
 from django.contrib import admin
 
@@ -13,28 +14,28 @@ from micboard.services.settings.settings_service import settings as micboard_set
 class SuperuserOnlyAdmin(admin.ModelAdmin):
     """Reserve tenant-boundary administration for platform superusers."""
 
-    def get_queryset(self, request):
+    def get_queryset(self, request: Any) -> Any:
         """Hide every tenant-boundary object from non-superusers."""
         queryset = super().get_queryset(request)
         return queryset if request.user.is_superuser else queryset.none()
 
-    def has_module_permission(self, request):
+    def has_module_permission(self, request: Any) -> Any:
         """Show this module only to platform superusers."""
         return request.user.is_superuser
 
-    def has_view_permission(self, request, obj=None):
+    def has_view_permission(self, request: Any, obj: Any=None) -> Any:
         """Allow viewing tenant boundaries only to platform superusers."""
         return request.user.is_superuser
 
-    def has_add_permission(self, request):
+    def has_add_permission(self, request: Any) -> Any:
         """Allow creating tenant boundaries only to platform superusers."""
         return request.user.is_superuser
 
-    def has_change_permission(self, request, obj=None):
+    def has_change_permission(self, request: Any, obj: Any=None) -> Any:
         """Allow changing tenant boundaries only to platform superusers."""
         return request.user.is_superuser
 
-    def has_delete_permission(self, request, obj=None):
+    def has_delete_permission(self, request: Any, obj: Any=None) -> Any:
         """Allow deleting tenant boundaries only to platform superusers."""
         return request.user.is_superuser
 
@@ -206,7 +207,7 @@ if micboard_settings.msp_enabled:
             ),
         ]
 
-        def save_model(self, request, obj, form, change):
+        def save_model(self, request: Any, obj: Any, form: Any, change: Any) -> Any:
             """Auto-set created_by on new memberships (delegates to service)."""
             if not change:  # New object
                 from micboard.services.multitenancy.organization_service import set_created_by

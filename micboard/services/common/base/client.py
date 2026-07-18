@@ -31,12 +31,12 @@ class BaseAPIClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def _make_request(self, *args, **kwargs) -> Any:
+    def _make_request(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError()
 
 
 class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
-    def __init__(self, base_url: str | None = None):
+    def __init__(self, base_url: str | None = None) -> None:
         from micboard.services.settings.settings_service import settings
 
         config_dict = settings.get_config_dict()
@@ -161,7 +161,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
                 error=f"Health check failed ({type(exc).__name__}); details redacted.",
             )
 
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> Any | None:
+    def _make_request(self, method: str, endpoint: str, **kwargs: Any) -> Any | None:
         url = f"{self.base_url}{endpoint}"
         logger.debug("Making %s request for %s", method, self._get_config_prefix())
         kwargs.setdefault("timeout", self.timeout)
