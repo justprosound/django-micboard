@@ -8,7 +8,7 @@ from pathlib import Path
 import micboard
 import micboard.models as model_api
 import micboard.models.telemetry.sessions as telemetry_sessions
-import micboard.services as services
+from micboard import services
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 
 ROOT = Path(__file__).resolve().parents[1]
