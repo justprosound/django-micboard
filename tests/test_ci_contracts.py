@@ -52,6 +52,7 @@ def test_every_trusted_publisher_uses_the_hardened_release_gate() -> None:
         or "pypa/gh-action-pypi-publish@" in path.read_text()
     }
 
+    # publish-release.yml = PyPI trusted publisher
     assert set(publishers) == {"publish-release.yml"}
     release = publishers["publish-release.yml"]
     preparation = (WORKFLOWS / "prepare-release.yml").read_text()

@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_context_references_the_live_middleware_module() -> None:
     """The architecture map must point contributors at an importable source file."""
-    context = (ROOT / "CONTEXT.md").read_text()
+    context = (ROOT / "docs/development/context.md").read_text()
 
     assert "`micboard/multitenancy/middleware.py`" in context
     assert "`micboard/middleware.py`" not in context

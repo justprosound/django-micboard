@@ -25,7 +25,7 @@ repos:
         entry: uv run --no-sync check-yaml
         language: system
         types: [yaml]
-        exclude: '(^|/)migrations/'
+        exclude: '(^|/)migrations/|^mkdocs\.yml$'
 
       - id: check-json
         name: check json

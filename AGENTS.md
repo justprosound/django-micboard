@@ -193,6 +193,7 @@ This document distills all key architectural, workflow, and style rules for code
     - Modify or delete existing migration files
     - Edit compiled requirements files directly (edit `.in` or pyproject.toml only)
     - Introduce new frameworks, caching, or queue solutions unless a precedent exists
+    - Include "Co-Authored-By" or "Co-authored-by" tags in commit messages or any output
 - **Always:**
     - Place all core logic in domain services
     - Update ALL references when removing/shifting APIs (no backward-compat wrappers)

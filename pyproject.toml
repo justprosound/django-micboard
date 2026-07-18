@@ -162,6 +162,11 @@ dev = [
 ]
 docs = [
     "mkdocs>=1.6",
+    "mkdocs-git-revision-date-localized-plugin>=1.5.3",
+    "mkdocs-material>=9.7.6",
+    "mkdocs-minify-plugin>=0.8.0",
+    "mkdocstrings[python]>=1.0.6",
+    "pymdown-extensions",
 ]
 all = [
     "djangorestframework",

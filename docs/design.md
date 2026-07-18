@@ -6,8 +6,7 @@ The app keeps a reusable Django package layout with a configuration registry, ma
 
 ## Components
 
-- Configuration access: `micboard/services/settings/settings_service.py` for feature flags, host
-  configuration, app defaults, and scoped settings.
+- Configuration access: `micboard/services/settings/settings_service.py` for feature flags, host configuration, app defaults, and scoped settings.
 - Manufacturer registry: `micboard/services/manufacturer/plugin_registry.py`.
 - Tenant scoping: tenant-aware QuerySet/Manager helpers and middleware that attaches request context.
 - Admin overrides view: admin-facing UI showing differences between scoped settings and global defaults.
@@ -16,10 +15,8 @@ The app keeps a reusable Django package layout with a configuration registry, ma
 
 1. Request arrives with tenant context resolved via middleware.
 2. Services query models using tenant-aware helpers (organization/site/campus).
-3. Manufacturer-specific operations resolve plugins and scoped settings through their canonical
-   services.
-4. Each configuration definition selects one exact scope; missing values use the documented
-   non-database fallback order.
+3. Manufacturer-specific operations resolve plugins and scoped settings through their canonical services.
+4. Each configuration definition selects one exact scope; missing values use the documented non-database fallback order.
 5. Admin settings diff view computes global value + scoped overrides for display.
 
 ## Settings Resolution Order
