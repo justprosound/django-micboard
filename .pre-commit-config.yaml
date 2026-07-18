@@ -1,74 +1,38 @@
 ---
-# All hooks use the uv-managed project environment. Generated migration files
-# are excluded per hook so the integrity check below can inspect them.
+# All hooks use the uv-managed project environment locally except standard formatting hooks.
+# Generated migration files are excluded per hook so the integrity check below can inspect them.
 exclude: '(^|/)(docs|node_modules|\.venv|build|dist)/|^\.coverage$'
 
 repos:
-  - repo: local
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
     hooks:
       - id: trailing-whitespace
-        name: trailing whitespace
-        entry: uv run --no-sync trailing-whitespace-fixer
-        language: system
-        types: [text]
         exclude: '(^|/)migrations/'
-
       - id: end-of-file-fixer
-        name: end of file fixer
-        entry: uv run --no-sync end-of-file-fixer
-        language: system
-        types: [text]
         exclude: '(^|/)migrations/'
-
       - id: check-yaml
-        name: check yaml
-        entry: uv run --no-sync check-yaml
-        language: system
-        types: [yaml]
         exclude: '(^|/)migrations/|^mkdocs\.yml$'
-
       - id: check-json
-        name: check json
-        entry: uv run --no-sync check-json
-        language: system
-        types: [json]
         exclude: '(^|/)migrations/'
-
       - id: check-toml
-        name: check toml
-        entry: uv run --no-sync check-toml
-        language: system
-        types: [toml]
         exclude: '(^|/)migrations/'
-
       - id: check-merge-conflict
-        name: check merge conflicts
-        entry: uv run --no-sync check-merge-conflict
-        language: system
-        types: [text]
         exclude: '(^|/)migrations/'
-
       - id: debug-statements
-        name: debug statements
-        entry: uv run --no-sync debug-statement-hook
-        language: system
-        types: [python]
         exclude: '(^|/)migrations/'
 
-      - id: ruff-check
-        name: ruff check
-        entry: uv run --no-sync ruff check --fix --exit-non-zero-on-fix
-        language: system
-        types_or: [python, pyi]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: ruff
+        args: [ --fix, --exit-non-zero-on-fix ]
         exclude: '(^|/)migrations/'
-
       - id: ruff-format
-        name: ruff format
-        entry: uv run --no-sync ruff format --check
-        language: system
-        types_or: [python, pyi]
         exclude: '(^|/)migrations/'
 
+  - repo: local
+    hooks:
       - id: mypy
         name: mypy
         entry: uv run --no-sync python -m mypy micboard
@@ -101,5 +65,5 @@ repos:
 
 ci:
   autoupdate_schedule: weekly
-  skip: []
+  skip: [mypy, django-migrations-check, django-migration-integrity, docs-requirements-lock]
   submodules: true
