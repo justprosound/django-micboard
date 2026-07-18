@@ -35,7 +35,7 @@ class AdminAuditOptions(PydanticBaseDTO):
             return ()
         if isinstance(value, str):
             return (value,)
-        if isinstance(value, (list, tuple, set, frozenset)):
+        if isinstance(value, list | tuple | set | frozenset):
             return tuple(str(item) for item in value)
         raise ValueError("model filters must be strings or collections of strings")
 

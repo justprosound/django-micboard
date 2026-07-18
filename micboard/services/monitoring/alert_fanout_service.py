@@ -244,7 +244,7 @@ class AlertFanoutService:
             return 0
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             return 0
-        return value
+        return cast(int, value)
 
     @staticmethod
     def _write_cursor(key: str, value: int) -> None:

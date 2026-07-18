@@ -34,8 +34,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-extras
 
-      - name: Run pre-commit
-        run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+      - name: Run prek
+        run: |
+          uv tool install prek
+          prek run --all-files --show-diff-on-failure
 
       - name: Type check with mypy
         run: uv run --no-sync python -m mypy micboard
@@ -99,6 +101,7 @@ jobs:
             --cov-report=html \
             --cov-report=term-missing:skip-covered \
             --cov-fail-under=95 \
+            --junitxml=junit.xml \
             -v
           uv run --no-sync python scripts/check_coverage_inventory.py
 
@@ -111,6 +114,25 @@ jobs:
             coverage.xml
             htmlcov/
           retention-days: 30
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073  # v5.0.0
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          DJANGO_VERSION: ${{ matrix.django-version }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: true
+          env_vars: PYTHON_VERSION,DJANGO_VERSION
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3  # v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: junit.xml
+
 
   security:
     runs-on: ubuntu-latest

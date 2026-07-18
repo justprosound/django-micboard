@@ -15,7 +15,7 @@ from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.monitoring.alert_fanout_service import AlertFanoutService
-from micboard.services.notification.email import email_service
+from micboard.services.notification.email_notification import email_service
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)

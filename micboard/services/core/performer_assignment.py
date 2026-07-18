@@ -215,14 +215,15 @@ class PerformerAssignmentService:
         user: Any,
     ) -> PerformerAssignment:
         """Lock and return one user-visible assignment with its authorization graph."""
-        return (
+        return cast(
+            PerformerAssignment,
             PerformerAssignment.objects.for_user(user=user)
             .select_related(
                 "monitoring_group",
                 "wireless_unit__base_chassis__location__building",
             )
             .select_for_update()
-            .get(id=assignment_id)
+            .get(id=assignment_id),
         )
 
     @staticmethod

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Literal
+from typing import Literal, cast
 
 from django.core.cache import cache
 
@@ -37,7 +37,9 @@ class LoggingModeService:
             LoggingModeService.set_mode("normal")
             return "normal"
 
-        return mode
+        if mode not in ("passive", "normal", "high"):
+            mode = "normal"
+        return cast(LogMode, mode)
 
     @staticmethod
     def set_mode(mode: LogMode, ttl_seconds: int | None = None) -> None:

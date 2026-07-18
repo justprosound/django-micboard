@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
-from typing import Any
+from typing import Any, cast
 
 from django.core.cache import cache
 
@@ -86,7 +86,10 @@ class MetricsCollector:
             List of metric dictionaries.
         """
         key = f"{cls.METRICS_KEY_PREFIX}{service_name}:{method_name}"
-        return cache.get(key, [])
+        metrics = cache.get(key, [])
+        if not isinstance(metrics, list):
+            return []
+        return cast(list[dict[str, Any]], metrics)
 
     @classmethod
     def get_service_metrics(cls, *, service_name: str) -> dict[str, list[dict[str, Any]]]:
@@ -148,7 +151,7 @@ def track_service_metrics(func: Callable) -> Callable:
     """
 
     @wraps(func)
-    def wrapper(*args, **kwargs) -> Any:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         start_time = time.time()
         service_name = func.__qualname__.split(".")[0]
         method_name = func.__name__
@@ -188,7 +191,7 @@ def track_service_metrics(func: Callable) -> Callable:
 
 
 @contextmanager
-def measure_operation(operation_name: str):
+def measure_operation(operation_name: str) -> Iterator[None]:
     """Context manager to measure operation duration.
 
     Args:
@@ -210,7 +213,7 @@ def measure_operation(operation_name: str):
 class PerformanceMonitor:
     """Monitor performance of code blocks."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         """Initialize monitor.
 
         Args:
@@ -219,12 +222,12 @@ class PerformanceMonitor:
         self.name = name
         self.start_time: float | None = None
 
-    def __enter__(self):
+    def __enter__(self) -> PerformanceMonitor:
         """Start monitoring."""
         self.start_time = time.time()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Stop monitoring and log results."""
         if self.start_time:
             duration_ms = (time.time() - self.start_time) * 1000

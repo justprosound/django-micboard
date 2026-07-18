@@ -6,6 +6,7 @@ from typing import Any
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
@@ -81,7 +82,7 @@ class AssignmentListView(LoginRequiredMixin, ListView):
     context_object_name = "assignments"
     paginate_by: int | None = PerformerAssignmentService.PAGE_SIZE
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[PerformerAssignment]:
         """Filter assignments by user permissions and monitoring groups they manage."""
         return PerformerAssignmentService.get_visible_assignments(user=self.request.user)
 
@@ -92,7 +93,7 @@ class AssignmentRowsView(AssignmentListView):
     template_name = "micboard/partials/assignment_rows.html"
     paginate_by = None
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[PerformerAssignment]:
         """Return the requested row slice without full-page pagination metadata."""
         return PerformerAssignmentService.get_visible_assignment_rows(
             user=self.request.user,

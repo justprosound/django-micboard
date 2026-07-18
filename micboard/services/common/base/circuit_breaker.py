@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class CircuitBreaker:
     def __init__(
         self, *, name: str | None = None, failure_threshold: int = 5, recovery_timeout: int = 60
-    ):
+    ) -> None:
         self.name = name
         self.failure_threshold = int(failure_threshold)
         self.recovery_timeout = int(recovery_timeout)

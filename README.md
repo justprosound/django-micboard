@@ -1,5 +1,7 @@
 # django-micboard
 
+[![codecov](https://codecov.io/gh/justprosound/django-micboard/branch/main/graph/badge.svg)](https://codecov.io/gh/justprosound/django-micboard)
+
 **Real-time multi-manufacturer wireless microphone monitoring for Django.**
 
 django-micboard is a community-driven, pre-production Django reusable app for monitoring wireless audio systems (Shure, Sennheiser, etc.) in real-time. It provides device discovery, telemetry, alerting, performer assignment, and multi-tenant/multi-location support with a manufacturer-agnostic plugin architecture.

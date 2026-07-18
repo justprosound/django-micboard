@@ -47,6 +47,7 @@ class SettingsService:
     }
 
     def __init__(self) -> None:
+        """Initialize the SettingsService."""
         self._registry = SettingsRegistry
 
     # ------------------------------------------------------------------
@@ -124,59 +125,88 @@ class SettingsService:
 
     @property
     def msp_enabled(self) -> bool:
-        return self.get("msp_enabled", False)
+        """Return whether MSP features are enabled."""
+        return bool(self.get("msp_enabled", False))
 
     @property
     def multi_site_mode(self) -> bool:
-        return self.get("multi_site_mode", False)
+        """Return whether multi-site mode is enabled."""
+        return bool(self.get("multi_site_mode", False))
 
     @property
     def site_isolation(self) -> str:
-        return self.get("site_isolation", "none")
+        """Return the site isolation mode."""
+        return str(self.get("site_isolation", "none"))
 
     @property
     def allow_cross_org_view(self) -> bool:
-        return self.get("allow_cross_org_view", True)
+        """Return whether cross-organization views are allowed."""
+        return bool(self.get("allow_cross_org_view", True))
 
     @property
     def allow_org_switching(self) -> bool:
-        return self.get("allow_org_switching", True)
+        """Return whether organization switching is allowed."""
+        return bool(self.get("allow_org_switching", True))
 
     @property
     def subdomain_routing(self) -> bool:
-        return self.get("subdomain_routing", False)
+        """Return whether subdomain routing is enabled."""
+        return bool(self.get("subdomain_routing", False))
 
     @property
     def root_domain(self) -> str:
-        return self.get("root_domain", "")
+        """Return the root domain for routing."""
+        return str(self.get("root_domain", ""))
 
     @property
     def admin_org_selector(self) -> bool:
-        return self.get("admin_org_selector", True)
+        """Return whether the admin organization selector is enabled."""
+        return bool(self.get("admin_org_selector", True))
 
     @property
     def global_device_limit(self) -> int | None:
-        return self.get("global_device_limit", None)
+        """Return the global device limit, if set."""
+        try:
+            return int(self.get("global_device_limit", None))
+        except (TypeError, ValueError):
+            return None
 
     @property
     def device_limit_warning_threshold(self) -> float:
-        return self.get("device_limit_warning_threshold", 0.9)
+        """Return the device limit warning threshold."""
+        try:
+            return float(self.get("device_limit_warning_threshold", 0.9))
+        except (TypeError, ValueError):
+            return 0.9
 
     @property
     def activity_log_retention_days(self) -> int:
-        return self.get("activity_log_retention_days", 90)
+        """Return the activity log retention period in days."""
+        try:
+            return int(self.get("activity_log_retention_days", 90))
+        except (TypeError, ValueError):
+            return 90
 
     @property
     def service_sync_log_retention_days(self) -> int:
-        return self.get("service_sync_log_retention_days", 30)
+        """Return the service sync log retention period in days."""
+        try:
+            return int(self.get("service_sync_log_retention_days", 30))
+        except (TypeError, ValueError):
+            return 30
 
     @property
     def api_health_log_retention_days(self) -> int:
-        return self.get("api_health_log_retention_days", 7)
+        """Return the API health log retention period in days."""
+        try:
+            return int(self.get("api_health_log_retention_days", 7))
+        except (TypeError, ValueError):
+            return 7
 
     @property
     def audit_archive_path(self) -> str:
-        return self.get("audit_archive_path", "audit_archives")
+        """Return the file path for audit archives."""
+        return str(self.get("audit_archive_path", "audit_archives"))
 
 
 settings = SettingsService()

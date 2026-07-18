@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from django.db import models, router, transaction
 
@@ -154,7 +154,7 @@ class Charger(models.Model):
             return f"{self.name} at {self.location.name}"
         return f"Charger {self.model} ({self.serial_number}) at {self.location.name}"
 
-    def save(self, *args, **kwargs) -> None:
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """Keep the IP-ownership check and row write in one transaction."""
         using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
         kwargs["using"] = using

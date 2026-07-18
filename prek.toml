@@ -1,0 +1,81 @@
+# Configuration file for `prek`, a git hook framework written in Rust.
+# See https://prek.j178.dev for more information.
+#:schema https://www.schemastore.org/prek.json
+
+exclude = '(^|/)(docs|node_modules|\.venv|build|dist)/|^\.coverage$'
+
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "trailing-whitespace", exclude = "(^|/)migrations/" },
+  { id = "end-of-file-fixer", exclude = "(^|/)migrations/" },
+  { id = "check-yaml", exclude = "(^|/)migrations/|^mkdocs\\.yml$" },
+  { id = "check-json", exclude = "(^|/)migrations/" },
+  { id = "check-toml", exclude = "(^|/)migrations/" },
+  { id = "check-merge-conflict", exclude = "(^|/)migrations/" }
+]
+
+[[repos]]
+repo = "https://github.com/pre-commit/pre-commit-hooks"
+rev = "v4.6.0"
+hooks = [
+  { id = "debug-statements", exclude = "(^|/)migrations/" }
+]
+[[repos]]
+repo = "https://github.com/astral-sh/ruff-pre-commit"
+rev = "v0.15.13"
+hooks = [
+  {
+    id = "ruff",
+    args = [
+      "--fix",
+      "--unsafe-fixes",
+      "--exit-non-zero-on-fix"
+    ],
+    exclude = "(^|/)migrations/"
+  },
+  {
+    id = "ruff-format",
+    exclude = "(^|/)migrations/"
+  }
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "mypy",
+    name = "mypy",
+    entry = "uv run --no-sync python -m mypy micboard",
+    language = "system",
+    pass_filenames = false,
+    types_or = [
+      "python",
+      "pyi"
+    ]
+  },
+  {
+    id = "django-migrations-check",
+    name = "django migration drift check",
+    entry = "uv run --no-sync python -m django makemigrations micboard micboard_multitenancy --check --dry-run --settings=tests.settings",
+    language = "system",
+    pass_filenames = false,
+    always_run = true
+  },
+  {
+    id = "django-migration-integrity",
+    name = "django generated migration integrity",
+    entry = "uv run --no-sync python scripts/check_migration_integrity.py",
+    language = "system",
+    pass_filenames = false,
+    always_run = true
+  },
+  {
+    id = "docs-requirements-lock",
+    name = "docs requirements lock consistency",
+    entry = "uv run --no-sync python scripts/check_docs_requirements.py",
+    language = "system",
+    pass_filenames = false,
+    always_run = true
+  }
+]

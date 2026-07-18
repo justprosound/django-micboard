@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from django import forms
 
 from micboard.models.discovery.configuration import ManufacturerConfiguration
@@ -20,7 +22,7 @@ class ManufacturerConfigurationForm(forms.ModelForm):
         model = ManufacturerConfiguration
         fields = ("code", "name", "is_active", "config", "updated_by")
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         if self.instance.pk:
             self.initial["config"] = redact_secrets(self.instance.config)
@@ -29,4 +31,4 @@ class ManufacturerConfigurationForm(forms.ModelForm):
         """Preserve secrets represented by unchanged redaction placeholders."""
         config = self.cleaned_data.get("config") or {}
         original = self.instance.config if self.instance.pk else {}
-        return restore_redacted_secrets(config, original)
+        return cast(dict[Any, Any], restore_redacted_secrets(config, original))

@@ -9,7 +9,7 @@ locations, and system configuration.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
@@ -116,7 +116,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         "refresh_from_api",
     ]
 
-    def get_queryset(self, request):
+    def get_queryset(self, request: Any) -> Any:
         """Optimize queryset with related lookups."""
         from micboard.models.hardware.wireless_chassis import WirelessChassis
 
@@ -130,7 +130,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         )
 
     @admin.display(description="Status", ordering="status")
-    def status_display_with_color(self, obj):
+    def status_display_with_color(self, obj: Any) -> Any:
         """Display generic status with visual indicators."""
         status_map = {
             obj.STATUS_READY: ("✅ Ready", "var(--success-fg, green)", True),
@@ -149,7 +149,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         return obj.get_status_display()
 
     @admin.display(description="Protocol")
-    def protocol_display(self, obj):
+    def protocol_display(self, obj: Any) -> Any:
         """Display communication protocol from metadata."""
         protocol = get_device_communication_protocol(obj)
         if protocol:
@@ -157,17 +157,17 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         return "—"
 
     @admin.display(description="Managed", boolean=True)
-    def is_managed_display(self, obj):
+    def is_managed_display(self, obj: Any) -> Any:
         """Check if this discovered device is already managed as a chassis."""
         return obj._is_managed
 
     @admin.display(description="Manageable", boolean=True)
-    def is_manageable_display(self, obj):
+    def is_manageable_display(self, obj: Any) -> Any:
         """Check if device can be managed via API."""
         return is_device_manageable(obj)
 
     @admin.display(description="Manageability Status")
-    def manageable_status_detail(self, obj):
+    def manageable_status_detail(self, obj: Any) -> Any:
         """Display detailed status about whether device can be managed."""
         if is_device_manageable(obj):
             return "✅ Device is ready to be managed and can be promoted to WirelessChassis"
@@ -183,7 +183,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         return "Status unknown"
 
     @admin.display(description="Actions")
-    def promotion_actions(self, obj):
+    def promotion_actions(self, obj: Any) -> Any:
         """Display promotion action buttons with status awareness."""
         if obj._is_managed:
             return "✓ Already Managed"
@@ -203,7 +203,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
             reverse("admin:micboard_discoverdevice_promote", args=[obj.pk]),
         )
 
-    def get_urls(self):
+    def get_urls(self) -> Any:
         """Add custom URL for promotion workflow."""
         urls = super().get_urls()
         custom_urls = [
@@ -216,7 +216,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         return custom_urls + urls
 
     @method_decorator(require_POST)
-    def promote_device_view(self, request, pk):
+    def promote_device_view(self, request: Any, pk: Any) -> Any:
         """Promote a discovered device to a managed WirelessChassis."""
         discovered = self.get_object(request, str(pk))
         if discovered is None:
@@ -245,7 +245,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         permissions=["change"],
         description="Refresh device data from manufacturer API",
     )
-    def refresh_from_api(self, request, queryset):
+    def refresh_from_api(self, request: Any, queryset: Any) -> None:
         """Refresh discovered device data from manufacturer API."""
         from micboard.services.sync.device_refresh_service import DeviceRefreshService
 
@@ -267,7 +267,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         permissions=["change"],
         description="Promote selected devices to managed chassis",
     )
-    def promote_to_chassis_action(self, request, queryset):
+    def promote_to_chassis_action(self, request: Any, queryset: Any) -> None:
         """Bulk action to promote discovered devices to WirelessChassis."""
         if not self._has_promotion_permission(request):
             raise PermissionDenied
@@ -303,7 +303,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         permissions=["delete"],
         description="Delete and reconcile manufacturer API discovery lists",
     )
-    def delete_and_reconcile_discovery(self, request, queryset):
+    def delete_and_reconcile_discovery(self, request: Any, queryset: Any) -> None:
         """Delete staged devices and schedule claimed remote reconciliation."""
         from micboard.services.sync.discovered_device_deletion_service import (
             DiscoveredDeviceDeletionService,
@@ -327,7 +327,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         service = DevicePromotionService()
         return service.promote_discovered_device(discovered)
 
-    def _has_promotion_permission(self, request, obj=None) -> bool:
+    def _has_promotion_permission(self, request: Any, obj: Any = None) -> bool:
         """Require every permission needed by the promotion transaction."""
         return (
             self.has_change_permission(request, obj)

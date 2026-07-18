@@ -5,7 +5,11 @@ Provides organization and campus management in Django admin.
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.contrib import admin
+from django.db.models import QuerySet
+from django.http import HttpRequest
 
 from micboard.services.settings.settings_service import settings as micboard_settings
 
@@ -13,30 +17,30 @@ from micboard.services.settings.settings_service import settings as micboard_set
 class SuperuserOnlyAdmin(admin.ModelAdmin):
     """Reserve tenant-boundary administration for platform superusers."""
 
-    def get_queryset(self, request):
+    def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:
         """Hide every tenant-boundary object from non-superusers."""
         queryset = super().get_queryset(request)
         return queryset if request.user.is_superuser else queryset.none()
 
-    def has_module_permission(self, request):
+    def has_module_permission(self, request: HttpRequest) -> bool:
         """Show this module only to platform superusers."""
-        return request.user.is_superuser
+        return bool(request.user.is_superuser)
 
-    def has_view_permission(self, request, obj=None):
+    def has_view_permission(self, request: HttpRequest, obj: Any = None) -> bool:
         """Allow viewing tenant boundaries only to platform superusers."""
-        return request.user.is_superuser
+        return bool(request.user.is_superuser)
 
-    def has_add_permission(self, request):
+    def has_add_permission(self, request: HttpRequest) -> bool:
         """Allow creating tenant boundaries only to platform superusers."""
-        return request.user.is_superuser
+        return bool(request.user.is_superuser)
 
-    def has_change_permission(self, request, obj=None):
+    def has_change_permission(self, request: HttpRequest, obj: Any = None) -> bool:
         """Allow changing tenant boundaries only to platform superusers."""
-        return request.user.is_superuser
+        return bool(request.user.is_superuser)
 
-    def has_delete_permission(self, request, obj=None):
+    def has_delete_permission(self, request: HttpRequest, obj: Any = None) -> bool:
         """Allow deleting tenant boundaries only to platform superusers."""
-        return request.user.is_superuser
+        return bool(request.user.is_superuser)
 
 
 # Only register admin if MSP enabled
@@ -206,7 +210,7 @@ if micboard_settings.msp_enabled:
             ),
         ]
 
-        def save_model(self, request, obj, form, change):
+        def save_model(self, request: HttpRequest, obj: Any, form: Any, change: Any) -> None:
             """Auto-set created_by on new memberships (delegates to service)."""
             if not change:  # New object
                 from micboard.services.multitenancy.organization_service import set_created_by

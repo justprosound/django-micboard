@@ -6,6 +6,8 @@ and then pulls device data back to Django. Django Micboard is the "source of tru
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.core.management.base import BaseCommand
 
 from micboard.discovery.limits import (
@@ -22,7 +24,7 @@ class Command(BaseCommand):
         "Synchronize discovery IPs between Django and manufacturer APIs (Django is source of truth)"
     )
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: Any) -> Any:
         parser.add_argument(
             "--manufacturer",
             type=str,
@@ -49,7 +51,7 @@ class Command(BaseCommand):
             ),
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         manufacturer_code = options.get("manufacturer")
         scan_cidrs = options.get("scan_cidrs", False)
         scan_fqdns = options.get("scan_fqdns", False)

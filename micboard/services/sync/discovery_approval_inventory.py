@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 from micboard.discovery.limits import MAX_DISCOVERY_APPROVAL_INVENTORY_LOCKS
-from micboard.models.discovery.queue import DiscoveryQueue
+from micboard.models.discovery.discovery_queue import DiscoveryQueue
 from micboard.models.hardware.charger import Charger
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.shared.base_dto import PydanticBaseDTO

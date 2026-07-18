@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from micboard.services.hardware.dtos import WirelessChassisWrite
 from micboard.services.hardware.wireless_chassis_persistence_service import (
@@ -74,14 +74,14 @@ class DevicePromotionService:
                 None,
             )
 
-    def _find_existing_chassis_for_discovered(self, discovered):
+    def _find_existing_chassis_for_discovered(self, discovered: Any) -> Any:
         from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         return WirelessChassis.objects.filter(
             ip=discovered.ip, manufacturer=discovered.manufacturer
         ).first()
 
-    def _get_plugin_and_device_data_for_promotion(self, discovered):
+    def _get_plugin_and_device_data_for_promotion(self, discovered: Any) -> Any:
         from micboard.services.manufacturer.plugin_registry import PluginRegistry
 
         plugin = PluginRegistry.get_plugin(discovered.manufacturer.code, discovered.manufacturer)
@@ -103,7 +103,7 @@ class DevicePromotionService:
         return plugin, None
 
     def _attempt_promotion_with_device_data(
-        self, discovered, plugin, device_data
+        self, discovered: Any, plugin: Any, device_data: Any
     ) -> tuple[bool, str, WirelessChassis | None]:
         from micboard.services.deduplication.check import check_device
         from micboard.services.manufacturer.sync import ManufacturerSyncService

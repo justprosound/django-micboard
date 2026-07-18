@@ -1,4 +1,4 @@
-"""Email notification utilities for django-micboard.
+"""Email notification delivery service.
 
 Provides email sending functionality for alerts and system notifications
 using Django's built-in email system.

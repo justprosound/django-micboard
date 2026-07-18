@@ -11,8 +11,8 @@ from django.db.models.functions import Trim
 from django.utils import timezone
 
 from micboard.discovery.limits import MAX_DISCOVERY_APPROVAL_BATCH
+from micboard.models.discovery.discovery_queue import DiscoveryQueue
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.models.hardware.charger import Charger
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.hardware.dtos import WirelessChassisWrite

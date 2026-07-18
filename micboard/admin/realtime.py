@@ -1,5 +1,7 @@
 """Admin interface for real-time connection monitoring."""
 
+from typing import Any
+
 from django.contrib import admin
 from django.utils import timezone
 from django.utils.html import format_html
@@ -74,7 +76,7 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
         description="Status",
         ordering="status",
     )
-    def status_colored(self, obj):
+    def status_colored(self, obj: Any) -> Any:
         """Display status with color coding."""
         colors = {
             "connected": "var(--success-fg, green)",
@@ -87,7 +89,7 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
         return format_html('<span style="color: {};">{}</span>', color, obj.get_status_display())
 
     @admin.display(description="Duration")
-    def connection_duration(self, obj):
+    def connection_duration(self, obj: Any) -> Any:
         """Display connection duration."""
         duration = connection_duration(obj)
         if duration:
@@ -98,7 +100,7 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
         return "-"
 
     @admin.display(description="Since Last Message")
-    def time_since_last_message(self, obj):
+    def time_since_last_message(self, obj: Any) -> Any:
         """Display time since last message."""
         elapsed = time_since_last_message(obj)
         if elapsed:
@@ -109,7 +111,7 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
         return "-"
 
     @admin.action(permissions=["change"], description="Mark as connected")
-    def mark_connected(self, request, queryset):
+    def mark_connected(self, request: Any, queryset: Any) -> None:
         """Mark selected connections as connected."""
         updated = queryset.update(
             status="connected",
@@ -121,23 +123,23 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
         self.message_user(request, f"Marked {updated} connection(s) as connected.")
 
     @admin.action(permissions=["change"], description="Mark as disconnected")
-    def mark_disconnected(self, request, queryset):
+    def mark_disconnected(self, request: Any, queryset: Any) -> None:
         """Mark selected connections as disconnected."""
         updated = queryset.update(status="disconnected", disconnected_at=timezone.now())
         self.message_user(request, f"Marked {updated} connection(s) as disconnected.")
 
     @admin.action(permissions=["change"], description="Reset error count")
-    def reset_error_count(self, request, queryset):
+    def reset_error_count(self, request: Any, queryset: Any) -> None:
         """Reset error count for selected connections."""
         updated = queryset.update(error_count=0, error_message="")
         self.message_user(request, f"Reset error count for {updated} connection(s).")
 
     @admin.action(permissions=["change"], description="Stop connections")
-    def stop_connections(self, request, queryset):
+    def stop_connections(self, request: Any, queryset: Any) -> None:
         """Stop selected connections."""
         updated = queryset.update(status="stopped", disconnected_at=timezone.now())
         self.message_user(request, f"Stopped {updated} connection(s).")
 
-    def get_queryset(self, request):
+    def get_queryset(self, request: Any) -> Any:
         """Optimize queryset with select_related."""
         return super().get_queryset(request).select_related("chassis", "chassis__manufacturer")

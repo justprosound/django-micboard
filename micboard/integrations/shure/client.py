@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ShureSystemAPIClient(BaseHTTPClient):
     """Client for interacting with Shure System API with connection pooling and retry logic."""
 
-    def __init__(self, base_url: str | None = None, *, shared_key: str | None = None):
+    def __init__(self, base_url: str | None = None, *, shared_key: str | None = None) -> None:
         """Initialize Shure API client, configure auth, and compose sub-clients."""
         from micboard.services.settings.settings_service import settings
 

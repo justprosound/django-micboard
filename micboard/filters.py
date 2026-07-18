@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    FilterSet = object
+else:
+    FilterSet = Any
 
 from micboard.utils.dependencies import HAS_DJANGO_FILTER
 
@@ -13,12 +18,16 @@ def _build_filter_classes() -> tuple[Any, Any]:
 
         return UnavailableFilter, UnavailableFilter
 
-    import django_filters
+    if not TYPE_CHECKING:
+        global FilterSet
+        import django_filters
+
+        FilterSet = django_filters.FilterSet
 
     from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.models.hardware.wireless_unit import WirelessUnit
 
-    class ChassisFilter(django_filters.FilterSet):
+    class ChassisFilter(FilterSet):
         """FilterSet for WirelessChassis (Receivers)."""
 
         class Meta:
@@ -32,7 +41,7 @@ def _build_filter_classes() -> tuple[Any, Any]:
                 "location__room__name": ["exact"],
             }
 
-    class UnitFilter(django_filters.FilterSet):
+    class UnitFilter(FilterSet):
         """FilterSet for WirelessUnits."""
 
         class Meta:

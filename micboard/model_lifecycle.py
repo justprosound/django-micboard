@@ -25,10 +25,12 @@ _chassis_delete_hooks_enabled: ContextVar[bool] = ContextVar(
 
 
 def _remember_context(instance: Any, name: str, context: Any) -> None:
+    """Save context on an instance."""
     setattr(instance, name, context)
 
 
 def _take_context(instance: Any, name: str) -> Any:
+    """Retrieve and remove context from an instance."""
     context = getattr(instance, name, {})
     if hasattr(instance, name):
         delattr(instance, name)
@@ -61,6 +63,7 @@ def _persist_derived_fields(
 
 
 def _prepare_chassis(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
+    """Prepare a chassis instance for saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.hardware.chassis_lifecycle_service import prepare_chassis_for_save
@@ -98,6 +101,7 @@ def _finish_chassis(
     update_fields: frozenset[str] | None,
     **kwargs: Any,
 ) -> None:
+    """Finalize a chassis after saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
@@ -121,6 +125,7 @@ def _finish_chassis(
 
 
 def _delete_chassis(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
+    """Handle chassis deletion."""
     if not _chassis_delete_hooks_enabled.get():
         return
     from micboard.models.discovery.manufacturer import Manufacturer
@@ -143,6 +148,7 @@ def suppress_chassis_delete_hooks() -> Iterator[None]:
 
 
 def _prepare_charger(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
+    """Prepare a charger instance for saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.hardware.ip_ownership_service import HardwareIPOwnershipService
@@ -151,6 +157,7 @@ def _prepare_charger(sender: type[Any], instance: Any, using: str, **kwargs: Any
 
 
 def _prepare_unit(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
+    """Prepare a wireless unit instance for saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.hardware.wireless_unit_service import prepare_unit_for_save
@@ -169,6 +176,7 @@ def _finish_unit(
     update_fields: frozenset[str] | None,
     **kwargs: Any,
 ) -> None:
+    """Finalize a wireless unit after saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.hardware.wireless_unit_service import finalize_unit_save
@@ -179,6 +187,7 @@ def _finish_unit(
 
 
 def _prepare_channel(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
+    """Prepare an RF channel instance for saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.hardware.rf_channel_service import prepare_channel_for_save
@@ -197,6 +206,7 @@ def _finish_channel(
     update_fields: frozenset[str] | None,
     **kwargs: Any,
 ) -> None:
+    """Finalize an RF channel after saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.hardware.rf_channel_service import finalize_channel_save
@@ -207,6 +217,7 @@ def _finish_channel(
 
 
 def _prepare_building(sender: type[Any], instance: Any, **kwargs: Any) -> None:
+    """Prepare a building instance for saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.locations.structure_service import prepare_building
@@ -220,6 +231,7 @@ def _prepare_manufacturer(
     using: str,
     **kwargs: Any,
 ) -> None:
+    """Prepare a manufacturer instance for saving."""
     if kwargs.get("raw", False):
         return
     created = instance._state.adding
@@ -245,6 +257,7 @@ def _finish_manufacturer(
     using: str,
     **kwargs: Any,
 ) -> None:
+    """Finalize a manufacturer after saving."""
     if kwargs.get("raw", False):
         return
     from micboard.services.manufacturer.signals import handle_manufacturer_save
@@ -266,12 +279,14 @@ def _finish_manufacturer(
 
 
 def _delete_manufacturer(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
+    """Handle manufacturer deletion."""
     from micboard.services.manufacturer.signals import handle_manufacturer_delete
 
     handle_manufacturer_delete(manufacturer=instance, using=using)
 
 
 def _config_saved(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
+    """Handle config save events."""
     if kwargs.get("raw", False):
         return
     from micboard.services.discovery.registry_service import discovery_manufacturer_for_config
@@ -286,6 +301,7 @@ def _config_saved(sender: type[Any], instance: Any, using: str, **kwargs: Any) -
 
 
 def _registry_entry_changed(sender: type[Any], instance: Any, using: str, **kwargs: Any) -> None:
+    """Handle registry entry change events."""
     if kwargs.get("raw", False):
         return
     from micboard.models.discovery.manufacturer import Manufacturer

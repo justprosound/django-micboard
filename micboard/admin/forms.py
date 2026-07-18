@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
 from django import forms
 from django.core.exceptions import PermissionDenied
@@ -34,7 +34,7 @@ class WirelessChassisAdminForm(forms.ModelForm):
         model = WirelessChassis
         fields = CHASSIS_ADMIN_WRITE_FIELDS
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the form and populate dynamic band plan choices."""
         super().__init__(*args, **kwargs)
 
@@ -75,7 +75,7 @@ class WirelessChassisAdminForm(forms.ModelForm):
             "band_plan_max_mhz"
         ].help_text = "Auto-populated when standard band plan selected (can be manually overridden)"
 
-    def clean(self):
+    def clean(self) -> Any:
         """Handle band plan selection and validate."""
         cleaned_data = super().clean()
         if cleaned_data is None:
