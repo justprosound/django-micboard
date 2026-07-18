@@ -1,5 +1,4 @@
-from typing import Any
-from typing import cast
+from typing import Any, cast
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User

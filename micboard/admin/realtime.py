@@ -1,4 +1,5 @@
 """Admin interface for real-time connection monitoring."""
+
 from typing import Any
 
 from django.contrib import admin

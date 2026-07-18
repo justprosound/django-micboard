@@ -18,7 +18,7 @@ def _build_filter_classes() -> tuple[Any, Any]:
     from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.models.hardware.wireless_unit import WirelessUnit
 
-    class ChassisFilter(django_filters.FilterSet):
+    class ChassisFilter(django_filters.FilterSet):  # type: ignore[misc]
         """FilterSet for WirelessChassis (Receivers)."""
 
         class Meta:
@@ -32,7 +32,7 @@ def _build_filter_classes() -> tuple[Any, Any]:
                 "location__room__name": ["exact"],
             }
 
-    class UnitFilter(django_filters.FilterSet):
+    class UnitFilter(django_filters.FilterSet):  # type: ignore[misc]
         """FilterSet for WirelessUnits."""
 
         class Meta:

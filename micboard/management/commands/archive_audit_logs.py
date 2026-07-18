@@ -1,4 +1,5 @@
 """Management command to archive and prune audit logs."""
+
 from typing import Any
 
 from django.core.management.base import BaseCommand

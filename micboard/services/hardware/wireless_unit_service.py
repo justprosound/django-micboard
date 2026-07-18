@@ -142,7 +142,7 @@ def get_assigned_rf_channel(unit: WirelessUnit) -> RFChannel | None:
     prefetched_channels = getattr(unit, "_admin_active_receive_channels", None)
     if prefetched_channels is not None:
         if prefetched_channels:
-            return prefetched_channels[0]
+            return prefetched_channels[0]  # type: ignore[no-any-return]
         return unit.assigned_resource
 
     if hasattr(unit, "active_on_receive_channels"):

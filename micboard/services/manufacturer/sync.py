@@ -259,7 +259,7 @@ class ManufacturerSyncService:
         manufacturer: Any,
         check_device: Any,
         *,
-        identity_index: Any=None,
+        identity_index: Any = None,
     ) -> str | None:
         """Persist one normalized device and return its sync outcome."""
         deduplication_kwargs = {

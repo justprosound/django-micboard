@@ -4,10 +4,9 @@ This module provides Django admin interfaces for managing wireless audio hardwar
 """
 
 from __future__ import annotations
-from typing import Any
 
 import logging
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
@@ -59,7 +58,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     date_hierarchy = "last_seen"
     actions: ClassVar[list[str]] = ["mark_online", "mark_offline", "sync_from_api"]
 
-    def get_form(self, request: Any, obj: Any=None, **kwargs: Any) -> Any:
+    def get_form(self, request: Any, obj: Any = None, **kwargs: Any) -> Any:
         """Bind the requesting actor to candidate ownership validation."""
         form_class = super().get_form(request, obj, **kwargs)
         return type(
@@ -261,7 +260,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             f"CH{channel.channel_number}: {channel.unit_type or 'No Unit'}" for channel in channels
         )
 
-    def changelist_view(self, request: Any, extra_context: Any=None) -> Any:
+    def changelist_view(self, request: Any, extra_context: Any = None) -> Any:
         extra_context = extra_context or {}
         extra_context["hardware_layout_url"] = "hardware-layout/"
         return super().changelist_view(request, extra_context)

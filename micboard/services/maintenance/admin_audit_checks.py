@@ -154,7 +154,7 @@ class AdminModelAuditService:
                 configured, HAS_UNFOLD, HAS_ADMIN_SORTABLE
             ):
                 continue
-            candidates = configured if isinstance(configured, (list, tuple)) else (configured,)
+            candidates = configured if isinstance(configured, list | tuple) else (configured,)
             if self._template_exists(candidates, get_template, TemplateDoesNotExist):
                 continue
             self._add(f"  [TEMP] {attribute} NOT FOUND: {configured}", "error")
@@ -165,7 +165,7 @@ class AdminModelAuditService:
         """Return whether a configured template belongs to the known integration override."""
         if not has_unfold or not has_sortable:
             return False
-        candidates = configured if isinstance(configured, (list, tuple)) else (configured,)
+        candidates = configured if isinstance(configured, list | tuple) else (configured,)
         return any("adminsortable2" in str(candidate) for candidate in candidates)
 
     @staticmethod

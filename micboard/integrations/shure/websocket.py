@@ -30,7 +30,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable
 from inspect import isawaitable
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from asgiref.sync import sync_to_async
 
@@ -82,7 +82,7 @@ def _parse_transport_id_from_message(message: str | bytes) -> str | None:
         if isinstance(message, bytes):
             message = message.decode("utf-8")
         payload = json.loads(message)
-        return payload.get("transportId")
+        return cast(str | None, payload.get("transportId"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         logger.exception(
             "Failed to parse WebSocket transport ID message",

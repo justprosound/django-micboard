@@ -13,8 +13,8 @@ from django.test import override_settings
 import pytest
 
 from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
+from micboard.models.discovery.discovery_queue import DeviceMovementLog
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.queue import DeviceMovementLog
 from micboard.models.hardware.charger import ChargerSlot
 from micboard.models.hardware.display_wall import WallSection
 from micboard.models.hardware.wireless_chassis import WirelessChassis

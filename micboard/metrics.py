@@ -86,7 +86,7 @@ class MetricsCollector:
             List of metric dictionaries.
         """
         key = f"{cls.METRICS_KEY_PREFIX}{service_name}:{method_name}"
-        return cache.get(key, [])
+        return cache.get(key, [])  # type: ignore[no-any-return]
 
     @classmethod
     def get_service_metrics(cls, *, service_name: str) -> dict[str, list[dict[str, Any]]]:

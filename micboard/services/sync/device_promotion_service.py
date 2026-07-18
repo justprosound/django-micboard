@@ -1,10 +1,9 @@
 """Service for promoting discovered devices to managed WirelessChassis instances."""
 
 from __future__ import annotations
-from typing import Any
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from micboard.services.hardware.dtos import WirelessChassisWrite
 from micboard.services.hardware.wireless_chassis_persistence_service import (

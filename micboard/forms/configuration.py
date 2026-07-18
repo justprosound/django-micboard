@@ -1,7 +1,8 @@
 """Forms for manufacturer configuration JSON."""
 
 from __future__ import annotations
-from typing import Any
+
+from typing import Any, cast
 
 from django import forms
 
@@ -30,4 +31,4 @@ class ManufacturerConfigurationForm(forms.ModelForm):
         """Preserve secrets represented by unchanged redaction placeholders."""
         config = self.cleaned_data.get("config") or {}
         original = self.instance.config if self.instance.pk else {}
-        return restore_redacted_secrets(config, original)
+        return cast(dict[Any, Any], restore_redacted_secrets(config, original))

@@ -5,9 +5,8 @@ DeviceMovementLog (movement tracking and acknowledgment).
 """
 
 from __future__ import annotations
-from typing import Any
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
@@ -15,7 +14,7 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models.discovery.queue import DeviceMovementLog, DiscoveryQueue
+from micboard.models.discovery.discovery_queue import DeviceMovementLog, DiscoveryQueue
 
 if TYPE_CHECKING:
     from django.http import HttpRequest

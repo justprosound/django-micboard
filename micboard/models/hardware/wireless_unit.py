@@ -11,10 +11,9 @@ Links to WirelessChassis base unit and RFChannel for RF path tracking.
 """
 
 from __future__ import annotations
-from typing import Any
 
 from datetime import timedelta
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 from django.db import models
 from django.utils import timezone

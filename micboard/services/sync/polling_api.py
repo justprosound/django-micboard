@@ -81,7 +81,7 @@ class APIServerPollingService:
             server.status = ManufacturerAPIServer.Status.ERROR
             server.status_message = f"Polling failed ({type(exc).__name__})"
             server.save(update_fields=["status", "status_message"])
-            if isinstance(exc, (MicboardError, ValidationError)):
+            if isinstance(exc, MicboardError | ValidationError):
                 raise
             logger.exception(
                 "Unexpected API server polling failure for server %s",

@@ -7,7 +7,7 @@ defining domain module so dependencies remain explicit.
 # Import defining modules for Django's app registry without package re-exports.
 from . import integrations
 from .audit import activity_log, configuration_log
-from .discovery import configuration, manufacturer, queue, registry
+from .discovery import configuration, discovery_queue, manufacturer, registry
 from .hardware import charger, display_wall, wireless_chassis, wireless_unit
 from .locations import structure
 from .monitoring import alert, group, performer, performer_assignment

@@ -4,6 +4,7 @@ Provides organization and campus management in Django admin.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 from django.contrib import admin
@@ -23,7 +24,7 @@ class SuperuserOnlyAdmin(admin.ModelAdmin):
         """Show this module only to platform superusers."""
         return request.user.is_superuser
 
-    def has_view_permission(self, request: Any, obj: Any=None) -> Any:
+    def has_view_permission(self, request: Any, obj: Any = None) -> Any:
         """Allow viewing tenant boundaries only to platform superusers."""
         return request.user.is_superuser
 
@@ -31,11 +32,11 @@ class SuperuserOnlyAdmin(admin.ModelAdmin):
         """Allow creating tenant boundaries only to platform superusers."""
         return request.user.is_superuser
 
-    def has_change_permission(self, request: Any, obj: Any=None) -> Any:
+    def has_change_permission(self, request: Any, obj: Any = None) -> Any:
         """Allow changing tenant boundaries only to platform superusers."""
         return request.user.is_superuser
 
-    def has_delete_permission(self, request: Any, obj: Any=None) -> Any:
+    def has_delete_permission(self, request: Any, obj: Any = None) -> Any:
         """Allow deleting tenant boundaries only to platform superusers."""
         return request.user.is_superuser
 

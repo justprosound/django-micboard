@@ -50,7 +50,7 @@ def sanitize_public_api_health_snapshot(value: object) -> PublicAPIHealthSnapsho
     raw_response_time = value.get("response_time")
     response_time = (
         raw_response_time
-        if isinstance(raw_response_time, (int, float))
+        if isinstance(raw_response_time, int | float)
         and not isinstance(raw_response_time, bool)
         and isfinite(raw_response_time)
         and raw_response_time >= 0

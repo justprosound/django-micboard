@@ -3,10 +3,10 @@
 Imports frequency band data from the ECO Frequency Information System (EFIS).
 Can be run manually or scheduled via cron/tasks.
 """
-from typing import Any
 
 import logging
 import time
+from typing import Any
 
 from django.core.management.base import BaseCommand
 

@@ -1,10 +1,9 @@
 """Performer assignment model linking performers to wireless units."""
 
 from __future__ import annotations
-from typing import Any
 
 from datetime import datetime
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 from django.contrib.auth import get_user_model
 from django.db import models

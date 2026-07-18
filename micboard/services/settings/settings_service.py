@@ -124,59 +124,60 @@ class SettingsService:
 
     @property
     def msp_enabled(self) -> bool:
-        return self.get("msp_enabled", False)
+        return bool(self.get("msp_enabled", False))
 
     @property
     def multi_site_mode(self) -> bool:
-        return self.get("multi_site_mode", False)
+        return bool(self.get("multi_site_mode", False))
 
     @property
     def site_isolation(self) -> str:
-        return self.get("site_isolation", "none")
+        return str(self.get("site_isolation", "none"))
 
     @property
     def allow_cross_org_view(self) -> bool:
-        return self.get("allow_cross_org_view", True)
+        return bool(self.get("allow_cross_org_view", True))
 
     @property
     def allow_org_switching(self) -> bool:
-        return self.get("allow_org_switching", True)
+        return bool(self.get("allow_org_switching", True))
 
     @property
     def subdomain_routing(self) -> bool:
-        return self.get("subdomain_routing", False)
+        return bool(self.get("subdomain_routing", False))
 
     @property
     def root_domain(self) -> str:
-        return self.get("root_domain", "")
+        return str(self.get("root_domain", ""))
 
     @property
     def admin_org_selector(self) -> bool:
-        return self.get("admin_org_selector", True)
+        return bool(self.get("admin_org_selector", True))
 
     @property
     def global_device_limit(self) -> int | None:
-        return self.get("global_device_limit", None)
+        val = self.get("global_device_limit", None)
+        return int(val) if val is not None else None
 
     @property
     def device_limit_warning_threshold(self) -> float:
-        return self.get("device_limit_warning_threshold", 0.9)
+        return float(self.get("device_limit_warning_threshold", 0.9))
 
     @property
     def activity_log_retention_days(self) -> int:
-        return self.get("activity_log_retention_days", 90)
+        return int(self.get("activity_log_retention_days", 90))
 
     @property
     def service_sync_log_retention_days(self) -> int:
-        return self.get("service_sync_log_retention_days", 30)
+        return int(self.get("service_sync_log_retention_days", 30))
 
     @property
     def api_health_log_retention_days(self) -> int:
-        return self.get("api_health_log_retention_days", 7)
+        return int(self.get("api_health_log_retention_days", 7))
 
     @property
     def audit_archive_path(self) -> str:
-        return self.get("audit_archive_path", "audit_archives")
+        return str(self.get("audit_archive_path", "audit_archives"))
 
 
 settings = SettingsService()

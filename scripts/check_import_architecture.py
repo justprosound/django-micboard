@@ -111,7 +111,7 @@ def build_import_graph(
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         is_package = path.name == "__init__.py"
         for node in ast.walk(tree):
-            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            if not isinstance(node, ast.Import | ast.ImportFrom):
                 continue
             for candidate in _import_candidates(
                 source=source,

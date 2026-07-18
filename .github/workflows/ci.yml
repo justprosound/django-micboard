@@ -34,8 +34,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-extras
 
-      - name: Run pre-commit
-        run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+      - name: Run prek
+        run: |
+          uv tool install prek
+          prek run --all-files --show-diff-on-failure
 
       - name: Type check with mypy
         run: uv run --no-sync python -m mypy micboard

@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 
-def fix_file(filepath: str, errors: list[str]):
+def fix_file(filepath: str, errors: list[str]):  # noqa: C901
     try:
         path = Path(filepath)
         content = path.read_text().splitlines()
@@ -22,9 +22,13 @@ def fix_file(filepath: str, errors: list[str]):
                     if gen_type in ["list", "dict", "tuple", "set", "QuerySet", "type"]:
                         needs_any = True
                         if gen_type == "dict":
-                            content[line_num] = re.sub(rf"\b{gen_type}\b(?!\[)", f"{gen_type}[Any, Any]", content[line_num])
+                            content[line_num] = re.sub(
+                                rf"\b{gen_type}\b(?!\[)", f"{gen_type}[Any, Any]", content[line_num]
+                            )
                         else:
-                            content[line_num] = re.sub(rf"\b{gen_type}\b(?!\[)", f"{gen_type}[Any]", content[line_num])
+                            content[line_num] = re.sub(
+                                rf"\b{gen_type}\b(?!\[)", f"{gen_type}[Any]", content[line_num]
+                            )
 
         if needs_any:
             has_typing_any = any("from typing import" in line and "Any" in line for line in content)
@@ -39,8 +43,11 @@ def fix_file(filepath: str, errors: list[str]):
                 content.insert(insert_idx, "from typing import Any")
 
         path.write_text("\n".join(content) + "\n")
-    except Exception as e:
-        print(f"Failed {filepath}: {e}")
+    except Exception:
+        import logging
+
+        logging.exception("Failed to fix %s", filepath)
+
 
 def main():
     with open(".mypy_errors.txt") as f:
@@ -57,6 +64,7 @@ def main():
 
     for filepath, errors in file_errors.items():
         fix_file(filepath, errors)
+
 
 if __name__ == "__main__":
     main()

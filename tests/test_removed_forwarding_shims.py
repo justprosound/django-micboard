@@ -18,7 +18,7 @@ from micboard.services.monitoring import alerts
 from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
 from micboard.services.notification import email
 from micboard.services.notification.broadcast_service import BroadcastService
-from micboard.services.notification.email import EmailService
+from micboard.services.notification.email_notification import EmailService
 from micboard.services.notification.realtime_routing_service import RealtimeRoutingService
 from micboard.services.settings.presentation_service import settings_presentation
 from micboard.services.settings.registry import SettingsRegistry

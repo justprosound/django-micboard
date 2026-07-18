@@ -1,5 +1,5 @@
-from typing import Any
 import logging
+from typing import Any
 
 from django.core.management.base import BaseCommand
 

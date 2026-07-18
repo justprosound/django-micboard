@@ -37,7 +37,7 @@ class LoggingModeService:
             LoggingModeService.set_mode("normal")
             return "normal"
 
-        return mode
+        return mode  # type: ignore[no-any-return]
 
     @staticmethod
     def set_mode(mode: LogMode, ttl_seconds: int | None = None) -> None:

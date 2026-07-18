@@ -17,8 +17,8 @@ from micboard.discovery.limits import (
     MAX_DISCOVERY_METADATA_LIST_ITEMS,
     MAX_DISCOVERY_METADATA_STRING_LENGTH,
 )
+from micboard.models.discovery.discovery_queue import DiscoveryQueue
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.services.common.base.plugin import ManufacturerPlugin
 from micboard.services.common.base.utils import validate_hostname
 from micboard.services.manufacturer.secret_redaction import REDACTED_VALUE, is_secret_key
@@ -54,7 +54,7 @@ class DiscoveryQueueService:
             if len(items) > MAX_DISCOVERY_METADATA_FIELDS:
                 bounded["_truncated"] = True
             return bounded
-        if isinstance(value, (list, tuple)):
+        if isinstance(value, list | tuple):
             items = list(islice(value, MAX_DISCOVERY_METADATA_LIST_ITEMS + 1))
             bounded_items = [
                 cls._bound_metadata(item, depth=depth + 1)
@@ -65,7 +65,7 @@ class DiscoveryQueueService:
             return bounded_items
         if isinstance(value, str):
             return value[:MAX_DISCOVERY_METADATA_STRING_LENGTH]
-        if value is None or isinstance(value, (bool, int, float)):
+        if value is None or isinstance(value, bool | int | float):
             return value
         return str(value)[:MAX_DISCOVERY_METADATA_STRING_LENGTH]
 

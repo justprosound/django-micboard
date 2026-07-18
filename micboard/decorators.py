@@ -1,5 +1,5 @@
-from typing import Any
 from functools import wraps
+from typing import Any
 
 from django.http import JsonResponse
 
@@ -10,7 +10,7 @@ from micboard.services.shared.rate_limiting import (
 )
 
 
-def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func: Any=None) -> Any:
+def rate_limit_view(max_requests: int = 60, window_seconds: int = 60, key_func: Any = None) -> Any:
     """Rate limit decorator for Django views using sliding window algorithm (delegates to service)."""
 
     def decorator(view_func: Any) -> Any:

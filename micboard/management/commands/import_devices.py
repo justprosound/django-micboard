@@ -1,7 +1,7 @@
 """Management command to import Shure devices from System API into Django models."""
-from typing import Any
 
 import logging
+from typing import Any
 
 from django.core.management.base import BaseCommand
 
@@ -99,7 +99,15 @@ class Command(BaseCommand):
         if options["dry_run"]:
             self.stdout.write(self.style.WARNING("\n(DRY RUN - No changes made)"))
 
-    def _import_device(self, device: Any, manufacturer: Any, location: Any, server_id: Any, dry_run: Any=False, full: Any=False) -> Any:
+    def _import_device(
+        self,
+        device: Any,
+        manufacturer: Any,
+        location: Any,
+        server_id: Any,
+        dry_run: Any = False,
+        full: Any = False,
+    ) -> Any:
         """Delegate import logic to ImportService for testability and reuse."""
         from micboard.services.import_service import ImportService
 

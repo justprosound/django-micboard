@@ -1,4 +1,5 @@
 from typing import Any
+
 from django.contrib import admin
 
 from micboard.admin.mixins import MicboardModelAdmin

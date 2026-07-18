@@ -18,7 +18,7 @@ from micboard.admin import (
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.audit.configuration_log import ConfigurationAuditLog
 from micboard.models.discovery.configuration import ManufacturerConfiguration
-from micboard.models.discovery.queue import DeviceMovementLog, DiscoveryQueue
+from micboard.models.discovery.discovery_queue import DeviceMovementLog, DiscoveryQueue
 
 NOW = datetime(2026, 7, 14, 12, 0, tzinfo=UTC)
 

@@ -9,7 +9,7 @@ Attaches organization context to requests based on:
 from __future__ import annotations
 
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from django.utils.functional import SimpleLazyObject
 
@@ -112,18 +112,18 @@ def get_current_organization(request: HttpRequest) -> Organization | None:
     # 1. Session
     org = _get_org_from_session(request)
     if org:
-        return org
+        return cast("Organization", org)
 
     # 2. User profile or membership
     org = _get_org_from_user_profile(request)
     if org:
-        return org
+        return cast("Organization", org)
     org = _get_org_from_membership(request)
     if org:
-        return org
+        return cast("Organization", org)
 
     # 3. Subdomain
-    return _get_org_from_subdomain(request)
+    return cast("Organization | None", _get_org_from_subdomain(request))
 
 
 def get_current_campus(request: HttpRequest) -> int | None:
@@ -148,7 +148,7 @@ def get_current_campus(request: HttpRequest) -> int | None:
     if hasattr(request, "session"):
         campus_id = request.session.get("current_campus_id")
         if campus_id:
-            return campus_id
+            return cast(int, campus_id)
 
     # Check user's membership campus restriction
     if request.user.is_authenticated and hasattr(request, "organization"):

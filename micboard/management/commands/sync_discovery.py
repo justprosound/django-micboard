@@ -5,6 +5,7 @@ and then pulls device data back to Django. Django Micboard is the "source of tru
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 from django.core.management.base import BaseCommand

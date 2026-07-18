@@ -158,7 +158,7 @@ class EFISImportService:
     @classmethod
     def _fetch_regions(cls, session: httpx.Client) -> list[dict]:
         payload = cls._request_json(session=session, path="/regions/all")
-        return payload.get("regions", [])
+        return payload.get("regions", [])  # type: ignore[no-any-return]
 
     @classmethod
     def _fetch_wireless_term_ids(cls, session: httpx.Client) -> set[int]:
@@ -243,7 +243,7 @@ class EFISImportService:
             try:
                 response = session.get(url, params=params, timeout=cls.REQUEST_TIMEOUT_SECONDS)
                 response.raise_for_status()
-                return response.json()
+                return response.json()  # type: ignore[no-any-return]
             except (httpx.RequestError, httpx.HTTPStatusError) as exc:
                 if attempt >= max_retries - 1:
                     raise RuntimeError(

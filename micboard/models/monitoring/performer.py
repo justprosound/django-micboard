@@ -1,9 +1,8 @@
 """Performer model for device users assigned to wireless units."""
 
 from __future__ import annotations
-from typing import Any
 
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 from django.db import models
 

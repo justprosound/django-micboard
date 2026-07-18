@@ -7,10 +7,9 @@ locations, and system configuration.
 """
 
 from __future__ import annotations
-from typing import Any
 
 import logging
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
@@ -328,7 +327,7 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         service = DevicePromotionService()
         return service.promote_discovered_device(discovered)
 
-    def _has_promotion_permission(self, request: Any, obj: Any=None) -> bool:
+    def _has_promotion_permission(self, request: Any, obj: Any = None) -> bool:
         """Require every permission needed by the promotion transaction."""
         return (
             self.has_change_permission(request, obj)

@@ -1,9 +1,9 @@
 """Django admin configuration for configuration models."""
 
 from __future__ import annotations
-from typing import Any
 
 import json
+from typing import Any
 
 from django.contrib import admin, messages
 from django.urls import reverse
@@ -84,7 +84,7 @@ class ManufacturerConfigurationAdmin(MicboardModelAdmin):
 
     actions = ["validate_config", "apply_config", "enable_config", "disable_config"]
 
-    def get_fieldsets(self, request: Any, obj: Any=None) -> Any:
+    def get_fieldsets(self, request: Any, obj: Any = None) -> Any:
         """Keep raw JSON out of Django's readonly model-field renderer."""
         if obj is not None and not self.has_change_permission(request, obj):
             return replace_field(

@@ -1,9 +1,8 @@
 """Custom admin forms for wireless devices."""
 
 from __future__ import annotations
-from typing import Any
 
-from typing import cast
+from typing import Any, cast
 
 from django import forms
 from django.core.exceptions import PermissionDenied

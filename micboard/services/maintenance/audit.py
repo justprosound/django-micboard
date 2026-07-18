@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def _json_safe(value: dict[str, Any] | None) -> dict[str, Any]:
     """Return redacted JSON-compatible audit metadata."""
     redacted = redact_secrets(value or {})
-    return json.loads(json.dumps(redacted, cls=DjangoJSONEncoder))
+    return json.loads(json.dumps(redacted, cls=DjangoJSONEncoder))  # type: ignore[no-any-return]
 
 
 class AuditService:

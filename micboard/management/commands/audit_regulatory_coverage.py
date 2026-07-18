@@ -9,6 +9,7 @@ Checks every active WirelessChassis and RFChannel for:
 Usage:
     uv run --no-sync python manage.py audit_regulatory_coverage [--fix]
 """
+
 from typing import Any
 
 from django.core.management.base import BaseCommand

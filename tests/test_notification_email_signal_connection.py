@@ -9,7 +9,7 @@ from unittest.mock import Mock, call
 from django.utils import timezone
 
 from micboard.services.notification import email as email_module
-from micboard.services.notification.email import EmailService
+from micboard.services.notification.email_notification import EmailService
 from micboard.services.realtime import connection_service
 
 
