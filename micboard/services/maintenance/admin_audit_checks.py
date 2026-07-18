@@ -79,11 +79,11 @@ class AdminModelAuditService:
         )
 
     def _add(self, text: str, severity: AuditSeverity = "info") -> None:
-        """Docstring."""
+        """Add a structured message to the internal audit log."""
         self._messages.append(AdminAuditMessage(text=text, severity=severity))
 
     def _check_unfold_inheritance(self) -> None:
-        """Docstring."""
+        """Verify that the ModelAdmin inherits from UnfoldModelAdmin for the modern theme."""
         try:
             from unfold.admin import ModelAdmin as UnfoldModelAdmin
         except ImportError:
@@ -103,7 +103,7 @@ class AdminModelAuditService:
         self._stats["unfold_non_compliant"] += 1
 
     def _check_unfold_widgets(self) -> None:
-        """Docstring."""
+        """Check if the admin form leverages optimized Unfold widgets."""
         overrides = getattr(self.model_admin, "formfield_overrides", {})
         optimized = 0
         for override in overrides.values():
@@ -116,7 +116,7 @@ class AdminModelAuditService:
             self._stats["widgets_optimized"] += 1
 
     def _check_unfold_filters(self) -> None:
-        """Docstring."""
+        """Check if the admin list view uses Unfold-specific filter components."""
         configured_filters = getattr(self.model_admin, "list_filter", ())
         optimized = sum(
             1
@@ -129,7 +129,7 @@ class AdminModelAuditService:
             self._stats["filters_optimized"] += 1
 
     def _check_deprecated_media_class(self) -> None:
-        """Docstring."""
+        """Warn if the ModelAdmin uses an inner Media class instead of the project asset pipeline."""
         if "Media" not in type(self.model_admin).__dict__:
             return
         self._add(
@@ -139,7 +139,7 @@ class AdminModelAuditService:
         self._stats["media_warnings"] += 1
 
     def _check_search_depth(self) -> None:
-        """Docstring."""
+        """Analyze search fields to detect potentially slow deep relational lookups."""
         search_fields = getattr(self.model_admin, "search_fields", ())
         deep_fields = [field for field in search_fields if isinstance(field, str) and "__" in field]
         if deep_fields:
@@ -149,7 +149,7 @@ class AdminModelAuditService:
             self._add("  [SRCH] Search fields use local columns only")
 
     def _check_custom_templates(self) -> None:
-        """Docstring."""
+        """Verify that any overridden custom admin templates actually exist."""
         from django.template import TemplateDoesNotExist
         from django.template.loader import get_template
 
@@ -192,7 +192,7 @@ class AdminModelAuditService:
         return False
 
     def _check_static_query_optimization(self) -> None:
-        """Docstring."""
+        """Check list_display for relational fields that lack corresponding select_related/prefetch_related optimizations."""
         relational_fields: list[str] = []
         for field_name in getattr(self.model_admin, "list_display", ()):
             if not isinstance(field_name, str):
@@ -215,7 +215,7 @@ class AdminModelAuditService:
             )
 
     def _check_runtime_query_count(self) -> None:
-        """Docstring."""
+        """Perform a runtime test of the admin list view to detect N+1 query problems."""
         from django.db import connection, reset_queries
         from django.test.utils import CaptureQueriesContext
         from django.urls import reverse
@@ -243,7 +243,7 @@ class AdminModelAuditService:
             reset_queries()
 
     def _report_query_count(self, queries: Sequence[dict[str, str]]) -> None:
-        """Docstring."""
+        """Analyze and report on the total number of queries executed during the runtime test."""
         query_count = len(queries)
         message = f"  [PERF] List View Queries: {query_count}"
         if query_count > QUERY_COUNT_FAIL:
@@ -263,7 +263,7 @@ class AdminModelAuditService:
         *,
         limit: int,
     ) -> None:
-        """Docstring."""
+        """Identify and report duplicated SQL queries to help diagnose N+1 issues."""
         sql_counts = Counter(self._redact_sql_literals(query["sql"]) for query in queries)
         duplicates = sorted(
             ((sql, count) for sql, count in sql_counts.items() if count > 1),

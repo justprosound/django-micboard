@@ -52,74 +52,74 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
 
 
 class BasePlugin(ABC):
-    """Docstring."""
+    """Base interface for all manufacturer plugins."""
 
     def __init__(self, manufacturer: Manufacturer | None = None) -> None:
-        """Docstring."""
+        """Initialize the plugin, optionally binding it to a specific manufacturer instance."""
         self.manufacturer = manufacturer
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Docstring."""
+        """The human-readable name of the plugin."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def code(self) -> str:
-        """Docstring."""
+        """The unique string identifier or code for the plugin."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_devices(self) -> list[dict[str, Any]]:
-        """Docstring."""
+        """Retrieve a list of all devices associated with or discovered by this plugin."""
         raise NotImplementedError()
 
 
 class ManufacturerPlugin(BasePlugin):
-    """Docstring."""
+    """Extended plugin interface specifically for manufacturer hardware integrations."""
 
     @abstractmethod
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
-        """Docstring."""
+        """Retrieve all channels associated with a specific device identifier."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_client(self) -> BaseAPIClient:
-        """Docstring."""
+        """Get an instance of the configured API client for this manufacturer."""
         raise NotImplementedError()
 
     @abstractmethod
     def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
-        """Docstring."""
+        """Transform raw API device data into the standardized application format."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_device(self, device_id: str) -> dict[str, Any] | None:
-        """Docstring."""
+        """Fetch details for a single device by its identifier."""
         raise NotImplementedError()
 
     @abstractmethod
     def is_healthy(self) -> bool:
-        """Docstring."""
+        """Check if the plugin and its underlying integrations are currently healthy."""
         raise NotImplementedError()
 
     @abstractmethod
     def check_health(self) -> dict[str, Any]:
-        """Docstring."""
+        """Perform a detailed health check and return the results as a dictionary."""
         raise NotImplementedError()
 
     @abstractmethod
     def add_discovery_ips(self, ips: list[str]) -> bool:
-        """Docstring."""
+        """Add a list of IP addresses to the plugin's discovery targets."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_discovery_ips(self) -> list[str]:
-        """Docstring."""
+        """Retrieve the list of currently configured discovery IP addresses."""
         raise NotImplementedError()
 
     @abstractmethod
     def remove_discovery_ips(self, ips: list[str]) -> bool:
-        """Docstring."""
+        """Remove a list of IP addresses from the plugin's discovery targets."""
         raise NotImplementedError()
