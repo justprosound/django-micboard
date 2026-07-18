@@ -5,8 +5,8 @@ from django.urls import reverse
 
 import pytest
 
+from micboard.models.discovery.discovery_queue import DiscoveryQueue
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from tests.admin.helpers import grant_permissions
 from tests.factories.base import UserFactory

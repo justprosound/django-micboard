@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from micboard.models.hardware.manufacturer import Manufacturer
+
     from .client import BaseAPIClient
 
 
@@ -50,57 +52,74 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
 
 
 class BasePlugin(ABC):
-    def __init__(self, manufacturer: Any | None = None) -> None:
+    """Base interface for all manufacturer plugins."""
+
+    def __init__(self, manufacturer: Manufacturer | None = None) -> None:
+        """Initialize the plugin, optionally binding it to a specific manufacturer instance."""
         self.manufacturer = manufacturer
 
     @property
     @abstractmethod
     def name(self) -> str:
+        """The human-readable name of the plugin."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def code(self) -> str:
+        """The unique string identifier or code for the plugin."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_devices(self) -> list[dict[str, Any]]:
+        """Retrieve a list of all devices associated with or discovered by this plugin."""
         raise NotImplementedError()
 
 
 class ManufacturerPlugin(BasePlugin):
+    """Extended plugin interface specifically for manufacturer hardware integrations."""
+
     @abstractmethod
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
+        """Retrieve all channels associated with a specific device identifier."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_client(self) -> BaseAPIClient:
+        """Get an instance of the configured API client for this manufacturer."""
         raise NotImplementedError()
 
     @abstractmethod
     def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
+        """Transform raw API device data into the standardized application format."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_device(self, device_id: str) -> dict[str, Any] | None:
+        """Fetch details for a single device by its identifier."""
         raise NotImplementedError()
 
     @abstractmethod
     def is_healthy(self) -> bool:
+        """Check if the plugin and its underlying integrations are currently healthy."""
         raise NotImplementedError()
 
     @abstractmethod
     def check_health(self) -> dict[str, Any]:
+        """Perform a detailed health check and return the results as a dictionary."""
         raise NotImplementedError()
 
     @abstractmethod
     def add_discovery_ips(self, ips: list[str]) -> bool:
+        """Add a list of IP addresses to the plugin's discovery targets."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_discovery_ips(self) -> list[str]:
+        """Retrieve the list of currently configured discovery IP addresses."""
         raise NotImplementedError()
 
     @abstractmethod
     def remove_discovery_ips(self, ips: list[str]) -> bool:
+        """Remove a list of IP addresses from the plugin's discovery targets."""
         raise NotImplementedError()

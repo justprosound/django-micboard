@@ -148,9 +148,10 @@ class DiscoveryQueue(models.Model):
 
     def __str__(self) -> str:
         status_display = self.get_status_display()
+        label = self.name or "Unnamed Device"
         if self.serial_number:
-            return f"{self.name} (S/N: {self.serial_number}) - {status_display}"
-        return f"{self.name} @ {self.ip} - {status_display}"
+            return f"{label} (S/N: {self.serial_number}) - {status_display}"
+        return f"{label} @ {self.ip} - {status_display}"
 
 
 class DeviceMovementLog(models.Model):
@@ -246,7 +247,10 @@ class DeviceMovementLog(models.Model):
             parts.append(f"Location: {self.old_location.name} → {self.new_location.name}")
 
         change_desc = ", ".join(parts) if parts else "No changes"
-        return f"{self.device.name} - {change_desc} @ {self.detected_at.strftime('%Y-%m-%d %H:%M')}"
+        detected_str = (
+            self.detected_at.strftime("%Y-%m-%d %H:%M") if self.detected_at else "Unsaved"
+        )
+        return f"{self.device.name} - {change_desc} @ {detected_str}"
 
     @property
     def movement_type(self) -> str:

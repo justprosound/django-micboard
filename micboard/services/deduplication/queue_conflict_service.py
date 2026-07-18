@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from micboard.models.discovery.queue import DiscoveryQueue
+from micboard.models.discovery.discovery_queue import DiscoveryQueue
 from micboard.models.hardware.charger import Charger
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.shared.base_dto import PydanticBaseDTO

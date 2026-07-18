@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from django.core.cache import cache
 
@@ -152,7 +152,7 @@ class PollAlertService:
             return 0
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             return 0
-        return value
+        return cast(int, value)
 
     @classmethod
     def _write_cursor(cls, manufacturer_id: int, unit_id: int) -> None:

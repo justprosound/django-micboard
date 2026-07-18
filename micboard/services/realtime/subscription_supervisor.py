@@ -53,7 +53,7 @@ def build_device_https_url(*, ip_address: object, port: object = 443) -> str:
     except ValueError:
         raise ValueError("Device IP address is invalid") from None
 
-    if isinstance(port, bool) or not isinstance(port, (int, str)):
+    if isinstance(port, bool) or not isinstance(port, int | str):
         raise ValueError("Device port must be between 1 and 65535")
     try:
         parsed_port = int(port)
@@ -85,7 +85,7 @@ class RealtimeSubscriptionLease:
                 return False
             if not self.cache.touch(self.cache_key, SUBSCRIPTION_LEASE_SECONDS):
                 return False
-            return self.cache.get(self.cache_key) == self.token
+            return self.cache.get(self.cache_key) == self.token  # type: ignore[no-any-return]
         except Exception as exc:
             logger.exception(
                 "Failed to renew realtime subscription supervisor lease",

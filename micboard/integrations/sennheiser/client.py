@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class SennheiserSystemAPIClient(BaseHTTPClient):
     """Client for interacting with Sennheiser SSCv2 API with connection pooling and retry logic."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Sennheiser API client and compose sub-clients."""
         super().__init__()
 

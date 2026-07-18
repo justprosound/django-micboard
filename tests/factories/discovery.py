@@ -5,8 +5,8 @@ from __future__ import annotations
 import factory
 
 from micboard.models.discovery.configuration import ManufacturerConfiguration
+from micboard.models.discovery.discovery_queue import DeviceMovementLog, DiscoveryQueue
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.queue import DeviceMovementLog, DiscoveryQueue
 from micboard.models.discovery.registry import (
     DiscoveredDevice,
     DiscoveryCIDR,

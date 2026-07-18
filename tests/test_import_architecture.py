@@ -69,7 +69,7 @@ def test_public_service_functions_are_fully_typed() -> None:
     for path in sorted(Path("micboard/services").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
             if node.name.startswith("_"):
                 continue

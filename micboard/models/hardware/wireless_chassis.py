@@ -44,7 +44,7 @@ Architecture & Future-Proofing Notes:
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from django.db import models, router, transaction
 
@@ -368,14 +368,14 @@ class WirelessChassis(models.Model):
             f"{self.name} ({self.ip})"
         )
 
-    def save(self, *args, **kwargs) -> None:
+    def save(self, *args: Any, **kwargs: Any) -> None:
         """Keep the IP-ownership check and row write in one transaction."""
         using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
         kwargs["using"] = using
         with transaction.atomic(using=using):
             super().save(*args, **kwargs)
 
-    def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
         """Keep delete receivers and the row deletion in one transaction."""
         using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
         kwargs["using"] = using

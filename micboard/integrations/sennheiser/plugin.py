@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from micboard.services.common.base.plugin import ManufacturerPlugin
+
+if TYPE_CHECKING:
+    from micboard.models.hardware.manufacturer import Manufacturer
 
 from .client import SennheiserSystemAPIClient
 
@@ -24,7 +27,7 @@ class SennheiserPlugin(ManufacturerPlugin):
     def code(self) -> str:
         return "sennheiser"
 
-    def __init__(self, manufacturer: Any):
+    def __init__(self, manufacturer: Manufacturer | None) -> None:
         """Initialize Sennheiser plugin and prepare client/transformer."""
         super().__init__(manufacturer)
         self.client: SennheiserSystemAPIClient = SennheiserSystemAPIClient()

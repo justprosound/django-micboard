@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class SennheiserDeviceClient:
     """Client for interacting with Sennheiser SSCv2 API for device data."""
 
-    def __init__(self, api_client: BaseAPIClient):
+    def __init__(self, api_client: BaseAPIClient) -> None:
         """Create device client using the provided API client."""
         self.api_client = api_client
 

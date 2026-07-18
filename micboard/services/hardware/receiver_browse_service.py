@@ -8,7 +8,7 @@ from django.core.paginator import Paginator
 from django.db.models import Exists, OuterRef, QuerySet
 from django.http import QueryDict
 
-from micboard.filters import HAS_DJANGO_FILTER, WirelessChassisFilter
+from micboard.filters import HAS_DJANGO_FILTER, WirelessChassisFilter  # type: ignore[attr-defined]
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.hardware.receiver_browse_dtos import (

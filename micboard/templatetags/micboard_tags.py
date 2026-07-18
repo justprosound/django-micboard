@@ -8,7 +8,7 @@ register = template.Library()
 
 
 @register.filter
-def get_item(dictionary, key):
+def get_item(dictionary: Any, key: Any) -> Any:
     """Template filter to look up a key in a dictionary."""
     if not dictionary:
         return None

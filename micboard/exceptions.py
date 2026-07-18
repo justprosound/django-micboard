@@ -24,7 +24,7 @@ class MicboardError(Exception):
         *,
         code: str = "UNKNOWN_ERROR",
         details: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """Initialize exception.
 
         Args:
@@ -45,7 +45,7 @@ class MicboardError(Exception):
 class ManufacturerNotSupportedError(MicboardError):
     """Raised when manufacturer is not supported."""
 
-    def __init__(self, manufacturer_code: str):
+    def __init__(self, manufacturer_code: str) -> None:
         """Initialize exception.
 
         Args:
@@ -61,7 +61,7 @@ class ManufacturerNotSupportedError(MicboardError):
 class HardwareNotFoundError(MicboardError):
     """Raised when hardware is not found."""
 
-    def __init__(self, device_id: str, manufacturer_code: str | None = None):
+    def __init__(self, device_id: str, manufacturer_code: str | None = None) -> None:
         """Initialize exception.
 
         Args:
@@ -86,7 +86,7 @@ class HardwareNotFoundError(MicboardError):
 class HardwareValidationError(MicboardError):
     """Raised when hardware data is invalid."""
 
-    def __init__(self, field: str, message: str):
+    def __init__(self, field: str, message: str) -> None:
         """Initialize exception.
 
         Args:
@@ -134,7 +134,7 @@ class APIError(MicboardError):
         *,
         response_body: str | None = None,
         code: str = "API_ERROR",
-    ):
+    ) -> None:
         """Initialize an API error without reading an untrusted response body.
 
         Args:
@@ -164,7 +164,7 @@ class APIRateLimitError(APIError):
         message: str = "Rate limit exceeded",
         retry_after: int | None = None,
         response: httpx.Response | None = None,
-    ):
+    ) -> None:
         """Initialize a rate-limit error and parse an integer Retry-After value."""
         self.retry_after = retry_after
         if self.retry_after is None and response is not None:
@@ -183,7 +183,7 @@ class APIRateLimitError(APIError):
 class APIAuthenticationError(APIError):
     """Raised when manufacturer API authentication fails."""
 
-    def __init__(self, message: str = "API authentication failed"):
+    def __init__(self, message: str = "API authentication failed") -> None:
         """Initialize an authentication error."""
         super().__init__(message, status_code=401, code="API_AUTH_ERROR")
 
@@ -191,7 +191,7 @@ class APIAuthenticationError(APIError):
 class APITimeoutError(APIError):
     """Raised when a manufacturer API operation times out."""
 
-    def __init__(self, message: str = "API request timed out"):
+    def __init__(self, message: str = "API request timed out") -> None:
         """Initialize a timeout error."""
         super().__init__(message, code="API_TIMEOUT")
 
@@ -199,7 +199,7 @@ class APITimeoutError(APIError):
 class LocationNotFoundError(MicboardError):
     """Raised when location is not found."""
 
-    def __init__(self, location_id: int):
+    def __init__(self, location_id: int) -> None:
         """Initialize exception.
 
         Args:
@@ -246,7 +246,7 @@ class SubscriptionLeaseLostError(MicboardError):
 class ServiceError(MicboardError):
     """Raised when service operation fails."""
 
-    def __init__(self, service_name: str, operation: str, message: str):
+    def __init__(self, service_name: str, operation: str, message: str) -> None:
         """Initialize exception.
 
         Args:

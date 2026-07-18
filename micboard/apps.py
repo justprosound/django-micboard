@@ -153,7 +153,7 @@ class MicboardConfig(AppConfig):
                 "settings.MIDDLEWARE:\n" + "\n".join(f"    {m}" for m in missing)
             )
 
-    def _validate_configuration(self, config: dict[str, Any]):
+    def _validate_configuration(self, config: dict[str, Any]) -> None:
         """Validate merged configuration.
 
         Args:
@@ -173,7 +173,7 @@ class MicboardConfig(AppConfig):
         ]
         for key in numeric_settings:
             value = config.get(key)
-            if value is not None and not isinstance(value, (int, float)):
+            if value is not None and not isinstance(value, int | float):
                 raise ImproperlyConfigured(
                     f"MICBOARD_CONFIG['{key}'] must be a number, got {type(value).__name__}"
                 )

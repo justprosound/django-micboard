@@ -59,7 +59,7 @@ def _list_item_identity(value: Any) -> tuple[str, object] | None:
     compact_items = {_compact_key(key): item for key, item in value.items()}
     for identity_key in _LIST_IDENTITY_KEYS:
         identity = compact_items.get(identity_key)
-        if isinstance(identity, (str, int)) and not isinstance(identity, bool):
+        if isinstance(identity, str | int) and not isinstance(identity, bool):
             return identity_key, identity
     return None
 

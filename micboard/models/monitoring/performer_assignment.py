@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -16,7 +16,7 @@ User = get_user_model()
 class PerformerAssignmentQuerySet(TenantOptimizedQuerySet):
     """Query helpers for performer assignments with tenant awareness."""
 
-    def for_user(self, *, user) -> PerformerAssignmentQuerySet:
+    def for_user(self, *, user: Any) -> PerformerAssignmentQuerySet:
         """Return assignments in the user's active monitoring groups."""
         tenant_scope = cast(PerformerAssignmentQuerySet, super().for_user(user=user))
         if not user.is_authenticated:
@@ -32,7 +32,7 @@ class PerformerAssignmentQuerySet(TenantOptimizedQuerySet):
         """Get all active assignments."""
         return self.filter(is_active=True)
 
-    def by_monitoring_group(self, *, group) -> PerformerAssignmentQuerySet:
+    def by_monitoring_group(self, *, group: Any) -> PerformerAssignmentQuerySet:
         """Filter by monitoring group that manages this assignment."""
         return self.filter(monitoring_group=group)
 
@@ -67,11 +67,11 @@ class PerformerAssignmentManager(TenantOptimizedManager):
     def active(self) -> PerformerAssignmentQuerySet:
         return self.get_queryset().active()
 
-    def for_user(self, *, user) -> PerformerAssignmentQuerySet:
+    def for_user(self, *, user: Any) -> PerformerAssignmentQuerySet:
         """Return assignments visible to the user."""
         return self.get_queryset().for_user(user=user)
 
-    def by_monitoring_group(self, *, group) -> PerformerAssignmentQuerySet:
+    def by_monitoring_group(self, *, group: Any) -> PerformerAssignmentQuerySet:
         return self.get_queryset().by_monitoring_group(group=group)
 
 

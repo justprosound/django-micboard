@@ -85,5 +85,7 @@ def get_device_communication_protocol(device: DiscoveredDevice) -> str | None:
     """Get communication protocol name from metadata."""
     accessor = DeviceMetadataAccessor.get_for(device.manufacturer, device.metadata)
     if hasattr(accessor, "get_communication_protocol"):
-        return accessor.get_communication_protocol()  # type: ignore[return-value]
+        protocol = accessor.get_communication_protocol()
+        if isinstance(protocol, str):
+            return protocol
     return None

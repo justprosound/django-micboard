@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 
 if TYPE_CHECKING:
-    from micboard.models.discovery.queue import DeviceMovementLog
+    from micboard.models.discovery.discovery_queue import DeviceMovementLog
     from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.models.locations.structure import Location
 
@@ -37,7 +37,7 @@ def log_device_movement(
     Returns:
         DeviceMovementLog instance
     """
-    from micboard.models.discovery.queue import DeviceMovementLog
+    from micboard.models.discovery.discovery_queue import DeviceMovementLog
 
     movement = DeviceMovementLog.objects.create(
         device=device,

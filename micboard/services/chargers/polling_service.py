@@ -163,7 +163,7 @@ class ChargerPollingService:
     @staticmethod
     def _bounded_items(value: object, limit: int) -> tuple[list[Mapping[str, Any]], bool]:
         """Consume at most one item beyond a limit from an arbitrary vendor iterable."""
-        if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Iterable):
+        if isinstance(value, str | bytes | Mapping) or not isinstance(value, Iterable):
             return [], False
         bounded = list(islice(value, limit + 1))
         return (
@@ -208,7 +208,7 @@ class ChargerPollingService:
         expected_inventory_fingerprint: str | None,
     ) -> ChargerInventoryPage:
         """Return a bounded list page while retaining a safe fallback for invalid plugins."""
-        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        if isinstance(value, Sequence) and not isinstance(value, str | bytes):
             total = len(value)
             if total > HARD_MAX_CHARGER_INVENTORY_SIZE:
                 return ChargerInventoryPage(
@@ -324,7 +324,7 @@ class ChargerPollingService:
     def _bounded_integer(value: object, *, minimum: int, maximum: int) -> int:
         if isinstance(value, bool):
             return minimum
-        if not isinstance(value, (int, float, str)):
+        if not isinstance(value, int | float | str):
             return minimum
         try:
             parsed = int(value)

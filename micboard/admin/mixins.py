@@ -52,7 +52,7 @@ else:
     _ImportExportBase = object
 
 
-class BaseImportExportAdmin(_ImportExportBase):
+class BaseImportExportAdmin(_ImportExportBase):  # type: ignore[misc]
     """Type-stable base for the optional import-export integration."""
 
     import_form_class: Any = None
@@ -116,7 +116,7 @@ class EnhancedAdminMixin:
         return range_filters
 
 
-class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryAdmin, BaseAdmin):
+class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryAdmin, BaseAdmin):  # type: ignore[misc]
     """Base ModelAdmin with optional extras and tenant-safe query boundaries."""
 
     # Unfold specific default settings

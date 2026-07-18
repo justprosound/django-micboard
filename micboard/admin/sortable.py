@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, router, transaction
@@ -30,7 +30,7 @@ else:
         pass
 
 
-class MicboardSortableAdmin(BaseSortableAdmin, MicboardModelAdmin):
+class MicboardSortableAdmin(BaseSortableAdmin, MicboardModelAdmin):  # type: ignore[misc]
     """Sortable admin with tenant-scoped, primary-routed atomic writes."""
 
     _change_list_template_override: Any = _UNSET
@@ -40,7 +40,7 @@ class MicboardSortableAdmin(BaseSortableAdmin, MicboardModelAdmin):
         """Compose the sortable base template with an explicit override."""
         if self._change_list_template_override is not _UNSET:
             return self._change_list_template_override
-        return super().change_list_template  # type: ignore[misc]
+        return super().change_list_template
 
     @change_list_template.setter
     def change_list_template(self, value: Any) -> None:
@@ -48,7 +48,7 @@ class MicboardSortableAdmin(BaseSortableAdmin, MicboardModelAdmin):
 
     def get_actions(self, request: Any) -> dict[str, Any]:
         """Exclude upstream page moves that calculate ranks from global rows."""
-        actions = super().get_actions(request)  # type: ignore[misc]
+        actions = super().get_actions(request)
         for action_name in (
             "move_to_exact_page",
             "move_to_back_page",
@@ -57,7 +57,7 @@ class MicboardSortableAdmin(BaseSortableAdmin, MicboardModelAdmin):
             "move_to_last_page",
         ):
             actions.pop(action_name, None)
-        return actions
+        return cast(dict[str, Any], actions)
 
     def _parse_updated_items(self, body: bytes) -> dict[Any, Any]:
         """Validate one sortable payload and normalize its model field values."""

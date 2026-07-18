@@ -41,6 +41,7 @@ type ImportGraph = dict[str, set[str]]
 
 
 def _module_name(*, path: Path, package_root: Path, package_name: str) -> str:
+    """Convert a file path to its fully qualified Python module name."""
     relative = path.relative_to(package_root)
     parts = list(relative.with_suffix("").parts)
     if parts[-1] == "__init__":
@@ -59,6 +60,7 @@ def _resolve_module(candidate: str, modules: set[str]) -> str | None:
 
 
 def _relative_import_base(*, source: str, is_package: bool, node: ast.ImportFrom) -> str:
+    """Resolve the base module path for a relative import AST node."""
     package = source if is_package else source.rpartition(".")[0]
     package_parts = package.split(".") if package else []
     keep = len(package_parts) - node.level + 1
@@ -74,6 +76,7 @@ def _import_candidates(
     is_package: bool,
     node: ast.Import | ast.ImportFrom,
 ) -> tuple[str, ...]:
+    """Extract all potential target module names from an import AST node."""
     if isinstance(node, ast.Import):
         return tuple(alias.name for alias in node.names)
 
@@ -111,7 +114,7 @@ def build_import_graph(
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         is_package = path.name == "__init__.py"
         for node in ast.walk(tree):
-            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            if not isinstance(node, ast.Import | ast.ImportFrom):
                 continue
             for candidate in _import_candidates(
                 source=source,
@@ -137,7 +140,10 @@ def build_import_graph(
 
 
 class _ComponentFinder:
+    """Stateful graph traversal class implementing Tarjan's strongly connected components algorithm."""
+
     def __init__(self, graph: ImportGraph) -> None:
+        """Initialize the finder with the provided import graph."""
         self.graph = graph
         self.index = 0
         self.indices: dict[str, int] = {}
@@ -147,12 +153,14 @@ class _ComponentFinder:
         self.components: list[tuple[str, ...]] = []
 
     def find(self) -> tuple[tuple[str, ...], ...]:
+        """Execute Tarjan's algorithm to find all strongly connected components in the graph."""
         for module in sorted(self.graph):
             if module not in self.indices:
                 self._visit(module)
         return tuple(sorted(self.components, key=lambda component: (-len(component), component)))
 
     def _visit(self, module: str) -> None:
+        """Recursively visit nodes to compute index and lowlink values for cycle detection."""
         self.indices[module] = self.index
         self.lowlinks[module] = self.index
         self.index += 1
@@ -173,6 +181,7 @@ class _ComponentFinder:
             self.components.append(tuple(sorted(component)))
 
     def _pop_component(self, root: str) -> list[str]:
+        """Pop nodes from the stack to form a strongly connected component."""
         component: list[str] = []
         while True:
             module = self.stack.pop()
@@ -183,10 +192,12 @@ class _ComponentFinder:
 
 
 def _strongly_connected_components(graph: ImportGraph) -> tuple[tuple[str, ...], ...]:
+    """Find all strongly connected components (cycles) in the given import graph."""
     return _ComponentFinder(graph).find()
 
 
 def _is_forbidden(edge: ImportEdge, *, package_name: str) -> bool:
+    """Check if an import edge violates architectural layering constraints."""
     model_prefix = f"{package_name}.models"
     multitenancy_models = f"{package_name}.multitenancy.models"
     service_prefix = f"{package_name}.services"
@@ -236,6 +247,7 @@ def _path_within_component(
     destination: str,
     component: set[str],
 ) -> list[str] | None:
+    """Find the shortest import path between two modules within a connected component using BFS."""
     queue: deque[list[str]] = deque([[start]])
     seen = {start}
     while queue:
@@ -251,6 +263,7 @@ def _path_within_component(
 
 
 def _representative_cycle(component: tuple[str, ...], graph: ImportGraph) -> tuple[str, ...]:
+    """Extract a simple cycle from a strongly connected component for reporting."""
     members = set(component)
     candidates: list[tuple[str, ...]] = []
     for source in component:

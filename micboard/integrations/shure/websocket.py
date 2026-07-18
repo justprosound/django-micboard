@@ -28,9 +28,9 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterable, Awaitable, Callable
 from inspect import isawaitable
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from asgiref.sync import sync_to_async
 
@@ -82,7 +82,7 @@ def _parse_transport_id_from_message(message: str | bytes) -> str | None:
         if isinstance(message, bytes):
             message = message.decode("utf-8")
         payload = json.loads(message)
-        return payload.get("transportId")
+        return cast(str | None, payload.get("transportId"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         logger.exception(
             "Failed to parse WebSocket transport ID message",
@@ -91,7 +91,9 @@ def _parse_transport_id_from_message(message: str | bytes) -> str | None:
         return None
 
 
-def _subscribe_client_to_transport(client, device_id: str, transport_id: str) -> None:
+def _subscribe_client_to_transport(
+    client: ShureWebSocketClient, device_id: str, transport_id: str
+) -> None:
     from .exceptions import ShureAPIError
 
     subscribe_endpoint = f"/api/v1/devices/{device_id}/identify/subscription/{transport_id}"
@@ -111,7 +113,7 @@ def _subscribe_client_to_transport(client, device_id: str, transport_id: str) ->
 
 
 async def _read_and_dispatch_messages(
-    websocket,
+    websocket: AsyncIterable[str | bytes],
     device_id: str,
     callback: Callable[[dict[str, Any]], Awaitable[None] | None],
 ) -> None:

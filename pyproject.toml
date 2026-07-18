@@ -144,8 +144,6 @@ dev = [
     "pytest-cov>=4.0",
     "pytest-timeout>=2.3",
     "factory-boy>=3.2",
-    "pre-commit>=3.0",
-    "pre-commit-hooks>=6.0",
     "django-safemigrate>=6.0",
     "ruff>=0.1.0",
     "mypy>=1.0",
@@ -209,8 +207,6 @@ all = [
     "pytest-cov>=4.0",
     "pytest-timeout>=2.3",
     "factory-boy>=3.2",
-    "pre-commit>=3.0",
-    "pre-commit-hooks>=6.0",
     "django-safemigrate>=6.0",
     "ruff>=0.1.0",
     "mypy>=1.0",
@@ -401,21 +397,11 @@ constraint-dependencies = [
 [tool.mypy]
 plugins = ["mypy_django_plugin.main"]
 python_version = "3.13"
-exclude = ["^build/", "^dist/"]
-strict = false
+exclude = ["^build/", "^dist/", "^tests/"]
+strict = true
+disallow_any_generics = false
 ignore_missing_imports = true
-warn_unused_ignores = false
-warn_redundant_casts = false
-warn_unused_configs = true
-check_untyped_defs = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-disallow_untyped_calls = false
 show_error_codes = true
-
-[[tool.mypy.overrides]]
-module = "*.migrations.*"
-ignore_errors = true
 
 [tool.django-stubs]
 django_settings_module = "tests.settings"

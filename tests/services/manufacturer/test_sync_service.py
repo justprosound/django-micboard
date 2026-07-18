@@ -10,7 +10,7 @@ from django.test import override_settings
 
 import pytest
 
-from micboard.models.discovery.queue import DeviceMovementLog
+from micboard.models.discovery.discovery_queue import DeviceMovementLog
 from micboard.services.core.hardware import NormalizedHardware
 from micboard.services.deduplication.check import check_device
 from micboard.services.deduplication.identity_index import DeviceIdentityIndex

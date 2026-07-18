@@ -29,7 +29,7 @@ class ManufacturerAdminForm(forms.ModelForm):
         model = Manufacturer
         fields = ["name", "code", "is_active", "config"]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize the manufacturer admin form and populate plugin choices."""
         super().__init__(*args, **kwargs)
         if self.instance.pk:
@@ -55,7 +55,7 @@ class ManufacturerAdminForm(forms.ModelForm):
         """Preserve unchanged redacted credentials in manufacturer JSON."""
         config = self.cleaned_data.get("config") or {}
         original = self.instance.config if self.instance.pk else {}
-        return restore_redacted_secrets(config, original)
+        return restore_redacted_secrets(config, original)  # type: ignore[no-any-return]
 
 
 @admin.register(Manufacturer)
@@ -80,7 +80,7 @@ class ManufacturerAdmin(MicboardModelAdmin):
         url = f"{reverse('micboard:settings_manufacturer_config')}?manufacturer={obj.pk}"
         return format_html('<a href="{}">Configure scoped settings</a>', url)
 
-    def get_fieldsets(self, request, obj=None):
+    def get_fieldsets(self, request: Any, obj: Any = None) -> Any:
         """Keep raw plugin JSON out of readonly change pages."""
         if obj is not None and not self.has_change_permission(request, obj):
             return replace_field(

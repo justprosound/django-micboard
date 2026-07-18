@@ -6,7 +6,7 @@ DeviceMovementLog (movement tracking and acknowledgment).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from micboard.admin.mixins import MicboardModelAdmin
-from micboard.models.discovery.queue import DeviceMovementLog, DiscoveryQueue
+from micboard.models.discovery.discovery_queue import DeviceMovementLog, DiscoveryQueue
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -168,7 +168,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         return " | ".join(parts)
 
     @admin.action(permissions=["change"], description="Approve selected devices for import")
-    def approve_devices(self, request: HttpRequest, queryset):
+    def approve_devices(self, request: HttpRequest, queryset: Any) -> None:
         """Delegate approval to the atomic discovery service."""
         from micboard.services.sync.discovery_approval_service import DiscoveryApprovalService
 
@@ -187,7 +187,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         )
 
     @admin.action(permissions=["change"], description="Reject selected devices")
-    def reject_devices(self, request: HttpRequest, queryset):
+    def reject_devices(self, request: HttpRequest, queryset: Any) -> None:
         """Reject devices and prevent import."""
         count = queryset.filter(status="pending").update(
             status="rejected",
@@ -197,7 +197,7 @@ class DiscoveryQueueAdmin(MicboardModelAdmin):
         messages.success(request, f"Rejected {count} device(s).")
 
     @admin.action(permissions=["change"], description="Mark as duplicate (no import)")
-    def mark_as_duplicate(self, request: HttpRequest, queryset):
+    def mark_as_duplicate(self, request: HttpRequest, queryset: Any) -> None:
         """Mark devices as duplicates without importing."""
         count = queryset.filter(status="pending").update(
             status="duplicate",
@@ -337,7 +337,7 @@ class DeviceMovementLogAdmin(MicboardModelAdmin):
         return f"{icon} {obj.movement_type.replace('_', ' ').title()}"
 
     @admin.action(permissions=["change"], description="Acknowledge selected movements")
-    def acknowledge_movements(self, request: HttpRequest, queryset):
+    def acknowledge_movements(self, request: HttpRequest, queryset: Any) -> None:
         """Mark movements as acknowledged by admin."""
         count = queryset.filter(acknowledged=False).update(
             acknowledged=True,

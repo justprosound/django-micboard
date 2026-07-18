@@ -101,9 +101,9 @@ class UserAlertPreference(models.Model):
         if self.quiet_hours_start and self.quiet_hours_end:
             if self.quiet_hours_start <= self.quiet_hours_end:
                 # Same day range
-                return self.quiet_hours_start <= now <= self.quiet_hours_end  # type: ignore
+                return self.quiet_hours_start <= now <= self.quiet_hours_end
             # Overnight range
-            return now >= self.quiet_hours_start or now <= self.quiet_hours_end  # type: ignore
+            return now >= self.quiet_hours_start or now <= self.quiet_hours_end
 
         return False
 
@@ -193,7 +193,7 @@ class Alert(models.Model):
             return False
 
         # Consider overdue after 30 minutes
-        return (timezone.now() - self.created_at) > timedelta(minutes=30)  # type: ignore
+        return (timezone.now() - self.created_at) > timedelta(minutes=30)
 
     @property
     def severity(self) -> str:

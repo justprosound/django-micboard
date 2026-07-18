@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from django.utils import timezone
 
@@ -142,7 +142,7 @@ def get_assigned_rf_channel(unit: WirelessUnit) -> RFChannel | None:
     prefetched_channels = getattr(unit, "_admin_active_receive_channels", None)
     if prefetched_channels is not None:
         if prefetched_channels:
-            return prefetched_channels[0]
+            return cast("RFChannel", prefetched_channels[0])
         return unit.assigned_resource
 
     if hasattr(unit, "active_on_receive_channels"):

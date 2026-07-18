@@ -8,8 +8,8 @@ from django.urls import reverse
 
 from micboard.admin.discovery_admin import DiscoveryQueueAdmin
 from micboard.admin.monitoring import DiscoveredDeviceAdmin
+from micboard.models.discovery.discovery_queue import DiscoveryQueue
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.queue import DiscoveryQueue
 from micboard.models.discovery.registry import DiscoveredDevice
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
