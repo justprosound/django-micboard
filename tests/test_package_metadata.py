@@ -20,6 +20,7 @@ def test_documentation_tooling_is_opt_in() -> None:
     runtime_dependencies = project["project"]["dependencies"]
     docs_dependencies = project["project"]["optional-dependencies"]["docs"]
     docs_packages = (
+        "mkdocs",
         "mkdocs-git-revision-date-localized-plugin",
         "mkdocs-material",
         "mkdocs-minify-plugin",

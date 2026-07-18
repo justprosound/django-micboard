@@ -54,7 +54,7 @@ Consolidate into a single `SettingsService` under `micboard/services/settings/se
 
 ### Uncertainty #3: AST Architecture Test for Direct Config Reads
 
-**Description:** Needed compile-time enforcement that no runtime code reads `MICBOARD_*`
+**Description:** Needed CI-time enforcement that no runtime code reads `MICBOARD_*`
 attributes or calls `getattr(..., "MICBOARD_*")` outside the canonical settings modules. Existing
 linters do not catch those dynamic attribute access patterns.
 

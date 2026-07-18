@@ -7,7 +7,7 @@ Each project submission has to be reduced to around 400 words
 
 ## Project Description
 
-Five Django models embedded orchestration logic in `save()`, `clean()`, and lifecycle hooks: `WirelessChassis` (709 lines — largest file in codebase), `WirelessUnit` (449L), `RFChannel` (347L), `DiscoveredDevice` (353L), and `ManufacturerConfiguration` (213L). Business logic included status transitions, sync triggers, duplicate detection, JSON schema validation, and network state management. Additionally, `post_save` signals duplicated logic already present in service-layer methods (`hardware_lifecycle.py` 381L, `hardware.py` 534L). The implicit chain `model.save()` → django-lifecycle hook → signal → service was untestable in isolation and made bulk operations impossible without side effects.
+Five Django models embedded orchestration logic in `save()`, `clean()`, and lifecycle hooks: `WirelessChassis` (709 lines — largest model file in the codebase), `WirelessUnit` (449L), `RFChannel` (347L), `DiscoveredDevice` (353L), and `ManufacturerConfiguration` (213L). Business logic included status transitions, sync triggers, duplicate detection, JSON schema validation, and network state management. Additionally, `post_save` signals duplicated logic already present in service-layer methods (`hardware_lifecycle.py` 381L, `hardware.py` 534L). The implicit chain `model.save()` → django-lifecycle hook → signal → service was untestable in isolation and made bulk operations impossible without side effects.
 
 ## Project Goals
 
