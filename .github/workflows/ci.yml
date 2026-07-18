@@ -196,6 +196,7 @@ jobs:
           category: "/language:python"
 
   build-docs:
+    name: Build Documentation
     # Absorbed from docs.yml — shares concurrency group so it cancels cleanly
     # with the rest of CI when a new push arrives.
     runs-on: ubuntu-latest
