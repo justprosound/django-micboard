@@ -135,6 +135,7 @@ Level: 8%
 Cycles: 523
 Temperature: 32.1°C
 Runtime: 0:15:00
+Type: Lithium-Ion
 ⚠️ Battery needs replacement
 ```
 
@@ -305,7 +306,5 @@ def test_shure_battery_health_persistence(mock_shure_api):
 
 ## Related Documentation
 
-- [Shure Integration Guide](docs/shure-integration.md)
-- [Admin Interface Documentation](docs/admin-interface.md)
-- [Polling Tasks](micboard/tasks/polling_tasks.py)
-- [Alert System](micboard/services/monitoring/alerts.py)
+- [Shure Integration Guide](../shure-integration.md)
+- [Admin Interface Documentation](admin-interface.md)

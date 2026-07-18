@@ -7,7 +7,7 @@ repo_name: django-micboard
 copyright: Licensed under AGPL-3.0-or-later | Community-driven open source project
 
 theme:
-  name: mkdocs
+  name: material
   features:
     - navigation.instant
     - navigation.tracking
@@ -22,9 +22,26 @@ theme:
     - content.tooltips
     - toc.follow
     - toc.integrate
+    - header.autohide
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   font:
     text: Roboto
     code: Roboto Mono
+  icon:
+    logo: material/database
+    repo: fontawesome/brands/github
 
 nav:
   - Home: index.md
@@ -41,6 +58,15 @@ nav:
       - API Band-plan Detection: guides/api-band-plan-detection.md
       - Band-plan Auto-population: guides/band-plan-auto-population.md
       - Regulatory Coverage: guides/regulatory-coverage-monitoring.md
+      - Battery Health Tracking: guides/battery-health-tracking.md
+      - Performer Assignment: guides/performer-assignment-architecture.md
+      - Performer Quickref: guides/performer-quickref.md
+      - Settings Admin Guide: guides/settings-admin-guide.md
+      - Settings Integration: guides/settings-integration.md
+      - Settings Management: guides/settings-management.md
+      - Settings Quick Reference: guides/settings-quick-reference.md
+      - Settings System Summary: guides/settings-system-summary.md
+      - Shure Troubleshooting: guides/shure-troubleshooting.md
   - Shure Integration:
       - Shure System API: shure-integration.md
       - Device Discovery: integration/discovery-workflow.md
@@ -54,7 +80,12 @@ nav:
       - Serializers: api/serializers.md
       - Views: api/views.md
   - Development:
+      - Architecture: architecture.md
+      - Design: design.md
       - Developer Guide: development.md
+      - Context: development/context.md
+      - Modern Tooling: development/modern-tooling.md
+      - Tasks: development/tasks.md
       - Plugin Development: plugin-development.md
       - Architecture: development/architecture.md
       - Python API: development/api-reference.md
@@ -81,11 +112,56 @@ nav:
           - PRD 002 - Admin Modernization: prd/002-admin-modernization.md
           - PRD 003 - Plugin Infrastructure: prd/003-plugin-standardization-infrastructure.md
           - PRD 004 - Quality and API Documentation: prd/004-quality-api-documentation.md
+          - PRD Requirements: prd/requirements.md
+      - SRED 2026:
+          - Index: sred/2026/INDEX.md
+          - README: sred/2026/README.md
+          - Service Layer Decomposition: sred/2026/project-01-service-layer-decomposition.md
+          - Extract Model Logic: sred/2026/project-02-extract-model-logic.md
+          - Admin Modularization: sred/2026/project-03-admin-modularization.md
+          - Standardize Plugins: sred/2026/project-04-standardize-plugins.md
+          - Test Infrastructure: sred/2026/project-05-test-infrastructure.md
+          - Unify Settings: sred/2026/project-06-unify-settings.md
+          - Remove Compat Shim: sred/2026/project-07-remove-compat-shim.md
+          - Consolidate Exceptions: sred/2026/project-08-consolidate-exceptions.md
+          - Bound Live Projections: sred/2026/project-09-bound-live-projections.md
+          - DRF API Layer: sred/2026/project-10-drf-api-layer.md
+          - EventBus: sred/2026/project-11-eventbus.md
+          - Split HTTP Client: sred/2026/project-12-split-http-client.md
   - About:
       - Changelog: changelog.md
+      - Breaking Changes v26.01: changelog/breaking-changes-v26.01.md
 
 plugins:
   - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [micboard]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            merge_init_into_class: true
+            docstring_section_style: list
+            annotations_path: brief
+            annotations: true
+            inheritance: true
+            summary: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: datetime
+      locale: en
+      timezone: UTC
+  - minify:
+      minify_html: true
+      minify_css: true
+      minify_js: true
+  # - sitemap:
+  #     changefreq: weekly
+  #     priority: 0.8
 
 markdown_extensions:
   - abbr
@@ -102,6 +178,34 @@ markdown_extensions:
   - fenced_code
   - tables
   - meta
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
 
 extra:
   version:
@@ -113,9 +217,3 @@ extra:
 
 extra_css:
   - stylesheets/extra.css
-
-# Analytics (optional - add when ready)
-# extra:
-#   analytics:
-#     provider: google
-#     property: G-XXXXXXXXXX

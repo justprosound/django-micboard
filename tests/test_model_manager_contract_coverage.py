@@ -100,7 +100,9 @@ def test_performer_and_assignment_managers_cover_public_helpers() -> None:
         PerformerAssignmentQuerySet,
     )
     assert assignments.with_performer_and_unit().query.select_related
-    assert str(assignments.needing_alerts().query).count('"updated_at"') == 1
+    alert_query = str(assignments.needing_alerts().query)
+    assert alert_query.count('"updated_at"') == 1
+    assert '"alert_on_audio_low"' in alert_query
     after = datetime(2026, 1, 1, tzinfo=UTC)
     assert str(assignments.needing_alerts(after=after).query).count('"updated_at"') == 2
 

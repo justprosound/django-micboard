@@ -78,9 +78,7 @@ Admin → Settings → Bulk Configuration
 
 ## 🔍 Exact Scope
 
-Every setting definition declares one scope: manufacturer, site, organization, or global. Runtime
-lookup checks only that scope and never falls through to a different tenant scope. If no row
-exists, host/package/definition defaults apply.
+Every setting definition declares one scope: manufacturer, site, organization, or global. Runtime lookup checks only that scope and never falls through to a different tenant scope. If no row exists, host/package/definition defaults apply.
 
 ---
 
@@ -117,10 +115,10 @@ exists, host/package/definition defaults apply.
 
 ## 📞 Getting Help
 
-- **Quick Questions?** See: SETTINGS_ADMIN_GUIDE.md
+- **Quick Questions?** See: [Settings Admin Guide](settings-admin-guide.md)
 - **What does this setting do?** See: Setting Definition description
-- **How do I integrate?** See: SETTINGS_INTEGRATION.md (developers)
-- **System not working?** See: SETTINGS_MANAGEMENT.md
+- **How do I integrate?** See: [Settings Integration](settings-integration.md) (developers)
+- **System not working?** See: [Settings Management](settings-management.md)
 
 ---
 
