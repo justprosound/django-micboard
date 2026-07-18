@@ -156,28 +156,38 @@ class SettingsService:
 
     @property
     def global_device_limit(self) -> int | None:
-        val = self.get("global_device_limit", None)
-        return int(val) if val not in (None, "") else None
+        try:
+            return int(self.get("global_device_limit", None))
+        except (TypeError, ValueError):
+            return None
 
     @property
     def device_limit_warning_threshold(self) -> float:
-        val = self.get("device_limit_warning_threshold", 0.9)
-        return float(val) if val not in (None, "") else 0.9
+        try:
+            return float(self.get("device_limit_warning_threshold", 0.9))
+        except (TypeError, ValueError):
+            return 0.9
 
     @property
     def activity_log_retention_days(self) -> int:
-        val = self.get("activity_log_retention_days", 90)
-        return int(val) if val not in (None, "") else 90
+        try:
+            return int(self.get("activity_log_retention_days", 90))
+        except (TypeError, ValueError):
+            return 90
 
     @property
     def service_sync_log_retention_days(self) -> int:
-        val = self.get("service_sync_log_retention_days", 30)
-        return int(val) if val not in (None, "") else 30
+        try:
+            return int(self.get("service_sync_log_retention_days", 30))
+        except (TypeError, ValueError):
+            return 30
 
     @property
     def api_health_log_retention_days(self) -> int:
-        val = self.get("api_health_log_retention_days", 7)
-        return int(val) if val not in (None, "") else 7
+        try:
+            return int(self.get("api_health_log_retention_days", 7))
+        except (TypeError, ValueError):
+            return 7
 
     @property
     def audit_archive_path(self) -> str:
