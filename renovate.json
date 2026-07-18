@@ -1,4 +1,26 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "ignorePaths": ["docs/requirements.txt"]
+  "ignorePaths": ["docs/requirements.txt"],
+  "packageRules": [
+    {
+      "description": "Auto-merge digest-only pinning — SHA changes carry zero functional risk and are verified by CI before merge",
+      "matchUpdateTypes": ["digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Auto-merge patch releases after a 3-day stability window — guards against supply-chain attacks that publish a malicious patch and rely on immediate auto-merge",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Minor and major updates always require manual review — API surfaces can change even with passing tests",
+      "matchUpdateTypes": ["minor", "major"],
+      "automerge": false
+    }
+  ]
 }

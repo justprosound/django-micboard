@@ -157,6 +157,11 @@ dev = [
     "bandit>=1.7",
     "interrogate>=1.5",
     "coverage>=7.0",
+    # Property-based testing — generates edge cases automatically
+    "hypothesis>=6.0",
+    "hypothesis[django]",
+    # Mutation testing — verifies that tests actually catch logic inversions
+    "mutmut>=3.0",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -427,3 +432,29 @@ release = [
     "pypi-attestations==0.0.29",
     "twine==6.2.0",
 ]
+
+# ============================================================================
+# Bandit Security Scanner
+# ============================================================================
+[tool.bandit]
+# Target medium-severity, medium-confidence findings — low/low is too noisy for
+# a library that handles user data, HTML sanitization, and cryptographic ops.
+level = "MEDIUM"
+confidence = "MEDIUM"
+exclude_dirs = ["tests", "migrations"]
+skips = []
+
+# ============================================================================
+# Mutmut Mutation Testing
+# ============================================================================
+[tool.mutmut]
+paths_to_mutate = "micboard/"
+tests_dir = "tests/"
+# Exclude generated/declarative code where mutations are semantically meaningless
+exclude = [
+    "micboard/migrations/",
+    "micboard/admin/",
+]
+# Run only the fast unit/service tests during mutation — avoids 77-second
+# full-suite overhead per mutant. Full suite validates surviving mutants in CI.
+test_command = "uv run --no-sync pytest tests/ -x -q --tb=no --no-header -m 'not e2e' --timeout=30"

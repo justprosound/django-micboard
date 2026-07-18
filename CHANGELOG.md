@@ -7,6 +7,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Property-based testing**: Add `hypothesis` to development dependencies and include starter property tests for DTO validation to automatically generate and verify edge cases.
+- **Mutation testing**: Add `mutmut` to development dependencies and introduce a weekly informational CI workflow to verify that tests successfully catch logic inversions and boundary errors.
+- **Pull Request Template**: Add a pull request template to guide contributors in submitting clean, well-tested changes.
+
+### Changed
+
+- **Dependency updates**: Enable auto-merge for Renovate dependency updates (digest-only and patch versions) to reduce maintainer overhead, with a 3-day stability delay on patch versions to guard against supply-chain attacks.
+- **Contributor documentation**: Update `README.md`, `CONTRIBUTING.md`, and `SECURITY.md` to explicitly state that the project is maintained by a single developer, setting expectations around response times.
+
 ## [26.07.18] - 2026-07-18
 
 d4ffc65 - docs: Reorganize documentation into docs/ structure (#113) (bandwith)
@@ -15,7 +26,6 @@ ce00949 - fix(release): Require verified signed tags (#111) (bandwith)
 7752e8d - fix(release): Recover original published artifacts (#110) (bandwith)
 8171466 - fix(release): Support isolated and same-day releases (#108) (bandwith)
 e13b9b4 - fix(release): Use valid Syft release tag (#107) (bandwith)
-
 
 ### Fixed
 

@@ -1,0 +1,57 @@
+---
+name: Mutation Testing
+run-name: "Mutmut · ${{ github.ref_name }}"
+
+# Mutation testing is expensive (one test-suite run per mutant).
+# Run weekly on main and allow manual dispatch; never on pull requests.
+# Results are informational — this job does NOT block merges.
+on:
+  schedule:
+    - cron: "0 5 * * 2"  # Tuesday 05:00 UTC — offset from Monday CI schedule
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutmut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # Mutation runs are long; cap at 2 hours
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras
+
+      - name: Run mutation tests
+        # --no-progress avoids spammy CI output; results land in .mutmut-cache
+        # Exit code 1 means surviving mutants were found — capture it as a
+        # warning rather than a hard failure so the report step always runs.
+        run: |
+          uv run --no-sync mutmut run --no-progress || echo "MUTMUT_EXIT=$?" >> "$GITHUB_ENV"
+
+      - name: Report mutation results
+        if: always()
+        run: |
+          echo "## Mutation Testing Results" >> "$GITHUB_STEP_SUMMARY"
+          uv run --no-sync mutmut results >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          SURVIVED=$(uv run --no-sync mutmut results 2>/dev/null | grep -c "^survived" || echo "0")
+          echo "**Surviving mutants:** $SURVIVED" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Surviving mutants indicate logic that tests don't verify._" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Add targeted tests for each surviving mutant before closing._" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload mutation cache
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: mutmut-cache-${{ github.run_id }}
+          path: .mutmut-cache
+          retention-days: 7
+          if-no-files-found: ignore
