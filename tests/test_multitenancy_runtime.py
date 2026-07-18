@@ -46,6 +46,7 @@ _for_user = cast(Any, TenantOptimizedQuerySet.for_user)
 
 
 def _queryset_with_model(**attributes: object) -> Any:
+    """Docstring."""
     queryset = MagicMock()
     queryset.model = type("TenantModel", (), attributes)
     return queryset
@@ -53,6 +54,7 @@ def _queryset_with_model(**attributes: object) -> Any:
 
 @override_settings(MICBOARD_MULTI_SITE_MODE=False)
 def test_site_filter_is_noop_when_disabled() -> None:
+    """Docstring."""
     queryset = _queryset_with_model(site_id=None)
     assert TenantOptimizedQuerySet.for_site(queryset, site_id=4) is queryset
 
@@ -74,6 +76,7 @@ def test_site_filter_is_noop_when_disabled() -> None:
 )
 @override_settings(MICBOARD_MULTI_SITE_MODE=True, SITE_ID=7)
 def test_site_filter_uses_available_tenant_path(attribute: str, expected: dict[str, int]) -> None:
+    """Docstring."""
     queryset = _queryset_with_model(**{attribute: object()})
     result = TenantOptimizedQuerySet.for_site(queryset)
     assert result is queryset.filter.return_value.distinct.return_value
@@ -82,6 +85,7 @@ def test_site_filter_uses_available_tenant_path(attribute: str, expected: dict[s
 
 @override_settings(MICBOARD_MULTI_SITE_MODE=True)
 def test_site_filter_fails_closed_for_unscoped_model() -> None:
+    """Docstring."""
     queryset = _queryset_with_model()
     assert TenantOptimizedQuerySet.for_site(queryset, site_id=3) is queryset.none.return_value
 
@@ -151,6 +155,7 @@ def test_nested_tenant_models_use_explicit_reviewed_ownership_paths(
 def test_organization_filter_uses_available_tenant_path(
     attribute: str, expected: dict[str, int]
 ) -> None:
+    """Docstring."""
     queryset = _queryset_with_model(**{attribute: object()})
     organization = SimpleNamespace(id=9)
     result = TenantOptimizedQuerySet.for_organization(
@@ -163,6 +168,7 @@ def test_organization_filter_uses_available_tenant_path(
 
 @override_settings(MICBOARD_MSP_ENABLED=False)
 def test_organization_and_campus_filters_are_noops_when_disabled() -> None:
+    """Docstring."""
     queryset = _queryset_with_model(organization_id=None, campus_id=None)
     assert TenantOptimizedQuerySet.for_organization(queryset, organization=1) is queryset
     assert TenantOptimizedQuerySet.for_campus(queryset, campus_id=1) is queryset
@@ -170,6 +176,7 @@ def test_organization_and_campus_filters_are_noops_when_disabled() -> None:
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
 def test_organization_and_campus_filters_allow_missing_context() -> None:
+    """Docstring."""
     queryset = _queryset_with_model()
     assert TenantOptimizedQuerySet.for_organization(queryset) is queryset
     assert TenantOptimizedQuerySet.for_campus(queryset) is queryset
@@ -185,6 +192,7 @@ def test_organization_and_campus_filters_allow_missing_context() -> None:
 )
 @override_settings(MICBOARD_MSP_ENABLED=True)
 def test_campus_filter_uses_available_tenant_path(attribute: str, expected: dict[str, int]) -> None:
+    """Docstring."""
     queryset = _queryset_with_model(**{attribute: object()})
     result = TenantOptimizedQuerySet.for_campus(queryset, campus_id=5)
     assert result is queryset.filter.return_value
@@ -193,6 +201,7 @@ def test_campus_filter_uses_available_tenant_path(attribute: str, expected: dict
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
 def test_msp_user_filter_denies_users_without_memberships() -> None:
+    """Docstring."""
     queryset = _queryset_with_model(organization_id=None)
     queryset.none.return_value = "none"
     memberships = MagicMock()
@@ -203,6 +212,7 @@ def test_msp_user_filter_denies_users_without_memberships() -> None:
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
 def test_msp_user_filter_applies_every_membership() -> None:
+    """Docstring."""
     queryset = _queryset_with_model(organization_id=None)
     queryset.for_memberships.return_value = queryset
     membership_rows = [(2, None), (3, 5)]
@@ -215,6 +225,7 @@ def test_msp_user_filter_applies_every_membership() -> None:
 
 @override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True)
 def test_multisite_user_filter_delegates_to_site_filter() -> None:
+    """Docstring."""
     queryset = _queryset_with_model()
     user = SimpleNamespace(is_superuser=False)
     assert _for_user(queryset, user=user) is queryset.for_site.return_value
@@ -226,6 +237,7 @@ def test_multisite_user_filter_delegates_to_site_filter() -> None:
     MICBOARD_ALLOW_CROSS_ORG_VIEW=True,
 )
 def test_multisite_superuser_remains_site_scoped() -> None:
+    """Docstring."""
     queryset = _queryset_with_model()
     user = SimpleNamespace(is_superuser=True)
 
@@ -238,12 +250,14 @@ def test_multisite_superuser_remains_site_scoped() -> None:
     MICBOARD_ALLOW_CROSS_ORG_VIEW=True,
 )
 def test_superuser_and_original_user_filters_are_preserved() -> None:
+    """Docstring."""
     queryset = _queryset_with_model()
     assert _for_user(queryset, user=SimpleNamespace(is_superuser=True)) is queryset
 
 
 @override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=False)
 def test_monitoring_group_fallback_is_scoped() -> None:
+    """Docstring."""
     queryset = SimpleNamespace(
         model=type("LocatedModel", (), {"location": object()}),
         filter=Mock(),
@@ -263,6 +277,7 @@ def test_monitoring_group_fallback_is_scoped() -> None:
 
 
 def test_manager_methods_delegate_to_tenant_queryset() -> None:
+    """Docstring."""
     manager = cast(Any, TenantOptimizedManager())
     manager.get_queryset = Mock()
     queryset = manager.get_queryset.return_value
@@ -277,6 +292,7 @@ def test_manager_methods_delegate_to_tenant_queryset() -> None:
 
 
 def _request(**kwargs: Any) -> Any:
+    """Docstring."""
     defaults = {
         "user": SimpleNamespace(is_authenticated=False, is_superuser=False),
         "session": {},
@@ -290,6 +306,7 @@ def _request(**kwargs: Any) -> Any:
 def test_session_organization_accepts_superuser_and_clears_denied_access(
     mock_get: MagicMock,
 ) -> None:
+    """Docstring."""
     organization = SimpleNamespace(pk=4, is_active=True)
     mock_get.return_value = organization
     super_request = _request(
@@ -310,6 +327,7 @@ def test_session_organization_accepts_superuser_and_clears_denied_access(
 
 @patch.object(Organization._default_manager, "get", side_effect=Organization.DoesNotExist)
 def test_session_organization_clears_deleted_organization(_mock_get: MagicMock) -> None:
+    """Docstring."""
     request = _request(session={"current_organization_id": 99})
     assert _get_org_from_session(request) is None
     assert request.session == {}
@@ -317,6 +335,7 @@ def test_session_organization_clears_deleted_organization(_mock_get: MagicMock) 
 
 
 def test_profile_organization_requires_authenticated_active_profile() -> None:
+    """Docstring."""
     active = SimpleNamespace(is_active=True)
     user = SimpleNamespace(
         is_authenticated=True,
@@ -328,6 +347,7 @@ def test_profile_organization_requires_authenticated_active_profile() -> None:
 
 @patch.object(OrganizationMembership._default_manager, "filter")
 def test_membership_organization_returns_only_active_organization(mock_filter: MagicMock) -> None:
+    """Docstring."""
     active = SimpleNamespace(is_active=True)
     chain = mock_filter.return_value.select_related.return_value.order_by.return_value
     chain.first.return_value = SimpleNamespace(organization=active)
@@ -339,6 +359,7 @@ def test_membership_organization_returns_only_active_organization(mock_filter: M
 @override_settings(MICBOARD_SUBDOMAIN_ROUTING=True, MICBOARD_ROOT_DOMAIN="example.test")
 @patch.object(Organization._default_manager, "get")
 def test_subdomain_organization_resolves_valid_tenant(mock_get: MagicMock) -> None:
+    """Docstring."""
     organization = object()
     mock_get.return_value = organization
     assert _get_org_from_subdomain(_request()) is organization
@@ -347,6 +368,7 @@ def test_subdomain_organization_resolves_valid_tenant(mock_get: MagicMock) -> No
 
 @override_settings(MICBOARD_SUBDOMAIN_ROUTING=True, MICBOARD_ROOT_DOMAIN="example.test")
 def test_subdomain_organization_rejects_invalid_hosts() -> None:
+    """Docstring."""
     assert _get_org_from_subdomain(_request(get_host=lambda: "www.example.test")) is None
     assert _get_org_from_subdomain(_request(get_host=lambda: "tenant.other.test")) is None
 
@@ -362,6 +384,7 @@ def test_current_organization_uses_priority_order(
     membership_org: MagicMock,
     subdomain_org: MagicMock,
 ) -> None:
+    """Docstring."""
     request = _request()
     session_org.return_value = None
     profile_org.return_value = None
@@ -372,6 +395,7 @@ def test_current_organization_uses_priority_order(
 
 @override_settings(MICBOARD_MSP_ENABLED=False)
 def test_tenant_resolution_is_disabled_by_default() -> None:
+    """Docstring."""
     request = _request()
     assert get_current_organization(request) is None
     assert get_current_campus(request) is None
@@ -380,6 +404,7 @@ def test_tenant_resolution_is_disabled_by_default() -> None:
 @override_settings(MICBOARD_MSP_ENABLED=True)
 @patch.object(OrganizationMembership._default_manager, "filter")
 def test_current_campus_prefers_session_then_membership(mock_filter: MagicMock) -> None:
+    """Docstring."""
     request = _request(session={"current_campus_id": 6})
     assert get_current_campus(request) == 6
 
@@ -396,6 +421,7 @@ def test_current_campus_prefers_session_then_membership(mock_filter: MagicMock) 
 def test_tenant_middleware_attaches_lazy_context(
     _organization: MagicMock, _campus: MagicMock
 ) -> None:
+    """Docstring."""
     downstream = Mock(side_effect=lambda request: (request.organization, request.campus_id))
     request = _request()
     response = TenantMiddleware(downstream)(request)
@@ -439,6 +465,7 @@ def test_real_manager_unions_organizations_and_honors_campus_scope(django_user_m
         organization_id: int,
         campus_id: int | None = None,
     ) -> WirelessChassis:
+        """Docstring."""
         building = Building.objects.create(
             name=f"{name} building",
             organization_id=organization_id,
@@ -529,6 +556,7 @@ def test_real_manager_rejects_revoked_and_inconsistent_memberships(django_user_m
         organization: Organization,
         campus: Campus | None = None,
     ) -> WirelessChassis:
+        """Docstring."""
         building = Building.objects.create(
             name=f"{name} building",
             organization_id=organization.pk,
@@ -556,6 +584,7 @@ def test_real_manager_rejects_revoked_and_inconsistent_memberships(django_user_m
 
 @pytest.mark.django_db
 def test_building_rejects_campus_from_another_organization() -> None:
+    """Docstring."""
     first_org = Organization.objects.create(name="Validation tenant", slug="validation-tenant")
     second_org = Organization.objects.create(name="Other tenant", slug="other-tenant")
     campus = Campus.objects.create(
@@ -626,6 +655,7 @@ def test_specialized_managers_compose_monitoring_and_tenant_scope(django_user_mo
     manufacturer = Manufacturer.objects.create(name="Scoped hardware", code="scoped-hardware")
 
     def create_unit(name: str, organization: Organization, slot: int) -> WirelessUnit:
+        """Docstring."""
         building = Building.objects.create(name=f"{name} building", organization_id=organization.pk)
         location = Location.objects.create(building=building, name=f"{name} location")
         group.locations.add(location)

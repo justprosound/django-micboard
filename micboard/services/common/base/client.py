@@ -22,23 +22,31 @@ logger = logging.getLogger(__name__)
 
 
 class BaseAPIClient(ABC):
+    """Base API client interface."""
+
     @abstractmethod
     def is_healthy(self) -> bool:
+        """Check if the client is healthy."""
         raise NotImplementedError()
 
     @abstractmethod
     def check_health(self) -> dict[str, Any]:
+        """Perform a health check and return details."""
         raise NotImplementedError()
 
     @abstractmethod
     def _make_request(
         self, method: str, endpoint: str, **request_kwargs: Any
     ) -> dict[str, Any] | list[Any] | str | None:
+        """Make an HTTP request."""
         raise NotImplementedError()
 
 
 class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
+    """Base HTTP client with circuit breaker and retries."""
+
     def __init__(self, base_url: str | None = None) -> None:
+        """Initialize the HTTP client."""
         from micboard.services.settings.settings_service import settings
 
         config_dict = settings.get_config_dict()
@@ -93,26 +101,32 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
 
     @abstractmethod
     def _get_config_prefix(self) -> str:
+        """Get the configuration prefix for this client."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_default_base_url(self) -> str:
+        """Get the default base URL for this client."""
         raise NotImplementedError()
 
     @abstractmethod
     def _configure_authentication(self, config: dict[str, Any]) -> None:
+        """Configure authentication for the client."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_health_check_endpoint(self) -> str:
+        """Get the health check endpoint."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_exception_class(self) -> type[APIError]:
+        """Get the exception class for API errors."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_rate_limit_exception_class(self) -> type[APIRateLimitError]:
+        """Get the exception class for rate limit errors."""
         raise NotImplementedError()
 
     def _create_retry_strategy(self) -> dict[str, Any]:
@@ -301,6 +315,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
     def _handle_response(
         self, response: httpx.Response, method: str, url: str
     ) -> dict[str, Any] | list[Any] | str | None:
+        """Handle the HTTP response."""
         status = response.status_code
 
         if status >= 400:
@@ -392,7 +407,9 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
         self.client.close()
 
     def __enter__(self) -> Self:
+        """Enter the context manager."""
         return self
 
     def __exit__(self, *exc_info: object) -> None:
+        """Exit the context manager."""
         self.close()

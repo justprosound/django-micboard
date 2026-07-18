@@ -52,57 +52,74 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
 
 
 class BasePlugin(ABC):
+    """Docstring."""
+
     def __init__(self, manufacturer: Manufacturer | None = None) -> None:
+        """Docstring."""
         self.manufacturer = manufacturer
 
     @property
     @abstractmethod
     def name(self) -> str:
+        """Docstring."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def code(self) -> str:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_devices(self) -> list[dict[str, Any]]:
+        """Docstring."""
         raise NotImplementedError()
 
 
 class ManufacturerPlugin(BasePlugin):
+    """Docstring."""
+
     @abstractmethod
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_client(self) -> BaseAPIClient:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_device(self, device_id: str) -> dict[str, Any] | None:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def is_healthy(self) -> bool:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def check_health(self) -> dict[str, Any]:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def add_discovery_ips(self, ips: list[str]) -> bool:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def get_discovery_ips(self) -> list[str]:
+        """Docstring."""
         raise NotImplementedError()
 
     @abstractmethod
     def remove_discovery_ips(self, ips: list[str]) -> bool:
+        """Docstring."""
         raise NotImplementedError()
