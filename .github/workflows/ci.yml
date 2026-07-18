@@ -113,10 +113,11 @@ jobs:
           path: |
             coverage.xml
             htmlcov/
-          retention-days: 30
+          # Keep 30 days on main for post-release review; 7 days is enough for PR iteration
+          retention-days: ${{ github.ref == 'refs/heads/main' && 30 || 7 }}
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073  # v5.0.0
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           DJANGO_VERSION: ${{ matrix.django-version }}
@@ -128,10 +129,11 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3  # v1
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: junit.xml
+          report_type: test_results
 
 
   security:
@@ -144,14 +146,16 @@ jobs:
 
       - name: Set up uv and Python
         uses: ./.github/actions/setup-uv-python
+        with:
+          # uv audit and bandit scan source only; no dep install needed
+          enable-cache: "false"
 
       - name: Audit locked dependencies
         run: uv audit --locked --preview-features audit-command
 
       - name: Run Bandit security check
-        run: |
-          uv sync --locked --all-extras
-          uv run --no-sync bandit -r micboard -ll
+        # bandit scans source AST — no package install required
+        run: uvx bandit -r micboard -ll
 
   codeql:
     runs-on: ubuntu-latest
@@ -192,6 +196,43 @@ jobs:
         with:
           category: "/language:python"
 
+  build-docs:
+    name: Build Documentation
+    # Absorbed from docs.yml — shares concurrency group so it cancels cleanly
+    # with the rest of CI when a new push arrives.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
+
+      - name: Install documentation dependencies
+        run: uv sync --locked --extra docs
+
+      - name: Build documentation
+        run: uv run --no-sync mkdocs build --strict
+
+      - name: Validate documentation structure
+        run: |
+          if [ ! -d "site" ] || [ ! -f "site/index.html" ]; then
+            echo "Error: Documentation build failed - site/index.html not found"
+            exit 1
+          fi
+
+      - name: Upload documentation artifact
+        # Only retain on main — PR runs validate correctness but don't need the artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: documentation
+          path: site/
+          retention-days: 30
+          if-no-files-found: error
+
   required:
     name: CI required
     if: ${{ always() }}
@@ -201,6 +242,7 @@ jobs:
       - test
       - security
       - codeql
+      - build-docs
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}

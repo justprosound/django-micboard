@@ -14,6 +14,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Documentation organization**: Move contributor and architecture references into the published
   documentation tree, repair internal links and SRED status records, and keep MkDocs tooling in the
   opt-in documentation dependency extra.
+- **CI workflow consolidation**: Merge the `Documentation` workflow into `CI Quality Gates` as a
+  `build-docs` job to share concurrency cancellation and eliminate a separate workflow file; skip
+  the docs artifact upload on PR runs (validate only); reduce coverage artifact retention from 30
+  to 7 days on non-main branches; remove the redundant `uv sync` from the `security` job since
+  Bandit and `uv audit` operate on source and the lockfile respectively without needing packages
+  installed.
 - **Signed release identity**: Require a GitHub-verified maintainer-signed annotated tag for the
   exact release commit before PyPI or GitHub publication, consume that existing tag without
   workflow-scope escalation, and keep safe pre-publication retries possible.
