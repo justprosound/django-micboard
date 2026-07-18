@@ -39,7 +39,6 @@ def test_ci_coverage_gate_is_self_contained() -> None:
     assert "scripts/check_coverage_inventory.py" in workflow
     assert "gh workflow run ci.yml" in release_workflow
     assert "actions/upload-artifact@" in workflow
-    assert "codecov" not in workflow.lower()
     assert "id-token: write" not in workflow
 
 
@@ -57,18 +56,18 @@ def test_every_trusted_publisher_uses_the_hardened_release_gate() -> None:
     release = publishers["publish-release.yml"]
     preparation = (WORKFLOWS / "prepare-release.yml").read_text()
     ci_workflow = (WORKFLOWS / "ci.yml").read_text()
-    pre_commit_config = (ROOT / ".pre-commit-config.yaml").read_text()
+    prek_config = (ROOT / "prek.toml").read_text()
     for required_gate in (
         "--cov-fail-under=95",
         "scripts/check_coverage_inventory.py",
         "python -m mypy micboard",
         "uv audit --locked --preview-features audit-command",
         "bandit -r micboard -ll",
-        "pre-commit run --all-files",
+        "prek run --all-files",
     ):
         assert required_gate in ci_workflow
-    assert "ruff-check" in pre_commit_config
-    assert "ruff-format" in pre_commit_config
+    assert "ruff" in prek_config
+    assert "ruff-format" in prek_config
     for required_gate in (
         "scripts/validate_wheel.py",
         "scripts/smoke_test_installed_wheel.py",
@@ -242,11 +241,11 @@ def test_dependency_automation_uses_canonical_uv_inputs() -> None:
     """Renovate must not edit generated exports or bypass their documentation check."""
     renovate_config = json.loads((ROOT / "renovate.json").read_text())
     docs_workflow = (WORKFLOWS / "docs.yml").read_text()
-    pre_commit_config = (ROOT / ".pre-commit-config.yaml").read_text()
+    prek_config = (ROOT / "prek.toml").read_text()
 
     assert "docs/requirements.txt" in renovate_config["ignorePaths"]
     assert "startsWith(github.head_ref, 'renovate/')" not in docs_workflow
-    assert "scripts/check_docs_requirements.py" in pre_commit_config
+    assert "scripts/check_docs_requirements.py" in prek_config
 
 
 def test_dependency_changes_receive_a_read_only_security_review() -> None:

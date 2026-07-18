@@ -114,6 +114,17 @@ jobs:
             htmlcov/
           retention-days: 30
 
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@5975040f7f7d40edaff8d784b576fd65ae95c073  # v5.0.0
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          DJANGO_VERSION: ${{ matrix.django-version }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: true
+          env_vars: PYTHON_VERSION,DJANGO_VERSION
+
 
   security:
     runs-on: ubuntu-latest
