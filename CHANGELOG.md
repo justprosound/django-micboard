@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [26.07.18] - 2026-07-18
+
+d4ffc65 - docs: Reorganize documentation into docs/ structure (#113) (bandwith)
+b4ba461 - chore(deps): update getsentry/warden action to v0.41.0 (#112) (renovate[bot])
+ce00949 - fix(release): Require verified signed tags (#111) (bandwith)
+7752e8d - fix(release): Recover original published artifacts (#110) (bandwith)
+8171466 - fix(release): Support isolated and same-day releases (#108) (bandwith)
+e13b9b4 - fix(release): Use valid Syft release tag (#107) (bandwith)
+
+
 ### Fixed
 
 - **Audio alert selection**: Include assignments configured only for low-audio alerts when
