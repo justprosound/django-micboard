@@ -47,7 +47,7 @@ jobs:
           else
             uv tool run bump-my-version bump patch
           fi
-          RELEASE_VERSION="$(grep '^version = ' pyproject.toml | cut -d '\"' -f 2)"
+          RELEASE_VERSION="$(grep '^version = ' pyproject.toml | cut -d '"' -f 2)"
 
           if [[ ! "$RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[1-9][0-9]*)?$ ]]; then
             echo "Invalid CalVer format: $RELEASE_VERSION"

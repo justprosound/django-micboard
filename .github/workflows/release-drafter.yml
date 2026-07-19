@@ -37,7 +37,7 @@ jobs:
         id: calver
         run: |
           uv tool run bump-my-version bump patch
-          VERSION="$(grep '^version = ' pyproject.toml | cut -d '\"' -f 2)"
+          VERSION="$(grep '^version = ' pyproject.toml | cut -d '"' -f 2)"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: release-drafter/release-drafter@eada3c96a64734dd381cfbda23511034e328ddb0  # v7

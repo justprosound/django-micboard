@@ -36,8 +36,7 @@ def test_release_version_defaults_to_the_next_utc_calver() -> None:
     )
     assert "uv tool run bump-my-version bump patch" in preparation
     assert (
-        "RELEASE_VERSION=\"$(grep '^version = ' pyproject.toml | cut -d '\\\"' -f 2)\""
-        in preparation
+        "RELEASE_VERSION=\"$(grep '^version = ' pyproject.toml | cut -d '\"' -f 2)\"" in preparation
     )
     assert 'echo "### Preparing release v$RELEASE_VERSION" >> "$GITHUB_STEP_SUMMARY"' in preparation
     assert (
