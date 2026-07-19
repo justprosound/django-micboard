@@ -155,7 +155,6 @@ dev = [
     "types-redis>=4.3",
     "types-python-dateutil>=2.8",
     "bandit>=1.7",
-    "interrogate>=1.5",
     "coverage>=7.0",
     # Property-based testing — generates edge cases automatically
     "hypothesis>=6.0",
@@ -223,7 +222,6 @@ all = [
     "types-redis>=4.3",
     "types-python-dateutil>=2.8",
     "bandit>=1.7",
-    "interrogate>=1.5",
     "coverage>=7.0",
     "mkdocs>=1.6",
 ]
@@ -458,3 +456,18 @@ exclude = [
 # Run only the fast unit/service tests during mutation — avoids 77-second
 # full-suite overhead per mutant. Full suite validates surviving mutants in CI.
 test_command = "uv run --no-sync pytest tests/ -x -q --tb=no --no-header -m 'not e2e' --timeout=30"
+
+# ============================================================================
+# Bump-My-Version Configuration
+# ============================================================================
+[tool.bumpversion]
+current_version = "26.07.15"
+commit = false
+tag = false
+parse = "(?P<release>\\d{2}\\.\\d{2}\\.\\d{2})(?:\\.(?P<patch>\\d+))?"
+serialize = [
+    "{release}.{patch}"
+]
+
+[tool.bumpversion.parts.release]
+calver_format = "{YY}.{0M}.{0D}"

@@ -8,7 +8,7 @@ from pathlib import Path
 import micboard
 import micboard.models as model_api
 import micboard.models.telemetry.sessions as telemetry_sessions
-from micboard import services
+import micboard.services
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,7 +75,7 @@ def test_removed_compatibility_names_are_not_public() -> None:
         "paginate_queryset",
     )
     for name in removed_service_exports:
-        assert not hasattr(services, name)
+        assert not hasattr(micboard.services, name)
     for name in ("TransmitterSession", "TransmitterSample"):
         assert not hasattr(telemetry_sessions, name)
 

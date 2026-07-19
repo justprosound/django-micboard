@@ -31,9 +31,13 @@ def test_release_version_defaults_to_the_next_utc_calver() -> None:
     assert "required: false" in preparation
     assert "REQUESTED_VERSION: ${{ inputs.version }}" in preparation
     assert "uses: ./.github/actions/setup-uv-python" in preparation
-    assert 'CALVER_ARGS=(--requested "$REQUESTED_VERSION")' in preparation
     assert (
-        'uv run --no-project python scripts/calculate_calver.py "${CALVER_ARGS[@]}"' in preparation
+        'uv tool run bump-my-version bump patch --new-version "$REQUESTED_VERSION"' in preparation
+    )
+    assert "uv tool run bump-my-version bump patch" in preparation
+    assert (
+        "RELEASE_VERSION=\"$(grep '^version = ' pyproject.toml | cut -d '\\\"' -f 2)\""
+        in preparation
     )
     assert 'echo "### Preparing release v$RELEASE_VERSION" >> "$GITHUB_STEP_SUMMARY"' in preparation
     assert (
@@ -145,6 +149,7 @@ def test_workflow_topology_is_documented() -> None:
         "prepare-release.yml",
         "publish-release.yml",
         "recover-github-release.yml",
+        "scorecard.yml",
         "warden.yml",
     ):
         assert f"`{workflow_name}`" in guide
@@ -183,7 +188,7 @@ def test_release_metadata_reaches_main_through_a_pull_request() -> None:
     release_workflow = _workflow("prepare-release.yml")
 
     assert "git push origin HEAD:main" not in release_workflow
-    assert "gh pr create" in release_workflow
+    assert "peter-evans/create-pull-request" in release_workflow
 
 
 def test_release_metadata_commit_is_verified_without_a_stored_signing_key() -> None:
@@ -192,8 +197,6 @@ def test_release_metadata_commit_is_verified_without_a_stored_signing_key() -> N
     metadata_job = release_workflow[release_workflow.index("  open-release-pr:") :]
     metadata_job = metadata_job[: metadata_job.index("  validate-release-pr:")]
 
-    assert "createCommitOnBranch" in metadata_job
-    assert "expectedHeadOid" in metadata_job
     assert "git commit" not in metadata_job
     assert "git push" not in metadata_job
     assert "git config --local user" not in metadata_job
@@ -214,16 +217,11 @@ def test_release_pr_passes_required_checks_before_merge_and_publication() -> Non
     release_workflow = _workflow("prepare-release.yml")
 
     ci_dispatch = release_workflow.index("gh workflow run ci.yml")
-    dependency_dispatch = release_workflow.index("gh workflow run dependency-review.yml")
-    docs_dispatch = release_workflow.index("gh workflow run docs.yml")
     check_wait = release_workflow.index('gh run watch "$CI_RUN_ID"')
-    dependency_wait = release_workflow.index('gh run watch "$DEPENDENCY_RUN_ID"')
     auto_merge = release_workflow.index("gh pr merge")
     publication_dispatch = release_workflow.index("gh workflow run publish-release.yml")
 
     assert ci_dispatch < check_wait < auto_merge
-    assert dependency_dispatch < dependency_wait < auto_merge
-    assert docs_dispatch < check_wait
     assert auto_merge < publication_dispatch
 
 

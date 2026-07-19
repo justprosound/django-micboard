@@ -178,6 +178,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
+          build-mode: none
 
       - name: Install uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
@@ -233,6 +234,24 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+  dependency-review:
+    name: dependency-review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          persist-credentials: false
+
+      - name: Reject vulnerable dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
+        with:
+          fail-on-severity: moderate
+          fail-on-scopes: runtime, development, unknown
+          show-openssf-scorecard: true
+          show-patched-versions: true
+
   required:
     name: CI required
     if: ${{ always() }}
@@ -243,6 +262,7 @@ jobs:
       - security
       - codeql
       - build-docs
+      - dependency-review
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
@@ -251,14 +271,14 @@ jobs:
         env:
           REQUIRED_JOB_RESULTS: ${{ toJSON(needs) }}
         run: |
-          if jq -e 'all(.[]; .result == "success")' <<<"$REQUIRED_JOB_RESULTS" >/dev/null; then
+          if jq -e 'to_entries | all(.value.result == "success" or (.key == "dependency-review" and .value.result == "skipped"))' <<<"$REQUIRED_JOB_RESULTS" > /dev/null; then
             echo "All required CI jobs succeeded."
             exit 0
           fi
 
           jq -r '
             to_entries[]
-            | select(.value.result != "success")
+            | select(.value.result != "success" and (.key != "dependency-review" or .value.result != "skipped"))
             | "::error title=Required CI job did not succeed::\(.key): \(.value.result)"
           ' <<<"$REQUIRED_JOB_RESULTS"
           exit 1

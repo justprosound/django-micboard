@@ -23,6 +23,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
+        with:
+          enable-cache: "false"
+
+      - name: Calculate next CalVer
+        id: calver
+        run: |
+          uv tool run bump-my-version bump patch
+          VERSION="$(grep '^version = ' pyproject.toml | cut -d '\"' -f 2)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - uses: release-drafter/release-drafter@eada3c96a64734dd381cfbda23511034e328ddb0  # v7
+        with:
+          name: v${{ steps.calver.outputs.version }}
+          tag: v${{ steps.calver.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
