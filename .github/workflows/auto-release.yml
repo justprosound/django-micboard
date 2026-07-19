@@ -1,0 +1,51 @@
+name: Auto Release Trigger
+run-name: "Auto Release · ${{ github.ref_name }}"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "micboard/**"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  auto-release:
+    name: Check and trigger release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check for conventional commits
+        id: check
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tags found. First release."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          COMMITS=$(git log "$LAST_TAG..HEAD" --oneline)
+          if echo "$COMMITS" | grep -qE '^(feat|fix):'; then
+            echo "Significant changes (feat/fix) detected since $LAST_TAG."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No significant changes since $LAST_TAG."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger release workflow
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run prepare-release.yml --ref main

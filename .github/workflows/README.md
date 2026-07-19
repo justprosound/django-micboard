@@ -6,6 +6,7 @@ and `tests/test_release_workflow_security.py`.
 
 | Workflow | Responsibility | Trigger |
 | --- | --- | --- |
+| `auto-release.yml` | Automatically dispatch release preparation when features or bug fixes are merged to main | Push to main branch modifying core files |
 | `ci.yml` | Lint, type check, package validation, 95% coverage, locked-dependency audit, Bandit, CodeQL, and one stable aggregate check | Push, pull request, weekly schedule, or manual dispatch |
 | `dependency-review.yml` | Reject newly introduced vulnerable runtime and development dependencies | Pull request |
 | `docs.yml` | Build and validate MkDocs output | Push, pull request, or manual dispatch |

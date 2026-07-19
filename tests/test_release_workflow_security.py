@@ -143,6 +143,7 @@ def test_workflow_topology_is_documented() -> None:
     guide = (WORKFLOW_ROOT / "README.md").read_text(encoding="utf-8")
 
     for workflow_name in (
+        "auto-release.yml",
         "ci.yml",
         "dependency-review.yml",
         "docs.yml",
