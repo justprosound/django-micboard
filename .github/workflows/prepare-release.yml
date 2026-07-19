@@ -42,14 +42,14 @@ jobs:
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          CALVER_ARGS=()
           if [ -n "$REQUESTED_VERSION" ]; then
-            CALVER_ARGS=(--requested "$REQUESTED_VERSION")
+            uv tool run bump-my-version bump patch --new-version "$REQUESTED_VERSION"
+          else
+            uv tool run bump-my-version bump patch
           fi
-          RELEASE_VERSION="$(
-            uv run --no-project python scripts/calculate_calver.py "${CALVER_ARGS[@]}"
-          )"
-          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[1-9][0-9]*)?$ ]]; then
+          RELEASE_VERSION="$(grep '^version = ' pyproject.toml | cut -d '\"' -f 2)"
+          
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[1-9][0-9]*)?(\.0)?$ ]]; then
             echo "Invalid CalVer format: $RELEASE_VERSION"
             exit 1
           fi
@@ -63,22 +63,28 @@ jobs:
       - name: Generate changelog
         id: changelog
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
           DELIMITER="release-changelog-$(git rev-parse HEAD)"
           {
             echo "content<<$DELIMITER"
-            if grep -Fqx "version = \"$RELEASE_VERSION\"" pyproject.toml; then
+            DRAFT_ID="$(gh api repos/$GITHUB_REPOSITORY/releases | jq '.[] | select(.draft == true) | .id' | head -n 1)"
+            if [ -n "$DRAFT_ID" ]; then
+              gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID | jq -r '.body'
+            elif grep -Fqx "version = \"$RELEASE_VERSION\"" pyproject.toml; then
               awk -v heading="## [$RELEASE_VERSION]" '
                 index($0, heading) == 1 { in_release = 1; next }
                 in_release && /^## \[/ { exit }
                 in_release { print }
               ' CHANGELOG.md
-            elif [ -n "$LATEST_TAG" ]; then
-              git log "$LATEST_TAG"..HEAD --pretty=format:"%h - %s (%an)"
             else
-              git log HEAD --pretty=format:"%h - %s (%an)"
+              LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+              if [ -n "$LATEST_TAG" ]; then
+                git log "$LATEST_TAG"..HEAD --pretty=format:"%h - %s (%an)"
+              else
+                git log HEAD --pretty=format:"%h - %s (%an)"
+              fi
             fi
             echo
             echo "$DELIMITER"
@@ -123,7 +129,7 @@ jobs:
           RELEASE_CHANGELOG: ${{ needs.prepare-release.outputs.changelog }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          sed -i "s/^version = .*/version = \"$RELEASE_VERSION\"/" pyproject.toml
+          uv tool run bump-my-version bump patch --new-version "$RELEASE_VERSION"
           if ! grep -q "^## \[$RELEASE_VERSION\]" CHANGELOG.md; then
             RELEASE_DATE="$(date +%Y-%m-%d)"
             awk \
@@ -145,12 +151,7 @@ jobs:
           fi
           uv lock
 
-      - name: Open release pull request
-        id: release-pr
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_BRANCH: release/v${{ needs.prepare-release.outputs.version }}
-          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+      - name: Verify modified files
         run: |
           UNEXPECTED="$(git diff --name-only | grep -Ev '^(CHANGELOG.md|pyproject.toml|uv.lock)$' || true)"
           if [ -n "$UNEXPECTED" ]; then
@@ -165,80 +166,32 @@ jobs:
           git diff --check
           git diff
 
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$RELEASE_BRANCH" \
-            >/dev/null 2>&1; then
-            gh api \
-              --method PATCH \
-              "repos/$GITHUB_REPOSITORY/git/refs/heads/$RELEASE_BRANCH" \
-              -f sha="$GITHUB_SHA" \
-              -F force=true \
-              >/dev/null
-          else
-            gh api \
-              --method POST \
-              "repos/$GITHUB_REPOSITORY/git/refs" \
-              -f ref="refs/heads/$RELEASE_BRANCH" \
-              -f sha="$GITHUB_SHA" \
-              >/dev/null
-          fi
+      - name: Open release pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c  # v6
+        with:
+          token: ${{ github.token }}
+          branch: release/v${{ needs.prepare-release.outputs.version }}
+          title: "chore: release ${{ needs.prepare-release.outputs.version }}"
+          body: "Prepare release ${{ needs.prepare-release.outputs.version }} through the protected main branch."
+          commit-message: "chore: bump version to ${{ needs.prepare-release.outputs.version }}"
+          sign-commits: true
 
-          jq \
-            --null-input \
-            --arg repository "$GITHUB_REPOSITORY" \
-            --arg branch "$RELEASE_BRANCH" \
-            --arg expected_head_oid "$GITHUB_SHA" \
-            --arg message "chore: bump version to $RELEASE_VERSION" \
-            --rawfile changelog CHANGELOG.md \
-            --rawfile pyproject pyproject.toml \
-            --rawfile lockfile uv.lock \
-            '{
-              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
-              variables: {
-                input: {
-                  branch: {
-                    repositoryNameWithOwner: $repository,
-                    branchName: $branch
-                  },
-                  message: {headline: $message},
-                  expectedHeadOid: $expected_head_oid,
-                  fileChanges: {
-                    additions: [
-                      {path: "CHANGELOG.md", contents: ($changelog | @base64)},
-                      {path: "pyproject.toml", contents: ($pyproject | @base64)},
-                      {path: "uv.lock", contents: ($lockfile | @base64)}
-                    ]
-                  }
-                }
-              }
-            }' > "$RUNNER_TEMP/release-commit.json"
-          RELEASE_SHA="$(gh api graphql \
-            --input "$RUNNER_TEMP/release-commit.json" \
-            --jq '.data.createCommitOnBranch.commit.oid')"
-          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "GitHub did not return a valid release commit"
+      - name: Set release PR outputs
+        id: release-pr
+        run: |
+          if [ -z "${{ steps.cpr.outputs.pull-request-number }}" ]; then
+            echo "Pull request was not created."
             exit 1
           fi
-          VERIFIED="$(gh api \
-            "repos/$GITHUB_REPOSITORY/commits/$RELEASE_SHA" \
-            --jq '.commit.verification.verified')"
-          if [ "$VERIFIED" != "true" ]; then
+          if [ "${{ steps.cpr.outputs.pull-request-commits-verified }}" != "true" ]; then
             echo "GitHub did not verify the generated release commit"
             exit 1
           fi
-
-          PR_URL="$(gh pr list --base main --head "$RELEASE_BRANCH" --state open --json url --jq '.[0].url')"
-          if [ -z "$PR_URL" ]; then
-            PR_URL="$(gh pr create \
-              --base main \
-              --head "$RELEASE_BRANCH" \
-              --title "chore: release $RELEASE_VERSION" \
-              --body "Prepare release $RELEASE_VERSION through the protected main branch.")"
-          fi
-          PR_NUMBER="$(gh pr view "$PR_URL" --json number --jq '.number')"
-          echo "branch=$RELEASE_BRANCH" >> "$GITHUB_OUTPUT"
-          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
-          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "branch=release/v${{ needs.prepare-release.outputs.version }}" >> "$GITHUB_OUTPUT"
+          echo "number=${{ steps.cpr.outputs.pull-request-number }}" >> "$GITHUB_OUTPUT"
+          echo "sha=${{ steps.cpr.outputs.pull-request-head-sha }}" >> "$GITHUB_OUTPUT"
+          echo "url=${{ steps.cpr.outputs.pull-request-url }}" >> "$GITHUB_OUTPUT"
 
   validate-release-pr:
     needs: open-release-pr

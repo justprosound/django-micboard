@@ -458,3 +458,23 @@ exclude = [
 # Run only the fast unit/service tests during mutation — avoids 77-second
 # full-suite overhead per mutant. Full suite validates surviving mutants in CI.
 test_command = "uv run --no-sync pytest tests/ -x -q --tb=no --no-header -m 'not e2e' --timeout=30"
+
+# ============================================================================
+# Bump-My-Version Configuration
+# ============================================================================
+[tool.bumpversion]
+current_version = "26.07.15"
+commit = false
+tag = false
+parse = "(?P<release>\\d{2}\\.\\d{2}\\.\\d{2})(?:\\.(?P<patch>\\d+))?"
+serialize = [
+    "{release}.{patch}"
+]
+
+[tool.bumpversion.parts.release]
+calver_format = "{YY}.{0M}.{0D}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = "version = \"{current_version}\""
+replace = "version = \"{new_version}\""
