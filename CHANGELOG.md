@@ -7,6 +7,26 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Property-based testing**: Add `hypothesis` to development dependencies and include starter property tests for DTO validation to automatically generate and verify edge cases.
+- **Mutation testing**: Add `mutmut` to development dependencies and introduce a weekly informational CI workflow to verify that tests successfully catch logic inversions and boundary errors.
+- **Pull Request Template**: Add a pull request template to guide contributors in submitting clean, well-tested changes.
+
+### Changed
+
+- **Dependency updates**: Enable auto-merge for Renovate dependency updates (digest-only and patch versions) to reduce maintainer overhead, with a 3-day stability delay on patch versions to guard against supply-chain attacks.
+- **Contributor documentation**: Update `README.md`, `CONTRIBUTING.md`, and `SECURITY.md` to explicitly state that the project is maintained by a single developer, setting expectations around response times.
+
+## [26.07.18] - 2026-07-18
+
+d4ffc65 - docs: Reorganize documentation into docs/ structure (#113) (bandwith)
+b4ba461 - chore(deps): update getsentry/warden action to v0.41.0 (#112) (renovate[bot])
+ce00949 - fix(release): Require verified signed tags (#111) (bandwith)
+7752e8d - fix(release): Recover original published artifacts (#110) (bandwith)
+8171466 - fix(release): Support isolated and same-day releases (#108) (bandwith)
+e13b9b4 - fix(release): Use valid Syft release tag (#107) (bandwith)
+
 ### Fixed
 
 - **Audio alert selection**: Include assignments configured only for low-audio alerts when
@@ -26,8 +46,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Release recovery**: Add a least-privilege, approval-gated recovery workflow that verifies and
   reuses the original PyPI artifact after GitHub release assembly fails, and make distribution
   archives reproducible across safe retries with `SOURCE_DATE_EPOCH`.
-- **Same-day releases**: Calculate collision-safe daily CalVer versions automatically, retaining
-  `YY.MM.DD` for the first release and incrementing `.1`, `.2`, and later revisions as needed.
+- **Same-day releases**: Calculate collision-safe daily CalVer versions automatically using the `YY.MM.0D.MICRO` format, starting at `.0` and incrementing `.1`, `.2`, and later revisions as needed.
 - **Release SBOM generation**: Pass Syft's v-prefixed release tag to the pinned Anchore action and
   document the GitHub Actions permissions required by automated release pull requests.
 - **GitHub release assembly**: Pass explicit repository context to release CLI commands that run
@@ -218,7 +237,7 @@ d961693 - first commit (Sam Kuonen)
   publish production from the same sealed workflow run, make named artifacts and draft releases
   safe to resume after job retries, and publish GitHub releases only after every integrity asset
   is attached
-- **Automatic release CalVer**: Default blank release dispatches to the current UTC `YY.MM.DD`
+- **Automatic release CalVer**: Default blank release dispatches to the current UTC `YY.MM.0D.MICRO`
   while retaining a validated manual override for backfills
 - **Hardened build dependencies**: Upgrade the exactly pinned build backend to setuptools 83.0.0
   and wheel 0.47.0, and lock Twine plus the PEP 740 signer through uv

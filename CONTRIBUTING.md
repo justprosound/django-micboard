@@ -6,6 +6,12 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 This project adheres to the [Django Community Code of Conduct](https://www.djangoproject.com/conduct/). By participating, you're expected to uphold this code.
 
+## Project Context (Single Maintainer)
+
+This project is currently developed and maintained by a **single developer**.
+As a result, please expect occasional delays in responses to issues and pull requests.
+Clean, well-documented, and fully tested PRs (with passing CI) are highly appreciated and will be reviewed much faster!
+
 ## Getting Started
 
 ### Development Environment Setup
@@ -321,8 +327,7 @@ Maintainers follow this process:
 
 1. Collect changes in `CHANGELOG.md` under `[Unreleased]`
 2. Run the **Prepare Release PR** workflow from `main`; it selects the next UTC CalVer
-   (`YY.MM.DD`, then `.1`, `.2`, and so on for additional same-day releases), or accepts an
-   explicit backfill version
+   (`YY.MM.0D.MICRO`), or accepts an explicit backfill version
 3. Let the workflow open a release pull request and dispatch CI and documentation checks
 4. Let protected-branch auto-merge merge the pull request only after every required check passes
 5. Copy the exact commands from the preparation run summary to create and push the signed annotated
