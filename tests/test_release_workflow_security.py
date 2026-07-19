@@ -149,6 +149,7 @@ def test_workflow_topology_is_documented() -> None:
         "prepare-release.yml",
         "publish-release.yml",
         "recover-github-release.yml",
+        "scorecard.yml",
         "warden.yml",
     ):
         assert f"`{workflow_name}`" in guide

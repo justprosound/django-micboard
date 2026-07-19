@@ -1,4 +1,5 @@
 name: Scorecard supply-chain security
+run-name: "Scorecard · ${{ github.ref_name }}"
 on:
   branch_protection_rule:
   schedule:
@@ -12,6 +13,7 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event.repository.default_branch == github.ref_name || github.event_name == 'pull_request'
     permissions:
       security-events: write
