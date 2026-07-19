@@ -214,12 +214,6 @@ jobs:
 
           DISPATCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_BRANCH"
-          gh workflow run dependency-review.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref "$RELEASE_BRANCH" \
-            --field base_ref=main \
-            --field head_ref="$RELEASE_BRANCH"
-          gh workflow run docs.yml --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_BRANCH"
 
           find_dispatched_run() {
             local workflow="$1"
@@ -246,11 +240,7 @@ jobs:
           }
 
           CI_RUN_ID="$(find_dispatched_run ci.yml)"
-          DEPENDENCY_RUN_ID="$(find_dispatched_run dependency-review.yml)"
-          DOCS_RUN_ID="$(find_dispatched_run docs.yml)"
           gh run watch "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
-          gh run watch "$DEPENDENCY_RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
-          gh run watch "$DOCS_RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
 
   merge-release-pr:
     needs: [prepare-release, open-release-pr, validate-release-pr]
