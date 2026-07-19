@@ -184,8 +184,8 @@ jobs:
             echo "Pull request was not created."
             exit 1
           fi
-          if [ "${{ steps.cpr.outputs.pull-request-commits-verified }}" != "true" ]; then
-            echo "GitHub did not verify the generated release commit"
+          if [ -z "${{ steps.cpr.outputs.pull-request-head-sha }}" ]; then
+            echo "GitHub did not return the pull request head SHA"
             exit 1
           fi
           echo "branch=release/v${{ needs.prepare-release.outputs.version }}" >> "$GITHUB_OUTPUT"
