@@ -140,12 +140,14 @@ def test_release_writers_have_narrow_responsibilities() -> None:
     assert "contents: write" in metadata_job
     assert "pull-requests: write" in metadata_job
     assert "id-token: write" not in metadata_job
-    assert metadata_actions == ["actions/checkout"]
+    assert metadata_actions == ["actions/checkout", "peter-evans/create-pull-request"]
     assert metadata_job.index("actions/checkout@") < metadata_job.index(
         "uses: ./.github/actions/setup-uv-python"
     )
+    assert metadata_job.index("uses: ./.github/actions/setup-uv-python") < metadata_job.index(
+        "peter-evans/create-pull-request@"
+    )
     assert "persist-credentials: false" in metadata_job
-    assert "createCommitOnBranch" in metadata_job
     assert "git commit" not in metadata_job
     assert "git push" not in metadata_job
     assert "uv lock" in metadata_job
@@ -273,19 +275,16 @@ def test_renovate_package_rules_match_automerge_contracts() -> None:
 
 def test_dependency_changes_receive_a_read_only_security_review() -> None:
     """Pull requests must reject newly introduced vulnerable dependencies."""
-    workflow = (WORKFLOWS / "dependency-review.yml").read_text()
+    workflow = (WORKFLOWS / "ci.yml").read_text()
+    dependency_job = _workflow_job(workflow, "dependency-review")
 
     assert "pull_request:" in workflow
-    assert "workflow_dispatch:" in workflow
-    assert "permissions:\n  contents: read" in workflow
-    assert "actions/dependency-review-action@" in workflow
-    assert "fail-on-severity: moderate" in workflow
-    assert "fail-on-scopes: runtime, development, unknown" in workflow
-    assert "base-ref: ${{ inputs.base_ref || github.event.pull_request.base.sha }}" in workflow
-    assert "head-ref: ${{ inputs.head_ref || github.event.pull_request.head.sha }}" in workflow
-    assert "persist-credentials: false" in workflow
-    assert "pull-requests: write" not in workflow
-    assert "secrets." not in workflow
+    assert "actions/dependency-review-action@" in dependency_job
+    assert "fail-on-severity: moderate" in dependency_job
+    assert "fail-on-scopes: runtime, development, unknown" in dependency_job
+    assert "persist-credentials: false" in dependency_job
+    assert "pull-requests: write" not in dependency_job
+    assert "secrets." not in dependency_job
 
 
 def test_full_dependency_audit_runs_on_a_weekly_cadence() -> None:
@@ -309,7 +308,7 @@ def test_ci_exposes_one_stable_required_check() -> None:
     assert "permissions: {}" in required_job
     assert "timeout-minutes: 5" in required_job
     assert "toJSON(needs)" in required_job
-    assert 'all(.[]; .result == "success")' in required_job
+    assert 'to_entries | all(.value.result == "success" or (.key == "dependency-review" and .value.result == "skipped"))' in required_job
     assert "actions/checkout@" not in required_job
     for dependency in ("lint", "package", "test", "security", "codeql"):
         assert f"      - {dependency}\n" in required_job
