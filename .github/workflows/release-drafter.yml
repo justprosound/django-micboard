@@ -42,6 +42,7 @@ jobs:
 
       - uses: release-drafter/release-drafter@eada3c96a64734dd381cfbda23511034e328ddb0  # v7
         with:
-          version: ${{ steps.calver.outputs.version }}
+          name: v${{ steps.calver.outputs.version }}
+          tag: v${{ steps.calver.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
