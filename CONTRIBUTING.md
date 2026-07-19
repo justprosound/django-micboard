@@ -6,6 +6,12 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 This project adheres to the [Django Community Code of Conduct](https://www.djangoproject.com/conduct/). By participating, you're expected to uphold this code.
 
+## Project Context (Single Maintainer)
+
+This project is currently developed and maintained by a **single developer**.
+As a result, please expect occasional delays in responses to issues and pull requests.
+Clean, well-documented, and fully tested PRs (with passing CI) are highly appreciated and will be reviewed much faster!
+
 ## Getting Started
 
 ### Development Environment Setup
