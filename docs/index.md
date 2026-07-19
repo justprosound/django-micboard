@@ -4,7 +4,7 @@
 
 Django Micboard is a Django application for real-time monitoring and management of **Shure wireless microphone systems**. It provides a modern web interface for tracking microphone status, battery levels, RF signals, and audio levels across your wireless systems.
 
-**Version**: 26.01.27 (CalVer: YY.MM.DD)
+**Version**: 26.01.27.0 (CalVer: `YY.MM.0D.MICRO`)
 **License**: AGPL-3.0-or-later
 **Python**: 3.13+
 **Django**: 5.1 through 6.0
