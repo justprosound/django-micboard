@@ -473,8 +473,3 @@ serialize = [
 
 [tool.bumpversion.parts.release]
 calver_format = "{YY}.{0M}.{0D}"
-
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = "version = \"{current_version}\""
-replace = "version = \"{new_version}\""
