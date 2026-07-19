@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [26.07.18] - 2026-07-18
+
+d4ffc65 - docs: Reorganize documentation into docs/ structure (#113) (bandwith)
+b4ba461 - chore(deps): update getsentry/warden action to v0.41.0 (#112) (renovate[bot])
+ce00949 - fix(release): Require verified signed tags (#111) (bandwith)
+7752e8d - fix(release): Recover original published artifacts (#110) (bandwith)
+8171466 - fix(release): Support isolated and same-day releases (#108) (bandwith)
+e13b9b4 - fix(release): Use valid Syft release tag (#107) (bandwith)
+
+
 ### Fixed
 
 - **Audio alert selection**: Include assignments configured only for low-audio alerts when
@@ -14,6 +24,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Documentation organization**: Move contributor and architecture references into the published
   documentation tree, repair internal links and SRED status records, and keep MkDocs tooling in the
   opt-in documentation dependency extra.
+- **CI workflow consolidation**: Merge the `Documentation` workflow into `CI Quality Gates` as a
+  `build-docs` job to share concurrency cancellation and eliminate a separate workflow file; skip
+  the docs artifact upload on PR runs (validate only); reduce coverage artifact retention from 30
+  to 7 days on non-main branches; remove the redundant `uv sync` from the `security` job since
+  Bandit and `uv audit` operate on source and the lockfile respectively without needing packages
+  installed.
 - **Signed release identity**: Require a GitHub-verified maintainer-signed annotated tag for the
   exact release commit before PyPI or GitHub publication, consume that existing tag without
   workflow-scope escalation, and keep safe pre-publication retries possible.

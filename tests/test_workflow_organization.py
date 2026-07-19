@@ -45,8 +45,7 @@ def test_lint_job_uses_the_shared_uv_python_bootstrap() -> None:
 def test_repository_controlled_python_jobs_share_the_bootstrap_action() -> None:
     """Repository-controlled Python jobs must not duplicate toolchain setup."""
     expected_jobs = {
-        "ci.yml": ("lint", "package", "test", "security"),
-        "docs.yml": ("build-docs",),
+        "ci.yml": ("lint", "package", "test", "security", "build-docs"),
         "prepare-release.yml": ("prepare-release", "open-release-pr"),
         "publish-release.yml": ("build-release",),
         "recover-github-release.yml": ("verify-recovery",),
