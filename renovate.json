@@ -3,11 +3,8 @@
   "ignorePaths": ["docs/requirements.txt"],
   "packageRules": [
     {
-      "description": "Auto-merge digest-only pinning — SHA changes carry zero functional risk and are verified by CI before merge",
-      "matchUpdateTypes": ["digest"],
-      "automerge": true,
-      "automergeType": "pr",
-      "automergeStrategy": "squash"
+      "description": "Update digest-only pinning manually — verified by CI before merge",
+      "matchUpdateTypes": ["digest"]
     },
     {
       "description": "Auto-merge patch releases after a 3-day stability window — guards against supply-chain attacks that publish a malicious patch and rely on immediate auto-merge",

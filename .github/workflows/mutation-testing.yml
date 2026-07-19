@@ -41,7 +41,7 @@ jobs:
           echo "## Mutation Testing Results" >> "$GITHUB_STEP_SUMMARY"
           uv run --no-sync mutmut results >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          SURVIVED=$(uv run --no-sync mutmut results 2>/dev/null | grep -c "^survived" || echo "0")
+          SURVIVED=$(uv run --no-sync mutmut results 2>/dev/null | grep -i -c "^survived" || true)
           echo "**Surviving mutants:** $SURVIVED" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "_Surviving mutants indicate logic that tests don't verify._" >> "$GITHUB_STEP_SUMMARY"

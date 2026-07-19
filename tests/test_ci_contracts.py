@@ -248,6 +248,29 @@ def test_dependency_automation_uses_canonical_uv_inputs() -> None:
     assert "scripts/check_docs_requirements.py" in prek_config
 
 
+def test_renovate_package_rules_match_automerge_contracts() -> None:
+    """Renovate must only automerge patch versions after a stability window, never digests or majors."""
+    renovate_config = json.loads((ROOT / "renovate.json").read_text())
+
+    rules = {
+        tuple(rule["matchUpdateTypes"]): rule for rule in renovate_config.get("packageRules", [])
+    }
+
+    digest_rule = rules[("digest",)]
+    assert digest_rule.get("automerge") is not True
+    assert "automergeType" not in digest_rule
+    assert "automergeStrategy" not in digest_rule
+
+    patch_rule = rules[("patch",)]
+    assert patch_rule["automerge"] is True
+    assert patch_rule["automergeType"] == "pr"
+    assert patch_rule["automergeStrategy"] == "squash"
+    assert patch_rule["minimumReleaseAge"] == "3 days"
+
+    minor_major_rule = rules[("minor", "major")]
+    assert minor_major_rule.get("automerge") is not True
+
+
 def test_dependency_changes_receive_a_read_only_security_review() -> None:
     """Pull requests must reject newly introduced vulnerable dependencies."""
     workflow = (WORKFLOWS / "dependency-review.yml").read_text()
