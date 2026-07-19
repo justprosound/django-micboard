@@ -308,7 +308,10 @@ def test_ci_exposes_one_stable_required_check() -> None:
     assert "permissions: {}" in required_job
     assert "timeout-minutes: 5" in required_job
     assert "toJSON(needs)" in required_job
-    assert 'to_entries | all(.value.result == "success" or (.key == "dependency-review" and .value.result == "skipped"))' in required_job
+    assert (
+        'to_entries | all(.value.result == "success" or (.key == "dependency-review" and .value.result == "skipped"))'
+        in required_job
+    )
     assert "actions/checkout@" not in required_job
     for dependency in ("lint", "package", "test", "security", "codeql"):
         assert f"      - {dependency}\n" in required_job
