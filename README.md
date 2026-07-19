@@ -2,6 +2,7 @@
 
 [![codecov](https://codecov.io/gh/justprosound/django-micboard/branch/main/graph/badge.svg)](https://codecov.io/gh/justprosound/django-micboard)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fjustprosound%2Fdjango-micboard.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fjustprosound%2Fdjango-micboard?ref=badge_shield)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/justprosound/django-micboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/justprosound/django-micboard)
 
 **Real-time multi-manufacturer wireless microphone monitoring for Django.**
 
