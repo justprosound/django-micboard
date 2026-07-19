@@ -1,6 +1,7 @@
 # django-micboard
 
 [![codecov](https://codecov.io/gh/justprosound/django-micboard/branch/main/graph/badge.svg)](https://codecov.io/gh/justprosound/django-micboard)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fjustprosound%2Fdjango-micboard.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fjustprosound%2Fdjango-micboard?ref=badge_shield)
 
 **Real-time multi-manufacturer wireless microphone monitoring for Django.**
 
@@ -388,3 +389,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 AGPL-3.0-or-later – This program is free software. See [LICENSE](LICENSE) for details.
 
 **Note**: If you use this software in production, you may need to comply with AGPL licensing requirements, including making source code available to users.
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fjustprosound%2Fdjango-micboard.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fjustprosound%2Fdjango-micboard?ref=badge_large)
