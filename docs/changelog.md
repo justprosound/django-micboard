@@ -2,7 +2,7 @@
 
 All notable changes to django-micboard are documented here.
 
-**Version format:** CalVer (`YY.MM.DD`, with `.N` for additional same-day releases)
+**Version format:** CalVer (`YY.MM.0D.MICRO`)
 
 **Status:** Active development, not production-ready
 
@@ -59,7 +59,7 @@ All notable changes to django-micboard are documented here.
 ## [25.10.15] - 2025-10-15
 
 ### Changed
-- Updated version to use CalVer (YY.MM.DD) format
+- Updated version to use CalVer (`YY.MM.0D.MICRO`) format
 - Removed ownership claims from codebase
 - Updated to FOSS community contribution model
 - Simplified README for development-only status
