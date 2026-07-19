@@ -10,9 +10,7 @@ import subprocess
 import sys
 from collections.abc import Iterable, Sequence
 
-CALVER_PATTERN = re.compile(
-    r"^(?P<release_date>[0-9]{2}\.[0-9]{2}\.[0-9]{2})(?:\.(?P<revision>[1-9][0-9]*))?$"
-)
+CALVER_PATTERN = re.compile(r"^(?P<release_date>[0-9]{2}\.[0-9]{2}\.[0-9]{2})\.(?P<micro>[0-9]+)$")
 
 
 class CalVerError(RuntimeError):
@@ -23,7 +21,7 @@ def validate_calver(version: str) -> str:
     """Return a valid ``YY.MM.DD[.N]`` CalVer or raise ``CalVerError``."""
     match = CALVER_PATTERN.fullmatch(version)
     if match is None:
-        raise CalVerError(f"CalVer must use YY.MM.DD or YY.MM.DD.N with N >= 1: {version!r}")
+        raise CalVerError(f"CalVer must use YY.MM.DD.MICRO with MICRO >= 0: {version!r}")
 
     try:
         dt.datetime.strptime(match.group("release_date"), "%y.%m.%d")
@@ -34,27 +32,31 @@ def validate_calver(version: str) -> str:
 
 
 def calculate_next_calver(tags: Iterable[str], *, release_date: dt.date) -> str:
-    """Return the next ``YY.MM.DD[.N]`` CalVer for ``release_date``."""
+    """Return the next ``YY.MM.DD.MICRO`` CalVer for ``release_date``."""
     base_version = release_date.strftime("%y.%m.%d")
     base_tag = f"v{base_version}"
-    revision_pattern = re.compile(rf"^{re.escape(base_tag)}\.(?P<revision>[0-9]+)$")
+    revision_pattern = re.compile(rf"^{re.escape(base_tag)}\.(?P<micro>[0-9]+)$")
     release_exists = False
-    current_revision = 0
+    current_micro = -1
 
     for raw_tag in tags:
         tag = raw_tag.strip()
         if tag == base_tag:
             release_exists = True
+            if current_micro < 0:
+                current_micro = 0
             continue
 
         match = revision_pattern.fullmatch(tag)
-        if match is not None:
+        if match:
             release_exists = True
-            current_revision = max(current_revision, int(match.group("revision")))
+            rev = int(match.group("micro"))
+            current_micro = max(current_micro, rev)
 
     if not release_exists:
-        return base_version
-    return f"{base_version}.{current_revision + 1}"
+        return f"{base_version}.0"
+
+    return f"{base_version}.{current_micro + 1}"
 
 
 def _git_executable() -> str:
