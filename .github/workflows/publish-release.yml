@@ -442,8 +442,16 @@ jobs:
               exit 1
             fi
           else
-            gh release create "$RELEASE_TAG" "${RELEASE_FLAGS[@]}" \
-              --repo "$GITHUB_REPOSITORY"
+            DRAFT_ID="$(gh api repos/$GITHUB_REPOSITORY/releases | jq '.[] | select(.draft == true) | .id' | head -n 1)"
+            if [ -n "$DRAFT_ID" ]; then
+              gh api -X PATCH repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID \
+                -f tag_name="$RELEASE_TAG" \
+                -f name="$RELEASE_TITLE" \
+                -f body="$RELEASE_NOTES"
+            else
+              gh release create "$RELEASE_TAG" "${RELEASE_FLAGS[@]}" \
+                --repo "$GITHUB_REPOSITORY"
+            fi
           fi
           gh release upload "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \

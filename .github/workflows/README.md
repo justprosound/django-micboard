@@ -6,12 +6,14 @@ and `tests/test_release_workflow_security.py`.
 
 | Workflow | Responsibility | Trigger |
 | --- | --- | --- |
+| `auto-release.yml` | Automatically dispatch release preparation when features or bug fixes are merged to main | Push to main branch modifying core files |
 | `ci.yml` | Lint, type check, package validation, 95% coverage, locked-dependency audit, Bandit, CodeQL, and one stable aggregate check | Push, pull request, weekly schedule, or manual dispatch |
 | `dependency-review.yml` | Reject newly introduced vulnerable runtime and development dependencies | Pull request |
 | `docs.yml` | Build and validate MkDocs output | Push, pull request, or manual dispatch |
 | `prepare-release.yml` | Create the metadata pull request, observe exact required workflow runs, merge, and dispatch publication | Manual dispatch from `main` |
 | `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from the preparation workflow on `main` |
 | `recover-github-release.yml` | Reverify the original PyPI artifact from a failed publication run and finish only its GitHub release | Manual break-glass dispatch from `main` |
+| `scorecard.yml` | OpenSSF Scorecard supply-chain security analysis | Weekly schedule, branch protection changes, or push to main |
 | `warden.yml` | Optional AI review for same-repository pull requests after a provider secret is configured | Pull-request activity when enabled |
 
 ## Shared setup action
