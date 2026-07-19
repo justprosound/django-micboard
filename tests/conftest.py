@@ -10,9 +10,6 @@ The database and Django setup are handled automatically by pytest-django
 and the configuration in tests/settings.py and pyproject.toml.
 """
 
-from django.contrib.sites.models import Site
-from django.test import Client
-
 import pytest
 
 ADMIN_PASSWORD = "admin123"
@@ -97,6 +94,7 @@ def django_client():
     Returns:
         Client: Django test client instance for making requests in tests.
     """
+    from django.test import Client
     return Client()
 
 
@@ -149,6 +147,7 @@ def default_site(db):
     Returns:
         Site: The default site instance.
     """
+    from django.contrib.sites.models import Site
     site, _ = Site.objects.get_or_create(
         pk=1,
         defaults={
