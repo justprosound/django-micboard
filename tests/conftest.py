@@ -95,6 +95,7 @@ def django_client():
         Client: Django test client instance for making requests in tests.
     """
     from django.test import Client
+
     return Client()
 
 
@@ -148,6 +149,7 @@ def default_site(db):
         Site: The default site instance.
     """
     from django.contrib.sites.models import Site
+
     site, _ = Site.objects.get_or_create(
         pk=1,
         defaults={

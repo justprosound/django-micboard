@@ -48,8 +48,10 @@ def test_every_trusted_publisher_uses_the_hardened_release_gate() -> None:
         path.name: path.read_text()
         for path in WORKFLOWS.glob("*.yml")
         if path.name != "scorecard.yml"
-        and ("id-token: write" in path.read_text()
-        or "pypa/gh-action-pypi-publish@" in path.read_text())
+        and (
+            "id-token: write" in path.read_text()
+            or "pypa/gh-action-pypi-publish@" in path.read_text()
+        )
     }
 
     # publish-release.yml = PyPI trusted publisher
