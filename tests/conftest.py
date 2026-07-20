@@ -16,8 +16,10 @@ try:
 
     import django
     import django.core
+
     if "django.core.checks" not in sys.modules:
         from types import ModuleType
+
         checks = ModuleType("django.core.checks")
         checks.__path__ = [django.core.__path__[0] + "/checks"]
         sys.modules["django.core.checks"] = checks
@@ -25,6 +27,7 @@ try:
 
         import django.core.checks.messages
         import django.core.checks.registry
+
         checks.Error = django.core.checks.messages.Error
         checks.Warning = django.core.checks.messages.Warning
         checks.Tags = django.core.checks.registry.Tags
@@ -40,6 +43,7 @@ try:
         import django.core.checks.security.sessions
         import django.core.checks.templates
         import django.core.checks.translation
+
         for name in [
             "CheckMessage",
             "Critical",

@@ -1,4 +1,3 @@
-from typing import Any
 from rest_framework.routers import DefaultRouter
 
 from micboard.api.v1.discovery import DiscoveredDeviceViewSet
