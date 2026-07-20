@@ -292,6 +292,7 @@ source = ["micboard"]
 omit = [
     "*/migrations/*",
     "*/tests/*",
+    "*/fuzzers/*",
     "*/venv/*",
     "*/virtualenv/*",
     "setup.py",
