@@ -430,6 +430,9 @@ release = [
     "pypi-attestations==0.0.29",
     "twine==6.2.0",
 ]
+fuzz = [
+    "atheris>=2.3.0",
+]
 
 # ============================================================================
 # Bandit Security Scanner
