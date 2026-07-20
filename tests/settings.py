@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "adminsortable2",
     "huey.contrib.djhuey",
+    "rest_framework",
     "micboard",
     "micboard.chargers",
     "micboard.multitenancy",
