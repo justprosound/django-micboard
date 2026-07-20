@@ -38,6 +38,7 @@ def TestOneInput(data: bytes) -> None:  # noqa: N802
     except ValueError:
         pass  # Sometimes raised directly by specific validator logic
 
+
 if __name__ == "__main__":
     atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
