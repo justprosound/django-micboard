@@ -20,3 +20,4 @@ ignore:
   - "tests/*"
   - "scripts/*"
   - "**/migrations/*"
+  - "**/fuzzers/*"
