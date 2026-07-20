@@ -10,6 +10,55 @@ The database and Django setup are handled automatically by pytest-django
 and the configuration in tests/settings.py and pyproject.toml.
 """
 
+# Bootstrapping django.core.checks to avoid circular import issues on Python 3.13 / Django 5.1
+try:
+    import sys
+
+    import django
+    import django.core
+    if "django.core.checks" not in sys.modules:
+        from types import ModuleType
+        checks = ModuleType("django.core.checks")
+        checks.__path__ = [django.core.__path__[0] + "/checks"]
+        sys.modules["django.core.checks"] = checks
+        django.core.checks = checks
+
+        import django.core.checks.messages
+        import django.core.checks.registry
+        checks.Error = django.core.checks.messages.Error
+        checks.Warning = django.core.checks.messages.Warning
+        checks.Tags = django.core.checks.registry.Tags
+        checks.register = django.core.checks.registry.register
+
+        import django.core.checks.async_checks
+        import django.core.checks.caches
+        import django.core.checks.database
+        import django.core.checks.files
+        import django.core.checks.model_checks
+        import django.core.checks.security.base
+        import django.core.checks.security.csrf
+        import django.core.checks.security.sessions
+        import django.core.checks.templates
+        import django.core.checks.translation
+        for name in [
+            "CheckMessage",
+            "Critical",
+            "Debug",
+            "Error",
+            "Info",
+            "Warning",
+            "CRITICAL",
+            "DEBUG",
+            "ERROR",
+            "INFO",
+            "WARNING",
+            "run_checks",
+            "tag_exists",
+        ]:
+            setattr(checks, name, locals()[name])
+except Exception:  # noqa: S110
+    pass
+
 import pytest
 
 ADMIN_PASSWORD = "admin123"
