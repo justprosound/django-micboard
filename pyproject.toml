@@ -241,6 +241,7 @@ where = ["."]
 include = ["micboard", "micboard.*"]
 exclude = [
     "micboard.tests*",
+    "micboard.fuzzers*",
     "tests*",
     "example_project*",
     "scripts*",
