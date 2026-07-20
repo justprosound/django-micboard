@@ -25,43 +25,55 @@ try:
         sys.modules["django.core.checks"] = checks
         django.core.checks = checks
 
-        import django.core.checks.messages
-        import django.core.checks.registry
+    import django.core.checks.messages
+    import django.core.checks.registry
+    from django.core.checks import Critical, Debug, Info, Warning  # noqa: A004
+    from django.core.checks.messages import CheckMessage, Error
+    from django.core.checks.registry import Tags, register
 
-        checks.Error = django.core.checks.messages.Error
-        checks.Warning = django.core.checks.messages.Warning
-        checks.Tags = django.core.checks.registry.Tags
-        checks.register = django.core.checks.registry.register
+    _SEVERITY_MAP = {
+        "CRITICAL": Error.ERROR,
+        "DEBUG": Error.DEBUG,
+        "ERROR": Error.ERROR,
+        "INFO": Error.INFO,
+        "WARNING": Error.WARNING,
+    }
 
-        import django.core.checks.async_checks
-        import django.core.checks.caches
-        import django.core.checks.database
-        import django.core.checks.files
-        import django.core.checks.model_checks
-        import django.core.checks.security.base
-        import django.core.checks.security.csrf
-        import django.core.checks.security.sessions
-        import django.core.checks.templates
-        import django.core.checks.translation
+    checks.Error = Error
+    checks.Warning = Warning
+    checks.Tags = Tags
+    checks.register = register
+    checks.CheckMessage = CheckMessage
+    checks.Critical = Critical
+    checks.Debug = Debug
+    checks.Info = Info
+    checks.Warning = Warning
+    for _name, _value in _SEVERITY_MAP.items():
+        setattr(checks, _name, _value)
 
-        for name in [
-            "CheckMessage",
-            "Critical",
-            "Debug",
-            "Error",
-            "Info",
-            "Warning",
-            "CRITICAL",
-            "DEBUG",
-            "ERROR",
-            "INFO",
-            "WARNING",
-            "run_checks",
-            "tag_exists",
-        ]:
-            setattr(checks, name, locals()[name])
-except Exception:  # noqa: S110
-    pass
+    def run_checks(tags=None, **kwargs):
+        return django.core.checks.run_checks(tags=tags, **kwargs)
+
+    def tag_exists(*tags):
+        return django.core.checks.Tags.exists_for_tags(tags)
+
+    checks.run_checks = run_checks
+    checks.tag_exists = tag_exists
+
+    import django.core.checks.async_checks
+    import django.core.checks.caches
+    import django.core.checks.database
+    import django.core.checks.files
+    import django.core.checks.model_checks
+    import django.core.checks.security.base
+    import django.core.checks.security.csrf
+    import django.core.checks.security.sessions
+    import django.core.checks.templates
+    import django.core.checks.translation
+except Exception:
+    import logging
+
+    logging.exception("Failed to bootstrap django.core.checks for Python 3.13 / Django 5.1")
 
 import pytest
 

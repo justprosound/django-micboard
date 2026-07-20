@@ -1,4 +1,4 @@
-from typing import Any
+from django.db.models import QuerySet
 
 from rest_framework import permissions
 from rest_framework.viewsets import ReadOnlyModelViewSet
@@ -12,9 +12,9 @@ class SettingDefinitionViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
     """Read-only viewset for SettingDefinition."""
 
     serializer_class = SettingDefinitionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = (permissions.IsAuthenticated,)
 
-    def get_queryset(self) -> "Any":
+    def get_queryset(self) -> QuerySet:
         return SettingDefinition.objects.filter(is_active=True)
 
 
@@ -22,13 +22,13 @@ class SettingViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
     """Read-only viewset for Setting overrides."""
 
     serializer_class = SettingSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = (permissions.IsAuthenticated,)
 
-    def get_queryset(self) -> "Any":
+    def get_queryset(self) -> QuerySet:
         user = self.request.user
         if not user.is_authenticated:
             return Setting.objects.none()
 
         scope = settings_visibility.for_user(user=user)
         q_filter = settings_visibility.build_filter(scope)
-        return Setting.objects.filter(q_filter)
+        return Setting.objects.filter(q_filter).select_related("definition")

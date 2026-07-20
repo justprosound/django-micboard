@@ -1,4 +1,4 @@
-from typing import Any
+from django.db.models import QuerySet
 
 from rest_framework import permissions
 from rest_framework.viewsets import ReadOnlyModelViewSet
@@ -11,9 +11,9 @@ class DiscoveredDeviceViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
     """Read-only viewset for DiscoveredDevice."""
 
     serializer_class = DiscoveredDeviceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = (permissions.IsAuthenticated,)
 
-    def get_queryset(self) -> "Any":
+    def get_queryset(self) -> QuerySet:
         user = self.request.user
         if not user.is_authenticated:
             return DiscoveredDevice.objects.none()

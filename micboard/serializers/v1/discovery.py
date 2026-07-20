@@ -19,7 +19,7 @@ def redact_sensitive_keys(data: Any) -> Any:
             else:
                 redacted[k] = redact_sensitive_keys(v)
         return redacted
-    elif isinstance(data, list):
+    if isinstance(data, list):
         return [redact_sensitive_keys(item) for item in data]
     return data
 

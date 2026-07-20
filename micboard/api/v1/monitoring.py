@@ -12,9 +12,9 @@ class MonitoringGroupViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
     """Read-only viewset for MonitoringGroup."""
 
     serializer_class = MonitoringGroupSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = (permissions.IsAuthenticated,)
 
-    def get_queryset(self) -> "Any":
+    def get_queryset(self) -> Any:
         user = self.request.user
         if not user.is_authenticated:
             return MonitoringGroup.objects.none()
@@ -29,8 +29,8 @@ class AlertViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
     """Read-only viewset for Alert."""
 
     serializer_class = AlertSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = (permissions.IsAuthenticated,)
 
-    def get_queryset(self) -> "Any":
+    def get_queryset(self) -> Any:
         user = self.request.user
         return get_alerts_for_user(user)
