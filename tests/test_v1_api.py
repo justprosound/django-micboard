@@ -177,14 +177,19 @@ class TestV1ReadOnlyEnforcement:
         response = api_client.post(url, {"name": "New Chassis"})
         assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
 
-    def test_put_patch_delete_not_allowed(self, api_client, superuser, _api_seed) -> None:
-        api_client.force_authenticate(user=superuser)
-        chassis = _api_seed["chassis"]
-        detail_url = reverse("micboard:api_v1:chassis-detail", args=[chassis.pk])
 
-        assert api_client.put(detail_url, {}).status_code == status.HTTP_405_METHOD_NOT_ALLOWED
-        assert api_client.patch(detail_url, {}).status_code == status.HTTP_405_METHOD_NOT_ALLOWED
-        assert api_client.delete(detail_url).status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+def test_put_patch_delete_not_allowed(api_client, superuser, _api_seed) -> None:
+    api_client.force_authenticate(user=superuser)
+    chassis = _api_seed["chassis"]
+    detail_url = reverse("micboard:api_v1:chassis-detail", args=[chassis.pk])
+
+    put_response = api_client.put(detail_url, {})
+    patch_response = api_client.patch(detail_url, {})
+    delete_response = api_client.delete(detail_url)
+
+    assert put_response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+    assert patch_response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+    assert delete_response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
 
 
 @pytest.mark.django_db
