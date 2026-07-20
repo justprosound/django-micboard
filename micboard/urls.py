@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from micboard.views.alerts import (
     acknowledge_alert_view,
@@ -55,6 +55,8 @@ from micboard.views.settings import (
 app_name = "micboard"
 
 urlpatterns = [
+    # API v1 routes with namespace
+    path("api/v1/", include(("micboard.api.v1.urls", "api_v1"), namespace="api_v1")),
     # UI Views
     path("", index, name="index"),
     path("about/", about, name="about"),

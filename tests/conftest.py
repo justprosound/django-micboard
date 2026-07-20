@@ -10,6 +10,71 @@ The database and Django setup are handled automatically by pytest-django
 and the configuration in tests/settings.py and pyproject.toml.
 """
 
+# Bootstrapping django.core.checks to avoid circular import issues on Python 3.13 / Django 5.1
+try:
+    import sys
+
+    import django
+    import django.core
+
+    if "django.core.checks" not in sys.modules:
+        from types import ModuleType
+
+        checks = ModuleType("django.core.checks")
+        checks.__path__ = [django.core.__path__[0] + "/checks"]
+        sys.modules["django.core.checks"] = checks
+        django.core.checks = checks
+
+    import django.core.checks.messages
+    import django.core.checks.registry
+    from django.core.checks import Critical, Debug, Info, Warning  # noqa: A004
+    from django.core.checks.messages import CheckMessage, Error
+    from django.core.checks.registry import Tags, register
+
+    _SEVERITY_MAP = {
+        "CRITICAL": Error.ERROR,
+        "DEBUG": Error.DEBUG,
+        "ERROR": Error.ERROR,
+        "INFO": Error.INFO,
+        "WARNING": Error.WARNING,
+    }
+
+    checks.Error = Error
+    checks.Warning = Warning
+    checks.Tags = Tags
+    checks.register = register
+    checks.CheckMessage = CheckMessage
+    checks.Critical = Critical
+    checks.Debug = Debug
+    checks.Info = Info
+    checks.Warning = Warning
+    for _name, _value in _SEVERITY_MAP.items():
+        setattr(checks, _name, _value)
+
+    def run_checks(tags=None, **kwargs):
+        return django.core.checks.run_checks(tags=tags, **kwargs)
+
+    def tag_exists(*tags):
+        return django.core.checks.Tags.exists_for_tags(tags)
+
+    checks.run_checks = run_checks
+    checks.tag_exists = tag_exists
+
+    import django.core.checks.async_checks
+    import django.core.checks.caches
+    import django.core.checks.database
+    import django.core.checks.files
+    import django.core.checks.model_checks
+    import django.core.checks.security.base
+    import django.core.checks.security.csrf
+    import django.core.checks.security.sessions
+    import django.core.checks.templates
+    import django.core.checks.translation
+except Exception:
+    import logging
+
+    logging.exception("Failed to bootstrap django.core.checks for Python 3.13 / Django 5.1")
+
 import pytest
 
 ADMIN_PASSWORD = "admin123"
