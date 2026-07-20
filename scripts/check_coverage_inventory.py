@@ -14,7 +14,11 @@ PACKAGE_ROOT = PROJECT_ROOT / "micboard"
 
 def distributable_source_files() -> set[Path]:
     """Return non-migration Python modules shipped in the micboard package."""
-    return {path.resolve() for path in PACKAGE_ROOT.rglob("*.py") if "migrations" not in path.parts}
+    return {
+        path.resolve()
+        for path in PACKAGE_ROOT.rglob("*.py")
+        if "migrations" not in path.parts and "fuzzers" not in path.parts
+    }
 
 
 def measured_source_files(data_file: Path) -> set[Path]:

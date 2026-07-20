@@ -241,6 +241,7 @@ where = ["."]
 include = ["micboard", "micboard.*"]
 exclude = [
     "micboard.tests*",
+    "micboard.fuzzers*",
     "tests*",
     "example_project*",
     "scripts*",
@@ -292,6 +293,7 @@ source = ["micboard"]
 omit = [
     "*/migrations/*",
     "*/tests/*",
+    "*/fuzzers/*",
     "*/venv/*",
     "*/virtualenv/*",
     "setup.py",
@@ -429,6 +431,9 @@ skip_changelog = true
 release = [
     "pypi-attestations==0.0.29",
     "twine==6.2.0",
+]
+fuzz = [
+    "atheris>=2.3.0",
 ]
 
 # ============================================================================

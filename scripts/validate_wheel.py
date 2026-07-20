@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 from zipfile import BadZipFile, ZipFile
 
 RESOURCE_DIRECTORIES = frozenset({"fixtures", "migrations", "static", "templates"})
-EXCLUDED_DIRECTORIES = frozenset({"__pycache__", "tests"})
+EXCLUDED_DIRECTORIES = frozenset({"__pycache__", "fuzzers", "tests"})
 FORBIDDEN_PREFIXES = ("example_project/", "scripts/", "tests/", "micboard/tests/")
 
 
