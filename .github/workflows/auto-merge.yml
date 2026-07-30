@@ -1,0 +1,29 @@
+---
+name: Auto-merge dependency PRs
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only run for Dependabot or Renovate PRs
+    if: >-
+      github.actor == 'dependabot[bot]' ||
+      github.actor == 'renovate[bot]'
+    steps:
+      - name: Wait for CI to register
+        # Small delay so the required status checks have time to be queued
+        run: sleep 10
+
+      - name: Enable auto-merge for PR
+        run: gh pr merge "$PR_URL" --auto --squash
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
