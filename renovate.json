@@ -7,7 +7,7 @@
     "labels": ["security"],
     "automerge": true,
     "automergeType": "pr",
-    "automergeStrategy": "squash",
+    "automergeStrategy": "merge-commit",
     "minimumReleaseAge": "0 days",
     "prPriority": 10
   },
@@ -21,7 +21,7 @@
       "matchUpdateTypes": ["patch"],
       "automerge": true,
       "automergeType": "pr",
-      "automergeStrategy": "squash",
+      "automergeStrategy": "merge-commit",
       "minimumReleaseAge": "3 days"
     },
     {
@@ -29,7 +29,7 @@
       "matchUpdateTypes": ["minor"],
       "automerge": true,
       "automergeType": "pr",
-      "automergeStrategy": "squash",
+      "automergeStrategy": "merge-commit",
       "minimumReleaseAge": "5 days"
     },
     {
@@ -56,7 +56,7 @@
       "groupName": "github-actions (non-major)",
       "automerge": true,
       "automergeType": "pr",
-      "automergeStrategy": "squash",
+      "automergeStrategy": "merge-commit",
       "minimumReleaseAge": "3 days"
     }
   ]
