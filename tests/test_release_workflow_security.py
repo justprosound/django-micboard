@@ -52,6 +52,15 @@ def test_release_workflows_accept_positive_same_day_calver_revisions() -> None:
     assert version_pattern in _workflow("publish-release.yml")
 
 
+def test_open_release_pr_bumps_version_with_captured_release_version() -> None:
+    """The merged-release metadata step must reuse the captured CalVer via the same bump part."""
+    preparation = _workflow("prepare-release.yml")
+
+    assert (
+        'uv tool run bump-my-version bump release --new-version "$RELEASE_VERSION"' in preparation
+    )
+
+
 def test_release_builds_are_reproducible_across_safe_retries() -> None:
     """A source commit must produce registry-identical wheel and source archives."""
     publication = _workflow("publish-release.yml")
