@@ -43,9 +43,9 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           if [ -n "$REQUESTED_VERSION" ]; then
-            uv tool run bump-my-version bump patch --new-version "$REQUESTED_VERSION"
+            uv tool run bump-my-version bump release --new-version "$REQUESTED_VERSION"
           else
-            uv tool run bump-my-version bump patch
+            uv tool run bump-my-version bump release
           fi
           RELEASE_VERSION="$(grep '^version = ' pyproject.toml | cut -d '"' -f 2)"
 
@@ -129,7 +129,7 @@ jobs:
           RELEASE_CHANGELOG: ${{ needs.prepare-release.outputs.changelog }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          uv tool run bump-my-version bump patch --new-version "$RELEASE_VERSION"
+          uv tool run bump-my-version bump release --new-version "$RELEASE_VERSION"
           if ! grep -q "^## \[$RELEASE_VERSION\]" CHANGELOG.md; then
             RELEASE_DATE="$(date +%Y-%m-%d)"
             awk \

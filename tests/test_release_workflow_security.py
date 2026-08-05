@@ -32,9 +32,9 @@ def test_release_version_defaults_to_the_next_utc_calver() -> None:
     assert "REQUESTED_VERSION: ${{ inputs.version }}" in preparation
     assert "uses: ./.github/actions/setup-uv-python" in preparation
     assert (
-        'uv tool run bump-my-version bump patch --new-version "$REQUESTED_VERSION"' in preparation
+        'uv tool run bump-my-version bump release --new-version "$REQUESTED_VERSION"' in preparation
     )
-    assert "uv tool run bump-my-version bump patch" in preparation
+    assert "uv tool run bump-my-version bump release" in preparation
     assert (
         "RELEASE_VERSION=\"$(grep '^version = ' pyproject.toml | cut -d '\"' -f 2)\"" in preparation
     )
