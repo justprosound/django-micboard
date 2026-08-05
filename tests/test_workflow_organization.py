@@ -38,7 +38,7 @@ def test_lint_job_uses_the_shared_uv_python_bootstrap() -> None:
     assert "uv python install" not in lint_job
 
     action = SETUP_ACTION.read_text(encoding="utf-8")
-    assert "astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990" in action
+    assert "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" in action
     assert "uv python install" in action
 
 

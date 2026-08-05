@@ -1,0 +1,35 @@
+---
+name: Auto-merge Dependabot PRs
+run-name: "Auto-merge PR #${{ github.event.pull_request.number }}"
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+# Serialize runs per PR; cancel superseded runs for the same PR
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# Workflow-level: no permissions by default
+permissions: {}
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only Dependabot PRs - Renovate handles its own automerge via platform API
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Wait for CI to register
+        # Small delay so the required status checks have time to be queued
+        run: sleep 10
+
+      - name: Enable auto-merge for PR
+        run: gh pr merge "$PR_URL" --auto --squash
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}

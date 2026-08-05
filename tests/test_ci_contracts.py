@@ -272,8 +272,14 @@ def test_renovate_package_rules_match_automerge_contracts() -> None:
     assert patch_rule["automergeStrategy"] == "squash"
     assert patch_rule["minimumReleaseAge"] == "3 days"
 
-    minor_major_rule = rules[("minor", "major")]
-    assert minor_major_rule.get("automerge") is not True
+    minor_rule = rules[("minor",)]
+    assert minor_rule["automerge"] is True
+    assert minor_rule["automergeType"] == "pr"
+    assert minor_rule["automergeStrategy"] == "squash"
+    assert minor_rule["minimumReleaseAge"] == "5 days"
+
+    major_rule = rules[("major",)]
+    assert major_rule.get("automerge") is not True
 
 
 def test_dependency_changes_receive_a_read_only_security_review() -> None:
