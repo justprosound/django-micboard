@@ -430,7 +430,7 @@ skip_changelog = true
 [dependency-groups]
 release = [
     "pypi-attestations==0.0.30",
-    "twine==6.2.0",
+    "twine==7.0.0",
 ]
 fuzz = [
     "atheris>=2.3.0",
