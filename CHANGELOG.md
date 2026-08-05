@@ -18,6 +18,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Dependency updates**: Enable auto-merge for Renovate dependency updates (digest-only and patch versions) to reduce maintainer overhead, with a 3-day stability delay on patch versions to guard against supply-chain attacks.
 - **Contributor documentation**: Update `README.md`, `CONTRIBUTING.md`, and `SECURITY.md` to explicitly state that the project is maintained by a single developer, setting expectations around response times.
 
+### Security
+
+- **Dependency bumps**: Upgrade `gitpython` to 3.1.58, `cryptography` to 50.0.0, and `pyopenssl` to 26.4.0 in `uv.lock` (and regenerate `docs/requirements.txt`) to close all open GitPython and cryptography advisories, including git option injection, `git diff`/`rev-list --output` argument injection, `git config` section-name injection, clone/archive option denylist bypasses, and the PKCS#7 Bleichenbacher oracle. `pyopenssl` is bumped as a dependency requirement of `cryptography` 50.
+
 ## [26.07.18] - 2026-07-18
 
 d4ffc65 - docs: Reorganize documentation into docs/ structure (#113) (bandwith)
