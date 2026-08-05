@@ -2,24 +2,92 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "dependencyDashboard": true,
   "dependencyDashboardAutoclose": true,
+  "platformAutomerge": true,
   "ignorePaths": ["docs/requirements.txt"],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security"
+    ],
+    "automerge": true,
+    "automergeType": "pr",
+    "automergeStrategy": "squash",
+    "minimumReleaseAge": "0 days",
+    "prPriority": 10
+  },
   "packageRules": [
     {
-      "description": "Update digest-only pinning manually — verified by CI before merge",
-      "matchUpdateTypes": ["digest"]
+      "description": "Update digest-only pinning manually - verified by CI before merge",
+      "matchUpdateTypes": [
+        "digest"
+      ]
     },
     {
-      "description": "Auto-merge patch releases after a 3-day stability window — guards against supply-chain attacks that publish a malicious patch and rely on immediate auto-merge",
-      "matchUpdateTypes": ["patch"],
+      "description": "Auto-merge patch releases after a 3-day stability window",
+      "matchUpdateTypes": [
+        "patch"
+      ],
       "automerge": true,
       "automergeType": "pr",
       "automergeStrategy": "squash",
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Minor and major updates always require manual review — API surfaces can change even with passing tests",
-      "matchUpdateTypes": ["minor", "major"],
+      "description": "Auto-merge minor releases after a 5-day stability window",
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "minimumReleaseAge": "5 days"
+    },
+    {
+      "description": "Major updates always require manual review - API surfaces can change",
+      "matchUpdateTypes": [
+        "major"
+      ],
       "automerge": false
+    },
+    {
+      "description": "Group all non-major Python dependency updates to reduce PR noise",
+      "matchManagers": [
+        "pip_requirements",
+        "pip_setup",
+        "pep621",
+        "pyproject"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "groupName": "python dependencies (non-major)"
+    },
+    {
+      "description": "Group all non-major npm dependency updates to reduce PR noise",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "groupName": "npm dependencies (non-major)"
+    },
+    {
+      "description": "Group GitHub Actions updates to reduce PR noise",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "groupName": "github-actions (non-major)",
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "minimumReleaseAge": "3 days"
     }
   ]
 }
