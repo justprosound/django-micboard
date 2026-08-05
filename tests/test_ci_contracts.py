@@ -228,6 +228,15 @@ def test_workflow_actions_are_pinned_to_commits() -> None:
     assert unpinned == []
 
 
+def test_clusterfuzzlite_builder_image_is_pinned_to_a_digest() -> None:
+    dockerfile = (ROOT / ".clusterfuzzlite" / "Dockerfile").read_text()
+
+    assert dockerfile.splitlines()[0] == (
+        "FROM gcr.io/oss-fuzz-base/base-builder-python@"
+        "sha256:6b2b3a7e4a2da50de47f94925cffbe34747e1aae4f33d7f07ba6c681dd648b23"
+    )
+
+
 def test_local_wheel_recipe_runs_the_ci_smoke_contract_in_development_mode() -> None:
     """Local package validation must catch the same installed-wheel failures as CI."""
     justfile = (ROOT / "Justfile").read_text()
