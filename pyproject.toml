@@ -429,7 +429,7 @@ skip_changelog = true
 
 [dependency-groups]
 release = [
-    "pypi-attestations==0.0.29",
+    "pypi-attestations==0.0.30",
     "twine==6.2.0",
 ]
 fuzz = [
