@@ -8,15 +8,17 @@ on:
     paths:
       - "micboard/**"
 
-permissions:
-  actions: write
-  contents: read
+permissions: {}
 
 jobs:
-  auto-release:
-    name: Check and trigger release
+  check-commits:
+    name: Check for releasable commits
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -43,8 +45,16 @@ jobs:
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           fi
 
+  dispatch-release:
+    name: Trigger release workflow
+    needs: check-commits
+    if: needs.check-commits.outputs.should_release == 'true'
+    permissions:
+      actions: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
       - name: Trigger release workflow
-        if: steps.check.outputs.should_release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

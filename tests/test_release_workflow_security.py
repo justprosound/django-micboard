@@ -247,6 +247,23 @@ def test_release_authority_is_separated_by_job() -> None:
     assert "pull-requests: write" not in publish_job
 
 
+def test_auto_release_detection_is_read_only_and_dispatch_authority_is_isolated() -> None:
+    workflow = _workflow("auto-release.yml")
+    check_job = workflow[workflow.index("  check-commits:") :]
+    check_job = check_job[: check_job.index("  dispatch-release:")]
+    dispatch_job = workflow[workflow.index("  dispatch-release:") :]
+
+    assert "permissions: {}" in workflow[: workflow.index("jobs:")]
+    assert "permissions:\n      contents: read" in check_job
+    assert "actions: write" not in check_job
+    assert "should_release: ${{ steps.check.outputs.should_release }}" in check_job
+    assert "needs: check-commits" in dispatch_job
+    assert "if: needs.check-commits.outputs.should_release == 'true'" in dispatch_job
+    assert "permissions:\n      actions: write" in dispatch_job
+    assert "contents:" not in dispatch_job
+    assert "gh workflow run prepare-release.yml --ref main" in dispatch_job
+
+
 def test_release_artifacts_receive_build_provenance_before_publication() -> None:
     """Each sealed distribution must have signed provenance before either registry receives it."""
     publication = _workflow("publish-release.yml")
