@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 SETUP_ACTION = ROOT / ".github" / "actions" / "setup-uv-python" / "action.yml"
@@ -120,3 +122,19 @@ def test_warden_limits_secrets_to_trusted_review_execution() -> None:
     assert "${{ secrets." not in job_before_steps
     assert "WARDEN_OPENAI_API_KEY: ${{ secrets.WARDEN_OPENAI_API_KEY }}" in action_step
     assert "WARDEN_ANTHROPIC_API_KEY: ${{ secrets.WARDEN_ANTHROPIC_API_KEY }}" in action_step
+
+
+def test_warden_scopes_write_permissions_to_same_repository_review_job() -> None:
+    """Only the same-repository Warden job may receive its required write scopes."""
+    workflow = yaml.safe_load((WORKFLOWS / "warden.yml").read_text(encoding="utf-8"))
+    review_job = workflow["jobs"]["review"]
+
+    assert workflow["permissions"] == {}
+    assert review_job["if"] == (
+        "github.event.pull_request.head.repo.full_name == github.repository"
+    )
+    assert review_job["permissions"] == {
+        "checks": "write",
+        "contents": "write",
+        "pull-requests": "write",
+    }

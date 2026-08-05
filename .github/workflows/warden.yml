@@ -6,17 +6,20 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
 
-permissions:
-  # Warden uses this scope for GitHub's resolveReviewThread mutation.
-  contents: read
-  pull-requests: write
-  checks: write
+permissions: {}
 
 jobs:
   review:
     # Fork pull requests do not receive repository secrets. Skipping them also prevents an
     # untrusted head from reaching a write-capable AI review step.
     if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      # Checks write creates and updates Warden check runs.
+      checks: write
+      # Contents write is required by pinned Warden stale-thread GraphQL resolution.
+      contents: write
+      # Pull-requests write posts reviews.
+      pull-requests: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
