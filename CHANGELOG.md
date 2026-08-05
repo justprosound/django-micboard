@@ -20,7 +20,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Security
 
-- **Dependency bumps**: Upgrade `gitpython` to 3.1.58 and `cryptography` to 50.0.0 in `uv.lock` (and regenerate `docs/requirements.txt`) to close all open GitPython and cryptography advisories, including git option injection, `git diff`/`rev-list --output` argument injection, `git config` section-name injection, clone/archive option denylist bypasses, and the PKCS#7 Bleichenbacher oracle.
+- **Dependency bumps**: Upgrade `gitpython` to 3.1.58, `cryptography` to 50.0.0, and `pyopenssl` to 26.4.0 in `uv.lock` (and regenerate `docs/requirements.txt`) to close all open GitPython and cryptography advisories, including git option injection, `git diff`/`rev-list --output` argument injection, `git config` section-name injection, clone/archive option denylist bypasses, and the PKCS#7 Bleichenbacher oracle. `pyopenssl` is bumped as a dependency requirement of `cryptography` 50.
 
 ## [26.07.18] - 2026-07-18
 
