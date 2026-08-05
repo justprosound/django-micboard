@@ -17,6 +17,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 - **Dependency updates**: Enable auto-merge for Renovate dependency updates (digest-only and patch versions) to reduce maintainer overhead, with a 3-day stability delay on patch versions to guard against supply-chain attacks.
 - **Contributor documentation**: Update `README.md`, `CONTRIBUTING.md`, and `SECURITY.md` to explicitly state that the project is maintained by a single developer, setting expectations around response times.
+- **Renovate dependency dashboard**: Auto-close the dependency dashboard issue when no updates remain, so stale dashboards do not accumulate; CodeRabbit issue enrichment stays enabled.
 
 ### Security
 
