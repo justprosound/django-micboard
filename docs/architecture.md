@@ -191,7 +191,7 @@ uv run --no-sync pytest --cov=micboard  # With coverage
 
 - [ ] All tests pass: `uv run --no-sync pytest --cov=micboard --cov-branch --cov-fail-under=95`
 - [ ] Ruff checks: `uv run --no-sync ruff check .`
-- [ ] Pre-commit hooks: `uv run --no-sync pre-commit run --all-files`
+- [ ] Prek hooks: `uv run --no-sync prek run --all-files`
 - [ ] No tracked dev artifacts (db.sqlite3, .env, egg-info)
 - [ ] CHANGELOG.md updated
 - [ ] Version number updated in `pyproject.toml` (`micboard.__version__` reads package metadata)
