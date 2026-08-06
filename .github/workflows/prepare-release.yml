@@ -62,28 +62,24 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           DELIMITER="release-changelog-$(git rev-parse HEAD)"
+          awk '
+            /^## \[Unreleased\]/ { in_unreleased = 1; next }
+            in_unreleased && /^## \[/ { exit }
+            in_unreleased { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/unreleased-changelog.md"
+
           {
             echo "content<<$DELIMITER"
-            DRAFT_ID="$(gh api repos/$GITHUB_REPOSITORY/releases | jq '.[] | select(.draft == true) | .id' | head -n 1)"
-            if [ -n "$DRAFT_ID" ]; then
-              gh api repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID | jq -r '.body'
-            elif grep -Fqx "version = \"$RELEASE_VERSION\"" pyproject.toml; then
-              awk -v heading="## [$RELEASE_VERSION]" '
-                index($0, heading) == 1 { in_release = 1; next }
-                in_release && /^## \[/ { exit }
-                in_release { print }
-              ' CHANGELOG.md
+            if grep -q '[^[:space:]]' "$RUNNER_TEMP/unreleased-changelog.md"; then
+              cat "$RUNNER_TEMP/unreleased-changelog.md"
             else
               LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
               if [ -n "$LATEST_TAG" ]; then
-                git log "$LATEST_TAG"..HEAD --pretty=format:"%h - %s (%an)"
+                git log "$LATEST_TAG"..HEAD --pretty=format:"- %s (%h)"
               else
-                git log HEAD --pretty=format:"%h - %s (%an)"
+                git log HEAD --pretty=format:"- %s (%h)"
               fi
             fi
             echo
@@ -213,7 +209,19 @@ jobs:
           fi
 
           DISPATCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_BRANCH"
+          for attempt in {1..5}; do
+            if gh workflow run ci.yml \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref "$RELEASE_BRANCH"; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "Unable to dispatch CI after $attempt attempts"
+              exit 1
+            fi
+            echo "Retrying CI dispatch after GitHub API failure (attempt $attempt/5)"
+            sleep $((attempt * 5))
+          done
 
           find_dispatched_run() {
             local workflow="$1"
@@ -318,13 +326,9 @@ jobs:
             --field expected_sha="$MERGE_SHA" \
             --field version="$RELEASE_VERSION"
           {
-            echo "### Sign release tag before production approval"
+            echo "### Final publication approval"
             echo
-            echo '```bash'
-            echo "git fetch --tags origin main"
-            echo "git tag -s v$RELEASE_VERSION $MERGE_SHA -m 'Release $RELEASE_VERSION'"
-            echo "git push origin refs/tags/v$RELEASE_VERSION"
-            echo '```'
-            echo
-            echo "Approve the pypi-release environment only after GitHub verifies this tag."
+            echo "The release is built, attested, published to TestPyPI, and verified automatically."
+            echo "Approve the pypi-release environment to publish these exact artifacts to PyPI."
+            echo "The GitHub release and immutable v$RELEASE_VERSION tag are created afterward."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -16,7 +16,9 @@ def _workflow(name: str) -> str:
 def test_release_workflows_have_single_responsibility_names() -> None:
     """Workflow filenames must distinguish preparation from publication."""
     assert not (WORKFLOW_ROOT / "release.yml").exists()
+    assert not (WORKFLOW_ROOT / "release-drafter.yml").exists()
     assert (WORKFLOW_ROOT / "prepare-release.yml").is_file()
+    assert (WORKFLOW_ROOT / "publish-release.yml").is_file()
     assert (WORKFLOW_ROOT / "recover-github-release.yml").is_file()
 
 
@@ -68,6 +70,34 @@ def test_open_release_pr_bumps_version_with_captured_release_version() -> None:
     assert "RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}" in metadata_job
 
 
+def test_release_changelog_comes_from_unreleased_with_commit_fallback() -> None:
+    preparation = _workflow("prepare-release.yml")
+    publication = _workflow("publish-release.yml")
+    prepare_job = preparation[preparation.index("  prepare-release:") :]
+    prepare_job = prepare_job[: prepare_job.index("  open-release-pr:")]
+
+    unreleased = prepare_job.index("/^## \\[Unreleased\\]/")
+    content_check = prepare_job.index("grep -q '[^[:space:]]'")
+    commit_fallback = prepare_job.index('git log "$LATEST_TAG"..HEAD')
+
+    assert unreleased < content_check < commit_fallback
+    assert "$RUNNER_TEMP/unreleased-changelog.md" in prepare_job
+    assert "DRAFT_ID" not in preparation
+    assert "DRAFT_ID" not in publication
+
+
+def test_auto_release_uses_the_current_push_commit_subjects() -> None:
+    trigger = _workflow("auto-release.yml")
+
+    assert "BEFORE_SHA: ${{ github.event.before }}" in trigger
+    assert "AFTER_SHA: ${{ github.event.after }}" in trigger
+    assert 'git log "$RANGE" --format=%s' in trigger
+    assert "'^(feat|fix)(\\([^)]*\\))?!?:'" in trigger
+    assert "git describe --tags" not in trigger
+    assert "cancel-in-progress: true" in trigger
+    assert "gh workflow run prepare-release.yml --ref main" in trigger
+
+
 def test_release_builds_are_reproducible_across_safe_retries() -> None:
     """A source commit must produce registry-identical wheel and source archives."""
     publication = _workflow("publish-release.yml")
@@ -107,49 +137,47 @@ def test_github_release_recovery_reuses_only_verified_pypi_artifacts() -> None:
     assert '--repo "$GITHUB_REPOSITORY"' in release_job
 
 
-def test_release_writers_require_the_verified_signed_tag_for_the_exact_commit() -> None:
-    """Registry and GitHub publication must consume a maintainer-signed immutable identity."""
+def test_release_writers_create_or_verify_the_tag_for_the_exact_commit() -> None:
     publication = _workflow("publish-release.yml")
     pypi_job = publication[publication.index("  publish-pypi:") :]
     pypi_job = pypi_job[: pypi_job.index("  create-github-release:")]
     release_jobs = (
-        pypi_job,
         publication[publication.index("  create-github-release:") :],
         _workflow("recover-github-release.yml").split("  create-github-release:", 1)[1],
     )
 
+    assert "git/ref/tags/$RELEASE_TAG" not in pypi_job
+    assert ".verification.verified" not in publication
     for job in release_jobs:
         assert "git/ref/tags/$RELEASE_TAG" in job
-        assert "git/tags/$TAG_OBJECT_SHA" in job
-        assert '.object.type == "commit"' in job
-        assert ".object.sha == $expected_sha" in job
-        assert ".verification.verified == true" in job
-
-    for github_release_job in release_jobs[1:]:
-        assert "--verify-tag" in github_release_job
-        assert "--target" not in github_release_job
-        assert "targetCommitish" not in github_release_job
+        assert '--method POST "repos/$GITHUB_REPOSITORY/git/refs"' in job
+        assert '--field ref="refs/tags/$RELEASE_TAG"' in job
+        assert '--field sha="$RELEASE_SHA"' in job
+        assert '.object.type == "commit" and .object.sha == $expected_sha' in job
+        assert "--verify-tag" in job
+        assert "--target" not in job
+        assert "targetCommitish" not in job
 
 
-def test_publication_retry_allows_its_existing_verified_release_tag() -> None:
-    """A pre-PyPI retry must reach the exact-target signature gate instead of failing early."""
+def test_publication_retry_allows_its_existing_exact_release_tag() -> None:
     preparation = _workflow("prepare-release.yml")
     publication = _workflow("publish-release.yml")
     validation_job = publication[publication.index("  validate-release:") :]
     validation_job = validation_job[: validation_job.index("  build-release:")]
+    github_release_job = publication[publication.index("  create-github-release:") :]
 
     assert 'git show-ref --verify --quiet "refs/tags/v$RELEASE_VERSION"' in preparation
     assert 'git show-ref --verify --quiet "refs/tags/v$RELEASE_VERSION"' not in validation_job
+    assert "git/ref/tags/$RELEASE_TAG" in github_release_job
+    assert ".object.sha == $expected_sha" in github_release_job
 
 
-def test_release_preparation_surfaces_the_human_signing_ceremony() -> None:
-    """Solo maintainers must receive exact tag commands before production approval."""
+def test_release_preparation_surfaces_the_single_publication_gate() -> None:
     preparation = _workflow("prepare-release.yml")
     dispatch_job = preparation[preparation.index("  dispatch-publication:") :]
 
-    assert "Sign release tag before production approval" in dispatch_job
-    assert "git tag -s v$RELEASE_VERSION $MERGE_SHA -m 'Release $RELEASE_VERSION'" in dispatch_job
-    assert "git push origin refs/tags/v$RELEASE_VERSION" in dispatch_job
+    assert "git tag -s" not in dispatch_job
+    assert "git push origin refs/tags/" not in dispatch_job
     assert "pypi-release" in dispatch_job
 
 
@@ -157,18 +185,10 @@ def test_workflow_topology_is_documented() -> None:
     """Maintainers must be able to discover every workflow and the release sequence."""
     guide = (WORKFLOW_ROOT / "README.md").read_text(encoding="utf-8")
 
-    for workflow_name in (
-        "auto-release.yml",
-        "ci.yml",
-        "dependency-review.yml",
-        "docs.yml",
-        "prepare-release.yml",
-        "publish-release.yml",
-        "recover-github-release.yml",
-        "scorecard.yml",
-        "warden.yml",
-    ):
+    for workflow_name in sorted(path.name for path in WORKFLOW_ROOT.glob("*.yml")):
         assert f"`{workflow_name}`" in guide
+    for stale_workflow_name in ("dependency-review.yml", "docs.yml", "release-drafter.yml"):
+        assert f"`{stale_workflow_name}`" not in guide
     assert "prepare -> validate -> merge -> attest -> publish" in guide
 
 
@@ -239,6 +259,8 @@ def test_release_pr_passes_required_checks_before_merge_and_publication() -> Non
 
     assert ci_dispatch < check_wait < auto_merge
     assert auto_merge < publication_dispatch
+    assert "for attempt in {1..5}" in release_workflow
+    assert "Unable to dispatch CI after $attempt attempts" in release_workflow
 
 
 def test_release_authority_is_separated_by_job() -> None:
@@ -374,7 +396,8 @@ def test_github_release_publishes_the_verified_supply_chain_assets_atomically() 
     assert "dist/*.spdx.json" in github_release_job
     assert "dist/*.publish.attestation" in github_release_job
     assert "dist/SHA256SUMS" in github_release_job
-    assert github_release_job.count('--repo "$GITHUB_REPOSITORY"') == 4
+    assert github_release_job.count('--repo "$GITHUB_REPOSITORY"') == 5
+    assert '--notes "$RELEASE_NOTES"' in github_release_job
     assert 'gh release edit "$RELEASE_TAG" --draft=false' in github_release_job
     assert github_release_job.index("gh release create") < github_release_job.index(
         "gh release upload"
