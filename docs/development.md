@@ -6,7 +6,7 @@ This guide covers the supported repository workflow. Architecture decisions live
 ## Requirements
 
 - Python 3.13+
-- Django 5.1 through 6.0
+- Django 5.2 through 6.0
 - `uv` for dependency and environment management
 - Git
 - `just` for canonical repository recipes
@@ -18,7 +18,7 @@ This guide covers the supported repository workflow. Architecture decisions live
 git clone https://github.com/justprosound/django-micboard.git
 cd django-micboard
 uv sync --locked --all-extras
-uv run --no-sync pre-commit install --hook-type pre-commit
+uv run --no-sync prek install -f --prepare-hooks --hook-type pre-commit
 ```
 
 The root `manage.py` loads `example_project.settings` and uses SQLite by default:
@@ -110,12 +110,12 @@ where relevant.
 
 ```bash
 just lint
-just pre-commit
+just prek
 uv run --no-sync bandit -r micboard -ll
 uv run --no-sync python manage.py check
 ```
 
-`just lint` checks Ruff formatting, Ruff rules, and mypy. Pre-commit additionally checks file
+`just lint` checks Ruff formatting, Ruff rules, and mypy. Prek additionally checks file
 syntax, migration drift, and generated migration integrity.
 
 Apply formatting deliberately:
@@ -185,7 +185,7 @@ that reusable-app resources are present.
 1. Create a focused branch.
 2. Implement the smallest contract-preserving change.
 3. Add or update tests and documentation.
-4. Run `just lint`, relevant tests, and `just pre-commit`.
+4. Run `just lint`, relevant tests, and `just prek`.
 5. Use a Conventional Commit message.
 6. Open a PR describing behavior, risk, verification, and linked issues.
 

@@ -17,7 +17,7 @@ Django Micboard is a Django application for real-time monitoring and management 
 - 🚨 **Smart Alerts** - Configurable notifications for battery and RF issues
 - 📊 **Admin Dashboard** - Visual oversight of devices and system health
 - 🔒 **Transport Hardening** - TLS-only authenticated manufacturer connections
-- 🧪 **Pre-production Beta** - Django 5.1 through 6.0 compatible
+- 🧪 **Pre-production Beta** - Django 5.2 through 6.0 compatible
 
 ## Quick Start
 
@@ -75,7 +75,7 @@ uv run --no-sync python manage.py poll_devices
 ## Requirements
 
 - Python 3.13+
-- Django 5.1 through 6.0
+- Django 5.2 through 6.0
 - Django Channels (for WebSocket support)
 - Redis (recommended for production)
 
