@@ -89,10 +89,10 @@ This document distills all key architectural, workflow, and style rules for code
       ```bash
       uv run --no-sync ruff format .
       ```
-    - Pre-commit (install and run all hooks):
+    - Prek (install and run all hooks):
       ```bash
-      uv run --no-sync pre-commit install
-      uv run --no-sync pre-commit run --all-files
+      uv run --no-sync prek install -f --prepare-hooks
+      uv run --no-sync prek run --all-files
       ```
 
 - **Type Checking:**
@@ -180,7 +180,7 @@ This document distills all key architectural, workflow, and style rules for code
     - CHANGELOG.md (under `[Unreleased]` section)
     - README.md if user-facing changes
 - PRs are committed by feature branch with a conventional commit style (e.g., `feat:`, `fix:`, etc.). See CONTRIBUTING.md for format.
-- All code must pass CI checks before merge: ruff, mypy, pytest, bandit, pre-commit.
+- All code must pass CI checks before merge: Ruff, mypy, pytest, Bandit, and prek.
 
 ---
 

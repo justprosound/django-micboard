@@ -4,7 +4,7 @@ set shell := ["bash", "-c"]
 
 default:
     @echo "Available commands:"
-    @echo "  install    - Install dependencies and pre-commit hooks"
+    @echo "  install    - Install dependencies and prek hooks"
     @echo "  lint       - Run all linting and type checks"
     @echo "  test       - Run tests"
     @echo "  coverage   - Run tests with the CI coverage threshold"
@@ -19,10 +19,10 @@ uv-check:
     @command -v uv >/dev/null 2>&1 || { echo "error: uv is required" >&2; exit 1; }
     @uv --version >/dev/null
 
-# Install dependencies and pre-commit hooks
+# Install dependencies and prek hooks
 install: uv-check
     uv sync --locked --all-extras
-    uv run --no-sync pre-commit install --hook-type pre-commit
+    uv run --no-sync prek install -f --prepare-hooks --hook-type pre-commit
 
 # Run all linting and type checks
 lint: uv-check
@@ -30,9 +30,9 @@ lint: uv-check
     uv run --no-sync ruff check .
     uv run --no-sync python -m mypy micboard
 
-# Run every configured pre-commit hook against the repository.
-pre-commit: uv-check
-    uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+# Run every configured hook against the repository with prek.
+prek: uv-check
+    uv run --no-sync prek run --all-files --show-diff-on-failure
 
 # Run tests
 test: uv-check
