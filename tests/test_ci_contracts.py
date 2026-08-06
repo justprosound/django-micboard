@@ -242,6 +242,14 @@ def test_local_wheel_recipe_runs_the_ci_smoke_contract_in_development_mode() -> 
     assert "DEBUG=True" in smoke_script
 
 
+def test_distribution_excludes_development_fuzzers() -> None:
+    manifest = (ROOT / "MANIFEST.in").read_text()
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+
+    assert "recursive-exclude micboard/fuzzers *" in manifest
+    assert "micboard.fuzzers*" in pyproject["tool"]["setuptools"]["packages"]["find"]["exclude"]
+
+
 def test_dependency_automation_uses_canonical_uv_inputs() -> None:
     """Renovate must not edit generated exports or bypass their documentation check."""
     renovate_config = json.loads((ROOT / "renovate.json").read_text())
@@ -305,6 +313,31 @@ def test_full_dependency_audit_runs_on_a_weekly_cadence() -> None:
     assert "uv audit --locked --preview-features audit-command" in _workflow_job(
         workflow, "security"
     )
+
+
+def test_supported_runtime_matrix_covers_python_and_django_releases() -> None:
+    workflow = (WORKFLOWS / "ci.yml").read_text()
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+
+    assert set(pyproject["project"]["classifiers"]) >= {
+        "Framework :: Django :: 5.2",
+        "Framework :: Django :: 6.0",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
+    }
+    assert '"3.13"' in workflow
+    assert '"3.14"' in workflow
+    assert '"5.2"' in workflow
+    assert '"6.0"' in workflow
+    assert '"5.1"' not in workflow
+
+
+def test_ci_rejects_model_changes_without_migrations() -> None:
+    workflow = (WORKFLOWS / "ci.yml").read_text()
+    lint_job = _workflow_job(workflow, "lint")
+
+    assert "python manage.py makemigrations" in lint_job
+    assert "--check --dry-run --settings=tests.settings" in lint_job
 
 
 def test_ci_exposes_one_stable_required_check() -> None:
