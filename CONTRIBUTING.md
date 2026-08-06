@@ -34,7 +34,7 @@ Clean, well-documented, and fully tested PRs (with passing CI) are highly apprec
 
 3. **Install pre-commit hooks** (strongly recommended):
    ```bash
-   uv run --no-sync pre-commit install
+   uv run --no-sync prek install -f --prepare-hooks
    ```
 
 ### Running Tests Locally
@@ -107,10 +107,10 @@ uv run --no-sync bandit -r micboard -ll
 
 ```bash
 # Install hooks (one-time setup)
-uv run --no-sync pre-commit install
+uv run --no-sync prek install -f --prepare-hooks
 
 # Run manually
-uv run --no-sync pre-commit run --all-files
+uv run --no-sync prek run --all-files
 ```
 
 ## Architecture & Code Patterns
@@ -239,7 +239,7 @@ changes must follow the controlled migration process above.
 4. **Run full test suite** before pushing:
    ```bash
    just coverage
-   uv run --no-sync pre-commit run --all-files
+   uv run --no-sync prek run --all-files
    uv run --no-sync python -m mypy micboard
    uv run --no-sync bandit -r micboard -ll
    ```
@@ -279,7 +279,7 @@ changes must follow the controlled migration process above.
 8. **PR checklist**:
    - [ ] Title is clear and descriptive
    - [ ] Description explains what and why
-   - [ ] Tests pass (`just test` and `just pre-commit`)
+   - [ ] Tests pass (`just test` and `just prek`)
    - [ ] Documentation updated
    - [ ] Migrations reviewed (if applicable)
    - [ ] No breaking changes (or clearly documented)
@@ -326,20 +326,19 @@ Include:
 Maintainers follow this process:
 
 1. Collect changes in `CHANGELOG.md` under `[Unreleased]`
-2. Run the **Prepare Release PR** workflow from `main`; it selects the next UTC CalVer
-   (`YY.MM.0D.MICRO`), or accepts an explicit backfill version
+2. Merge a `feat` or `fix` Conventional Commit to let automation start the **Prepare Release PR**
+   workflow; dispatch it manually only for a backfill or controlled retry
 3. Let the workflow open a release pull request and dispatch CI and documentation checks
 4. Let protected-branch auto-merge merge the pull request only after every required check passes
-5. Copy the exact commands from the preparation run summary to create and push the signed annotated
-   tag for the merge commit, then confirm GitHub marks that tag verified
-6. Approve the production `pypi-release` environment only after the signed tag exists; publication
-   rejects lightweight, unverified, or wrong-commit tags before PyPI
-7. Confirm that the publication workflow creates the matching GitHub release from the existing tag
+5. Review the TestPyPI verification results and approve the production `pypi-release` environment;
+   this is the only happy-path manual publication gate
+6. Confirm that the workflow publishes to PyPI, creates the version tag at the exact release commit,
+   and publishes the GitHub release with the sealed supply-chain assets
 
 Release preparation never pushes directly to `main` and never receives an OIDC publishing token.
 The separate publication workflow accepts only a commit already merged into protected `main` and
 uses the appropriate protected GitHub environment for package publication. Safe retries may reuse
-the exact verified tag, but preparation still refuses a CalVer already claimed by any tag.
+an exact-match version tag, but preparation refuses a CalVer already claimed by any tag.
 
 ## Questions?
 
