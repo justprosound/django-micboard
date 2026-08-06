@@ -31,10 +31,13 @@ def test_release_version_defaults_to_the_next_utc_calver() -> None:
     assert "required: false" in preparation
     assert "REQUESTED_VERSION: ${{ inputs.version }}" in preparation
     assert "uses: ./.github/actions/setup-uv-python" in preparation
+    prepare_job = preparation[preparation.index("  prepare-release:") :]
+    prepare_job = prepare_job[: prepare_job.index("  open-release-pr:")]
+
     assert (
-        'uv tool run bump-my-version bump patch --new-version "$REQUESTED_VERSION"' in preparation
+        'uv tool run bump-my-version bump release --new-version "$REQUESTED_VERSION"' in prepare_job
     )
-    assert "uv tool run bump-my-version bump patch" in preparation
+    assert "uv tool run bump-my-version bump release\n" in prepare_job
     assert (
         "RELEASE_VERSION=\"$(grep '^version = ' pyproject.toml | cut -d '\"' -f 2)\"" in preparation
     )
@@ -50,6 +53,19 @@ def test_release_workflows_accept_positive_same_day_calver_revisions() -> None:
 
     assert version_pattern in _workflow("prepare-release.yml")
     assert version_pattern in _workflow("publish-release.yml")
+
+
+def test_open_release_pr_bumps_version_with_captured_release_version() -> None:
+    """The merged-release metadata step must reuse the captured CalVer via the same bump part."""
+    preparation = _workflow("prepare-release.yml")
+
+    metadata_job = preparation[preparation.index("  open-release-pr:") :]
+    metadata_job = metadata_job[: metadata_job.index("  validate-release-pr:")]
+
+    assert (
+        'uv tool run bump-my-version bump release --new-version "$RELEASE_VERSION"' in metadata_job
+    )
+    assert "RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}" in metadata_job
 
 
 def test_release_builds_are_reproducible_across_safe_retries() -> None:
