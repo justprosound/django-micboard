@@ -7,7 +7,7 @@ from micboard.models.discovery.registry import DiscoveredDevice
 from micboard.serializers.v1.discovery import DiscoveredDeviceSerializer
 
 
-class DiscoveredDeviceViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
+class DiscoveredDeviceViewSet(ReadOnlyModelViewSet):
     """Read-only viewset for DiscoveredDevice."""
 
     serializer_class = DiscoveredDeviceSerializer

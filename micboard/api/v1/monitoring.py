@@ -8,7 +8,7 @@ from micboard.serializers.v1.monitoring import AlertSerializer, MonitoringGroupS
 from micboard.services.monitoring.alerts import get_alerts_for_user
 
 
-class MonitoringGroupViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
+class MonitoringGroupViewSet(ReadOnlyModelViewSet):
     """Read-only viewset for MonitoringGroup."""
 
     serializer_class = MonitoringGroupSerializer
@@ -25,7 +25,7 @@ class MonitoringGroupViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
         return user.monitoring_groups.filter(is_active=True)
 
 
-class AlertViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
+class AlertViewSet(ReadOnlyModelViewSet):
     """Read-only viewset for Alert."""
 
     serializer_class = AlertSerializer

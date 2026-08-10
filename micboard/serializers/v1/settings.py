@@ -5,7 +5,7 @@ from rest_framework import serializers
 from micboard.models.settings.registry import Setting, SettingDefinition
 
 
-class SettingDefinitionSerializer(serializers.ModelSerializer):  # type: ignore[misc]
+class SettingDefinitionSerializer(serializers.ModelSerializer):
     class Meta:
         model = SettingDefinition
         fields = "__all__"
@@ -17,10 +17,10 @@ class SettingDefinitionSerializer(serializers.ModelSerializer):  # type: ignore[
             substring in key for substring in ("secret", "password", "key", "token", "credential")
         ):
             ret["default_value"] = "********"
-        return ret  # type: ignore[no-any-return]
+        return ret
 
 
-class SettingSerializer(serializers.ModelSerializer):  # type: ignore[misc]
+class SettingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Setting
         fields = "__all__"
@@ -32,4 +32,4 @@ class SettingSerializer(serializers.ModelSerializer):  # type: ignore[misc]
             substring in key for substring in ("secret", "password", "key", "token", "credential")
         ):
             ret["value"] = "********"
-        return ret  # type: ignore[no-any-return]
+        return ret

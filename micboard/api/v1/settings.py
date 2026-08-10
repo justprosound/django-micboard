@@ -8,7 +8,7 @@ from micboard.serializers.v1.settings import SettingDefinitionSerializer, Settin
 from micboard.services.settings.visibility_service import settings_visibility
 
 
-class SettingDefinitionViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
+class SettingDefinitionViewSet(ReadOnlyModelViewSet):
     """Read-only viewset for SettingDefinition."""
 
     serializer_class = SettingDefinitionSerializer
@@ -18,7 +18,7 @@ class SettingDefinitionViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
         return SettingDefinition.objects.filter(is_active=True)
 
 
-class SettingViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
+class SettingViewSet(ReadOnlyModelViewSet):
     """Read-only viewset for Setting overrides."""
 
     serializer_class = SettingSerializer
