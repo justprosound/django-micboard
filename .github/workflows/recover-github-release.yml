@@ -59,7 +59,7 @@ jobs:
             echo "Invalid release commit: $EXPECTED_SHA"
             exit 1
           fi
-          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}(\.[1-9][0-9]*)?$ ]]; then
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]{2,4}\.[0-9]{1,2}\.[0-9]{1,2}(\.[0-9]+)?$ ]]; then
             echo "Invalid CalVer format: $RELEASE_VERSION"
             exit 1
           fi
