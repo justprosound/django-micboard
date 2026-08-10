@@ -295,7 +295,7 @@ uv run --no-sync pytest -m django_db
 
 ## Linting and prek
 
-Use ruff and pre-commit to keep code quality consistent:
+Use ruff and prek to keep code quality consistent:
 
 ```bash
 uv run --no-sync ruff check .

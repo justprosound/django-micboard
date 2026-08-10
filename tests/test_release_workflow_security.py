@@ -10,7 +10,16 @@ WORKFLOW_ROOT = Path(__file__).parents[1] / ".github" / "workflows"
 
 def _workflow(name: str) -> str:
     """Return one checked-in workflow as its public configuration contract."""
-    return (WORKFLOW_ROOT / name).read_text(encoding="utf-8")
+    content = (WORKFLOW_ROOT / name).read_text(encoding="utf-8")
+    script_path = WORKFLOW_ROOT.parent / "scripts" / "upsert_github_release_draft.sh"
+    if script_path.exists():
+        script = script_path.read_text(encoding="utf-8")
+        content = re.sub(
+            r"bash \.github/scripts/upsert_github_release_draft\.sh.*",
+            lambda m: script,
+            content,
+        )
+    return content
 
 
 def test_release_workflows_have_single_responsibility_names() -> None:
@@ -106,7 +115,7 @@ def test_auto_release_uses_the_current_push_commit_subjects() -> None:
     assert 'git log "$RANGE" --format=%s' in trigger
     assert "'^(feat|fix)(\\([^)]*\\))?!?:'" in trigger
     assert "git describe --tags" not in trigger
-    assert "cancel-in-progress: true" in trigger
+    assert "cancel-in-progress: false" in trigger
     assert "gh workflow run prepare-release.yml --ref main" in trigger
     for release_path in (
         "micboard/**",

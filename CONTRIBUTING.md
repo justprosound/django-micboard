@@ -328,7 +328,7 @@ Maintainers follow this process:
 1. Collect changes in `CHANGELOG.md` under `[Unreleased]`
 2. Merge a `feat` or `fix` Conventional Commit to let automation start the **Prepare Release PR**
    workflow; dispatch it manually only for a backfill or controlled retry
-3. Let the workflow open a release pull request and dispatch CI and documentation checks
+3. Let the workflow open a release pull request and dispatch the exact `CI required` workflow run (which includes documentation validation)
 4. Let protected-branch auto-merge merge the pull request only after every required check passes
 5. Review the TestPyPI verification results and approve the production `pypi-release` environment;
    this is the only happy-path manual publication gate

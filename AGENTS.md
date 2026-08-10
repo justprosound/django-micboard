@@ -89,13 +89,15 @@ This document distills all key architectural, workflow, and style rules for code
       ```bash
       uv run --no-sync ruff format .
       ```
-    - Prek (install and run all hooks):
+    - **Prek (install and run all hooks):**
+
       ```bash
       uv run --no-sync prek install -f --prepare-hooks
       uv run --no-sync prek run --all-files
       ```
 
 - **Type Checking:**
+
     ```bash
     uv run --no-sync python -m mypy micboard
     ```

@@ -170,7 +170,7 @@ def test_release_writers_have_narrow_responsibilities() -> None:
     assert "id-token: write" not in github_release_job
     assert "softprops/action-gh-release@" not in github_release_job
     assert "actions/download-artifact@" in github_release_job
-    assert "gh release create" in github_release_job
+    assert "upsert_github_release_draft.sh" in github_release_job
     assert "gh release edit" in github_release_job
     assert "actions/checkout@" not in github_release_job
     assert "setup-uv@" not in github_release_job
@@ -245,6 +245,7 @@ def test_local_wheel_recipe_runs_the_ci_smoke_contract_in_development_mode() -> 
 
 
 def test_distribution_excludes_development_fuzzers() -> None:
+    """Development fuzzers must not be included in the distributed source archive."""
     manifest = (ROOT / "MANIFEST.in").read_text()
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 
@@ -318,6 +319,7 @@ def test_full_dependency_audit_runs_on_a_weekly_cadence() -> None:
 
 
 def test_supported_runtime_matrix_covers_python_and_django_releases() -> None:
+    """Documentation files must document the currently supported Python and Django matrix."""
     workflow = (WORKFLOWS / "ci.yml").read_text()
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 
@@ -343,9 +345,11 @@ def test_supported_runtime_matrix_covers_python_and_django_releases() -> None:
         content = support_doc.read_text()
         assert "Django 5.2" in content or "**Django**: 5.2" in content
         assert "Django 5.1" not in content
+        assert "**Django**: 5.1" not in content
 
 
 def test_ci_rejects_model_changes_without_migrations() -> None:
+    """CI must fail if model schema modifications lack corresponding migrations."""
     workflow = (WORKFLOWS / "ci.yml").read_text()
     lint_job = _workflow_job(workflow, "lint")
 

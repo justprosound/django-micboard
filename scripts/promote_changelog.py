@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Promote unreleased changelog notes into a versioned release section."""
 
 from __future__ import annotations
 
@@ -12,14 +13,22 @@ RELEASE_HEADING_PREFIX = "## ["
 
 @dataclass(frozen=True, slots=True)
 class ReleaseSection:
+    """Container for versioned release metadata and notes."""
+
     version: str
     release_date: str
     notes: str
 
 
 def promote_changelog(content: str, section: ReleaseSection) -> str:
+    """Insert a new versioned release section into the changelog content."""
     lines = content.splitlines()
-    unreleased_index = lines.index(UNRELEASED_HEADING)
+    unreleased_index = next(
+        (index for index, line in enumerate(lines) if line.startswith(UNRELEASED_HEADING)),
+        None,
+    )
+    if unreleased_index is None:
+        raise ValueError(f"Changelog has no {UNRELEASED_HEADING} heading")
     next_release_index = next(
         (
             index
@@ -41,6 +50,7 @@ def promote_changelog(content: str, section: ReleaseSection) -> str:
 
 
 def main() -> int:
+    """CLI entry point for promoting unreleased changelog notes."""
     parser = argparse.ArgumentParser()
     parser.add_argument("changelog", type=Path)
     parser.add_argument("--version", required=True)
@@ -51,9 +61,12 @@ def main() -> int:
     section = ReleaseSection(
         version=args.version,
         release_date=args.date,
-        notes=args.notes_file.read_text(),
+        notes=args.notes_file.read_text(encoding="utf-8"),
     )
-    args.changelog.write_text(promote_changelog(args.changelog.read_text(), section))
+    args.changelog.write_text(
+        promote_changelog(args.changelog.read_text(encoding="utf-8"), section),
+        encoding="utf-8",
+    )
     return 0
 
 

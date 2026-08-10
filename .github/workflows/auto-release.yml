@@ -14,11 +14,10 @@ on:
       - "uv.lock"
 
 concurrency:
-  # Coalesce push checks; a newer push cancels an older check that has not
-  # yet dispatched preparation. Dispatched preparation retains its own
-  # non-cancellable serialization in prepare-release.yml.
+  # Coalesce push checks without cancelling an in-progress check. Dispatched
+  # preparation retains its own non-cancellable serialization in prepare-release.yml.
   group: auto-release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   actions: write
@@ -47,7 +46,7 @@ jobs:
           # Light-weight tags created by tooling other than the release workflow
           # are not a release boundary. The authoritative range is the push that
           # just reached main, not "since the last tag".
-          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
             RANGE="$AFTER_SHA"
           else
             RANGE="${BEFORE_SHA}..${AFTER_SHA}"
