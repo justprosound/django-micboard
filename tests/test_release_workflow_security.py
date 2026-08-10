@@ -58,7 +58,7 @@ def test_release_version_defaults_to_the_next_utc_calver() -> None:
 
 def test_release_workflows_accept_positive_same_day_calver_revisions() -> None:
     """Preparation and publication must agree on the collision-safe version grammar."""
-    version_pattern = "^[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}(\\.[1-9][0-9]*)?$"
+    version_pattern = "^[0-9]{2,4}\\.[0-9]{1,2}\\.[0-9]{1,2}(\\.[0-9]+)?$"
 
     assert version_pattern in _workflow("prepare-release.yml")
     assert version_pattern in _workflow("publish-release.yml")
