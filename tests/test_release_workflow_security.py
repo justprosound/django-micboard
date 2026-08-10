@@ -82,7 +82,7 @@ def test_release_preparation_uses_locked_tools_and_restricts_committed_paths() -
     metadata_job = preparation[preparation.index("  open-release-pr:") :]
     metadata_job = metadata_job[: metadata_job.index("  validate-release-pr:")]
 
-    assert '"bump-my-version==1.5.0"' in pyproject
+    assert '"bump-my-version==1.5.1"' in pyproject
     assert preparation.count("uv sync --locked --only-group release-preparation") == 2
     assert "uv tool run" not in preparation
     assert "git status --porcelain=v1 -z --untracked-files=all" in metadata_job
