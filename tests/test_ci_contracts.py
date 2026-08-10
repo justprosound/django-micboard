@@ -207,7 +207,7 @@ def test_build_backend_dependencies_are_exactly_pinned() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 
     assert pyproject["build-system"]["requires"] == [
-        "setuptools==83.0.0",
+        "setuptools==84.0.0",
         "wheel==0.47.0",
     ]
 
