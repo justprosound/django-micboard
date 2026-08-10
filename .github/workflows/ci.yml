@@ -96,9 +96,18 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-extras
 
+      - name: Verify installed Django version matches matrix
+        run: |
+          INSTALLED_VERSION=$(uv run --no-sync --no-config --with "Django~=${{ matrix.django-version }}.0" python -c "import django; print(django.get_version())" 2>/dev/null || uv run --no-sync --no-config --with "Django>=${{ matrix.django-version }}.0a1,<6.2" python -c "import django; print(django.get_version())")
+          echo "Installed Django version: ${INSTALLED_VERSION}"
+          if [[ "${INSTALLED_VERSION}" != "${{ matrix.django-version }}"* ]]; then
+            echo "::error::Installed Django version (${INSTALLED_VERSION}) does not match expected matrix version (${{ matrix.django-version }})"
+            exit 1
+          fi
+
       - name: Run tests with coverage
         run: |
-          uv run --no-sync --with "Django~=${{ matrix.django-version }}.0" pytest tests/ \
+          uv run --no-sync --no-config --with "Django~=${{ matrix.django-version }}.0" pytest tests/ \
             --cov=micboard \
             --cov-report=xml \
             --cov-report=html \
