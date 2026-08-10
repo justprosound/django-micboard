@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0", "wheel==0.47.0"]
+requires = ["setuptools==84.0.0", "wheel==0.47.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -439,7 +439,7 @@ fuzz = [
     "atheris>=2.3.0",
 ]
 release-preparation = [
-    "bump-my-version==1.5.0",
+    "bump-my-version==1.5.1",
 ]
 
 # ============================================================================
@@ -501,3 +501,5 @@ replace = "version = \"{new_version}\""
 
 [[tool.bumpversion.files]]
 filename = "uv.lock"
+
+# Trivial change to trigger re-checks
