@@ -29,10 +29,16 @@
     "automerge": true,
     "automergeType": "pr",
     "automergeStrategy": "squash",
-    "minimumReleaseAge": "0 days",
-    "prPriority": 10
+    "minimumReleaseAge": "0 days"
   },
   "packageRules": [
+    {
+      "description": "High priority for vulnerability alert PRs",
+      "matchCategories": [
+        "vulnerability"
+      ],
+      "prPriority": 10
+    },
     {
       "description": "Update digest-only pinning manually - verified by CI before merge",
       "matchUpdateTypes": [
