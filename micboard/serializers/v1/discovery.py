@@ -24,7 +24,7 @@ def redact_sensitive_keys(data: Any) -> Any:
     return data
 
 
-class DiscoveredDeviceSerializer(serializers.ModelSerializer):  # type: ignore[misc]
+class DiscoveredDeviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = DiscoveredDevice
         fields = "__all__"
@@ -33,4 +33,4 @@ class DiscoveredDeviceSerializer(serializers.ModelSerializer):  # type: ignore[m
         ret = super().to_representation(instance)
         if ret.get("metadata"):
             ret["metadata"] = redact_sensitive_keys(ret["metadata"])
-        return ret  # type: ignore[no-any-return]
+        return ret

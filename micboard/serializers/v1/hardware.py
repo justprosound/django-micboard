@@ -5,19 +5,19 @@ from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.rf_coordination.rf_channel import RFChannel
 
 
-class WirelessChassisSerializer(serializers.ModelSerializer):  # type: ignore[misc]
+class WirelessChassisSerializer(serializers.ModelSerializer):
     class Meta:
         model = WirelessChassis
         fields = "__all__"
 
 
-class WirelessUnitSerializer(serializers.ModelSerializer):  # type: ignore[misc]
+class WirelessUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = WirelessUnit
         fields = "__all__"
 
 
-class RFChannelSerializer(serializers.ModelSerializer):  # type: ignore[misc]
+class RFChannelSerializer(serializers.ModelSerializer):
     class Meta:
         model = RFChannel
         fields = "__all__"

@@ -150,6 +150,7 @@ dev = [
     "mypy>=1.0",
     "pathspec<1.2",  # pathspec 1.1.x crashes mypy when optional re2 is absent
     "django-stubs[compatible-mypy]",
+    "djangorestframework-stubs[compatible-mypy]",
     "django-debug-toolbar",
     "django-extensions>=3.2.0",
     "types-channels>=4.0",
@@ -402,7 +403,7 @@ constraint-dependencies = [
 ]
 
 [tool.mypy]
-plugins = ["mypy_django_plugin.main"]
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 python_version = "3.13"
 exclude = ["^build/", "^dist/", "^tests/"]
 strict = true

@@ -13,7 +13,7 @@ from micboard.serializers.v1.hardware import (
 )
 
 
-class WirelessChassisViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
+class WirelessChassisViewSet(ReadOnlyModelViewSet):
     """Read-only viewset for WirelessChassis."""
 
     serializer_class = WirelessChassisSerializer
@@ -21,10 +21,12 @@ class WirelessChassisViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
 
     def get_queryset(self) -> Any:
         user = self.request.user
+        if not user.is_authenticated:
+            return WirelessChassis.objects.none()
         return WirelessChassis.objects.for_user(user=user)
 
 
-class WirelessUnitViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
+class WirelessUnitViewSet(ReadOnlyModelViewSet):
     """Read-only viewset for WirelessUnit."""
 
     serializer_class = WirelessUnitSerializer
@@ -32,10 +34,12 @@ class WirelessUnitViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
 
     def get_queryset(self) -> Any:
         user = self.request.user
+        if not user.is_authenticated:
+            return WirelessUnit.objects.none()
         return WirelessUnit.objects.for_user(user=user)
 
 
-class RFChannelViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
+class RFChannelViewSet(ReadOnlyModelViewSet):
     """Read-only viewset for RFChannel."""
 
     serializer_class = RFChannelSerializer
@@ -43,4 +47,6 @@ class RFChannelViewSet(ReadOnlyModelViewSet):  # type: ignore[misc]
 
     def get_queryset(self) -> Any:
         user = self.request.user
+        if not user.is_authenticated:
+            return RFChannel.objects.none()
         return RFChannel.objects.for_user(user=user)

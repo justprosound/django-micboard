@@ -704,6 +704,7 @@ dev = [
     { name = "django-extensions" },
     { name = "django-safemigrate" },
     { name = "django-stubs", extra = ["compatible-mypy"] },
+    { name = "djangorestframework-stubs", extra = ["compatible-mypy"] },
     { name = "factory-boy" },
     { name = "hypothesis", extra = ["django"] },
     { name = "mutmut" },
@@ -865,6 +866,7 @@ requires-dist = [
     { name = "djangorestframework", marker = "extra == 'standard'" },
     { name = "djangorestframework-camel-case", marker = "extra == 'all'" },
     { name = "djangorestframework-camel-case", marker = "extra == 'standard'" },
+    { name = "djangorestframework-stubs", extras = ["compatible-mypy"], marker = "extra == 'dev'" },
     { name = "drf-spectacular", marker = "extra == 'all'" },
     { name = "drf-spectacular", marker = "extra == 'standard'" },
     { name = "drf-standardized-errors", marker = "extra == 'all'" },
@@ -1097,6 +1099,26 @@ name = "djangorestframework-camel-case"
 version = "1.4.2"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f4/87/647ce93053cb5e35e07bded676340774fe43190388b885c54aff47d8557b/djangorestframework-camel-case-1.4.2.tar.gz", hash = "sha256:cdae75846648abb6585c7470639a1d2fb064dc45f8e8b62aaa50be7f1a7a61f4", size = 8839, upload-time = "2023-02-13T15:28:11.941Z" }
+
+[[package]]
+name = "djangorestframework-stubs"
+version = "3.17.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django-stubs" },
+    { name = "types-pyyaml" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9d/a1/45e25dab89b3dfc5da7a138f7e82aca4e970269c53a3fceed1e94b31d390/djangorestframework_stubs-3.17.0.tar.gz", hash = "sha256:74c0307cad304c03c15aee5955ec2fdeab0ac854b5bea569dc124892792e2b96", size = 33115, upload-time = "2026-05-13T18:58:36.554Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/72/ff/6e27d4aea12f67d14e0c0ec41869307ae98ad3816858ddc2a56bc3f4e0b5/djangorestframework_stubs-3.17.0-py3-none-any.whl", hash = "sha256:babe2703f0401507780848439f49f76222a178b4fc73a6dcb30d0952a0a6dbc6", size = 57629, upload-time = "2026-05-13T18:58:34.779Z" },
+]
+
+[package.optional-dependencies]
+compatible-mypy = [
+    { name = "django-stubs", extra = ["compatible-mypy"] },
+    { name = "mypy" },
+]
 
 [[package]]
 name = "dnspython"
