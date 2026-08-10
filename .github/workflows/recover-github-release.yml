@@ -107,11 +107,17 @@ jobs:
 
       - name: Verify published bytes, provenance, and source contents
         env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           cd dist
           sha256sum --check SHA256SUMS
+          jq --exit-status \
+            --arg expected_sha "$EXPECTED_SHA" \
+            --arg expected_version "$RELEASE_VERSION" \
+            '.sha == $expected_sha and .version == $expected_version' \
+            RELEASE-METADATA.json >/dev/null
           test "$(find . -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
           test "$(find . -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
           test "$(find . -maxdepth 1 -name '*.spdx.json' | wc -l)" -eq 1
@@ -148,6 +154,7 @@ jobs:
           uv run --no-project python scripts/validate_wheel.py dist/*.whl
           gh attestation verify dist/*.whl --repo "$GITHUB_REPOSITORY"
           gh attestation verify dist/*.tar.gz --repo "$GITHUB_REPOSITORY"
+          gh attestation verify dist/RELEASE-METADATA.json --repo "$GITHUB_REPOSITORY"
           awk -v heading="## [$RELEASE_VERSION]" '
             index($0, heading) == 1 { in_release = 1; next }
             in_release && /^## \[/ { exit }
@@ -220,8 +227,26 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --json isDraft > "$RELEASE_STATE" 2>/dev/null; then
             if [ "$(jq --raw-output '.isDraft' "$RELEASE_STATE")" != "true" ]; then
-              echo "Release $RELEASE_TAG is already published"
-              exit 1
+              PUBLISHED_ASSETS="$RUNNER_TEMP/published-release-assets"
+              mkdir "$PUBLISHED_ASSETS"
+              gh release download "$RELEASE_TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --dir "$PUBLISHED_ASSETS"
+              EXPECTED_ASSETS=(
+                dist/*.whl
+                dist/*.tar.gz
+                dist/*.spdx.json
+                dist/*.publish.attestation
+                dist/SHA256SUMS
+                dist/RELEASE-METADATA.json
+              )
+              test "$(find "$PUBLISHED_ASSETS" -maxdepth 1 -type f | wc -l)" \
+                -eq "${#EXPECTED_ASSETS[@]}"
+              for asset in "${EXPECTED_ASSETS[@]}"; do
+                cmp --silent "$asset" "$PUBLISHED_ASSETS/$(basename "$asset")"
+              done
+              echo "Release $RELEASE_TAG is already published with the expected assets"
+              exit 0
             fi
             gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
@@ -238,5 +263,6 @@ jobs:
             dist/*.spdx.json \
             dist/*.publish.attestation \
             dist/SHA256SUMS \
+            dist/RELEASE-METADATA.json \
             --clobber
           gh release edit "$RELEASE_TAG" --draft=false --repo "$GITHUB_REPOSITORY"

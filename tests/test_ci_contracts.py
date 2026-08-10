@@ -97,7 +97,9 @@ def test_release_artifacts_are_built_once_and_digest_sealed() -> None:
     assert "uvx" not in build_job
     assert "--with-requirements release-tools.txt" in build_job
     assert "twine check dist/*" in build_job
-    assert "sha256sum ./*.whl ./*.tar.gz ./*.spdx.json > SHA256SUMS" in build_job
+    assert (
+        "sha256sum ./*.whl ./*.tar.gz ./*.spdx.json RELEASE-METADATA.json > SHA256SUMS" in build_job
+    )
     assert "sha256sum --check SHA256SUMS" in build_job
     assert "actions/upload-artifact@" in build_job
 
@@ -330,6 +332,17 @@ def test_supported_runtime_matrix_covers_python_and_django_releases() -> None:
     assert '"5.2"' in workflow
     assert '"6.0"' in workflow
     assert '"5.1"' not in workflow
+
+    support_docs = (
+        ROOT / "README.md",
+        ROOT / "docs" / "index.md",
+        ROOT / "docs" / "installation.md",
+        ROOT / ".github" / "copilot-instructions.md",
+    )
+    for support_doc in support_docs:
+        content = support_doc.read_text()
+        assert "Django 5.2" in content or "**Django**: 5.2" in content
+        assert "Django 5.1" not in content
 
 
 def test_ci_rejects_model_changes_without_migrations() -> None:

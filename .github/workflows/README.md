@@ -6,7 +6,7 @@ and `tests/test_release_workflow_security.py`.
 
 | Workflow | Responsibility | Trigger |
 | --- | --- | --- |
-| `auto-release.yml` | Automatically dispatch release preparation when features or bug fixes are merged to main | Push to main branch modifying core files |
+| `auto-release.yml` | Automatically dispatch release preparation when features or bug fixes are merged to main | Push to main modifying package or release metadata |
 | `auto-merge.yml` | Enable GitHub native auto-merge for Dependabot pull requests after CI passes | Pull-request activity from Dependabot |
 | `ci.yml` | Lint, type check, migration drift, package and documentation validation, Python/Django compatibility, 95% coverage, dependency review, locked-dependency audit, Bandit, CodeQL, and one stable aggregate check | Push, pull request, weekly schedule, or manual dispatch |
 | `mutation-testing.yml` | Run informational mutation testing without blocking pull requests | Weekly schedule or manual dispatch |
@@ -73,6 +73,22 @@ the GitHub release job cannot publish Python distributions. Explicit workflow-ru
 keeps the release gate effective even when repository branch rules are incomplete. The production
 environment approval is intentionally separate from pull-request validation so a single human
 maintainer can operate the repository without weakening the automated release gates.
+
+## Release identity decision
+
+The protected `pypi-release` environment approval supersedes the manual maintainer-signed tag gate
+introduced in [PR #111](https://github.com/justprosound/django-micboard/pull/111). That earlier gate
+required a separate local GPG ceremony in addition to production approval, creating two human gates
+for one publication.
+
+The version tag is now a post-publication locator, not the authorization mechanism. Production
+authorization comes from the protected environment immediately before GitHub grants the PyPI OIDC
+identity. Release integrity remains bound to the exact protected-main SHA through the sealed release
+metadata, SHA-256 manifest, Sigstore build provenance and SBOM attestations, TestPyPI digest
+verification, and environment-bound PEP 740 attestations. The write-isolated release job creates the
+tag only after PyPI accepts those exact files and refuses an existing tag that targets another SHA.
+Protect `v*` tags from updates and deletion and enable GitHub release immutability as documented
+below.
 
 ## GitHub release recovery
 
@@ -153,13 +169,13 @@ so it informs future work but is not represented as a final requirement.
 | SSDF practice | Repository evidence |
 | --- | --- |
 | `PO.3` Implement Supporting Toolchains | One pinned uv bootstrap, immutable action SHAs, Renovate-managed updates, and `uv.lock` |
-| `PO.4` Define and Use Criteria for Software Security Checks | Static workflow contracts, pre-commit, mypy, Bandit, CodeQL, package checks, and a 95% coverage floor |
+| `PO.4` Define and Use Criteria for Software Security Checks | Static workflow contracts, prek, mypy, Bandit, CodeQL, package checks, and a 95% coverage floor |
 | `PO.5` Implement and Maintain Secure Environments | GitHub-hosted runners, explicit timeouts and concurrency, least-privilege job tokens, protected publishing environments, and explicit production deployment approval |
-| `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Mandatory pull requests, strict app-bound checks, signed linear history, CODEOWNERS routing, non-persisted read tokens, and a GitHub-verified maintainer-signed release tag bound to the exact release SHA |
+| `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Mandatory pull requests, strict app-bound checks, signed linear history, CODEOWNERS routing, non-persisted read tokens, protected production approval, and immutable exact-SHA release tags |
 | `PS.2` Provide a Mechanism for Verifying Software Release Integrity | SHA-256 manifests, signed Sigstore build-provenance and SPDX SBOM attestations, and environment-bound PEP 740 publish attestations |
 | `PS.3` Archive and Protect Each Software Release | Draft-first immutable GitHub releases containing the exact wheel, source archive, SPDX SBOM, PEP 740 attestations, and checksum manifest |
 | `PW.4` Reuse Existing, Well-Secured Software When Feasible | Locked Python dependencies, full-lock auditing, and dependency review for new vulnerabilities and OpenSSF signals |
-| `PW.7` Review and Analyze Human-Readable Code | Ruff, mypy, Bandit, CodeQL, pre-commit, and maintainer ownership rules |
+| `PW.7` Review and Analyze Human-Readable Code | Ruff, mypy, Bandit, CodeQL, prek, and maintainer ownership rules |
 | `PW.8` Test Executable Code | Django compatibility matrix, branch coverage, reusable-app validation, and installed-wheel smoke tests |
 | `RV.1` Identify and Confirm Vulnerabilities | Weekly full-lock audit, dependency review, Dependabot security updates, Bandit, CodeQL, and secret scanning |
 | `RV.2` Assess, Prioritize, and Remediate Vulnerabilities | Moderate-or-higher dependency failures, security gates, and automated dependency update tooling |

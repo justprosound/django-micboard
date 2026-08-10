@@ -36,10 +36,8 @@ def test_release_version_defaults_to_the_next_utc_calver() -> None:
     prepare_job = preparation[preparation.index("  prepare-release:") :]
     prepare_job = prepare_job[: prepare_job.index("  open-release-pr:")]
 
-    assert (
-        'uv tool run bump-my-version bump release --new-version "$REQUESTED_VERSION"' in prepare_job
-    )
-    assert "uv tool run bump-my-version bump release\n" in prepare_job
+    assert "uv run --locked --no-sync bump-my-version bump release" in prepare_job
+    assert '--new-version "$REQUESTED_VERSION"' in prepare_job
     assert (
         "RELEASE_VERSION=\"$(grep '^version = ' pyproject.toml | cut -d '\"' -f 2)\"" in preparation
     )
@@ -64,10 +62,24 @@ def test_open_release_pr_bumps_version_with_captured_release_version() -> None:
     metadata_job = preparation[preparation.index("  open-release-pr:") :]
     metadata_job = metadata_job[: metadata_job.index("  validate-release-pr:")]
 
-    assert (
-        'uv tool run bump-my-version bump release --new-version "$RELEASE_VERSION"' in metadata_job
-    )
+    assert "uv run --locked --no-sync bump-my-version bump release" in metadata_job
+    assert '--new-version "$RELEASE_VERSION"' in metadata_job
     assert "RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}" in metadata_job
+
+
+def test_release_preparation_uses_locked_tools_and_restricts_committed_paths() -> None:
+    preparation = _workflow("prepare-release.yml")
+    pyproject = (WORKFLOW_ROOT.parents[1] / "pyproject.toml").read_text()
+    metadata_job = preparation[preparation.index("  open-release-pr:") :]
+    metadata_job = metadata_job[: metadata_job.index("  validate-release-pr:")]
+
+    assert '"bump-my-version==1.5.0"' in pyproject
+    assert preparation.count("uv sync --locked --only-group release-preparation") == 2
+    assert "uv tool run" not in preparation
+    assert "git status --porcelain=v1 -z --untracked-files=all" in metadata_job
+    assert "add-paths: |" in metadata_job
+    for path in ("CHANGELOG.md", "pyproject.toml", "uv.lock"):
+        assert f"            {path}\n" in metadata_job
 
 
 def test_release_changelog_comes_from_unreleased_with_commit_fallback() -> None:
@@ -96,6 +108,15 @@ def test_auto_release_uses_the_current_push_commit_subjects() -> None:
     assert "git describe --tags" not in trigger
     assert "cancel-in-progress: true" in trigger
     assert "gh workflow run prepare-release.yml --ref main" in trigger
+    for release_path in (
+        "micboard/**",
+        "LICENSE",
+        "MANIFEST.in",
+        "README.md",
+        "pyproject.toml",
+        "uv.lock",
+    ):
+        assert f'      - "{release_path}"' in trigger
 
 
 def test_release_builds_are_reproducible_across_safe_retries() -> None:
@@ -128,7 +149,11 @@ def test_github_release_recovery_reuses_only_verified_pypi_artifacts() -> None:
     assert "sha256sum --check SHA256SUMS" in verify_job
     assert "https://pypi.org/pypi/django-micboard/$RELEASE_VERSION/json" in verify_job
     assert "gh attestation verify" in verify_job
+    assert "gh attestation verify dist/RELEASE-METADATA.json" in verify_job
     assert "scripts/validate_wheel.py" in verify_job
+    assert "EXPECTED_SHA: ${{ inputs.expected_sha }}" in verify_job
+    assert "RELEASE-METADATA.json" in verify_job
+    assert ".sha == $expected_sha and .version == $expected_version" in verify_job
     assert "actions: read" in verify_job
     assert "contents: write" not in verify_job
     assert "needs: verify-recovery" in release_job
@@ -170,6 +195,20 @@ def test_publication_retry_allows_its_existing_exact_release_tag() -> None:
     assert 'git show-ref --verify --quiet "refs/tags/v$RELEASE_VERSION"' not in validation_job
     assert "git/ref/tags/$RELEASE_TAG" in github_release_job
     assert ".object.sha == $expected_sha" in github_release_job
+
+
+def test_published_release_retry_verifies_remote_assets_and_succeeds() -> None:
+    publication = _workflow("publish-release.yml")
+    recovery = _workflow("recover-github-release.yml")
+
+    for release_job in (
+        publication[publication.index("  create-github-release:") :],
+        recovery[recovery.index("  create-github-release:") :],
+    ):
+        assert "gh release download" in release_job
+        assert "cmp --silent" in release_job
+        assert "already published with the expected assets" in release_job
+        assert "exit 0" in release_job
 
 
 def test_release_preparation_surfaces_the_single_publication_gate() -> None:
@@ -298,6 +337,7 @@ def test_release_artifacts_receive_build_provenance_before_publication() -> None
     assert "sha256sum --check SHA256SUMS" in attestation_job
     assert "actions/checkout@" not in attestation_job
     assert "uses: ./.github/actions/" not in attestation_job
+    assert "dist/RELEASE-METADATA.json" in attestation_job
     assert "needs: [validate-release, build-release, attest-release]" in publication
     assert (
         "needs: [validate-release, build-release, attest-release, verify-testpypi]" in publication
@@ -396,7 +436,8 @@ def test_github_release_publishes_the_verified_supply_chain_assets_atomically() 
     assert "dist/*.spdx.json" in github_release_job
     assert "dist/*.publish.attestation" in github_release_job
     assert "dist/SHA256SUMS" in github_release_job
-    assert github_release_job.count('--repo "$GITHUB_REPOSITORY"') == 5
+    assert "dist/RELEASE-METADATA.json" in github_release_job
+    assert github_release_job.count('--repo "$GITHUB_REPOSITORY"') == 6
     assert '--notes "$RELEASE_NOTES"' in github_release_job
     assert 'gh release edit "$RELEASE_TAG" --draft=false' in github_release_job
     assert github_release_job.index("gh release create") < github_release_job.index(
@@ -431,6 +472,9 @@ def test_ssdf_workflow_evidence_is_documented() -> None:
     assert "SSDF 1.2" in guide
     for practice in ("PO.3", "PO.4", "PO.5", "PS.1", "PS.2", "PW.7", "PW.8", "RV.1"):
         assert f"`{practice}`" in guide
+    assert "Release identity decision" in guide
+    assert "supersedes the manual maintainer-signed tag gate" in guide
+    assert "GitHub-verified maintainer-signed release tag" not in guide
 
 
 def test_publication_builds_the_exact_release_merge() -> None:

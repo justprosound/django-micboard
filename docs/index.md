@@ -7,7 +7,7 @@ Django Micboard is a Django application for real-time monitoring and management 
 **Version**: 26.01.27.0 (CalVer: `YY.MM.0D.MICRO`)
 **License**: AGPL-3.0-or-later
 **Python**: 3.13+
-**Django**: 5.1 through 6.0
+**Django**: 5.2 through 6.0
 
 ## Features
 

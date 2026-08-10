@@ -7,6 +7,11 @@ on:
       - main
     paths:
       - "micboard/**"
+      - "LICENSE"
+      - "MANIFEST.in"
+      - "README.md"
+      - "pyproject.toml"
+      - "uv.lock"
 
 concurrency:
   # Coalesce push checks; a newer push cancels an older check that has not

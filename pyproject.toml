@@ -437,6 +437,9 @@ release = [
 fuzz = [
     "atheris>=2.3.0",
 ]
+release-preparation = [
+    "bump-my-version==1.5.0",
+]
 
 # ============================================================================
 # Bandit Security Scanner

@@ -37,15 +37,19 @@ jobs:
         with:
           enable-cache: "false"
 
+      - name: Install locked release preparation tools
+        run: uv sync --locked --only-group release-preparation
+
       - name: Validate version format
         id: version
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           if [ -n "$REQUESTED_VERSION" ]; then
-            uv tool run bump-my-version bump release --new-version "$REQUESTED_VERSION"
+            uv run --locked --no-sync bump-my-version bump release \
+              --new-version "$REQUESTED_VERSION"
           else
-            uv tool run bump-my-version bump release
+            uv run --locked --no-sync bump-my-version bump release
           fi
           RELEASE_VERSION="$(grep '^version = ' pyproject.toml | cut -d '"' -f 2)"
 
@@ -110,6 +114,9 @@ jobs:
         with:
           enable-cache: "false"
 
+      - name: Install locked release preparation tools
+        run: uv sync --locked --only-group release-preparation
+
       - name: Verify the release base is still current
         env:
           RELEASE_BRANCH: release/v${{ needs.prepare-release.outputs.version }}
@@ -125,34 +132,31 @@ jobs:
           RELEASE_CHANGELOG: ${{ needs.prepare-release.outputs.changelog }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          uv tool run bump-my-version bump release --new-version "$RELEASE_VERSION"
+          uv run --locked --no-sync bump-my-version bump release \
+            --new-version "$RELEASE_VERSION"
           if ! grep -q "^## \[$RELEASE_VERSION\]" CHANGELOG.md; then
-            RELEASE_DATE="$(date +%Y-%m-%d)"
-            awk \
-              -v version="$RELEASE_VERSION" \
-              -v release_date="$RELEASE_DATE" \
-              -v release_changelog="$RELEASE_CHANGELOG" \
-              '{
-                print
-              }
-              $0 == "## [Unreleased]" {
-                print ""
-                print "## [" version "] - " release_date
-                print ""
-                print release_changelog
-                print ""
-              }' \
-              CHANGELOG.md > CHANGELOG.md.tmp
-            mv CHANGELOG.md.tmp CHANGELOG.md
+            printf '%s\n' "$RELEASE_CHANGELOG" > "$RUNNER_TEMP/release-changelog.md"
+            uv run --no-project python scripts/promote_changelog.py \
+              --version "$RELEASE_VERSION" \
+              --date "$(date -u +%Y-%m-%d)" \
+              --notes-file "$RUNNER_TEMP/release-changelog.md" \
+              CHANGELOG.md
           fi
           uv lock
 
       - name: Verify modified files
         run: |
-          UNEXPECTED="$(git diff --name-only | grep -Ev '^(CHANGELOG.md|pyproject.toml|uv.lock)$' || true)"
-          if [ -n "$UNEXPECTED" ]; then
+          UNEXPECTED=()
+          while IFS= read -r -d '' entry; do
+            path="${entry:3}"
+            case "$path" in
+              CHANGELOG.md|pyproject.toml|uv.lock) ;;
+              *) UNEXPECTED+=("$path") ;;
+            esac
+          done < <(git status --porcelain=v1 -z --untracked-files=all)
+          if [ "${#UNEXPECTED[@]}" -ne 0 ]; then
             echo "Unexpected files changed during release preparation:"
-            echo "$UNEXPECTED"
+            printf '  %s\n' "${UNEXPECTED[@]}"
             exit 1
           fi
           if git diff --quiet; then
@@ -172,6 +176,10 @@ jobs:
           body: "Prepare release ${{ needs.prepare-release.outputs.version }} through the protected main branch."
           commit-message: "chore: bump version to ${{ needs.prepare-release.outputs.version }}"
           sign-commits: true
+          add-paths: |
+            CHANGELOG.md
+            pyproject.toml
+            uv.lock
 
       - name: Set release PR outputs
         id: release-pr

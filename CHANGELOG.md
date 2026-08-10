@@ -18,7 +18,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - **Release automation**: Remove overlapping Release Drafter behavior, derive release notes
   deterministically from `[Unreleased]`, and automate preparation, TestPyPI verification, exact-SHA
   tag creation, and GitHub release assembly around one protected production approval; retry transient
-  GitHub API failures when dispatching release validation.
+  GitHub API failures when dispatching release validation, lock release preparation tools, restrict
+  generated release pull requests to declared metadata files, and bind recovery artifacts to sealed
+  source metadata.
 - **Supported runtimes**: Support Python 3.13 and 3.14 with Django 5.2 LTS and 6.0, and reject model
   changes that omit migrations in CI.
 - **Release package boundary**: Exclude development-only fuzzers from source distributions and
