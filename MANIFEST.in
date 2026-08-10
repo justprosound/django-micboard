@@ -18,6 +18,7 @@ recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * .DS_Store
 recursive-exclude * .git*
+recursive-exclude micboard/fuzzers *
 exclude .gitignore .pre-commit-config.yaml pytest.ini mkdocs.yml
 exclude *.sh
 exclude SECURITY.md ARCHITECTURE_*.md *_SUMMARY.md *_TRACKING.md *_WORKSHEET.md IMPLEMENTATION_*.md BREAKING_*.md LINTING_*.md MIGRATION_*.md PERFORMER_*.md REFACTORING_*.md SETTINGS_*.md QUICK_START*.md BATTERY_*.md

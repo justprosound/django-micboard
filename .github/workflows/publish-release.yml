@@ -87,6 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      RELEASE_SHA: ${{ needs.validate-release.outputs.sha }}
+      RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
       SOURCE_DATE_EPOCH: ${{ needs.validate-release.outputs.source-date-epoch }}
     permissions:
       contents: read
@@ -130,8 +132,13 @@ jobs:
 
       - name: Seal distribution checksums
         run: |
+          jq --null-input \
+            --arg sha "$RELEASE_SHA" \
+            --arg version "$RELEASE_VERSION" \
+            '{sha: $sha, version: $version}' \
+            > dist/RELEASE-METADATA.json
           cd dist
-          sha256sum ./*.whl ./*.tar.gz ./*.spdx.json > SHA256SUMS
+          sha256sum ./*.whl ./*.tar.gz ./*.spdx.json RELEASE-METADATA.json > SHA256SUMS
           sha256sum --check SHA256SUMS
 
       - name: Upload sealed distribution
@@ -178,6 +185,7 @@ jobs:
           subject-path: |
             dist/*.whl
             dist/*.tar.gz
+            dist/RELEASE-METADATA.json
 
       - name: Attest distribution SBOM
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d  # v4.2.1
@@ -302,30 +310,6 @@ jobs:
       url: https://pypi.org/p/django-micboard/${{ needs.validate-release.outputs.version }}
 
     steps:
-      - name: Verify maintainer-signed release tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ needs.validate-release.outputs.sha }}
-          RELEASE_TAG: v${{ needs.validate-release.outputs.version }}
-        run: |
-          TAG_OBJECT_SHA="$(gh api \
-            "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-            --jq 'select(.object.type == "tag") | .object.sha')"
-          if [[ ! "$TAG_OBJECT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Release tag $RELEASE_TAG must be an annotated tag"
-            exit 1
-          fi
-          if ! gh api "repos/$GITHUB_REPOSITORY/git/tags/$TAG_OBJECT_SHA" \
-            | jq --exit-status \
-              --arg expected_sha "$RELEASE_SHA" \
-              '.object.type == "commit" and
-               .object.sha == $expected_sha and
-               .verification.verified == true' \
-            >/dev/null; then
-            echo "Release tag $RELEASE_TAG must be verified and target $RELEASE_SHA"
-            exit 1
-          fi
-
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
         with:
@@ -402,7 +386,7 @@ jobs:
           sha256sum --check SHA256SUMS
           test "$(find . -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
 
-      - name: Create draft GitHub release and publish after asset upload
+      - name: Create immutable tag and publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_NOTES: ${{ needs.validate-release.outputs.changelog }}
@@ -416,43 +400,7 @@ jobs:
             --title "$RELEASE_TITLE"
             --verify-tag
           )
-          TAG_OBJECT_SHA="$(gh api \
-            "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-            --jq 'select(.object.type == "tag") | .object.sha')"
-          if [[ ! "$TAG_OBJECT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Release tag $RELEASE_TAG must be an annotated tag"
-            exit 1
-          fi
-          if ! gh api "repos/$GITHUB_REPOSITORY/git/tags/$TAG_OBJECT_SHA" \
-            | jq --exit-status \
-              --arg expected_sha "$RELEASE_SHA" \
-              '.object.type == "commit" and
-               .object.sha == $expected_sha and
-               .verification.verified == true' \
-            >/dev/null; then
-            echo "Release tag $RELEASE_TAG must be verified and target $RELEASE_SHA"
-            exit 1
-          fi
-          RELEASE_STATE="$RUNNER_TEMP/github-release.json"
-          if gh release view "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --json isDraft > "$RELEASE_STATE" 2>/dev/null; then
-            if [ "$(jq --raw-output '.isDraft' "$RELEASE_STATE")" != "true" ]; then
-              echo "Release $RELEASE_TAG is already published"
-              exit 1
-            fi
-          else
-            DRAFT_ID="$(gh api repos/$GITHUB_REPOSITORY/releases | jq '.[] | select(.draft == true) | .id' | head -n 1)"
-            if [ -n "$DRAFT_ID" ]; then
-              gh api -X PATCH repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID \
-                -f tag_name="$RELEASE_TAG" \
-                -f name="$RELEASE_TITLE" \
-                -f body="$RELEASE_NOTES"
-            else
-              gh release create "$RELEASE_TAG" "${RELEASE_FLAGS[@]}" \
-                --repo "$GITHUB_REPOSITORY"
-            fi
-          fi
+          bash .github/scripts/upsert_github_release_draft.sh --notes "$RELEASE_NOTES"
           gh release upload "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             dist/*.whl \
@@ -460,5 +408,6 @@ jobs:
             dist/*.spdx.json \
             dist/*.publish.attestation \
             dist/SHA256SUMS \
+            dist/RELEASE-METADATA.json \
             --clobber
           gh release edit "$RELEASE_TAG" --draft=false --repo "$GITHUB_REPOSITORY"

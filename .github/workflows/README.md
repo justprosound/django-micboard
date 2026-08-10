@@ -6,12 +6,11 @@ and `tests/test_release_workflow_security.py`.
 
 | Workflow | Responsibility | Trigger |
 | --- | --- | --- |
-| `auto-release.yml` | Automatically dispatch release preparation when features or bug fixes are merged to main | Push to main branch modifying core files |
+| `auto-release.yml` | Automatically dispatch release preparation when features or bug fixes are merged to main | Push to main modifying package or release metadata |
 | `auto-merge.yml` | Enable GitHub native auto-merge for Dependabot pull requests after CI passes | Pull-request activity from Dependabot |
-| `ci.yml` | Lint, type check, package validation, 95% coverage, locked-dependency audit, Bandit, CodeQL, and one stable aggregate check | Push, pull request, weekly schedule, or manual dispatch |
-| `dependency-review.yml` | Reject newly introduced vulnerable runtime and development dependencies | Pull request |
-| `docs.yml` | Build and validate MkDocs output | Push, pull request, or manual dispatch |
-| `prepare-release.yml` | Create the metadata pull request, observe exact required workflow runs, merge, and dispatch publication | Manual dispatch from `main` |
+| `ci.yml` | Lint, type check, migration drift, package and documentation validation, Python/Django compatibility, 95% coverage, dependency review, locked-dependency audit, Bandit, CodeQL, and one stable aggregate check | Push, pull request, weekly schedule, or manual dispatch |
+| `mutation-testing.yml` | Run informational mutation testing without blocking pull requests | Weekly schedule or manual dispatch |
+| `prepare-release.yml` | Create the metadata pull request, observe exact required workflow runs, merge, and dispatch publication | Dispatch from `auto-release.yml` or manually from `main` |
 | `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from the preparation workflow on `main` |
 | `recover-github-release.yml` | Reverify the original PyPI artifact from a failed publication run and finish only its GitHub release | Manual break-glass dispatch from `main` |
 | `scorecard.yml` | OpenSSF Scorecard supply-chain security analysis | Weekly schedule, branch protection changes, or push to main |
@@ -39,41 +38,57 @@ repository.
 
 The release lifecycle is **prepare -> validate -> merge -> attest -> publish**:
 
-1. `prepare-release.yml` derives the next UTC CalVer when its optional override is blank. The first
+1. `auto-release.yml` checks only the commit subjects in a push to `main` and dispatches preparation
+   for `feat` or `fix` Conventional Commits. Maintainers may dispatch preparation directly for
+   backfills and controlled retries.
+2. `prepare-release.yml` derives the next UTC CalVer when its optional override is blank. The first
    daily release uses `YY.MM.DD`; additional same-day releases increment `.1`, `.2`, and so on. It
-   validates the resolved version, asks GitHub to create a verified bot-signed metadata commit, and
-   opens a release pull request.
-2. A token limited to Actions dispatches `ci.yml`, `dependency-review.yml`, and `docs.yml` for the
-   exact release head, finds those workflow runs by head SHA and dispatch time, and waits for all
-   three to succeed.
-3. A separate repository-write token requests the protected pull-request merge.
-4. A third token limited to Actions passes the merge commit SHA to `publish-release.yml`.
-5. Publication verifies that SHA belongs to `main`, uses its commit timestamp as
+   validates the resolved version, moves deterministic `[Unreleased]` notes into a versioned
+   changelog section, asks GitHub to create a verified bot-signed metadata commit, and opens a
+   release pull request.
+3. A token limited to Actions dispatches `ci.yml` for the exact release head, finds that workflow
+   run by head SHA and dispatch time, and waits for its `CI required` aggregate to succeed.
+4. A separate repository-write token requests the protected pull-request merge.
+5. A third token limited to Actions passes the merge commit SHA to `publish-release.yml`.
+6. Publication verifies that SHA belongs to `main`, uses its commit timestamp as
    `SOURCE_DATE_EPOCH` for reproducible archives, builds with registry-standard dependency
    metadata, generates an SPDX JSON SBOM, and seals the wheel, source archive, and SBOM with
    SHA-256 checksums.
-6. An isolated OIDC job creates separate Sigstore build-provenance and SBOM attestations for the
+7. An isolated OIDC job creates separate Sigstore build-provenance and SBOM attestations for the
    sealed wheel and source archive.
-7. The protected `testpypi` job uses a hash-locked, uv-exported toolchain to sign environment-bound
+8. The protected `testpypi` job uses a hash-locked, uv-exported toolchain to sign environment-bound
    PEP 740 publish attestations, then uploads the wheel and source archive with those attestations.
-8. A read-only job compares TestPyPI's published digests with `SHA256SUMS`; production cannot reach
+9. A read-only job compares TestPyPI's published digests with `SHA256SUMS`; production cannot reach
    approval until this promotion check succeeds.
-9. After the release pull request merges, the maintainer uses the exact commands in the preparation
-   run summary to create and push a signed annotated tag for that merge commit.
-10. The same workflow run pauses at the protected `pypi-release` environment until the Code Owners
-    team explicitly approves the deployment. The job requires GitHub to verify the tag signature
-    and exact commit target, signs fresh PyPI-environment PEP 740 attestations for the same sealed
-    files, and publishes through OIDC Trusted Publishing. Keeping both registries in one run
-    prevents a later rebuild from reusing an already-published version.
-11. The GitHub release job rechecks the signed tag, downloads the registry-signed files, verifies
-    their checksums, creates a draft release with the wheel, source archive, SPDX SBOM, PEP 740
-    attestations, and checksum manifest, then publishes only after every asset is attached.
+10. The workflow pauses at the protected `pypi-release` environment. This approval is the only
+    happy-path manual gate. After approval, the isolated OIDC job signs fresh PyPI-environment PEP
+    740 attestations for the same sealed files and publishes through Trusted Publishing.
+11. The write-isolated GitHub release job creates or verifies `v<version>` at the exact release SHA,
+    downloads the registry-signed files, verifies their checksums, creates a draft release with the
+    wheel, source archive, SPDX SBOM, PEP 740 attestations, and checksum manifest, then publishes
+    only after every asset is attached.
 
 Preparation never receives an OIDC token. Publishing jobs cannot modify repository contents, and
 the GitHub release job cannot publish Python distributions. Explicit workflow-run observation
 keeps the release gate effective even when repository branch rules are incomplete. The production
 environment approval is intentionally separate from pull-request validation so a single human
 maintainer can operate the repository without weakening the automated release gates.
+
+## Release identity decision
+
+The protected `pypi-release` environment approval supersedes the manual maintainer-signed tag gate
+introduced in [PR #111](https://github.com/justprosound/django-micboard/pull/111). That earlier gate
+required a separate local GPG ceremony in addition to production approval, creating two human gates
+for one publication.
+
+The version tag is now a post-publication locator, not the authorization mechanism. Production
+authorization comes from the protected environment immediately before GitHub grants the PyPI OIDC
+identity. Release integrity remains bound to the exact protected-main SHA through the sealed release
+metadata, SHA-256 manifest, Sigstore build provenance and SBOM attestations, TestPyPI digest
+verification, and environment-bound PEP 740 attestations. The write-isolated release job creates the
+tag only after PyPI accepts those exact files and refuses an existing tag that targets another SHA.
+Protect `v*` tags from updates and deletion and enable GitHub release immutability as documented
+below.
 
 ## GitHub release recovery
 
@@ -83,8 +98,8 @@ commit, and its CalVer version. Recovery rejects any other workflow shape, downl
 `pypi-distribution` artifact instead of rebuilding it, and verifies its checksum manifest, package
 version, source contents, and GitHub Sigstore attestations in a read-only job. A one-day intermediate
 artifact then crosses into a separate `contents: write` job, which pauses for `pypi-release`
-environment approval, requires the same GitHub-verified signed tag to target the released commit,
-then creates a draft, attaches every original asset, and publishes it.
+environment approval, creates or verifies the version tag at the released commit, then creates a
+draft, attaches every original asset, and publishes it.
 
 Do not start a new publication run to recover an existing registry version. Registry indexes must
 never be used as permission to replace or reconstruct the original release attestations.
@@ -101,6 +116,9 @@ In repository **Settings**, scroll to **Releases** and select **Enable release i
 creating the first release. GitHub applies this only to future releases. The workflow deliberately
 creates a draft, attaches every integrity asset, and publishes it last so the completed release is
 ready for immutable enforcement.
+
+Protect `v*` tags against updates and deletion. The release workflow creates each tag only after
+PyPI accepts the sealed artifacts and refuses to reuse a tag that targets another commit.
 
 Consumers can verify build provenance with:
 
@@ -122,9 +140,11 @@ generated release pull request may pause its `pull_request` runs until a maintai
 `github-actions[bot]` once; approve only the runs bound to the generated release commit rather than
 weakening the approval policy.
 
-Protect `main` with strict, GitHub-Actions-bound checks named `CI required`, `build-docs`, and
-`dependency-review`. `CI required` aggregates lint, package, compatibility-matrix tests, Bandit,
-locked-dependency audit, and CodeQL so matrix maintenance does not require branch-rule edits.
+Protect `main` with strict, GitHub-Actions-bound checks through the single aggregate named
+`CI required`. It aggregates
+lint, migration drift, package and documentation validation, compatibility-matrix tests, dependency
+review, Bandit, locked-dependency audit, and CodeQL so matrix maintenance does not require
+branch-rule edits.
 Keep pull requests mandatory with zero required pull-request approvals: GitHub does not permit a
 pull-request author to approve their own change, so requiring a review would deadlock the sole
 human maintainer. CODEOWNERS remains non-blocking and routes security-sensitive changes to
@@ -149,13 +169,13 @@ so it informs future work but is not represented as a final requirement.
 | SSDF practice | Repository evidence |
 | --- | --- |
 | `PO.3` Implement Supporting Toolchains | One pinned uv bootstrap, immutable action SHAs, Renovate-managed updates, and `uv.lock` |
-| `PO.4` Define and Use Criteria for Software Security Checks | Static workflow contracts, pre-commit, mypy, Bandit, CodeQL, package checks, and a 95% coverage floor |
+| `PO.4` Define and Use Criteria for Software Security Checks | Static workflow contracts, prek, mypy, Bandit, CodeQL, package checks, and a 95% coverage floor |
 | `PO.5` Implement and Maintain Secure Environments | GitHub-hosted runners, explicit timeouts and concurrency, least-privilege job tokens, protected publishing environments, and explicit production deployment approval |
-| `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Mandatory pull requests, strict app-bound checks, signed linear history, CODEOWNERS routing, non-persisted read tokens, and a GitHub-verified maintainer-signed release tag bound to the exact release SHA |
+| `PS.1` Protect All Forms of Code from Unauthorized Access and Tampering | Mandatory pull requests, strict app-bound checks, signed linear history, CODEOWNERS routing, non-persisted read tokens, protected production approval, and immutable exact-SHA release tags |
 | `PS.2` Provide a Mechanism for Verifying Software Release Integrity | SHA-256 manifests, signed Sigstore build-provenance and SPDX SBOM attestations, and environment-bound PEP 740 publish attestations |
 | `PS.3` Archive and Protect Each Software Release | Draft-first immutable GitHub releases containing the exact wheel, source archive, SPDX SBOM, PEP 740 attestations, and checksum manifest |
 | `PW.4` Reuse Existing, Well-Secured Software When Feasible | Locked Python dependencies, full-lock auditing, and dependency review for new vulnerabilities and OpenSSF signals |
-| `PW.7` Review and Analyze Human-Readable Code | Ruff, mypy, Bandit, CodeQL, pre-commit, and maintainer ownership rules |
+| `PW.7` Review and Analyze Human-Readable Code | Ruff, mypy, Bandit, CodeQL, prek, and maintainer ownership rules |
 | `PW.8` Test Executable Code | Django compatibility matrix, branch coverage, reusable-app validation, and installed-wheel smoke tests |
 | `RV.1` Identify and Confirm Vulnerabilities | Weekly full-lock audit, dependency review, Dependabot security updates, Bandit, CodeQL, and secret scanning |
 | `RV.2` Assess, Prioritize, and Remediate Vulnerabilities | Moderate-or-higher dependency failures, security gates, and automated dependency update tooling |

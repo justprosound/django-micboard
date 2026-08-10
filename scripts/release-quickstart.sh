@@ -3,13 +3,10 @@
 
 set -euo pipefail
 
-if ! command -v uv >/dev/null 2>&1; then
-    echo "error: uv is required" >&2
-    exit 1
-fi
+just uv-check
 
 uv sync --locked --all-extras
-uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+uv run --no-sync prek run --all-files --show-diff-on-failure
 uv run --no-sync pytest
 uv run --no-sync python -m django check --settings=tests.settings
 uv run --no-sync python -m django makemigrations micboard micboard_multitenancy \

@@ -58,7 +58,7 @@ uv sync --locked --all-extras
 log_success "Dependencies synchronized"
 
 log_info "Installing the repository pre-commit hook..."
-uv run --no-sync pre-commit install --hook-type pre-commit
+uv run --no-sync prek install -f --prepare-hooks --hook-type pre-commit
 log_success "Pre-commit hook installed"
 
 log_info "Running Django system checks..."

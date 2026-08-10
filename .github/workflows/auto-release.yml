@@ -7,11 +7,21 @@ on:
       - main
     paths:
       - "micboard/**"
+      - "LICENSE"
+      - "MANIFEST.in"
+      - "README.md"
+      - "pyproject.toml"
+      - "uv.lock"
+
+concurrency:
+  # Coalesce push checks without cancelling an in-progress check. Dispatched
+  # preparation retains its own non-cancellable serialization in prepare-release.yml.
+  group: auto-release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   actions: write
   contents: read
-
 jobs:
   auto-release:
     name: Check and trigger release
@@ -24,22 +34,32 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check for conventional commits
+      - name: Check for conventional commits in this push
         id: check
+        env:
+          # github.event.before is the previous commit on main; for the first
+          # push to a fresh main it is all-zeros, which git treats as the
+          # root commit when used as a revision range.
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            echo "No previous tags found. First release."
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          # Light-weight tags created by tooling other than the release workflow
+          # are not a release boundary. The authoritative range is the push that
+          # just reached main, not "since the last tag".
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            RANGE="$AFTER_SHA"
+          else
+            RANGE="${BEFORE_SHA}..${AFTER_SHA}"
           fi
 
-          COMMITS=$(git log "$LAST_TAG..HEAD" --oneline)
-          if echo "$COMMITS" | grep -qE '^(feat|fix):'; then
-            echo "Significant changes (feat/fix) detected since $LAST_TAG."
+          # Match Conventional Commits subjects with optional scope and the
+          # breaking-change marker (!). --format=%s yields only the subject so
+          # the regex anchors at line start.
+          if git log "$RANGE" --format=%s | grep -qE '^(feat|fix)(\([^)]*\))?!?:'; then
+            echo "Significant changes (feat/fix) in $RANGE."
             echo "should_release=true" >> "$GITHUB_OUTPUT"
           else
-            echo "No significant changes since $LAST_TAG."
+            echo "No significant changes in $RANGE."
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           fi
 

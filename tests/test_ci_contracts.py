@@ -97,7 +97,9 @@ def test_release_artifacts_are_built_once_and_digest_sealed() -> None:
     assert "uvx" not in build_job
     assert "--with-requirements release-tools.txt" in build_job
     assert "twine check dist/*" in build_job
-    assert "sha256sum ./*.whl ./*.tar.gz ./*.spdx.json > SHA256SUMS" in build_job
+    assert (
+        "sha256sum ./*.whl ./*.tar.gz ./*.spdx.json RELEASE-METADATA.json > SHA256SUMS" in build_job
+    )
     assert "sha256sum --check SHA256SUMS" in build_job
     assert "actions/upload-artifact@" in build_job
 
@@ -168,7 +170,7 @@ def test_release_writers_have_narrow_responsibilities() -> None:
     assert "id-token: write" not in github_release_job
     assert "softprops/action-gh-release@" not in github_release_job
     assert "actions/download-artifact@" in github_release_job
-    assert "gh release create" in github_release_job
+    assert "upsert_github_release_draft.sh" in github_release_job
     assert "gh release edit" in github_release_job
     assert "actions/checkout@" not in github_release_job
     assert "setup-uv@" not in github_release_job
@@ -242,6 +244,15 @@ def test_local_wheel_recipe_runs_the_ci_smoke_contract_in_development_mode() -> 
     assert "DEBUG=True" in smoke_script
 
 
+def test_distribution_excludes_development_fuzzers() -> None:
+    """Development fuzzers must not be included in the distributed source archive."""
+    manifest = (ROOT / "MANIFEST.in").read_text()
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+
+    assert "recursive-exclude micboard/fuzzers *" in manifest
+    assert "micboard.fuzzers*" in pyproject["tool"]["setuptools"]["packages"]["find"]["exclude"]
+
+
 def test_dependency_automation_uses_canonical_uv_inputs() -> None:
     """Renovate must not edit generated exports or bypass their documentation check."""
     renovate_config = json.loads((ROOT / "renovate.json").read_text())
@@ -305,6 +316,45 @@ def test_full_dependency_audit_runs_on_a_weekly_cadence() -> None:
     assert "uv audit --locked --preview-features audit-command" in _workflow_job(
         workflow, "security"
     )
+
+
+def test_supported_runtime_matrix_covers_python_and_django_releases() -> None:
+    """Documentation files must document the currently supported Python and Django matrix."""
+    workflow = (WORKFLOWS / "ci.yml").read_text()
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+
+    assert set(pyproject["project"]["classifiers"]) >= {
+        "Framework :: Django :: 5.2",
+        "Framework :: Django :: 6.0",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
+    }
+    assert '"3.13"' in workflow
+    assert '"3.14"' in workflow
+    assert '"5.2"' in workflow
+    assert '"6.0"' in workflow
+    assert '"5.1"' not in workflow
+
+    support_docs = (
+        ROOT / "README.md",
+        ROOT / "docs" / "index.md",
+        ROOT / "docs" / "installation.md",
+        ROOT / ".github" / "copilot-instructions.md",
+    )
+    for support_doc in support_docs:
+        content = support_doc.read_text()
+        assert "Django 5.2" in content or "**Django**: 5.2" in content
+        assert "Django 5.1" not in content
+        assert "**Django**: 5.1" not in content
+
+
+def test_ci_rejects_model_changes_without_migrations() -> None:
+    """CI must fail if model schema modifications lack corresponding migrations."""
+    workflow = (WORKFLOWS / "ci.yml").read_text()
+    lint_job = _workflow_job(workflow, "lint")
+
+    assert "python manage.py makemigrations" in lint_job
+    assert "--check --dry-run --settings=tests.settings" in lint_job
 
 
 def test_ci_exposes_one_stable_required_check() -> None:

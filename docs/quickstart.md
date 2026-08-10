@@ -5,7 +5,7 @@ Get django-micboard up and running with your Shure wireless microphone system in
 ## Prerequisites
 
 - Python 3.13+
-- Django 5.1 through 6.0
+- Django 5.2 through 6.0
 - A Shure System API server (installed and running)
 - Network access to your Shure devices
 

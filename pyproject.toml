@@ -26,7 +26,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Framework :: Django",
-    "Framework :: Django :: 5.1",
     "Framework :: Django :: 5.2",
     "Framework :: Django :: 6.0",
     "Intended Audience :: Developers",
@@ -36,6 +35,7 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Communications",
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
@@ -44,7 +44,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "Django>=5.1,<6.1",
+    "Django>=5.2,<6.1",
     "Pillow>=10.0.0",
     "httpx>=0.27",
     "pydantic>=2.0",
@@ -146,6 +146,7 @@ dev = [
     "factory-boy>=3.2",
     "django-safemigrate>=6.0",
     "ruff>=0.1.0",
+    "prek>=0.4.10",
     "mypy>=1.0",
     "pathspec<1.2",  # pathspec 1.1.x crashes mypy when optional re2 is absent
     "django-stubs[compatible-mypy]",
@@ -213,6 +214,7 @@ all = [
     "factory-boy>=3.2",
     "django-safemigrate>=6.0",
     "ruff>=0.1.0",
+    "prek>=0.4.10",
     "mypy>=1.0",
     "pathspec<1.2",  # pathspec 1.1.x crashes mypy when optional re2 is absent
     "django-stubs[compatible-mypy]",
@@ -395,7 +397,7 @@ quote-style = "double"
 managed = true
 package = true
 constraint-dependencies = [
-    "Django==5.1.15",
+    "Django==5.2.*",
     "django-debug-toolbar<7",
 ]
 
@@ -434,6 +436,9 @@ release = [
 ]
 fuzz = [
     "atheris>=2.3.0",
+]
+release-preparation = [
+    "bump-my-version==1.5.0",
 ]
 
 # ============================================================================

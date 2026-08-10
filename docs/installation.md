@@ -9,7 +9,7 @@ Complete installation instructions for django-micboard.
 ### Minimum Requirements
 
 - **Python**: 3.13 or higher
-- **Django**: 5.1 through 6.0
+- **Django**: 5.2 through 6.0
 - **Database**: PostgreSQL for production; SQLite for local development and tests
 - **Memory**: 512MB RAM minimum
 - **Storage**: 100MB free space

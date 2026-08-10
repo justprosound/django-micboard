@@ -15,6 +15,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- **Release automation**: Remove overlapping Release Drafter behavior, derive release notes
+  deterministically from `[Unreleased]`, and automate preparation, TestPyPI verification, exact-SHA
+  tag creation, and GitHub release assembly around one protected production approval; retry transient
+  GitHub API failures when dispatching release validation, lock release preparation tools, restrict
+  generated release pull requests to declared metadata files, and bind recovery artifacts to sealed
+  source metadata.
+- **Supported runtimes**: Support Python 3.13 and 3.14 with Django 5.2 LTS and 6.0, and reject model
+  changes that omit migrations in CI.
+- **Release package boundary**: Exclude development-only fuzzers from source distributions and
+  wheels so package validation and publication use the same reusable-app boundary.
 - **Dependency updates**: Enable auto-merge for Renovate dependency updates (digest-only and patch versions) to reduce maintainer overhead, with a 3-day stability delay on patch versions to guard against supply-chain attacks.
 - **Contributor documentation**: Update `README.md`, `CONTRIBUTING.md`, and `SECURITY.md` to explicitly state that the project is maintained by a single developer, setting expectations around response times.
 - **Renovate dependency dashboard**: Auto-close the dependency dashboard issue when no updates remain, so stale dashboards do not accumulate; CodeRabbit issue enrichment stays enabled.

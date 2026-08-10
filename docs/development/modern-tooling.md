@@ -8,7 +8,7 @@ From the repository root:
 
 ```bash
 uv sync --locked --all-extras
-uv run --no-sync pre-commit install --hook-type pre-commit
+uv run --no-sync prek install -f --prepare-hooks --hook-type pre-commit
 ```
 
 The equivalent recipe is:
@@ -27,7 +27,7 @@ Run `just` to display the canonical list.
 | --- | --- |
 | `just install` | Sync the locked environment with all extras and install the pre-commit hook |
 | `just lint` | Check Ruff formatting, Ruff rules, and mypy |
-| `just pre-commit` | Run every configured hook against the repository |
+| `just prek` | Run every configured hook against the repository |
 | `just test` | Run the pytest suite |
 | `just coverage` | Run tests with the CI floor and validate the coverage inventory |
 | `just migrate` | Apply checked-in migrations to the example database |
@@ -76,13 +76,13 @@ The checked-in configuration is the source of truth. Current hooks cover:
 Run all hooks:
 
 ```bash
-just pre-commit
+just prek
 ```
 
 Run one hook:
 
 ```bash
-uv run --no-sync pre-commit run ruff-check --all-files
+uv run --no-sync prek run ruff-check --all-files
 ```
 
 The repository does not configure a commit-message hook. Commit messages still follow the Conventional Commits format documented in `CONTRIBUTING.md`.
@@ -134,7 +134,7 @@ Then run:
 ```bash
 just lint
 just test
-just pre-commit
+just prek
 ```
 
 ## Troubleshooting
@@ -158,8 +158,8 @@ uv sync --locked --all-extras
 Run that exact hook with verbose output, fix the reported file, then run all hooks:
 
 ```bash
-uv run --no-sync pre-commit run HOOK_ID --all-files --verbose
-just pre-commit
+uv run --no-sync prek run HOOK_ID --all-files --verbose
+just prek
 ```
 
 ### Migration drift fails
@@ -170,6 +170,6 @@ Do not hand-edit a migration to silence the check. Confirm whether a model chang
 
 - [uv documentation](https://docs.astral.sh/uv/)
 - [just manual](https://just.systems/man/en/)
-- [pre-commit documentation](https://pre-commit.com/)
+- [prek documentation](https://prek.j178.dev/)
 - [Ruff documentation](https://docs.astral.sh/ruff/)
 - [pytest documentation](https://docs.pytest.org/)

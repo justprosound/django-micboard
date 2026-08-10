@@ -12,7 +12,7 @@ django-micboard is a community-driven, pre-production Django reusable app for mo
 - **Status**: Beta (pre-production)
 - **Maintainer**: Single developer (please allow time for issue/PR responses)
 - **Python**: 3.13+
-- **Django**: 5.1 through 6.0
+- **Django**: 5.2 through 6.0
 
 ## Features
 
@@ -293,35 +293,31 @@ uv run --no-sync pytest -m integration
 uv run --no-sync pytest -m django_db
 ```
 
-## Linting & Pre-commit
+## Linting and prek
 
-Use ruff and pre-commit to keep code quality consistent:
+Use ruff and prek to keep code quality consistent:
 
 ```bash
 uv run --no-sync ruff check .
 uv run --no-sync ruff format .
-uv run --no-sync pre-commit run --all-files
+uv run --no-sync prek run --all-files
 ```
 
 ## Release Notes
 
 - Update CHANGELOG.md under [Unreleased] with notable changes.
-- Run the **Prepare Release PR** workflow from `main`. Leave the version blank to select the next
-  UTC daily release automatically (`YY.MM.DD`, then `.1`, `.2`, and so on), or enter an explicit
-  version for a backfill.
+- A merged `feat` or `fix` Conventional Commit automatically starts the **Prepare Release PR**
+  workflow. Run it manually from `main` only for backfills or controlled retries.
 - Release metadata reaches `main` through a protected pull request and required checks.
-- After that pull request merges, use the exact commands in the preparation run summary to create
-  and push a signed annotated tag for the merge commit. Wait for GitHub to mark the tag verified.
 - The publication workflow builds the protected merge commit once, signs Sigstore provenance and
   SPDX SBOM attestations, verifies the sealed files through TestPyPI, and publishes with
   environment-bound PEP 740 attestations.
-- Stable publication pauses for production-environment approval before PyPI. Approve only after
-  the signed tag exists; publication verifies that GitHub recognizes its signature and that its
-  target is the exact release commit. GitHub receives the exact registry-signed wheel, source
-  archive, SPDX SBOM, publish attestations, and checksums in a draft-first release suitable for
-  immutable-release enforcement.
+- Stable publication pauses once for production `pypi-release` environment approval. After
+  approval, the workflow publishes to PyPI, creates or verifies the version tag at the exact release
+  commit, and publishes a draft-first GitHub release containing the registry-signed wheel, source
+  archive, SPDX SBOM, publish attestations, and checksums.
 - If only GitHub release assembly fails after PyPI succeeds, use the audited recovery workflow with
-  the failed run ID and the same verified signed tag; it reverifies and reuses the original retained
+  the failed run ID, exact commit, and version. It reverifies and reuses the original retained
   artifact without rebuilding or touching either package registry.
 
 ## Development Workflow
@@ -333,7 +329,7 @@ uv run --no-sync pre-commit run --all-files
 
 1. **Install pre-commit hooks**:
    ```bash
-   uv run --no-sync pre-commit install
+   uv run --no-sync prek install -f --prepare-hooks
    ```
 
 2. **Run linting/formatting**:
@@ -350,7 +346,7 @@ uv run --no-sync pre-commit run --all-files
 4. **Run tests before committing**:
    ```bash
    uv run --no-sync pytest
-   uv run --no-sync pre-commit run --all-files
+   uv run --no-sync prek run --all-files
    ```
 
 5. **Security checks**:

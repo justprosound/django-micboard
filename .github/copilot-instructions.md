@@ -31,7 +31,7 @@ This repository contains a **Django reusable app** with a domain‑oriented, ser
 ### High-level architecture
 
 *   **Backend**
-    *   Django (4.x or higher) with app code in `<app_name>/`
+    *   Django 5.2 through 6.0 with app code in `<app_name>/`
     *   Optional native Huey tasks if present (see `<app_name>/tasks/` or similar)
 
 *   **Frontend (if present)**
