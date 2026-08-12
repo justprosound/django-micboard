@@ -73,7 +73,7 @@ class WirelessChassisPersistenceService:
 
         organization_model = apps.get_model("micboard_multitenancy", "Organization")
         with transaction.atomic(using=using):
-            organization = (
+            organization: Organization | None = (
                 organization_model._default_manager.using(using)
                 .select_for_update()
                 .filter(pk=organization_id)
