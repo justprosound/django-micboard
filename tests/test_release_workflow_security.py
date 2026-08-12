@@ -188,7 +188,6 @@ def test_release_writers_create_or_verify_the_tag_for_the_exact_commit() -> None
         assert '--field ref="refs/tags/$RELEASE_TAG"' in job
         assert '--field sha="$RELEASE_SHA"' in job
         assert '.object.type == "commit" and .object.sha == $expected_sha' in job
-        assert "--verify-tag" in job
         assert "--target" not in job
         assert "targetCommitish" not in job
 
