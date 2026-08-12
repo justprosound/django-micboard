@@ -82,6 +82,7 @@ jobs:
         django-version:
           - "5.2"  # Supported Django LTS floor
           - "6.0"  # renovate: datasource=endoflife-date depName=django
+          - "6.1"  # Latest stable
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from django.apps import apps
 from django.db import router, transaction
@@ -73,15 +73,12 @@ class WirelessChassisPersistenceService:
 
         organization_model = apps.get_model("micboard_multitenancy", "Organization")
         with transaction.atomic(using=using):
-            organization = cast(
-                "Organization | None",
-                (
-                    organization_model._default_manager.using(using)
-                    .select_for_update()
-                    .filter(pk=organization_id)
-                    .only("pk", "max_devices")
-                    .first()
-                ),
+            organization = (
+                organization_model._default_manager.using(using)
+                .select_for_update()
+                .filter(pk=organization_id)
+                .only("pk", "max_devices")
+                .first()
             )
             yield organization
 

@@ -12,7 +12,7 @@ django-micboard is a community-driven, pre-production Django reusable app for mo
 - **Status**: Beta (pre-production)
 - **Maintainer**: Single developer (please allow time for issue/PR responses)
 - **Python**: 3.13+
-- **Django**: 5.2 through 6.0
+- **Django**: 5.2 through 6.1
 
 ## Features
 

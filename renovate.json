@@ -60,6 +60,13 @@
       "minimumReleaseAge": "5 days"
     },
     {
+      "description": "Ignore Django major version updates - CI handles compatibility testing",
+      "matchDatasources": ["pypi"],
+      "matchDepNames": ["Django"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "description": "Major updates always require manual review - API surfaces can change",
       "matchUpdateTypes": [
         "major"
