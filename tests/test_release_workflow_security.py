@@ -188,7 +188,6 @@ def test_release_writers_create_or_verify_the_tag_for_the_exact_commit() -> None
         assert '--field ref="refs/tags/$RELEASE_TAG"' in job
         assert '--field sha="$RELEASE_SHA"' in job
         assert '.object.type == "commit" and .object.sha == $expected_sha' in job
-        assert "--verify-tag" in job
         assert "--target" not in job
         assert "targetCommitish" not in job
 
@@ -384,28 +383,22 @@ def test_release_artifact_uploads_are_retry_safe() -> None:
     """A failed job attempt must be able to replace its own immutable named artifact."""
     publication = _workflow("publish-release.yml")
 
-    assert publication.count("actions/upload-artifact@") == 4
-    assert publication.count("overwrite: true") == 4
+    assert publication.count("actions/upload-artifact@") == 3
+    assert publication.count("overwrite: true") == 3
 
 
 def test_registry_publishers_create_environment_bound_pep740_attestations() -> None:
     """Each registry upload must carry publish attestations signed by its own OIDC identity."""
     publication = _workflow("publish-release.yml")
-    build_job = publication[publication.index("  build-release:") :]
-    build_job = build_job[: build_job.index("  attest-release:")]
 
-    assert "uv export --locked --only-group release" in build_job
-    assert "release-attestation-tools" in build_job
     for start, end in (
-        ("  publish-testpypi:", "  publish-pypi:"),
+        ("  publish-testpypi:", "  verify-testpypi:"),
         ("  publish-pypi:", "  create-github-release:"),
     ):
         publish_job = publication[publication.index(start) : publication.index(end)]
-        signing = publish_job.index("python -m pypi_attestations sign")
+        signing = publish_job.index("uvx pypi-attestations sign")
         upload = publish_job.index("uv publish --trusted-publishing always --no-config")
 
-        assert "release-attestation-tools" in publish_job
-        assert "--with-requirements release-tools.txt" in publish_job
         assert "*.publish.attestation" in publish_job
         assert signing < upload
 

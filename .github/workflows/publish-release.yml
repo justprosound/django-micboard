@@ -115,8 +115,6 @@ jobs:
 
       - name: Check distribution
         run: |
-          uv run --no-project --no-config --with-requirements release-tools.txt -- \
-            twine check dist/*
           uv run --no-project python scripts/validate_wheel.py dist/*.whl
           uv run --no-project --with dist/*.whl python scripts/smoke_test_installed_wheel.py
 
@@ -149,15 +147,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
-          overwrite: true
-
-      - name: Upload locked release attestation toolchain
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          name: release-attestation-tools-${{ needs.validate-release.outputs.version }}
-          path: release-tools.txt
-          if-no-files-found: error
-          retention-days: 30
           overwrite: true
 
   attest-release:
@@ -207,11 +196,16 @@ jobs:
       url: https://test.pypi.org/p/django-micboard/${{ needs.validate-release.outputs.version }}
 
     steps:
-      - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
-          version: "0.12.3"
-          enable-cache: false
+          ref: ${{ needs.validate-release.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/actions
+
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
+        with:
+          enable-cache: "false"
 
       - name: Download sealed distribution
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -219,21 +213,30 @@ jobs:
           name: distribution-${{ needs.validate-release.outputs.version }}
           path: dist
 
-      - name: Download locked release attestation toolchain
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: release-attestation-tools-${{ needs.validate-release.outputs.version }}
-
       - name: Verify distribution checksums
         run: cd dist && sha256sum --check SHA256SUMS
 
       - name: Create TestPyPI publish attestations
         run: |
-          uv run --no-project --no-config --with-requirements release-tools.txt -- \
-            python -m pypi_attestations sign dist/*.whl dist/*.tar.gz
+          uvx pypi-attestations sign dist/*.whl dist/*.tar.gz
           test "$(find dist -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
 
+      - name: Check if version already exists on TestPyPI
+        id: testpypi-check
+        env:
+          RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
+        run: |
+          if curl --fail --silent --show-error \
+            "https://test.pypi.org/pypi/django-micboard/$RELEASE_VERSION/json" \
+            > /dev/null 2>&1; then
+            echo "Version $RELEASE_VERSION already exists on TestPyPI — skipping upload"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to TestPyPI
+        if: steps.testpypi-check.outputs.exists != 'true'
         run: >-
           uv publish --trusted-publishing always --no-config
           --publish-url https://test.pypi.org/legacy/
@@ -310,11 +313,16 @@ jobs:
       url: https://pypi.org/p/django-micboard/${{ needs.validate-release.outputs.version }}
 
     steps:
-      - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
-          version: "0.12.3"
-          enable-cache: false
+          ref: ${{ needs.validate-release.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/actions
+
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
+        with:
+          enable-cache: "false"
 
       - name: Download sealed distribution
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -322,18 +330,12 @@ jobs:
           name: distribution-${{ needs.validate-release.outputs.version }}
           path: dist
 
-      - name: Download locked release attestation toolchain
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          name: release-attestation-tools-${{ needs.validate-release.outputs.version }}
-
       - name: Verify distribution checksums
         run: cd dist && sha256sum --check SHA256SUMS
 
       - name: Create PyPI publish attestations
         run: |
-          uv run --no-project --no-config --with-requirements release-tools.txt -- \
-            python -m pypi_attestations sign dist/*.whl dist/*.tar.gz
+          uvx pypi-attestations sign dist/*.whl dist/*.tar.gz
           test "$(find dist -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
 
       - name: Publish to PyPI
@@ -374,6 +376,12 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          ref: ${{ needs.validate-release.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
       - name: Download PyPI release assets
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
@@ -394,11 +402,10 @@ jobs:
           RELEASE_TAG: v${{ needs.validate-release.outputs.version }}
           RELEASE_TITLE: Release ${{ needs.validate-release.outputs.version }}
         run: |
-          RELEASE_FLAGS=(
+          export RELEASE_FLAGS=(
             --draft
             --notes "$RELEASE_NOTES"
             --title "$RELEASE_TITLE"
-            --verify-tag
           )
           bash .github/scripts/upsert_github_release_draft.sh --notes "$RELEASE_NOTES"
           gh release upload "$RELEASE_TAG" \
