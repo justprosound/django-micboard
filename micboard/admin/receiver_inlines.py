@@ -23,9 +23,10 @@ class RFChannelInlineFormSet(BaseInlineFormSet):
         for form in self.forms:
             for field_name in self.unit_fields:
                 field = form.fields.get(field_name)
-                queryset = getattr(field, "queryset", None)
-                if queryset is not None:
-                    field.queryset = queryset.filter(base_chassis_id=chassis_id)
+                if field is not None:
+                    queryset = getattr(field, "queryset", None)
+                    if queryset is not None:
+                        field.queryset = queryset.filter(base_chassis_id=chassis_id)  # type: ignore[attr-defined]
 
     def clean(self) -> None:
         """Reject forged unit assignments even if a custom widget bypasses choices."""

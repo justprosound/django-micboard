@@ -307,3 +307,56 @@ def test_charger_slot_display_helpers() -> None:
     assert model_admin.device_info(SimpleNamespace(device_model="", device_serial="123")) == "123"
     assert model_admin.device_info(SimpleNamespace(device_model="", device_serial="")) == "-"
     assert model_admin.is_occupied(SimpleNamespace(occupied=True)) is True
+
+
+def test_rf_channel_inline_formset_skips_missing_fields_and_scopes_present_ones() -> None:
+    """The inline formset must not crash when a unit field is absent from a form."""
+    from unittest.mock import patch as _patch
+
+    from django.forms.models import BaseInlineFormSet
+
+    from micboard.admin.receiver_inlines import RFChannelInlineFormSet
+
+    mock_queryset = MagicMock()
+    mock_queryset.filter.return_value = mock_queryset
+
+    # Form with a present field (has queryset), a field without queryset, and a missing field
+    field_with_queryset = MagicMock(queryset=mock_queryset)
+    field_without_queryset = MagicMock(spec=[])  # no queryset attribute
+
+    form_fields: dict[str, Any] = {
+        "active_wireless_unit": field_with_queryset,
+        # "active_iem_receiver" deliberately absent — exercises the field is None guard
+    }
+
+    form = MagicMock()
+    form.fields = form_fields
+
+    def fake_super_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        self.instance = MagicMock(pk=42)
+        self.forms = [form]
+
+    with _patch.object(BaseInlineFormSet, "__init__", fake_super_init):
+        RFChannelInlineFormSet()
+
+    # The present field had its queryset filtered
+    mock_queryset.filter.assert_called_once_with(base_chassis_id=42)
+
+    # Now test with a field present but lacking a queryset attribute
+    mock_queryset.reset_mock()
+    form_fields_no_qs: dict[str, Any] = {
+        "active_wireless_unit": field_without_queryset,
+        "active_iem_receiver": field_without_queryset,
+    }
+    form2 = MagicMock()
+    form2.fields = form_fields_no_qs
+
+    def fake_super_init_2(self: Any, *args: Any, **kwargs: Any) -> None:
+        self.instance = MagicMock(pk=99)
+        self.forms = [form2]
+
+    with _patch.object(BaseInlineFormSet, "__init__", fake_super_init_2):
+        RFChannelInlineFormSet()
+
+    # No queryset filtering should happen — fields exist but have no queryset
+    mock_queryset.filter.assert_not_called()
