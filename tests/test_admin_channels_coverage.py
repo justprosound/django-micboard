@@ -332,7 +332,7 @@ def test_rf_channel_inline_formset_skips_missing_fields_and_scopes_present_ones(
     form = MagicMock()
     form.fields = form_fields
 
-    def fake_super_init(self: Any, *args: Any, **kwargs: Any) -> None:
+    def fake_super_init(self: BaseInlineFormSet, *_args: object, **_kwargs: object) -> None:
         self.instance = MagicMock(pk=42)
         self.forms = [form]
 
@@ -351,7 +351,7 @@ def test_rf_channel_inline_formset_skips_missing_fields_and_scopes_present_ones(
     form2 = MagicMock()
     form2.fields = form_fields_no_qs
 
-    def fake_super_init_2(self: Any, *args: Any, **kwargs: Any) -> None:
+    def fake_super_init_2(self: BaseInlineFormSet, *_args: object, **_kwargs: object) -> None:
         self.instance = MagicMock(pk=99)
         self.forms = [form2]
 
