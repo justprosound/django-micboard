@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.8.13.1] - 2026-08-13
+
+- fix(packaging): prune tests and dev directories from sdist (#194) (d272885)
+
 ## [2026.8.13.0] - 2026-08-13
 
 ### Added
