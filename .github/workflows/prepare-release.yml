@@ -50,9 +50,11 @@ jobs:
         run: |
           if [ -n "$REQUESTED_VERSION" ]; then
             uv run --locked --no-sync bump-my-version bump build \
+              --no-commit --no-tag \
               --new-version "$REQUESTED_VERSION"
           else
-            uv run --locked --no-sync bump-my-version bump build
+            uv run --locked --no-sync bump-my-version bump build \
+              --no-commit --no-tag
           fi
           RELEASE_VERSION="$(grep '^version = ' pyproject.toml | cut -d '"' -f 2)"
 
@@ -136,6 +138,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           uv run --locked --no-sync bump-my-version bump build \
+            --no-commit --no-tag \
             --new-version "$RELEASE_VERSION"
           if ! grep -q "^## \[$RELEASE_VERSION\]" CHANGELOG.md; then
             printf '%s\n' "$RELEASE_CHANGELOG" > "$RUNNER_TEMP/release-changelog.md"
