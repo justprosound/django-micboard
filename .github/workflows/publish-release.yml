@@ -108,11 +108,6 @@ jobs:
           uv run --no-project python scripts/normalize_sdist.py dist/*.tar.gz
           uv build --no-sources --wheel dist/*.tar.gz
 
-      - name: Export locked release toolchain
-        run: >-
-          uv export --locked --only-group release --no-emit-project
-          --output-file release-tools.txt
-
       - name: Check distribution
         run: |
           uv run --no-project python scripts/validate_wheel.py dist/*.whl
