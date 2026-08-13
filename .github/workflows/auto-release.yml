@@ -20,13 +20,16 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  actions: write
   contents: read
+
 jobs:
   auto-release:
     name: Check and trigger release
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

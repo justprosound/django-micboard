@@ -98,8 +98,10 @@ jobs:
         run: uv sync --locked --all-extras
 
       - name: Run tests with coverage
+        env:
+          DJANGO_VERSION: ${{ matrix.django-version }}
         run: |
-          uv run --no-sync --with "Django~=${{ matrix.django-version }}.0" pytest tests/ \
+          uv run --no-sync --with "Django~=${DJANGO_VERSION}.0" pytest tests/ \
             --cov=micboard \
             --cov-report=xml \
             --cov-report=html \
