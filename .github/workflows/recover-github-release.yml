@@ -194,27 +194,52 @@ jobs:
           test "$(find . -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
           test -s RELEASE_NOTES.md
 
-      - name: Create immutable tag and publish GitHub release
+      - name: Create or verify tag
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ inputs.expected_sha }}
           RELEASE_TAG: v${{ inputs.version }}
-          RELEASE_TITLE: Release ${{ inputs.version }}
         run: |
-          RELEASE_FLAGS=(
-            --draft
-            --notes-file dist/RELEASE_NOTES.md
-            --title "$RELEASE_TITLE"
-            --verify-tag
-          )
-          bash .github/scripts/upsert_github_release_draft.sh --notes-file dist/RELEASE_NOTES.md
-          gh release upload "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            dist/*.whl \
-            dist/*.tar.gz \
-            dist/*.spdx.json \
-            dist/*.publish.attestation \
-            dist/SHA256SUMS \
-            dist/RELEASE-METADATA.json \
-            --clobber
-          gh release edit "$RELEASE_TAG" --draft=false --repo "$GITHUB_REPOSITORY"
+          resolve_tag_sha() {
+            local ref_json="$1"
+            local obj_type obj_sha
+            obj_type="$(jq -r '.object.type' <<< "$ref_json")"
+            obj_sha="$(jq -r '.object.sha' <<< "$ref_json")"
+            if [ "$obj_type" = "commit" ]; then
+              echo "$obj_sha"
+            elif [ "$obj_type" = "tag" ]; then
+              gh api "repos/$GITHUB_REPOSITORY/git/tags/$obj_sha" --jq '.object.sha'
+            else
+              echo "Unexpected tag object type: $obj_type" >&2
+              return 1
+            fi
+          }
+
+          if REF_JSON="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" 2>/dev/null)"; then
+            ACTUAL_SHA="$(resolve_tag_sha "$REF_JSON")"
+            if [ "$ACTUAL_SHA" != "$RELEASE_SHA" ]; then
+              echo "::error::Tag $RELEASE_TAG points to $ACTUAL_SHA, expected $RELEASE_SHA"
+              exit 1
+            fi
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              --field ref="refs/tags/$RELEASE_TAG" \
+              --field sha="$RELEASE_SHA" >/dev/null
+          fi
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@fe965f7af51af5f2602596916f38a38df2e33de0  # v3.0.2
+        with:
+          tag_name: v${{ inputs.version }}
+          target_commitish: ${{ inputs.expected_sha }}
+          name: Release ${{ inputs.version }}
+          body_path: dist/RELEASE_NOTES.md
+          draft: false
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.spdx.json
+            dist/*.publish.attestation
+            dist/SHA256SUMS
+            dist/RELEASE-METADATA.json
+          overwrite_files: true
