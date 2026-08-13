@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.8.13.0] - 2026-08-13
+
 ### Added
 
 - **Property-based testing**: Add `hypothesis` to development dependencies and include starter property tests for DTO validation to automatically generate and verify edge cases.
