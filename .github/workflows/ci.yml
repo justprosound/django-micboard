@@ -313,6 +313,48 @@ jobs:
           WARDEN_OPENAI_API_KEY: ${{ secrets.WARDEN_OPENAI_API_KEY }}
           WARDEN_ANTHROPIC_API_KEY: ${{ secrets.WARDEN_ANTHROPIC_API_KEY }}
 
+  mutation-testing:
+    name: Mutation testing with mutmut
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras
+
+      - name: Run mutation tests
+        run: |
+          uv run --no-sync mutmut run --no-progress || echo "MUTMUT_EXIT=$?" >> "$GITHUB_ENV"
+
+      - name: Report mutation results
+        if: always()
+        run: |
+          echo "## Mutation Testing Results" >> "$GITHUB_STEP_SUMMARY"
+          uv run --no-sync mutmut results >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          SURVIVED=$(uv run --no-sync mutmut results 2>/dev/null | grep -i -c "^survived" || true)
+          echo "**Surviving mutants:** $SURVIVED" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Surviving mutants indicate logic that tests don't verify._" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload mutation cache
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: mutmut-cache-${{ github.run_id }}
+          path: .mutmut-cache
+          retention-days: 7
+          if-no-files-found: ignore
+
   required:
     name: CI required
     if: ${{ always() }}
@@ -325,6 +367,7 @@ jobs:
       - build-docs
       - dependency-review
       - scorecard
+      - mutation-testing
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
@@ -333,14 +376,14 @@ jobs:
         env:
           REQUIRED_JOB_RESULTS: ${{ toJSON(needs) }}
         run: |
-          if jq -e 'to_entries | all(.value.result == "success" or (.key == "dependency-review" and .value.result == "skipped"))' <<<"$REQUIRED_JOB_RESULTS" > /dev/null; then
+          if jq -e 'to_entries | all(.value.result == "success" or (.key == "dependency-review" and .value.result == "skipped") or (.key == "mutation-testing" and .value.result == "skipped"))' <<<"$REQUIRED_JOB_RESULTS" > /dev/null; then
             echo "All required CI jobs succeeded."
             exit 0
           fi
 
           jq -r '
             to_entries[]
-            | select(.value.result != "success" and (.key != "dependency-review" or .value.result != "skipped"))
+            | select(.value.result != "success" and (.key != "dependency-review" or .value.result != "skipped") and (.key != "mutation-testing" or .value.result != "skipped"))
             | "::error title=Required CI job did not succeed::\(.key): \(.value.result)"
           ' <<<"$REQUIRED_JOB_RESULTS"
           exit 1
