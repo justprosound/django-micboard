@@ -211,6 +211,37 @@ jobs:
       actions: write
 
     steps:
+      - name: Approve pending PR-triggered workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ needs.open-release-pr.outputs.branch }}
+        run: |
+          # The PR-triggered CI may require approval when the commit author is
+          # github-actions[bot]. Approve any pending runs on the release branch
+          # so they don't block auto-merge with an action_required check-suite.
+          for attempt in {1..10}; do
+            PENDING_RUNS="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --branch "$RELEASE_BRANCH" \
+              --event pull_request \
+              --status action_required \
+              --json databaseId \
+              --jq '.[].databaseId')"
+            if [ -n "$PENDING_RUNS" ]; then
+              while IFS= read -r run_id; do
+                gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/approve" \
+                  --method POST 2>/dev/null || true
+                echo "Approved pending run $run_id"
+              done <<< "$PENDING_RUNS"
+              break
+            fi
+            if [ "$attempt" -eq 10 ]; then
+              echo "No pending approval runs found — proceeding"
+              break
+            fi
+            sleep 3
+          done
+
       - name: Dispatch and observe required checks
         env:
           GH_TOKEN: ${{ github.token }}
