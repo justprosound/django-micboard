@@ -119,7 +119,6 @@ jobs:
           path: dist
           format: spdx-json
           output-file: dist/django-micboard-${{ needs.validate-release.outputs.version }}.spdx.json
-          syft-version: "v1.46.0"
           upload-artifact: false
           upload-release-assets: false
 
