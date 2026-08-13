@@ -181,12 +181,6 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-        with:
-          ref: ${{ inputs.expected_sha }}
-          persist-credentials: false
-          sparse-checkout: .github/scripts
-
       - name: Download write-isolated recovery assets
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
@@ -200,26 +194,31 @@ jobs:
           test "$(find . -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
           test -s RELEASE_NOTES.md
 
-      - name: Create immutable tag and publish GitHub release
+      - name: Create tag
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ inputs.expected_sha }}
           RELEASE_TAG: v${{ inputs.version }}
-          RELEASE_TITLE: Release ${{ inputs.version }}
         run: |
-          export RELEASE_FLAGS=(
-            --draft
-            --notes-file dist/RELEASE_NOTES.md
-            --title "$RELEASE_TITLE"
-          )
-          bash .github/scripts/upsert_github_release_draft.sh --notes-file dist/RELEASE_NOTES.md
-          gh release upload "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            dist/*.whl \
-            dist/*.tar.gz \
-            dist/*.spdx.json \
-            dist/*.publish.attestation \
-            dist/SHA256SUMS \
-            dist/RELEASE-METADATA.json \
-            --clobber
-          gh release edit "$RELEASE_TAG" --draft=false --repo "$GITHUB_REPOSITORY"
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              --field ref="refs/tags/$RELEASE_TAG" \
+              --field sha="$RELEASE_SHA" >/dev/null
+          fi
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@fe965f7af51af5f2602596916f38a38df2e33de0  # v3.0.2
+        with:
+          tag_name: v${{ inputs.version }}
+          target_commitish: ${{ inputs.expected_sha }}
+          name: Release ${{ inputs.version }}
+          body_path: dist/RELEASE_NOTES.md
+          draft: false
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.spdx.json
+            dist/*.publish.attestation
+            dist/SHA256SUMS
+            dist/RELEASE-METADATA.json
+          overwrite_files: true

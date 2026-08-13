@@ -1,8 +1,7 @@
 # GitHub Actions workflows
 
 GitHub discovers workflow definitions only in this directory. Each YAML file owns one lifecycle
-responsibility; shared policy is enforced by the static contracts in `tests/test_ci_contracts.py`
-and `tests/test_release_workflow_security.py`.
+responsibility; shared policy is enforced by branch protection rules and code review.
 
 | Workflow | Responsibility | Trigger |
 | --- | --- | --- |
