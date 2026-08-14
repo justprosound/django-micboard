@@ -19,7 +19,17 @@
   "ignorePaths": ["docs/requirements.txt"],
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["* 0-4 * * 1"]
+    "schedule": ["* 0-4 * * 1"],
+    "automerge": true,
+    "automergeType": "pr",
+    "automergeStrategy": "squash",
+    "postUpgradeTasks": {
+      "commands": [
+        "uv export --locked --no-dev --extra docs --no-emit-project --python 3.13 --output-file docs/requirements.txt"
+      ],
+      "fileFilters": ["docs/requirements.txt"],
+      "executionMode": "branch"
+    }
   },
   "vulnerabilityAlerts": {
     "enabled": true,
@@ -34,10 +44,14 @@
   },
   "packageRules": [
     {
-      "description": "Update digest-only pinning manually - verified by CI before merge",
+      "description": "Auto-merge digest-only pinning updates after CI passes",
       "matchUpdateTypes": [
         "digest"
-      ]
+      ],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "minimumReleaseAge": "0 days"
     },
     {
       "description": "Auto-merge patch releases after a 3-day stability window",
