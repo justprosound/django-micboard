@@ -98,8 +98,10 @@ jobs:
         run: uv sync --locked --all-extras
 
       - name: Run tests with coverage
+        env:
+          DJANGO_VERSION: ${{ matrix.django-version }}
         run: |
-          uv run --no-sync --with "Django~=${{ matrix.django-version }}.0" pytest tests/ \
+          uv run --no-sync --with "Django~=${DJANGO_VERSION}.0" pytest tests/ \
             --cov=micboard \
             --cov-report=xml \
             --cov-report=html \
@@ -185,7 +187,7 @@ jobs:
           build-mode: none
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d  # v10.0.0
         with:
           version: "0.12.3"
           enable-cache: true
