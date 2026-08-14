@@ -10,13 +10,11 @@ Added comprehensive battery health tracking to **WirelessUnit** model, integrati
 
 ```python
 # Battery health status (from manufacturer API)
-battery_health = CharField(
-    choices=["excellent", "good", "fair", "poor", "critical", "unknown"]
-)
+battery_health = CharField(choices=["excellent", "good", "fair", "poor", "critical", "unknown"])
 battery_health_description = TextField()  # From /battery-health/description
-battery_level_description = TextField()   # From /battery-level/description
-battery_cycles = PositiveIntegerField()   # Number of charge cycles
-battery_temperature_c = FloatField()      # Battery temperature in Celsius
+battery_level_description = TextField()  # From /battery-level/description
+battery_cycles = PositiveIntegerField()  # Number of charge cycles
+battery_temperature_c = FloatField()  # Battery temperature in Celsius
 ```
 
 ### Migration
@@ -170,7 +168,7 @@ battery_cycles = tx_data.get("batteryCycles")
 battery_temperature_c = tx_data.get("batteryTemperatureC")
 
 return {
-    "battery_health": battery_health,        # Now persisted!
+    "battery_health": battery_health,  # Now persisted!
     "battery_cycles": battery_cycles,
     "battery_temperature_c": battery_temperature_c,
     # ...
@@ -204,16 +202,12 @@ if unit.battery_health in ["poor", "critical"]:
     create_alert(
         type="BATTERY_HEALTH_DEGRADED",
         unit=unit,
-        message=f"Battery health {unit.battery_health}: Cycles={unit.battery_cycles}"
+        message=f"Battery health {unit.battery_health}: Cycles={unit.battery_cycles}",
     )
 
 # Alert on high temperature
 if unit.battery_temperature_c and unit.battery_temperature_c > 40:
-    create_alert(
-        type="BATTERY_OVERHEATING",
-        unit=unit,
-        temperature=unit.battery_temperature_c
-    )
+    create_alert(type="BATTERY_OVERHEATING", unit=unit, temperature=unit.battery_temperature_c)
 ```
 
 ### Description Field Population
@@ -260,10 +254,12 @@ def test_battery_health_from_api():
     unit = WirelessUnit(battery=200, battery_health="excellent")
     assert unit.get_battery_health() == "excellent"
 
+
 def test_battery_health_fallback():
     """Test fallback to computed health when no API data."""
     unit = WirelessUnit(battery=200, battery_health="")
     assert unit.get_battery_health() == "good"  # 78% = good
+
 
 def test_battery_health_icons():
     """Test icon mapping for each health status."""
@@ -283,7 +279,7 @@ def test_shure_battery_health_persistence(mock_shure_api):
         "battery": 150,
         "batteryHealth": "good",
         "batteryCycles": 42,
-        "batteryTemperatureC": 24.5
+        "batteryTemperatureC": 24.5,
     }
 
     poll_device(device_id)

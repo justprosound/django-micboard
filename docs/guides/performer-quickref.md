@@ -48,9 +48,7 @@ In MSP mode, the user must have an active `operator`, `admin`, or `owner` member
 
 ```python
 assignments = (
-    PerformerAssignment.objects.for_user(user=request.user)
-    .active()
-    .with_performer_and_unit()
+    PerformerAssignment.objects.for_user(user=request.user).active().with_performer_and_unit()
 )
 
 performers = Performer.objects.for_user(user=request.user).active()

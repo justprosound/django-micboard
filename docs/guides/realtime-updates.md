@@ -218,10 +218,10 @@ function DeviceMonitor({ deviceId }) {
 **settings.py:**
 ```python
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [('127.0.0.1', 6379)],
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
         },
     },
 }
@@ -241,12 +241,14 @@ django_asgi_app = get_asgi_application()
 
 from micboard.websockets.routing import websocket_urlpatterns
 
-application = ProtocolTypeRouter({
-    "http": django_asgi_app,
-    "websocket": AllowedHostsOriginValidator(
-        AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
-    ),
-})
+application = ProtocolTypeRouter(
+    {
+        "http": django_asgi_app,
+        "websocket": AllowedHostsOriginValidator(
+            AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+        ),
+    }
+)
 ```
 
 ### Running subscription supervisors
@@ -340,15 +342,15 @@ def send_device_update(device, changes):
     # Only send changed fields
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
-        'devices',
+        "devices",
         {
-            'type': 'device_update',
-            'data': {
-                'device_id': device.device_id,
-                'changes': changes,
-                'timestamp': timezone.now().isoformat()
-            }
-        }
+            "type": "device_update",
+            "data": {
+                "device_id": device.device_id,
+                "changes": changes,
+                "timestamp": timezone.now().isoformat(),
+            },
+        },
     )
 ```
 
@@ -359,12 +361,12 @@ def send_device_update(device, changes):
 **Redis Configuration:**
 ```python
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [('127.0.0.1', 6379)],
-            'capacity': 1000,  # Connection pool size
-            'expiry': 300,     # Connection expiry
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+            "capacity": 1000,  # Connection pool size
+            "expiry": 300,  # Connection expiry
         },
     },
 }
@@ -381,11 +383,7 @@ def batch_device_updates(updates):
     for batch in batches:
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            'devices',
-            {
-                'type': 'batch_update',
-                'updates': batch
-            }
+            "devices", {"type": "batch_update", "updates": batch}
         )
 ```
 
@@ -432,8 +430,8 @@ class UpdateThrottler {
 **Django Debug Toolbar:**
 ```python
 # settings.py
-INSTALLED_APPS += ['debug_toolbar']
-MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
+INSTALLED_APPS += ["debug_toolbar"]
+MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
 ```
 
 ### Connection Health Monitoring
@@ -442,12 +440,13 @@ MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
 ```python
 from channels.layers import get_channel_layer
 
+
 def check_websocket_health():
     channel_layer = get_channel_layer()
 
     # Test channel layer connectivity
     try:
-        async_to_sync(channel_layer.send)('health_check', {'ping': True})
+        async_to_sync(channel_layer.send)("health_check", {"ping": True})
         return True
     except Exception as e:
         logger.error(f"WebSocket health check failed: {e}")

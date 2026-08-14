@@ -12,7 +12,7 @@ MICBOARD_MSP_ENABLED = False
 ### Option 2: Multi-Site Mode
 ```python
 # settings.py
-INSTALLED_APPS = ['django.contrib.sites', 'micboard', ...]
+INSTALLED_APPS = ["django.contrib.sites", "micboard", ...]
 SITE_ID = 1
 MICBOARD_MULTI_SITE_MODE = True
 ```
@@ -25,15 +25,15 @@ uv run --no-sync python manage.py migrate
 ```python
 # settings.py
 INSTALLED_APPS = [
-    'django.contrib.sites',
-    'micboard',
-    'micboard.multitenancy',  # Add this
-    ...
+    "django.contrib.sites",
+    "micboard",
+    "micboard.multitenancy",  # Add this
+    ...,
 ]
 SITE_ID = 1
 MICBOARD_MULTI_SITE_MODE = True
 MICBOARD_MSP_ENABLED = True
-MIDDLEWARE += ['micboard.multitenancy.middleware.TenantMiddleware']
+MIDDLEWARE += ["micboard.multitenancy.middleware.TenantMiddleware"]
 ```
 
 ```bash
@@ -67,9 +67,7 @@ from micboard.services.manufacturer.sync import ManufacturerSyncService
 
 # Sync devices for organization
 result = ManufacturerSyncService.sync_devices_for_manufacturer(
-    manufacturer_code='shure',
-    organization_id=org.id,
-    campus_id=campus.id
+    manufacturer_code="shure", organization_id=org.id, campus_id=campus.id
 )
 ```
 
@@ -80,25 +78,22 @@ from micboard.multitenancy.models import Organization, Campus
 
 # Create organization
 org = Organization.objects.create(
-    name='University A',
-    slug='university-a',
+    name="University A",
+    slug="university-a",
     site_id=1,
-    subscription_tier='enterprise',
-    max_devices=500
+    subscription_tier="enterprise",
+    max_devices=500,
 )
 
 # Create campus
 campus = Campus.objects.create(
-    organization=org,
-    name='North Campus',
-    slug='north',
-    city='Boston',
-    state='MA'
+    organization=org, name="North Campus", slug="north", city="Boston", state="MA"
 )
 
 # Assign buildings
 from micboard.models.locations.structure import Building
-Building.objects.filter(name__contains='Engineering').update(
+
+Building.objects.filter(name__contains="Engineering").update(
     organization_id=org.pk,
     campus_id=campus.pk,
 )
@@ -114,14 +109,14 @@ means unlimited and locationless platform inventory is not organization-owned.
 from micboard.multitenancy.models import OrganizationMembership
 from django.contrib.auth.models import User
 
-user = User.objects.get(username='av_tech')
+user = User.objects.get(username="av_tech")
 
 # Add user to organization
 membership = OrganizationMembership.objects.create(
     user=user,
     organization=org,
     campus=campus,  # Optional: limit to campus
-    role='operator'  # viewer/operator/admin/owner
+    role="operator",  # viewer/operator/admin/owner
 )
 ```
 
@@ -130,8 +125,10 @@ membership = OrganizationMembership.objects.create(
 ```python
 from micboard.models.base_managers import TenantOptimizedManager
 
+
 class MyModel(models.Model):
     objects = TenantOptimizedManager()
+
 
 # Usage
 qs = MyModel.objects.for_organization(organization=org)
@@ -157,12 +154,10 @@ def my_view(request):
 def switch_org(request, org_id):
     # Verify user has access
     if OrganizationMembership.objects.filter(
-        user=request.user,
-        organization_id=org_id,
-        is_active=True
+        user=request.user, organization_id=org_id, is_active=True
     ).exists():
-        request.session['current_organization_id'] = org_id
-    return redirect('dashboard')
+        request.session["current_organization_id"] = org_id
+    return redirect("dashboard")
 ```
 
 ## 🎨 Subdomain Routing (Optional)
@@ -170,7 +165,7 @@ def switch_org(request, org_id):
 ```python
 # settings.py
 MICBOARD_SUBDOMAIN_ROUTING = True
-MICBOARD_ROOT_DOMAIN = 'micboard.example.com'
+MICBOARD_ROOT_DOMAIN = "micboard.example.com"
 
 # Access via subdomain
 # university-a.micboard.example.com → Organization(slug='university-a')
@@ -239,7 +234,7 @@ from micboard.multitenancy.models import Organization
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 # Create test organization
-org = Organization.objects.create(name='Test Org', slug='test', site_id=1)
+org = Organization.objects.create(name="Test Org", slug="test", site_id=1)
 
 # Test isolation
 receivers = WirelessChassis.objects.for_organization(organization=org)
@@ -259,6 +254,7 @@ Building.objects.filter(organization_id__isnull=True).update(organization_id=org
 ```python
 # Check memberships
 from micboard.multitenancy.models import OrganizationMembership
+
 OrganizationMembership.objects.filter(user=user, is_active=True)
 ```
 
@@ -281,14 +277,11 @@ MICBOARD_MSP_ENABLED = False
 ### University (Multi-Campus)
 ```python
 MICBOARD_MSP_ENABLED = True
-MICBOARD_SITE_ISOLATION = 'campus'
+MICBOARD_SITE_ISOLATION = "campus"
 
 # Campus-specific users
 OrganizationMembership.objects.create(
-    user=av_tech,
-    organization=university,
-    campus=north_campus,
-    role='operator'
+    user=av_tech, organization=university, campus=north_campus, role="operator"
 )
 ```
 

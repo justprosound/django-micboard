@@ -73,9 +73,7 @@ HUEY = {
 
 # Configure Micboard
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": os.environ.get(
-        "MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"
-    ),
+    "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"),
     "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
     "SHURE_API_TIMEOUT": int(os.environ.get("MICBOARD_SHURE_API_TIMEOUT", "10")),
     "POLL_INTERVAL": 5,  # seconds

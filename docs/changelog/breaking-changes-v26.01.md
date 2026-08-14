@@ -255,8 +255,10 @@ Direct Django settings reads and the former app-config cache are unsupported:
 ```python
 # Removed patterns
 from django.conf import settings
+
 config = getattr(settings, "MICBOARD_CONFIG", {})
 from micboard.apps import MicboardConfig
+
 config = MicboardConfig.get_config()
 ```
 
@@ -265,6 +267,7 @@ To:
 ```python
 # Canonical pattern
 from micboard.services.settings.settings_service import settings as micboard_settings
+
 config = micboard_settings.get_config_dict()
 ```
 

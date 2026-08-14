@@ -85,12 +85,12 @@ MICBOARD_MSP_ENABLED = False
 
 # Multi-site enterprise
 MICBOARD_MULTI_SITE_MODE = True
-MICBOARD_SITE_ISOLATION = 'site'
+MICBOARD_SITE_ISOLATION = "site"
 
 # Full MSP
 MICBOARD_MULTI_SITE_MODE = True
 MICBOARD_MSP_ENABLED = True
-MICBOARD_SITE_ISOLATION = 'organization'
+MICBOARD_SITE_ISOLATION = "organization"
 ```
 
 **Scoping Queries:**
@@ -109,15 +109,15 @@ from micboard.services.settings.settings_service import settings as micboard_set
 
 # Resolve at the setting definition's declared scope
 value = micboard_settings.get(
-    'CUSTOM_KEY',
+    "CUSTOM_KEY",
     organization=org,
     site=site,
     manufacturer=manufacturer,
-    default='fallback',
+    default="fallback",
 )
 
 # Deployment controls are host-owned and cannot be overridden by database rows.
-limit = micboard_settings.get('MICBOARD_REALTIME_MAX_DEVICES', 128)
+limit = micboard_settings.get("MICBOARD_REALTIME_MAX_DEVICES", 128)
 ```
 
 ## Models & Domains

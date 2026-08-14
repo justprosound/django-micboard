@@ -29,8 +29,8 @@ Enable Django's sites framework for basic site filtering:
 ```python
 # settings.py
 INSTALLED_APPS = [
-    'django.contrib.sites',
-    'micboard',
+    "django.contrib.sites",
+    "micboard",
     # ... other apps
 ]
 
@@ -49,20 +49,20 @@ Enable organization and campus models:
 ```python
 # settings.py
 INSTALLED_APPS = [
-    'django.contrib.sites',
-    'micboard',
-    'micboard.multitenancy',  # Add this
+    "django.contrib.sites",
+    "micboard",
+    "micboard.multitenancy",  # Add this
     # ... other apps
 ]
 
 SITE_ID = 1
 MICBOARD_MULTI_SITE_MODE = True
 MICBOARD_MSP_ENABLED = True
-MICBOARD_SITE_ISOLATION = 'organization'
+MICBOARD_SITE_ISOLATION = "organization"
 
 MIDDLEWARE = [
     # ... existing middleware
-    'micboard.multitenancy.middleware.TenantMiddleware',  # Add after auth
+    "micboard.multitenancy.middleware.TenantMiddleware",  # Add after auth
 ]
 ```
 
@@ -80,15 +80,15 @@ Configure the required values explicitly in the host settings module:
 # Enable/disable features
 MICBOARD_MULTI_SITE_MODE = False
 MICBOARD_MSP_ENABLED = False
-MICBOARD_SITE_ISOLATION = 'none'  # 'none', 'site', 'organization', 'campus'
+MICBOARD_SITE_ISOLATION = "none"  # 'none', 'site', 'organization', 'campus'
 
 # Cross-org access
 MICBOARD_ALLOW_CROSS_ORG_VIEW = True  # Superusers see all orgs
-MICBOARD_ALLOW_ORG_SWITCHING = True   # Users can switch between orgs
+MICBOARD_ALLOW_ORG_SWITCHING = True  # Users can switch between orgs
 
 # Optional: Subdomain routing
 MICBOARD_SUBDOMAIN_ROUTING = False
-MICBOARD_ROOT_DOMAIN = 'micboard.example.com'
+MICBOARD_ROOT_DOMAIN = "micboard.example.com"
 ```
 
 ## Models
@@ -105,8 +105,8 @@ org = Organization.objects.create(
     name="University A",
     slug="university-a",
     site_id=1,
-    subscription_tier='enterprise',
-    max_devices=500
+    subscription_tier="enterprise",
+    max_devices=500,
 )
 ```
 
@@ -137,7 +137,7 @@ campus = Campus.objects.create(
     address="123 University Ave",
     city="Boston",
     state="MA",
-    timezone='America/New_York'
+    timezone="America/New_York",
 )
 ```
 
@@ -152,7 +152,7 @@ from micboard.multitenancy.models import OrganizationMembership
 membership = OrganizationMembership.objects.create(
     user=user,
     organization=org,
-    role='admin',  # 'viewer', 'operator', 'admin', 'owner'
+    role="admin",  # 'viewer', 'operator', 'admin', 'owner'
     campus=campus,  # Optional: limit to specific campus
 )
 ```
@@ -194,10 +194,12 @@ The `TenantOptimizedManager` provides consistent filtering across deployment mod
 ```python
 from micboard.models.base_managers import TenantOptimizedManager
 
+
 class MyModel(models.Model):
     # ... fields
 
     objects = TenantOptimizedManager()
+
 
 # Usage
 queryset = MyModel.objects.for_organization(organization=org)
@@ -233,8 +235,8 @@ def my_view(request):
 ```python
 # In a view
 def switch_org(request, org_id):
-    request.session['current_organization_id'] = org_id
-    return redirect('dashboard')
+    request.session["current_organization_id"] = org_id
+    return redirect("dashboard")
 ```
 
 ## View Integration
@@ -246,14 +248,13 @@ from django.http import JsonResponse
 from django.views import View
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
+
 class ReceiverListAPIView(View):
     def get(self, request):
         chassis = WirelessChassis.objects.for_user(user=request.user).active()
 
         # Return as JSON
-        return JsonResponse({
-            "chassis": list(chassis.values())
-        })
+        return JsonResponse({"chassis": list(chassis.values())})
 ```
 
 ## Migration Guide
@@ -290,16 +291,8 @@ from micboard.multitenancy.models import Organization, Campus
 from micboard.models.locations.structure import Building
 
 # Create default org/campus
-org = Organization.objects.create(
-    name='Default Organization',
-    slug='default',
-    site_id=1
-)
-campus = Campus.objects.create(
-    organization=org,
-    name='Main Campus',
-    slug='main'
-)
+org = Organization.objects.create(name="Default Organization", slug="default", site_id=1)
+campus = Campus.objects.create(organization=org, name="Main Campus", slug="main")
 
 # Update buildings
 Building.objects.all().update(
@@ -315,7 +308,7 @@ Building.objects.all().update(
 ```python
 # settings.py
 MICBOARD_MSP_ENABLED = True
-MICBOARD_SITE_ISOLATION = 'campus'
+MICBOARD_SITE_ISOLATION = "campus"
 MICBOARD_ALLOW_ORG_SWITCHING = False  # Single org
 
 # Users have campus-specific access
@@ -323,7 +316,7 @@ membership = OrganizationMembership.objects.create(
     user=av_tech,
     organization=university,
     campus=north_campus,  # Limited to North Campus only
-    role='operator'
+    role="operator",
 )
 ```
 
@@ -332,17 +325,17 @@ membership = OrganizationMembership.objects.create(
 ```python
 # settings.py
 MICBOARD_MSP_ENABLED = True
-MICBOARD_SITE_ISOLATION = 'organization'
+MICBOARD_SITE_ISOLATION = "organization"
 MICBOARD_ALLOW_CROSS_ORG_VIEW = False  # Strict isolation
 MICBOARD_SUBDOMAIN_ROUTING = True
 
 # Each customer is separate org
-church_a = Organization.objects.create(name='Church A', slug='church-a', site_id=1)
-church_b = Organization.objects.create(name='Church B', slug='church-b', site_id=1)
+church_a = Organization.objects.create(name="Church A", slug="church-a", site_id=1)
+church_b = Organization.objects.create(name="Church B", slug="church-b", site_id=1)
 
 # Users belong to their org only
-OrganizationMembership.objects.create(user=tech1, organization=church_a, role='admin')
-OrganizationMembership.objects.create(user=tech2, organization=church_b, role='admin')
+OrganizationMembership.objects.create(user=tech1, organization=church_a, role="admin")
+OrganizationMembership.objects.create(user=tech2, organization=church_b, role="admin")
 
 # Subdomain routing: church-a.micboard.example.com → Church A
 ```
@@ -367,10 +360,11 @@ from django.test import TestCase
 from micboard.multitenancy.models import Organization, Campus
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
+
 class TenantIsolationTest(TestCase):
     def test_organization_isolation(self):
-        org1 = Organization.objects.create(name='Org 1', slug='org1', site_id=1)
-        org2 = Organization.objects.create(name='Org 2', slug='org2', site_id=1)
+        org1 = Organization.objects.create(name="Org 1", slug="org1", site_id=1)
+        org2 = Organization.objects.create(name="Org 2", slug="org2", site_id=1)
 
         # Create devices in each org
         # ... create buildings, locations, receivers
@@ -408,6 +402,7 @@ class TenantIsolationTest(TestCase):
 ```python
 # Assign buildings to default org
 from micboard.multitenancy.models import Organization
+
 org = Organization.objects.first()
 Building.objects.filter(organization_id__isnull=True).update(organization_id=org.pk)
 ```
@@ -418,6 +413,7 @@ Check organization membership:
 
 ```python
 from micboard.multitenancy.models import OrganizationMembership
+
 memberships = OrganizationMembership.objects.filter(user=user, is_active=True)
 print(f"User has {memberships.count()} active memberships")
 ```

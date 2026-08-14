@@ -328,9 +328,9 @@ All configuration is centralized in Django settings:
 
 ```python
 MICBOARD_CONFIG = {
-    'DEFAULT_POLLING_INTERVAL': 10,
-    'WEBSOCKET_BROADCASTING': True,
-    'CACHE_TIMEOUT': 30,
+    "DEFAULT_POLLING_INTERVAL": 10,
+    "WEBSOCKET_BROADCASTING": True,
+    "CACHE_TIMEOUT": 30,
 }
 ```
 
@@ -340,14 +340,14 @@ Manufacturer configurations are stored in the database:
 ```python
 # Shure manufacturer configuration
 manufacturer = Manufacturer.objects.create(
-    code='shure',
-    name='Shure Incorporated',
+    code="shure",
+    name="Shure Incorporated",
     config={
-        'api_url': 'https://shure-api.example.com',
-        'api_key': 'your-api-key',
-        'timeout': 30,
-        'polling_interval': 10,
-    }
+        "api_url": "https://shure-api.example.com",
+        "api_key": "your-api-key",
+        "timeout": 30,
+        "polling_interval": 10,
+    },
 )
 ```
 

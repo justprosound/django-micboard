@@ -59,12 +59,14 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("My Server")
 
+
 @mcp.tool()
 def calculate(a: int, b: int, op: str) -> int:
     """Perform calculation"""
     if op == "add":
         return a + b
     return a - b
+
 
 if __name__ == "__main__":
     mcp.run()  # stdio by default
@@ -76,10 +78,12 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("My HTTP Server")
 
+
 @mcp.tool()
 def hello(name: str = "World") -> str:
     """Greet someone"""
     return f"Hello, {name}!"
+
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
@@ -89,19 +93,17 @@ if __name__ == "__main__":
 ```python
 from pydantic import BaseModel, Field
 
+
 class WeatherData(BaseModel):
     temperature: float = Field(description="Temperature in Celsius")
     condition: str
     humidity: float
 
+
 @mcp.tool()
 def get_weather(city: str) -> WeatherData:
     """Get weather for a city"""
-    return WeatherData(
-        temperature=22.5,
-        condition="sunny",
-        humidity=65.0
-    )
+    return WeatherData(temperature=22.5, condition="sunny", humidity=65.0)
 ```
 
 ### Dynamic Resource
@@ -117,11 +119,9 @@ def get_user(user_id: str) -> str:
 from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
 
+
 @mcp.tool()
-async def process_data(
-    data: str,
-    ctx: Context[ServerSession, None]
-) -> str:
+async def process_data(data: str, ctx: Context[ServerSession, None]) -> str:
     """Process data with logging"""
     await ctx.info(f"Processing: {data}")
     await ctx.report_progress(0.5, 1.0, "Halfway done")
@@ -134,18 +134,17 @@ from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
 from mcp.types import SamplingMessage, TextContent
 
+
 @mcp.tool()
-async def summarize(
-    text: str,
-    ctx: Context[ServerSession, None]
-) -> str:
+async def summarize(text: str, ctx: Context[ServerSession, None]) -> str:
     """Summarize text using LLM"""
     result = await ctx.session.create_message(
-        messages=[SamplingMessage(
-            role="user",
-            content=TextContent(type="text", text=f"Summarize: {text}")
-        )],
-        max_tokens=100
+        messages=[
+            SamplingMessage(
+                role="user", content=TextContent(type="text", text=f"Summarize: {text}")
+            )
+        ],
+        max_tokens=100,
     )
     return result.content.text if result.content.type == "text" else ""
 ```
@@ -156,9 +155,11 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from mcp.server.fastmcp import FastMCP, Context
 
+
 @dataclass
 class AppContext:
     db: Database
+
 
 @asynccontextmanager
 async def app_lifespan(server: FastMCP):
@@ -168,7 +169,9 @@ async def app_lifespan(server: FastMCP):
     finally:
         await db.disconnect()
 
+
 mcp = FastMCP("My App", lifespan=app_lifespan)
+
 
 @mcp.tool()
 def query(sql: str, ctx: Context) -> str:
@@ -181,13 +184,14 @@ def query(sql: str, ctx: Context) -> str:
 ```python
 from mcp.server.fastmcp.prompts import base
 
+
 @mcp.prompt(title="Code Review")
 def review_code(code: str) -> list[base.Message]:
     """Create code review prompt"""
     return [
         base.UserMessage("Review this code:"),
         base.UserMessage(code),
-        base.AssistantMessage("I'll review the code for you.")
+        base.AssistantMessage("I'll review the code for you."),
     ]
 ```
 

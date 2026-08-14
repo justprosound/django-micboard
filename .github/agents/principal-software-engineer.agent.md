@@ -26,16 +26,15 @@ You are a principal software engineer providing strategic technical guidance wit
 ```python
 # Each class has one clear responsibility
 class UserRepository:
-    def get_user(self, id: int) -> User:
-        ...
+    def get_user(self, id: int) -> User: ...
+
 
 class UserValidator:
-    def validate(self, user: User) -> bool:
-        ...
+    def validate(self, user: User) -> bool: ...
+
 
 class UserNotifier:
-    def send_welcome_email(self, user: User):
-        ...
+    def send_welcome_email(self, user: User): ...
 ```
 
 **Bad**:
@@ -55,20 +54,24 @@ class UserManager:
 ```python
 from abc import ABC, abstractmethod
 
+
 class PaymentProcessor(ABC):
     @abstractmethod
     def process(self, amount: float) -> bool:
         pass
+
 
 class StripeProcessor(PaymentProcessor):
     def process(self, amount: float) -> bool:
         # Stripe-specific implementation
         ...
 
+
 class PayPalProcessor(PaymentProcessor):
     def process(self, amount: float) -> bool:
         # PayPal-specific implementation
         ...
+
 
 # Add new processors without modifying existing code
 ```
@@ -86,6 +89,7 @@ class Rectangle:
     def area(self) -> int:
         return self.width * self.height
 
+
 # Square composition, not inheritance
 class Square:
     def __init__(self, side: int):
@@ -102,19 +106,23 @@ class Square:
 ```python
 from abc import ABC, abstractmethod
 
+
 class Readable(ABC):
     @abstractmethod
     def read(self) -> str:
         pass
+
 
 class Writable(ABC):
     @abstractmethod
     def write(self, data: str):
         pass
 
+
 class File(Readable, Writable):
     def read(self) -> str: ...
     def write(self, data: str): ...
+
 
 class ReadOnlyFile(Readable):
     def read(self) -> str: ...
@@ -127,10 +135,12 @@ class ReadOnlyFile(Readable):
 ```python
 from abc import ABC, abstractmethod
 
+
 class Database(ABC):
     @abstractmethod
     async def query(self, sql: str) -> list:
         pass
+
 
 class UserService:
     def __init__(self, db: Database):
@@ -138,6 +148,7 @@ class UserService:
 
     async def get_user(self, id: int):
         return await self.db.query(f"SELECT * FROM users WHERE id = {id}")
+
 
 # Can inject PostgreSQL, MySQL, SQLite, etc.
 ```
@@ -343,6 +354,7 @@ Adopt FastAPI for the new service.
 ```python
 from abc import ABC, abstractmethod
 
+
 class UserRepository(ABC):
     @abstractmethod
     async def get(self, id: int) -> Optional[User]:
@@ -351,6 +363,7 @@ class UserRepository(ABC):
     @abstractmethod
     async def save(self, user: User) -> User:
         pass
+
 
 class SQLUserRepository(UserRepository):
     def __init__(self, db: Database):
@@ -362,8 +375,7 @@ class SQLUserRepository(UserRepository):
 
     async def save(self, user: User) -> User:
         await self.db.execute(
-            "INSERT INTO users (name, email) VALUES ($1, $2)",
-            user.name, user.email
+            "INSERT INTO users (name, email) VALUES ($1, $2)", user.name, user.email
         )
         return user
 ```
@@ -403,6 +415,7 @@ class User:
     def __init__(self, name: str, email: str):
         self.name = name
         self.email = email
+
 
 # All logic in service
 class UserService:
@@ -449,8 +462,7 @@ class OrderProcessor:
             raise ValueError("No items")
 
         # Calculate total
-        total = sum(item["price"] * item["quantity"]
-                   for item in order_data["items"])
+        total = sum(item["price"] * item["quantity"] for item in order_data["items"])
 
         # Apply discount
         if total > 100:
@@ -472,6 +484,7 @@ class OrderValidator:
         if not order.items:
             raise ValueError("No items")
 
+
 class OrderCalculator:
     def calculate_total(self, order: Order) -> float:
         subtotal = sum(item.price * item.quantity for item in order.items)
@@ -480,6 +493,7 @@ class OrderCalculator:
     def _apply_discount(self, amount: float) -> float:
         return amount * 0.9 if amount > 100 else amount
 
+
 class OrderRepository:
     def __init__(self, db: Database):
         self.db = db
@@ -487,18 +501,21 @@ class OrderRepository:
     async def save(self, order: Order):
         await self.db.execute("INSERT INTO orders ...", order)
 
+
 class OrderNotifier:
     def notify_customer(self, order: Order, total: float):
         self.smtp.send(f"Order confirmed: ${total}")
 
+
 class OrderService:
     """Orchestrates the process"""
+
     def __init__(
         self,
         validator: OrderValidator,
         calculator: OrderCalculator,
         repository: OrderRepository,
-        notifier: OrderNotifier
+        notifier: OrderNotifier,
     ):
         self.validator = validator
         self.calculator = calculator

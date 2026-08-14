@@ -106,7 +106,7 @@ chassis, created = WirelessChassis.objects.update_or_create(
     defaults={
         "model": api_response["model"],
         "name": api_response.get("name", ""),
-    }
+    },
 )
 
 # 3. Auto-detect band plan from API frequencyBand
@@ -126,18 +126,12 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.hardware.chassis_regulatory_service import apply_detected_band_plan
 
 # Update all online Shure devices
-for chassis in WirelessChassis.objects.filter(
-    manufacturer__code="shure",
-    status="online"
-):
+for chassis in WirelessChassis.objects.filter(manufacturer__code="shure", status="online"):
     # Get current status from API
     api_status = shure_client.devices.get_device(chassis.api_device_id)
 
     # Apply detected band plan
-    if apply_detected_band_plan(
-        chassis,
-        api_band_value=api_status.get("frequencyBand")
-    ):
+    if apply_detected_band_plan(chassis, api_band_value=api_status.get("frequencyBand")):
         chassis.save(update_fields=["band_plan_name", "band_plan_min_mhz", "band_plan_max_mhz"])
         print(f"✅ {chassis.name}: {chassis.band_plan_name}")
     else:

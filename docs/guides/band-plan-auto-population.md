@@ -179,10 +179,7 @@ Update all Shure ULXD4Q chassis to G50 band plan:
 ```python
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-chassis_list = WirelessChassis.objects.filter(
-    manufacturer__code="shure",
-    model__icontains="ULXD4Q"
-)
+chassis_list = WirelessChassis.objects.filter(manufacturer__code="shure", model__icontains="ULXD4Q")
 
 for chassis in chassis_list:
     chassis.band_plan_name = "G50 (470-534 MHz)"  # Frequencies auto-populate

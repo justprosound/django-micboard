@@ -95,30 +95,28 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
 
 INSTALLED_APPS = [
     # Django core apps
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
     # Third-party apps
-    'channels',
-    'huey.contrib.djhuey',
-
+    "channels",
+    "huey.contrib.djhuey",
     # Micboard
-    'micboard',
+    "micboard",
 ]
 
 # Database configuration
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'micboard',
-        'USER': 'micboard_user',
-        'PASSWORD': 'secure_password',
-        'HOST': 'localhost',
-        'PORT': '5432',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "micboard",
+        "USER": "micboard_user",
+        "PASSWORD": "secure_password",
+        "HOST": "localhost",
+        "PORT": "5432",
     }
 }
 
@@ -133,18 +131,18 @@ HUEY = {
 }
 
 # Internationalization
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
 # Static files
-STATIC_URL = 'static/'
-STATIC_ROOT = '/var/www/micboard/static/'
+STATIC_URL = "static/"
+STATIC_ROOT = "/var/www/micboard/static/"
 
 # Media files (optional)
-MEDIA_URL = 'media/'
-MEDIA_ROOT = '/var/www/micboard/media/'
+MEDIA_URL = "media/"
+MEDIA_ROOT = "/var/www/micboard/media/"
 ```
 
 ### Shure API Configuration
@@ -175,14 +173,14 @@ manufacturer credential to an arbitrary destination.
 
 ```python
 # ASGI application
-ASGI_APPLICATION = 'myproject.asgi.application'
+ASGI_APPLICATION = "myproject.asgi.application"
 
 # Channel layers for WebSocket support
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [('127.0.0.1', 6379)],
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
         },
     },
 }
@@ -192,9 +190,9 @@ CHANNEL_LAYERS = {
 
 ```python
 # Security settings
-SECRET_KEY = 'your-very-secure-secret-key-here'
+SECRET_KEY = "your-very-secure-secret-key-here"
 DEBUG = False
-ALLOWED_HOSTS = ['your-domain.com', 'www.your-domain.com']
+ALLOWED_HOSTS = ["your-domain.com", "www.your-domain.com"]
 
 # HTTPS settings (recommended for production)
 SECURE_SSL_REDIRECT = True
@@ -211,29 +209,29 @@ CSRF_COOKIE_SECURE = True
 
 ```python
 # Standard Django email configuration for host-project notifications
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'your-email@gmail.com'
-EMAIL_HOST_PASSWORD = 'your-app-password'
+EMAIL_HOST_USER = "your-email@gmail.com"
+EMAIL_HOST_PASSWORD = "your-app-password"
 
 # Logging
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': '/var/log/micboard/django.log',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": "/var/log/micboard/django.log",
         },
     },
-    'loggers': {
-        'micboard': {
-            'handlers': ['file'],
-            'level': 'INFO',
-            'propagate': True,
+    "loggers": {
+        "micboard": {
+            "handlers": ["file"],
+            "level": "INFO",
+            "propagate": True,
         },
     },
 }
@@ -258,12 +256,14 @@ django_asgi_app = get_asgi_application()
 # Import micboard WebSocket routes
 from micboard.websockets.routing import websocket_urlpatterns
 
-application = ProtocolTypeRouter({
-    "http": django_asgi_app,
-    "websocket": AllowedHostsOriginValidator(
-        AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
-    ),
-})
+application = ProtocolTypeRouter(
+    {
+        "http": django_asgi_app,
+        "websocket": AllowedHostsOriginValidator(
+            AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+        ),
+    }
+)
 ```
 
 ## Database Setup
@@ -292,9 +292,9 @@ ALTER USER micboard_user CREATEDB;
 ```python
 # settings.py
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
 ```

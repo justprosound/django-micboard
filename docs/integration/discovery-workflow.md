@@ -47,11 +47,7 @@ The system uses a four-tier priority matching algorithm to identify devices:
 
 ```python
 # Example: Shure ULXD4D with serial
-{
-    "serial_number": "TEST-001",
-    "mac_address": "00:0e:dd:4c:43:78",
-    "ip": "172.21.2.140"
-}
+{"serial_number": "TEST-001", "mac_address": "00:0e:dd:4c:43:78", "ip": "172.21.2.140"}
 ```
 
 ### Priority 2: MAC Address (Hardware Identity)
@@ -62,10 +58,7 @@ The system uses a four-tier priority matching algorithm to identify devices:
 
 ```python
 # Example: Device without serial in API
-{
-    "mac_address": "00:0e:dd:4c:43:78",
-    "ip": "172.21.2.140"
-}
+{"mac_address": "00:0e:dd:4c:43:78", "ip": "172.21.2.140"}
 ```
 
 ### Priority 3: IP Address (Location)
@@ -76,13 +69,10 @@ The system uses a four-tier priority matching algorithm to identify devices:
 
 ```python
 # Detects conflict when different device uses same IP
-existing_device = {
-    "serial_number": "TEST-001",
-    "ip": "172.21.2.140"
-}
+existing_device = {"serial_number": "TEST-001", "ip": "172.21.2.140"}
 new_device = {
     "serial_number": "TEST-002",  # Different device!
-    "ip": "172.21.2.140"  # Same IP = conflict
+    "ip": "172.21.2.140",  # Same IP = conflict
 }
 ```
 
@@ -128,7 +118,7 @@ receiver_a = Receiver(serial_number="TEST-001", ip="192.168.1.100")
 # New discovery
 device_b = {
     "serial_number": "TEST-002",  # Different device
-    "ip": "192.168.1.100"  # Same IP!
+    "ip": "192.168.1.100",  # Same IP!
 }
 # → Queued to DiscoveryQueue with is_ip_conflict=True
 ```
@@ -294,10 +284,7 @@ receiver = Receiver.objects.create(
 
 **Existing Device**:
 ```python
-receiver = Receiver(
-    serial_number="ULXD4D-12345",
-    ip="172.21.2.140"
-)
+receiver = Receiver(serial_number="ULXD4D-12345", ip="172.21.2.140")
 ```
 
 **New API Data** (same device, new IP):
@@ -331,10 +318,7 @@ receiver = Receiver(
 
 **Existing Device A**:
 ```python
-receiver_a = Receiver(
-    serial_number="DEVICE-A",
-    ip="192.168.1.100"
-)
+receiver_a = Receiver(serial_number="DEVICE-A", ip="192.168.1.100")
 ```
 
 **New API Data** (Device B, same IP):
@@ -507,10 +491,10 @@ All deduplication keys are indexed for fast lookups:
 class Receiver(models.Model):
     class Meta:
         indexes = [
-            models.Index(fields=['serial_number']),
-            models.Index(fields=['mac_address']),
-            models.Index(fields=['ip']),
-            models.Index(fields=['api_device_id', 'manufacturer']),
+            models.Index(fields=["serial_number"]),
+            models.Index(fields=["mac_address"]),
+            models.Index(fields=["ip"]),
+            models.Index(fields=["api_device_id", "manufacturer"]),
         ]
 ```
 
@@ -520,10 +504,11 @@ Deduplication checks use `select_related()` and efficient queries:
 
 ```python
 # Check by serial (single query)
-existing = Receiver.objects.filter(
-    serial_number=serial_number,
-    manufacturer=manufacturer
-).select_related('location').first()
+existing = (
+    Receiver.objects.filter(serial_number=serial_number, manufacturer=manufacturer)
+    .select_related("location")
+    .first()
+)
 
 # Priority cascade: serial → MAC → IP → API ID
 # Stops at first match (no redundant queries)
@@ -604,7 +589,7 @@ Device Deduplication Service Test Suite
 
 **Solution**: Check API response in `DiscoveryQueue.metadata` field:
 ```python
-queue_item = DiscoveryQueue.objects.filter(status='pending').first()
+queue_item = DiscoveryQueue.objects.filter(status="pending").first()
 print(queue_item.metadata)  # Full API response
 ```
 
@@ -622,7 +607,7 @@ def get_devices(self):
         {
             "id": device["id"],
             "serial_number": device.get("serialNumber"),  # Must extract
-            "mac_address": device.get("macAddress"),      # Must extract
+            "mac_address": device.get("macAddress"),  # Must extract
             "ip": device.get("ipAddress"),
         }
     ]
