@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.8.14.1] - 2026-08-14
+
+- chore(deps): update astral-sh/setup-uv action to v10 (#200) (be77a12)
+
 ## [2026.8.14.0] - 2026-08-14
 
 - fix(ci): enable Renovate automerge for digests and regenerate docs requirements (#199) (06059ae)
