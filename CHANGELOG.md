@@ -7,6 +7,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.8.14.0] - 2026-08-14
+
+- fix(ci): enable Renovate automerge for digests and regenerate docs requirements (#199) (06059ae)
+- chore(deps): update github/codeql-action digest to ff2f1c6 (#186) (6816534)
+- chore(deps): update softprops/action-gh-release digest to 3d0d988 (#187) (a2cc732)
+
 ## [2026.8.13.2] - 2026-08-13
 
 - fix(release): auto-approve PR-triggered CI for bot-created release PRs (#196) (cc5211e)
