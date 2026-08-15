@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.8.15.0] - 2026-08-15
+
+- chore(deps): update getsentry/warden action to v0.44.0 (#202) (1a16658)
+
 ## [2026.8.14.1] - 2026-08-14
 
 - chore(deps): update astral-sh/setup-uv action to v10 (#200) (be77a12)
