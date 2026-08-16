@@ -308,7 +308,7 @@ jobs:
           persist-credentials: false
 
       - name: Review pull request
-        uses: getsentry/warden@2b425b44a121780877f57931cb9d77b990f80c27  # v0.44.0
+        uses: getsentry/warden@3f50b6d485ec3607404baa9681bf74cf759d32d6  # v0.45.0
         env:
           WARDEN_MODEL: ${{ secrets.WARDEN_MODEL }}
           WARDEN_SENTRY_DSN: ${{ secrets.WARDEN_SENTRY_DSN }}
