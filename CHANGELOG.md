@@ -7,6 +7,28 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.8.17.2] - 2026-08-17
+
+- chore(deps): update github-actions (non-major) (#213) (5f470b1)
+- chore: release 2026.8.17.1 (#212) (37e64b5)
+- chore(deps): update dependency wheel to v0.48.0 (#210) (7210d42)
+- chore: release 2026.8.17.0 (#208) (511a08e)
+- chore(deps): update dependency astral-sh/uv to v0.12.4 (#206) (6be0970)
+- chore: release 2026.8.16.0 (#205) (b8eebd9)
+- chore(deps): update getsentry/warden action to v0.45.0 (#204) (2cdbbc7)
+- chore: release 2026.8.15.0 (#203) (bf98ef5)
+- chore(deps): update getsentry/warden action to v0.44.0 (#202) (1a16658)
+
+## [2026.8.17.1] - 2026-08-17
+
+- chore(deps): update dependency wheel to v0.48.0 (#210) (7210d42)
+- chore: release 2026.8.17.0 (#208) (511a08e)
+- chore(deps): update dependency astral-sh/uv to v0.12.4 (#206) (6be0970)
+- chore: release 2026.8.16.0 (#205) (b8eebd9)
+- chore(deps): update getsentry/warden action to v0.45.0 (#204) (2cdbbc7)
+- chore: release 2026.8.15.0 (#203) (bf98ef5)
+- chore(deps): update getsentry/warden action to v0.44.0 (#202) (1a16658)
+
 ## [2026.8.17.0] - 2026-08-17
 
 - chore(deps): update dependency astral-sh/uv to v0.12.4 (#206) (6be0970)
