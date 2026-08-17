@@ -6,6 +6,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "micboard/**"
+      - "pyproject.toml"
+      - "CHANGELOG.md"
+      - "scripts/**"
   workflow_dispatch:
     inputs:
       version:
