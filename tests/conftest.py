@@ -24,19 +24,29 @@ try:
         checks.__path__ = [django.core.__path__[0] + "/checks"]
         sys.modules["django.core.checks"] = checks
         django.core.checks = checks
+    else:
+        import django.core.checks as checks
 
     import django.core.checks.messages
     import django.core.checks.registry
     from django.core.checks import Critical, Debug, Info, Warning  # noqa: A004
-    from django.core.checks.messages import CheckMessage, Error
+    from django.core.checks.messages import (
+        CRITICAL,
+        DEBUG,
+        ERROR,
+        INFO,
+        WARNING,
+        CheckMessage,
+        Error,
+    )
     from django.core.checks.registry import Tags, register
 
     _SEVERITY_MAP = {
-        "CRITICAL": Error.ERROR,
-        "DEBUG": Error.DEBUG,
-        "ERROR": Error.ERROR,
-        "INFO": Error.INFO,
-        "WARNING": Error.WARNING,
+        "CRITICAL": CRITICAL,
+        "DEBUG": DEBUG,
+        "ERROR": ERROR,
+        "INFO": INFO,
+        "WARNING": WARNING,
     }
 
     checks.Error = Error
