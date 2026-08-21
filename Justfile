@@ -13,6 +13,8 @@ default:
     @echo "  example    - Run example project"
     @echo "  wheel      - Build, validate, and smoke-test the reusable-app wheel"
     @echo "  type-check - Run type checks specifically"
+    @echo "  prs        - List open PRs and their current CI check status"
+    @echo "  deps-upgrade - Upgrade dependencies, regenerate locks, and run checks"
 
 # Fail early before any environment or command operation.
 uv-check:
@@ -26,8 +28,8 @@ install: uv-check
 
 # Run all linting and type checks
 lint: uv-check
-    uv run --no-sync ruff format --check .
-    uv run --no-sync ruff check .
+    uv run --no-sync ruff format --check micboard tests scripts
+    uv run --no-sync ruff check micboard tests scripts
     uv run --no-sync python -m mypy micboard
 
 # Run every configured hook against the repository with prek.
@@ -71,3 +73,15 @@ wheel: uv-check
 # Run type checks specifically
 type-check: uv-check
     uv run --no-sync python -m mypy micboard
+
+# List open PRs and their current CI check status
+prs:
+    @gh pr list
+
+# Upgrade lockfile, export docs requirements, and run quality checks
+deps-upgrade: uv-check
+    uv lock --upgrade
+    uv export --locked --no-dev --extra docs --no-emit-project --output-file docs/requirements.txt
+    uv sync --locked --all-extras
+    just lint
+    just test
