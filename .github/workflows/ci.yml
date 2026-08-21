@@ -189,7 +189,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
         with:
-          version: "0.12.4"
+          version: "0.12.5"
           enable-cache: true
 
       - name: Set up Python
@@ -308,7 +308,7 @@ jobs:
           persist-credentials: false
 
       - name: Review pull request
-        uses: getsentry/warden@2d0af8c4749bb4f2e73a94bbe2e335552fd9ffb8  # v0.46.1
+        uses: getsentry/warden@d282ec2b47f016ad41c5bfed3e08a347fa75c632  # v0.46.2
         env:
           WARDEN_MODEL: ${{ secrets.WARDEN_MODEL }}
           WARDEN_SENTRY_DSN: ${{ secrets.WARDEN_SENTRY_DSN }}
