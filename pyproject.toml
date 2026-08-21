@@ -335,6 +335,7 @@ target-version = "py313"
 extend-exclude = [
     "migrations",
     "example_project/",
+    "docs/",
 ]
 
 [tool.ruff.lint]
