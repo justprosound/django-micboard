@@ -13,7 +13,6 @@ responsibility; shared policy is enforced by branch protection rules and code re
 | `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from the preparation workflow on `main` |
 | `recover-github-release.yml` | Reverify the original PyPI artifact from a failed publication run and finish only its GitHub release | Manual break-glass dispatch from `main` |
 | `scorecard.yml` | OpenSSF Scorecard supply-chain security analysis | Weekly schedule, branch protection changes, or push to main |
-| `warden.yml` | Optional AI review for same-repository pull requests after a provider secret is configured | Pull-request activity when enabled |
 
 ## Shared setup action
 
@@ -23,15 +22,12 @@ available, and provisions the requested Python version. Dependency synchronizati
 each job because the required extras and trust boundary differ by responsibility.
 
 Externally triggered or credential-isolated jobs deliberately do not execute repository-local
-actions. CodeQL retains its direct pinned setup while holding `security-events: write`; when
-enabled, Warden runs only its pinned review action; and the isolated attestation and publishing
+actions. CodeQL retains its direct pinned setup while holding `security-events: write`; and the isolated attestation and publishing
 jobs hold `id-token: write`, use immutable remote actions, and never check out the repository.
 
 All checkouts set `persist-credentials: false`. The metadata writer creates one atomic commit with
 GitHub's API and no custom author, committer, or signature fields; GitHub signs that bot commit and
-the workflow verifies it before opening the pull request. Optional Warden provider secrets are
-scoped to its review step, and that job runs only when the pull-request head belongs to this
-repository.
+the workflow verifies it before opening the pull request.
 
 ## Release sequence
 
