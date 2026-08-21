@@ -102,6 +102,7 @@ jobs:
           DJANGO_VERSION: ${{ matrix.django-version }}
         run: |
           uv run --no-sync --with "Django~=${DJANGO_VERSION}.0" pytest tests/ \
+            -n auto \
             --cov=micboard \
             --cov-report=xml \
             --cov-report=html \
