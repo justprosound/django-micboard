@@ -292,29 +292,6 @@ jobs:
         with:
           sarif_file: results.sarif
 
-  warden:
-    name: Warden AI PR Review
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-
-      - name: Review pull request
-        uses: getsentry/warden@d282ec2b47f016ad41c5bfed3e08a347fa75c632  # v0.46.2
-        env:
-          WARDEN_MODEL: ${{ secrets.WARDEN_MODEL }}
-          WARDEN_SENTRY_DSN: ${{ secrets.WARDEN_SENTRY_DSN }}
-          WARDEN_OPENAI_API_KEY: ${{ secrets.WARDEN_OPENAI_API_KEY }}
-          WARDEN_ANTHROPIC_API_KEY: ${{ secrets.WARDEN_ANTHROPIC_API_KEY }}
-
   mutation-testing:
     name: Mutation testing with mutmut
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
