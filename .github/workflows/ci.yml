@@ -32,7 +32,7 @@ jobs:
         uses: ./.github/actions/setup-uv-python
 
       - name: Install dependencies
-        run: uv sync --locked --all-extras
+        run: uv sync --frozen --locked --all-extras
 
       - name: Run prek
         run: uv run --no-sync prek run --all-files --show-diff-on-failure
@@ -95,7 +95,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --locked --all-extras
+        run: uv sync --frozen --locked --all-extras
 
       - name: Run tests with coverage
         env:
@@ -197,7 +197,7 @@ jobs:
         run: uv python install 3.13
 
       - name: Install dependencies
-        run: uv sync --locked --all-extras
+        run: uv sync --frozen --locked --all-extras
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63  # v4
@@ -219,7 +219,7 @@ jobs:
         uses: ./.github/actions/setup-uv-python
 
       - name: Install documentation dependencies
-        run: uv sync --locked --extra docs
+        run: uv sync --frozen --locked --extra docs
 
       - name: Build documentation
         run: uv run --no-sync mkdocs build --strict
@@ -309,7 +309,7 @@ jobs:
         uses: ./.github/actions/setup-uv-python
 
       - name: Install dependencies
-        run: uv sync --locked --all-extras
+        run: uv sync --frozen --locked --all-extras
 
       - name: Run mutation tests
         run: |
