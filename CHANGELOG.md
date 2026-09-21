@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.9.21.2] - 2026-09-21
+
 ### Fixed
 
 - `collectstatic` failed outright under `ManifestStaticFilesStorage`, the standard
