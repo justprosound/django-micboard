@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.9.21.1] - 2026-09-21
+
 ### Changed
 
 - docs: migrate the documentation site from MkDocs + Material + `mkdocstrings` to Astro
