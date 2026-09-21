@@ -285,6 +285,8 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `pages: write` publishes the built site; `id-token: write` lets deploy-pages mint the
+    # OIDC token Pages requires. Both are scoped to this job, which runs no repository code.
     permissions:
       pages: write
       id-token: write
