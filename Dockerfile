@@ -25,9 +25,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --locked --no-install-project \
     --extra demo \
-    --extra api \
-    --extra admin-theme \
-    --extra admin-ui \
+    --extra standard \
     --extra fixtures \
     --extra media
 
@@ -37,9 +35,7 @@ COPY templates ./templates
 COPY manage.py ./
 RUN uv sync --locked --no-editable \
     --extra demo \
-    --extra api \
-    --extra admin-theme \
-    --extra admin-ui \
+    --extra standard \
     --extra fixtures \
     --extra media
 

@@ -71,7 +71,7 @@ recreated empty, on each cold start.
 
    | Variable | Value |
    | --- | --- |
-   | `DATABASE_URL` | The Neon connection string |
+   | `DATABASE_URL` | The Neon connection string. `DJANGO_DATABASE_URL` is also accepted and wins if both are set |
    | `DJANGO_SECRET_KEY` | A fresh random value, not the development default |
    | `DJANGO_DEBUG` | `False` |
    | `DJANGO_ALLOWED_HOSTS` | The deployment hostname |
