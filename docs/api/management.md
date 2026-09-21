@@ -8,7 +8,7 @@ replaced by a task or an API call without behaviour changes.
 Run any command through the project's `manage.py`:
 
 ```bash
-python manage.py <command> --help
+uv run --no-sync python manage.py <command> --help
 ```
 
 The generated [Management Commands reference](reference/management-commands.md) lists every

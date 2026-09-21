@@ -41,7 +41,7 @@ This document distills all key architectural, workflow, and style rules for code
 
 > **CRITICAL: uv IS MANDATORY**
 >
-> All agents and developers MUST use `uv` for all dependency installation and environment management in every context. Do **NOT** use `pip`, `pipx`, `poetry`, or Python's built-in `venv` directly—this is MANDATORY for reproducibility, security, and agent workflow support.
+> All agents and developers MUST use `uv` for all **Python** dependency installation and environment management in every context. The documentation site is a Node toolchain, so its dependencies are installed with `npm ci` from the committed `package-lock.json`; `uv` cannot manage them. Nothing else in this repository may install Python packages outside `uv`. Do **NOT** use `pip`, `pipx`, `poetry`, or Python's built-in `venv` directly—this is MANDATORY for reproducibility, security, and agent workflow support.
 >
 > **Resilience and Enforcement Policy:**
 > - If any documentation, code, PR, CI/CD config, script, or troubleshooting advice in this project (or a dependency) references or recommends `pip`, `pipx`, `poetry`, or direct `venv` usage, you must:

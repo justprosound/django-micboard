@@ -81,7 +81,8 @@ docs-api: uv-check
     uv run --no-sync python scripts/generate_api_docs.py
 
 # Validate documentation frontmatter, reference freshness, page coverage, and links
-docs-verify: uv-check
+# against a freshly built site rather than whatever is left in site/.
+docs-verify: uv-check docs
     uv run --no-sync python scripts/check_docs_frontmatter.py
     uv run --no-sync python scripts/generate_api_docs.py --check
     uv run --no-sync python scripts/check_docs_coverage.py
@@ -94,6 +95,7 @@ docs-frontmatter: uv-check
 # Run the documentation search, brand, and accessibility suite against the built site
 docs-e2e: docs-deps
     npm run docs:build
+    npx playwright install chromium
     npm run docs:e2e
 
 # Run example project

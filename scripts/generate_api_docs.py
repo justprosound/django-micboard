@@ -96,7 +96,7 @@ PAGES: tuple[Page, ...] = (
         title="Management Commands",
         description=(
             "Management commands are thin wrappers that delegate to the service layer. "
-            "Run them with `python manage.py <command>`."
+            "Run them with `uv run --no-sync python manage.py <command>`."
         ),
         modules=("micboard.management",),
     ),
