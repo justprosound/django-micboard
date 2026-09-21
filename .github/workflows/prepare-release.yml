@@ -27,7 +27,18 @@ concurrency:
 
 jobs:
   prepare-release:
-    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]') && !startsWith(github.event.head_commit.message, 'chore(release):')
+    # Skip commit types that cannot change the distributed package: `docs:` only
+    # touches `docs/`, which MANIFEST.in prunes from the wheel, and `ci:` only touches
+    # workflows. Both still land their CHANGELOG entry, which the next real release
+    # promotes. A manual workflow_dispatch has no head_commit and is never skipped.
+    if: >-
+      github.ref == 'refs/heads/main'
+      && !contains(github.event.head_commit.message, '[skip ci]')
+      && !startsWith(github.event.head_commit.message, 'chore(release):')
+      && !startsWith(github.event.head_commit.message, 'docs:')
+      && !startsWith(github.event.head_commit.message, 'docs(')
+      && !startsWith(github.event.head_commit.message, 'ci:')
+      && !startsWith(github.event.head_commit.message, 'ci(')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:

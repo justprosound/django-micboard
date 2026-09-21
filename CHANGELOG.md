@@ -7,6 +7,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- ci: `docs:`- and `ci:`-prefixed commits on `main` no longer open a release pull request.
+  Neither can change the distributed package — `docs/` and the workflows are pruned from the
+  wheel — so they were cutting releases whose only difference was the version number. Their
+  CHANGELOG entries wait for the next release that ships code.
+- ci: `deploy-docs` also runs on `workflow_dispatch`. A merge performed with `GITHUB_TOKEN`,
+  such as a bot-merged release pull request, does not raise the `push` event, so the
+  documentation site could silently go unpublished for that commit; it can now be republished
+  with `gh workflow run ci.yml --ref main`.
+
 ## [2026.9.21.1] - 2026-09-21
 
 ### Changed

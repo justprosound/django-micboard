@@ -129,3 +129,6 @@ i18n and RTL are first-class if they are ever needed.
 - `just docs-e2e` runs the search, brand, and accessibility suite against the built site.
 - The `build-docs` CI job runs all of the above and uploads `site/` as a Pages artifact on
   `main`; `deploy-docs` then publishes it to GitHub Pages.
+- A merge performed with `GITHUB_TOKEN`, such as a bot-merged release pull request, does not
+  raise the `push` event, so that commit publishes nothing. `deploy-docs` therefore also runs
+  on `workflow_dispatch`; republish with `gh workflow run ci.yml --ref main`.
