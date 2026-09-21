@@ -260,7 +260,7 @@ Bases: `BaseCommand`
 
 Poll manufacturer APIs for device data and update models.
 
-Uses the manufacturer inventory sync to coordinate between manufacturer
+Uses the centralized PollingService to coordinate between manufacturer
 plugins, model updates, and real-time broadcasts.
 
 #### `add_arguments(parser: Any) -> Any`
@@ -291,31 +291,31 @@ Bases: `BaseCommand`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L37)
 
-## `micboard.management.commands.realtime_subscribe`
+## `micboard.management.commands.seed_demo_data`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py)
 
-Start the bounded realtime subscription supervisor from the command line.
+Management command that seeds the demonstration dataset.
 
 ### `Command`
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L18)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L13)
 
-Thin foreground adapter for the realtime subscription runner.
+Create a small, self-consistent demonstration dataset.
 
-#### `add_arguments(parser: CommandParser) -> None`
+#### `add_arguments(parser: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L23)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L21)
 
-Register the manufacturer and optional single-device selectors.
+Register the optional read-only account password.
 
-#### `handle(*args: Any, **options: Any) -> None`
+#### `handle(*_args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L37)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L32)
 
-Resolve the manufacturer and run the singleton supervisor for its transport.
+Delegate to the seeding service and report what it produced.
 
 ## `micboard.management.commands.set_logging_mode`
 
@@ -336,6 +336,32 @@ Bases: `BaseCommand`
 #### `handle(*args: Any, **options: Any) -> None`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/set_logging_mode.py#L27)
+
+## `micboard.management.commands.sse_subscribe`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sse_subscribe.py)
+
+Start the bounded SSE subscription supervisor from the command line.
+
+### `Command`
+
+Bases: `BaseCommand`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sse_subscribe.py#L18)
+
+Thin foreground adapter for the SSE subscription service.
+
+#### `add_arguments(parser: CommandParser) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sse_subscribe.py#L23)
+
+Register manufacturer and optional single-device selectors.
+
+#### `handle(*args: Any, **options: Any) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sse_subscribe.py#L37)
+
+Resolve the manufacturer and run the shared singleton supervisor.
 
 ## `micboard.management.commands.sync_discovery`
 
@@ -359,3 +385,29 @@ Bases: `BaseCommand`
 #### `handle(*args: Any, **options: Any) -> None`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L54)
+
+## `micboard.management.commands.websocket_subscribe`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/websocket_subscribe.py)
+
+Start the bounded Shure WebSocket supervisor from the command line.
+
+### `Command`
+
+Bases: `BaseCommand`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/websocket_subscribe.py#L20)
+
+Thin foreground adapter for the Shure WebSocket subscription service.
+
+#### `add_arguments(parser: CommandParser) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/websocket_subscribe.py#L25)
+
+Register the supported manufacturer and optional device selector.
+
+#### `handle(*args: Any, **options: Any) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/websocket_subscribe.py#L39)
+
+Validate Shure availability and run the shared singleton supervisor.
