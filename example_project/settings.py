@@ -202,8 +202,8 @@ if _is_package_installed("whitenoise"):
             # hard-fails on a missing referenced file, and micboard/static/micboard/css/
             # theme.css carries 96 references to IBM Plex Mono font files that are not
             # vendored in this repository: the stylesheet is compiled output whose SCSS
-            # imported @ibm/plex from node_modules. Hashed filenames are not worth
-            # rewriting generated CSS for on a demo deployment.
+            # imported @ibm/plex from node_modules. Tracked in issue #261; drop this
+            # override once the stylesheet is fixed.
             "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
         },
     }
