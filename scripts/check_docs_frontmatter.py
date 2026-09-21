@@ -16,6 +16,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = ROOT / "docs"
 
@@ -45,8 +47,10 @@ def iter_docs() -> Iterator[Path]:
 
 # The closing fence may be the last line of a file, with no trailing newline.
 CLOSING_FENCE = re.compile(r"\n---[ \t]*(?:\n|\Z)")
-TITLE_FIELD = re.compile(r"^title:[ \t]*(?P<value>.*?)[ \t]*$", re.MULTILINE)
 LEADING_HEADING = re.compile(r"# (?P<title>.+?)[ \t]*(?:\n|\Z)")
+INVALID_YAML = "frontmatter is not valid YAML"
+EMPTY_TITLE = "frontmatter declares an empty or non-textual 'title'"
+NO_TITLE = "frontmatter does not define 'title'"
 
 
 def split_frontmatter(content: str) -> tuple[str | None, str]:
@@ -59,15 +63,28 @@ def split_frontmatter(content: str) -> tuple[str | None, str]:
     return content[4 : fence.start()], content[fence.end() :]
 
 
-def frontmatter_title(frontmatter: str) -> str | None:
-    """Return the declared title, unquoting the simple scalars this project uses."""
-    match = TITLE_FIELD.search(frontmatter)
-    if match is None:
+def parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
+    """Return the frontmatter as a mapping, or None when it is not valid YAML."""
+    try:
+        parsed = yaml.safe_load(frontmatter)
+    except yaml.YAMLError:
         return None
-    value = match.group("value")
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-        value = value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
-    return value.strip()
+    if parsed is None:
+        return {}
+    return parsed if isinstance(parsed, dict) else None
+
+
+def title_defect(frontmatter: str) -> tuple[str | None, str | None]:
+    """Return the declared title, or the reason the frontmatter does not declare one."""
+    fields = parse_frontmatter(frontmatter)
+    if fields is None:
+        return None, INVALID_YAML
+    if "title" not in fields:
+        return None, NO_TITLE
+    title = fields["title"]
+    if not isinstance(title, str) or not title.strip():
+        return None, EMPTY_TITLE
+    return title.strip(), None
 
 
 def quote(value: str) -> str:
@@ -88,7 +105,7 @@ def build_frontmatter(title: str, existing: str = "") -> str:
     """Return a frontmatter block declaring ``title``, keeping any existing fields."""
     lines = [f"title: {quote(title)}"]
     label = sidebar_label(title)
-    if label and not re.search(r"^sidebar:", existing, re.MULTILINE):
+    if label and "sidebar" not in (parse_frontmatter(existing) or {}):
         lines += ["sidebar:", f"  label: {quote(label)}"]
     kept = existing.strip("\n")
     if kept:
@@ -101,7 +118,11 @@ def repair(content: str) -> tuple[str, str | None]:
     frontmatter, body = split_frontmatter(content)
     stripped = body.lstrip("\n")
     heading = LEADING_HEADING.match(stripped)
-    declared = frontmatter_title(frontmatter) if frontmatter is not None else None
+    declared, defect = title_defect(frontmatter) if frontmatter is not None else (None, None)
+
+    # A malformed or empty title is a human decision, not something to rewrite around.
+    if defect in {INVALID_YAML, EMPTY_TITLE}:
+        return content, f"{defect}; fix it manually"
 
     if declared is not None:
         if heading is None:
@@ -129,8 +150,9 @@ def problems(path: Path) -> list[Problem]:
     frontmatter, body = split_frontmatter(content)
     if frontmatter is None:
         return [Problem(path, "missing YAML frontmatter with a 'title' field")]
-    if not re.search(r"^title:", frontmatter, re.MULTILINE):
-        return [Problem(path, "frontmatter does not define 'title'")]
+    _, defect = title_defect(frontmatter)
+    if defect is not None:
+        return [Problem(path, defect)]
     if re.match(r"\n*# ", body):
         return [
             Problem(

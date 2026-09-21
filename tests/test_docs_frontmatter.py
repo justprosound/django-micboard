@@ -7,7 +7,13 @@ would render the title twice, and a page with no title cannot be rendered at all
 
 from __future__ import annotations
 
-from scripts.check_docs_frontmatter import iter_docs, problems, repair, split_frontmatter
+from scripts.check_docs_frontmatter import (
+    iter_docs,
+    problems,
+    repair,
+    split_frontmatter,
+    title_defect,
+)
 
 
 def test_every_documentation_page_declares_a_title() -> None:
@@ -90,3 +96,37 @@ def test_repair_reports_a_page_with_no_heading_to_derive_a_title_from() -> None:
 
     assert reason is not None
     assert "no leading '# ' heading" in reason
+
+
+def test_a_declared_title_must_be_a_non_empty_string() -> None:
+    """An empty or non-textual title would render as an empty page heading."""
+    assert title_defect('title: "Real"')[0] == "Real"
+    assert title_defect("title: 'Also real'")[0] == "Also real"
+    assert title_defect("title:")[1] == "frontmatter declares an empty or non-textual 'title'"
+    assert title_defect("title: 42")[1] == "frontmatter declares an empty or non-textual 'title'"
+
+
+def test_malformed_yaml_is_rejected_rather_than_pattern_matched() -> None:
+    """An unterminated quote is invalid YAML, not a title that happens to start with one."""
+    assert title_defect('title: "unterminated')[1] == "frontmatter is not valid YAML"
+
+
+def test_repair_refuses_to_rewrite_around_a_broken_frontmatter_block() -> None:
+    """Guessing at a fix could silently discard fields or duplicate the title key."""
+    content = "---\ntitle:\n---\n# Real Title\n"
+
+    repaired, reason = repair(content)
+
+    assert repaired == content
+    assert reason is not None
+    assert "fix it manually" in reason
+
+
+def test_repair_reads_a_multiline_yaml_title() -> None:
+    """Titles are real YAML scalars, so folded and quoted forms both resolve."""
+    content = "---\ntitle: >-\n  Folded Title\n---\n# Folded Title\n\nBody.\n"
+
+    repaired, reason = repair(content)
+
+    assert reason is None
+    assert repaired == "---\ntitle: >-\n  Folded Title\n---\nBody.\n"
