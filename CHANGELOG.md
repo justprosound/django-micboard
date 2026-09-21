@@ -7,6 +7,35 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.9.21.0] - 2026-09-21
+
+- docs: add frontmatter titles to every documentation page (#161) (#253) (c21bd81)
+- chore(deps): update dependency astral-sh/uv to v0.12.16 (#251) (7f9299c)
+- chore(deps): update dependency uv to v0.12.16 (#250) (76c7061)
+- chore(deps): update codecov/codecov-action action to v7.1.1 (#249) (18086ad)
+- chore(deps): update dependency astral-sh/uv to v0.12.15 (#248) (618570b)
+- chore(deps): update github/codeql-action digest to 1c5b675 (#247) (12f20db)
+- chore(deps): update dependency uv to v0.12.14 (#246) (0ae29e4)
+- chore(deps): update dependency astral-sh/uv to v0.12.14 (#245) (b26dd7a)
+- chore(deps): update codecov/codecov-action action to v7.1.0 (#244) (54c7443)
+- chore(deps): update github-actions (non-major) (#241) (18f116c)
+- chore(deps): upgrade dependencies and lockfile (#243) (a5067af)
+- chore(deps): update dependency uv to v0.12.12 (#240) (71e7c69)
+- chore(deps): update dependency astral-sh/uv to v0.12.12 (#239) (6ca2fe0)
+- chore(deps): lock file maintenance and docs requirements export (#238) (45af724)
+- chore(deps): update dependency astral-sh/uv to v0.12.11 (#237) (ba106c0)
+- chore(deps): update github/codeql-action digest to b96794f (#236) (ad19a26)
+- chore(deps): update dependency astral-sh/uv to v0.12.8 (#231) (66cac0c)
+- chore(deps): update dependency uv to v0.12.9 (#233) (d58ba5f)
+- chore(deps): update dependency uv to v0.12.8 (#232) (920883d)
+- chore(deps): lock file maintenance (#230) (dbf9c91)
+- chore(deps): update github-actions (non-major) (#229) (acd9655)
+- chore(deps): update dependency uv to v0.12.6 (#228) (07b6289)
+- chore(deps): update dependency astral-sh/uv to v0.12.6 (#227) (bf00abf)
+- chore(deps): update github/codeql-action digest to cdf488f (#226) (9e4fae7)
+- chore(deps): lock file maintenance (#225) (6ff457b)
+- docs: remove fossa status badges from readme (#224) (21c3de1)
+
 ## [2026.8.21.0] - 2026-08-21
 
 - chore(ci): parallelize tests with pytest-xdist and auto-sync docs on bot PRs (#222) (b4416fc)
