@@ -30,9 +30,11 @@ npm-check:
     @command -v npm >/dev/null 2>&1 || { echo "error: npm is required for the docs site" >&2; exit 1; }
     @npm --version >/dev/null
 
-# Documentation recipes need the locked Node dependency tree in place.
+# Documentation recipes need the locked Node dependency tree in place. Reinstall when the
+# lockfile is newer than the tree, so a lockfile update or branch switch cannot leave
+# stale packages behind.
 docs-deps: npm-check
-    @test -d node_modules || npm ci
+    @{ [ -d node_modules ] && [ node_modules -nt package-lock.json ]; } || npm ci
 
 # Install dependencies and prek hooks
 install: uv-check npm-check

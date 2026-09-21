@@ -108,8 +108,9 @@ This document distills all key architectural, workflow, and style rules for code
     ```
 
 - **Documentation site:** built with [Astro Starlight](https://starlight.astro.build) from the
-  plain Markdown in `docs/`, so it needs Node and npm alongside `uv` (`just install` installs
-  both). Never move pages out of `docs/`; the content collection loads them from there.
+  plain Markdown in `docs/`. Node and npm are prerequisites alongside `uv`; install them
+  first, then `just install` installs both dependency trees (`uv sync` and `npm ci`).
+  Never move pages out of `docs/`; the content collection loads them from there.
 
     ```bash
     just docs         # build the static site into site/

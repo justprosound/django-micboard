@@ -106,7 +106,8 @@ npm run docs:build
 ```
 
 The documentation site is an [Astro Starlight](https://starlight.astro.build) build, so it
-needs Node and npm alongside `uv`. `just install` installs both dependency trees. Pages are
+requires Node and npm as prerequisites alongside `uv`; with those installed, `just install`
+installs both dependency trees. Pages are
 authored as plain Markdown in `docs/`; see
 [ADR-013](../adr/013-documentation-platform-starlight.md) for the platform decision.
 

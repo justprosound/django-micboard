@@ -107,9 +107,10 @@ i18n and RTL are first-class if they are ever needed.
   regenerated. This is the load-bearing cost of the migration and is accepted in exchange for
   a hermetic build. If the extractor ever falls short for a specific surface, the fallback is
   hand-authored Markdown for that surface plus links to source.
-- **The toolchain now spans two ecosystems.** Contributors need Node and npm in addition to
-  `uv`. `just install` installs both; `just docs` fails with a clear message when the Node
-  dependency tree is missing.
+- **The toolchain now spans two ecosystems.** Node and npm become prerequisites alongside
+  `uv`; once they are installed, `just install` installs both dependency trees. `just docs`
+  fails with a clear message when npm is unavailable, and reinstalls the Node tree when the
+  lockfile is newer than it.
 - **No per-release versioning.** Starlight has no built-in versioning and the community
   `starlight-versions` plugin is experimental. We do not need per-release snapshots today. If
   that changes, the options are `starlight-versions` or a move to Docusaurus, whose

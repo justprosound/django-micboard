@@ -22,6 +22,7 @@
     "docs:e2e": "playwright test"
   },
   "dependencies": {
+    "@astrojs/markdown-satteri": "^0.4.1",
     "@astrojs/starlight": "^0.42.2",
     "astro": "^7.3.3",
     "github-slugger": "^2.0.0"

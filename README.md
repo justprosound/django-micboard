@@ -384,7 +384,8 @@ just serve-docs  # serve it on http://localhost:9000 with hot reload
 just docs-api    # regenerate the Python API reference from docstrings
 ```
 
-Building the site needs Node and npm in addition to `uv`; `just install` installs both. See
+Building the site requires Node and npm in addition to `uv`. With all three installed,
+`just install` installs both dependency trees (`uv sync` and `npm ci`). See
 [ADR-013](docs/adr/013-documentation-platform-starlight.md) for the platform decision.
 
 ## Support & Contributing
