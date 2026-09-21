@@ -7,6 +7,18 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `collectstatic` failed outright under `ManifestStaticFilesStorage`, the standard
+  production choice, because `micboard/static/micboard/css/theme.css` referenced IBM Plex
+  font files that were never vendored: the stylesheet was compiled with the whole
+  `@ibm/plex` package imported, emitting 424 `@font-face` blocks across nine families with
+  `url()` paths pointing outside the package. Only IBM Plex Sans and Mono are ever applied
+  by a rule, so the 202 blocks for the other seven families are removed and the two real
+  families now load Latin-1 `woff2` subsets vendored under
+  `micboard/static/micboard/vendor/ibm-plex/`, alongside the SIL Open Font License. The
+  stylesheet drops from 458 KB to 285 KB (#261).
+
 ### Changed
 
 - ci: `docs:`- and `ci:`-prefixed commits on `main` no longer open a release pull request.

@@ -7,8 +7,8 @@ exclude = '(^|/)(docs|node_modules|\.venv|build|dist)/|^\.coverage$'
 [[repos]]
 repo = "builtin"
 hooks = [
-  { id = "trailing-whitespace", exclude = "(^|/)migrations/" },
-  { id = "end-of-file-fixer", exclude = "(^|/)migrations/" },
+  { id = "trailing-whitespace", exclude = "(^|/)migrations/|^micboard/static/micboard/vendor/" },
+  { id = "end-of-file-fixer", exclude = "(^|/)migrations/|^micboard/static/micboard/vendor/" },
   { id = "check-yaml", exclude = "(^|/)migrations/" },
   { id = "check-json", exclude = "(^|/)migrations/" },
   { id = "check-toml", exclude = "(^|/)migrations/" },
