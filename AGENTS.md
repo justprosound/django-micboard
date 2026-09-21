@@ -107,6 +107,23 @@ This document distills all key architectural, workflow, and style rules for code
     uv run --no-sync bandit -r micboard -ll
     ```
 
+- **Documentation site:** built with [Astro Starlight](https://starlight.astro.build) from the
+  plain Markdown in `docs/`, so it needs Node and npm alongside `uv` (`just install` installs
+  both). Never move pages out of `docs/`; the content collection loads them from there.
+
+    ```bash
+    just docs         # build the static site into site/
+    just serve-docs   # serve it on http://localhost:9000 with hot reload
+    just docs-api     # regenerate docs/api/reference/ from Google-style docstrings
+    just docs-verify  # frontmatter, reference freshness, page coverage, and link checks
+    just docs-e2e     # offline search, brand, and WCAG 2.1 AA suite (Playwright + axe-core)
+    ```
+
+    The API reference is generated statically with Griffe by `scripts/generate_api_docs.py`
+    and committed; add a module to its `PAGES` list to document a new public surface. The
+    documentation build must never import Django or require `DJANGO_SETTINGS_MODULE`. See
+    [ADR-013](docs/adr/013-documentation-platform-starlight.md).
+
 ---
 
 ## 2. Directory Structure & Domain Architecture

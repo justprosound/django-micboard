@@ -24,13 +24,11 @@ To update a dependency, you should:
     just test
     ```
 
-`docs/requirements.txt` is exported from the locked `docs` extra. Regenerate it; never edit it
-directly:
+## Documentation site dependencies
 
-```bash
-uv export --locked --no-dev --extra docs --no-emit-project \
-  --output-file docs/requirements.txt
-```
+The documentation site is an Astro Starlight build, so its dependencies live in
+`package.json` with `package-lock.json` as the lockfile. Install them with `npm ci` (run for
+you by `just install`) and let Renovate propose upgrades; never hand-edit the lockfile.
 
-Renovate ignores this generated export and updates canonical dependency inputs instead. The
-pre-commit suite rejects any export that drifts from `uv.lock`.
+The `docs` Python extra contains only `griffelib`, which
+`scripts/generate_api_docs.py` uses to extract the API reference from docstrings.

@@ -487,7 +487,7 @@ uv run --no-sync ruff format --check .
 uv run --no-sync ruff check .
 uv run --no-sync python -m mypy micboard
 uv run --no-sync bandit -r micboard -ll
-uv run --no-sync mkdocs build --strict
+just docs
 ```
 
 ## New integration checklist

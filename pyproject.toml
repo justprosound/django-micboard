@@ -166,13 +166,12 @@ dev = [
     # Mutation testing — verifies that tests actually catch logic inversions
     "mutmut>=3.0",
 ]
+# The documentation site itself is built with Astro Starlight (see package.json).
+# Python is only needed to extract the API reference Markdown from docstrings.
 docs = [
-    "mkdocs>=1.6",
-    "mkdocs-git-revision-date-localized-plugin>=1.5.3",
-    "mkdocs-material>=9.7.6",
-    "mkdocs-minify-plugin>=0.8.0",
-    "mkdocstrings[python]>=1.0.6",
-    "pymdown-extensions",
+    "griffelib>=2.3",
+    # scripts/check_docs_frontmatter.py validates page frontmatter as real YAML.
+    "PyYAML>=6.0",
 ]
 all = [
     "djangorestframework",
@@ -229,12 +228,12 @@ all = [
     "types-python-dateutil>=2.8",
     "bandit>=1.7",
     "coverage>=7.0",
-    "mkdocs>=1.6",
+    "griffelib>=2.3",
 ]
 
 [project.urls]
 Homepage = "https://github.com/justprosound/django-micboard"
-Documentation = "https://django-micboard.readthedocs.io"
+Documentation = "https://justprosound.github.io/django-micboard"
 Repository = "https://github.com/justprosound/django-micboard.git"
 "Bug Tracker" = "https://github.com/justprosound/django-micboard/issues"
 Changelog = "https://github.com/justprosound/django-micboard/blob/main/CHANGELOG.md"

@@ -249,6 +249,8 @@ changes must follow the controlled migration process above.
    - Update CHANGELOG.md under `[Unreleased]`
    - Update README.md if user-facing
    - Add type hints throughout
+   - Run `just docs-api` when a documented module's docstrings change, and `just docs-verify`
+     after editing pages under `docs/`
 
 6. **Commit with clear messages**:
    ```bash

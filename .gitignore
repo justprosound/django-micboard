@@ -66,11 +66,14 @@ ENV/
 
 # Node / JS
 node_modules/
-package-lock.json
 yarn.lock
 
-# MkDocs build output
+# Documentation site build output and generated assets
 site/
+.astro/
+/public/
+/test-results/
+/playwright-report/
 
 # Sphinx build output
 docs/_build/

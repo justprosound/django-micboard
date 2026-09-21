@@ -89,12 +89,6 @@ treat a partial batch as a complete fleet replacement. Device and chunk counts a
 
 ## Python WebSocket Consumer
 
-::: micboard.websockets.consumers
-    options:
-      show_signature: true
-      show_signature_annotations: true
-      show_source: false
-      show_labels: true
-      show_root_heading: true
-      show_category_heading: true
-      separate_signature: true
+The [WebSocket Consumers reference](reference/websocket-consumers.md) documents the
+consumer class, its message handlers, and the routing module, generated from source by
+`just docs-api`.
