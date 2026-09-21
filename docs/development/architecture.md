@@ -1,5 +1,6 @@
-# Micboard Django App - Architecture Overview
-
+---
+title: "Micboard Django App - Architecture Overview"
+---
 ## System Architecture
 
 ```

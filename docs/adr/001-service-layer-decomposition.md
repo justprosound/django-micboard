@@ -1,5 +1,6 @@
-# ADR-001: Service Layer Decomposition
-
+---
+title: "ADR-001: Service Layer Decomposition"
+---
 **Status:** Implemented
 **Date:** 2026-05-20
 **Updated:** 2026-07-14

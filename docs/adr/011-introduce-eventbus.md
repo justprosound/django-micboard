@@ -1,5 +1,6 @@
-# ADR-011: Introduce EventBus for Signal-Based Communication
-
+---
+title: "ADR-011: Introduce EventBus for Signal-Based Communication"
+---
 **Status:** Proposed
 **Date:** 2026-05-21
 **Deciders:** (to be assigned)

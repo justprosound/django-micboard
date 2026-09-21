@@ -1,5 +1,6 @@
-# Integrating Micboard Settings
-
+---
+title: "Integrating Micboard Settings"
+---
 Use the canonical `SettingsService` singleton for every runtime read:
 
 ```python

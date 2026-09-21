@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+# ruff: noqa: T201
+"""Verify (or repair) the Starlight frontmatter required by every documentation page.
+
+Starlight renders the ``title`` frontmatter field as the page heading, so a page that
+keeps its Markdown ``# Heading`` would render two level-one headings. This check keeps
+``docs/`` authored as plain Markdown while guaranteeing the small amount of frontmatter
+the documentation site needs.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+DOCS_DIR = ROOT / "docs"
+
+# Sidebar labels are derived from the page title so long, repetitive titles stay
+# readable in the navigation without hand-maintaining a label per page.
+LABEL_PREFIXES = ("SRED Project Summary — 2026 ", "SRED Project Index — ")
+
+
+@dataclass(frozen=True)
+class Problem:
+    """A single frontmatter defect found in a documentation page."""
+
+    path: Path
+    message: str
+
+    def __str__(self) -> str:
+        return f"{self.path.relative_to(ROOT)}: {self.message}"
+
+
+def iter_docs() -> Iterator[Path]:
+    """Yield every Markdown page that the documentation site renders."""
+    for path in sorted(DOCS_DIR.rglob("*.md")):
+        if any(part.startswith("_") for part in path.relative_to(DOCS_DIR).parts):
+            continue
+        yield path
+
+
+# The closing fence may be the last line of a file, with no trailing newline.
+CLOSING_FENCE = re.compile(r"\n---[ \t]*(?:\n|\Z)")
+LEADING_HEADING = re.compile(r"# (?P<title>.+?)[ \t]*(?:\n|\Z)")
+INVALID_YAML = "frontmatter is not valid YAML"
+EMPTY_TITLE = "frontmatter declares an empty or non-textual 'title'"
+NO_TITLE = "frontmatter does not define 'title'"
+
+
+def split_frontmatter(content: str) -> tuple[str | None, str]:
+    """Return the raw frontmatter block (without fences) and the remaining body."""
+    if not content.startswith("---\n"):
+        return None, content
+    fence = CLOSING_FENCE.search(content, 3)
+    if fence is None:
+        return None, content
+    return content[4 : fence.start()], content[fence.end() :]
+
+
+def parse_frontmatter(frontmatter: str) -> dict[str, object] | None:
+    """Return the frontmatter as a mapping, or None when it is not valid YAML."""
+    try:
+        parsed = yaml.safe_load(frontmatter)
+    except yaml.YAMLError:
+        return None
+    if parsed is None:
+        return {}
+    return parsed if isinstance(parsed, dict) else None
+
+
+def title_defect(frontmatter: str) -> tuple[str | None, str | None]:
+    """Return the declared title, or the reason the frontmatter does not declare one."""
+    fields = parse_frontmatter(frontmatter)
+    if fields is None:
+        return None, INVALID_YAML
+    if "title" not in fields:
+        return None, NO_TITLE
+    title = fields["title"]
+    if not isinstance(title, str) or not title.strip():
+        return None, EMPTY_TITLE
+    return title.strip(), None
+
+
+def quote(value: str) -> str:
+    """Return a double-quoted YAML scalar safe for titles containing colons or dashes."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def sidebar_label(title: str) -> str | None:
+    """Return a shortened sidebar label for verbose, prefixed page titles."""
+    for prefix in LABEL_PREFIXES:
+        if title.startswith(prefix):
+            return title.removeprefix(prefix).strip()
+    return None
+
+
+def build_frontmatter(title: str, existing: str = "") -> str:
+    """Return a frontmatter block declaring ``title``, keeping any existing fields."""
+    lines = [f"title: {quote(title)}"]
+    label = sidebar_label(title)
+    if label and "sidebar" not in (parse_frontmatter(existing) or {}):
+        lines += ["sidebar:", f"  label: {quote(label)}"]
+    kept = existing.strip("\n")
+    if kept:
+        lines.append(kept)
+    return "---\n" + "\n".join(lines) + "\n---\n"
+
+
+def repair(content: str) -> tuple[str, str | None]:
+    """Return the repaired page content, plus the reason a repair was impossible."""
+    frontmatter, body = split_frontmatter(content)
+    stripped = body.lstrip("\n")
+    heading = LEADING_HEADING.match(stripped)
+    declared, defect = title_defect(frontmatter) if frontmatter is not None else (None, None)
+
+    # A malformed or empty title is a human decision, not something to rewrite around.
+    if defect in {INVALID_YAML, EMPTY_TITLE}:
+        return content, f"{defect}; fix it manually"
+
+    if declared is not None:
+        if heading is None:
+            return content, None
+        # Removing a heading that says something else would discard content, so a
+        # mismatch is reported for a human to reconcile instead of being rewritten.
+        if heading.group("title").strip() != declared:
+            return content, (
+                f"body heading {heading.group('title').strip()!r} differs from the "
+                f"frontmatter title {declared!r}; reconcile them manually"
+            )
+        return f"---\n{frontmatter}\n---\n" + stripped[heading.end() :].lstrip("\n"), None
+
+    if heading is None:
+        return content, "no frontmatter title and no leading '# ' heading to derive one from"
+
+    remainder = stripped[heading.end() :].lstrip("\n")
+    title = heading.group("title").strip()
+    return build_frontmatter(title, frontmatter or "") + remainder, None
+
+
+def problems(path: Path) -> list[Problem]:
+    """Return the frontmatter defects for a single page."""
+    content = path.read_text(encoding="utf-8")
+    frontmatter, body = split_frontmatter(content)
+    if frontmatter is None:
+        return [Problem(path, "missing YAML frontmatter with a 'title' field")]
+    _, defect = title_defect(frontmatter)
+    if defect is not None:
+        return [Problem(path, defect)]
+    if re.match(r"\n*# ", body):
+        return [
+            Problem(
+                path,
+                "body starts with a '# ' heading; the frontmatter title is already "
+                "rendered as the page heading",
+            )
+        ]
+    return []
+
+
+def main() -> int:
+    """Report, or with ``--fix`` repair, documentation frontmatter defects."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fix", action="store_true", help="rewrite pages in place")
+    arguments = parser.parse_args()
+
+    failures: list[Problem] = []
+    fixed: list[Path] = []
+    for path in iter_docs():
+        if arguments.fix:
+            content = path.read_text(encoding="utf-8")
+            repaired, reason = repair(content)
+            if reason is not None:
+                failures.append(Problem(path, reason))
+                continue
+            if repaired != content:
+                path.write_text(repaired, encoding="utf-8")
+                fixed.append(path)
+        failures.extend(problems(path))
+
+    for path in fixed:
+        print(f"fixed {path.relative_to(ROOT)}")
+    if not failures:
+        return 0
+
+    print("Documentation frontmatter is invalid; run: just docs-frontmatter")
+    for failure in failures:
+        print(f"  - {failure}")
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

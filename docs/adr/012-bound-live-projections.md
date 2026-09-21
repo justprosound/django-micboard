@@ -1,5 +1,6 @@
-# ADR-012: Bound Live Monitoring Projections
-
+---
+title: "ADR-012: Bound Live Monitoring Projections"
+---
 **Status:** Implemented
 **Date:** 2026-07-14
 **Deciders:** Project team

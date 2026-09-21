@@ -1,5 +1,6 @@
-# Python API Reference
-
+---
+title: "Python API Reference"
+---
 This section contains automatically generated API documentation from the Django Micboard source code.
 
 ## Models

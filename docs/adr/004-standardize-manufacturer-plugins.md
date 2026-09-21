@@ -1,5 +1,6 @@
-# ADR-004: Compose Manufacturer Plugins Around Shared Transport
-
+---
+title: "ADR-004: Compose Manufacturer Plugins Around Shared Transport"
+---
 **Status:** Implemented
 **Date:** 2026-05-20
 **Updated:** 2026-07-14

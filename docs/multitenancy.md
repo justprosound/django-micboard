@@ -1,5 +1,6 @@
-# Multi-Tenancy & MSP Support
-
+---
+title: "Multi-Tenancy & MSP Support"
+---
 Django Micboard provides optional multi-tenancy support for Managed Service Providers (MSP) and multi-campus deployments through the `micboard.multitenancy` module.
 
 ## Overview

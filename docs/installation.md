@@ -1,5 +1,6 @@
-# Installation Guide
-
+---
+title: "Installation Guide"
+---
 > All environments and dependencies must be managed with [`uv`](https://github.com/astral-sh/uv).
 
 Complete installation instructions for django-micboard.

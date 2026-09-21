@@ -1,5 +1,6 @@
-# Settings System - Quick Reference Card
-
+---
+title: "Settings System - Quick Reference Card"
+---
 ## 🚀 Quick Start (Copy & Bookmark This)
 
 ### Access Settings

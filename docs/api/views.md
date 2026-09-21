@@ -1,5 +1,6 @@
-# Views
-
+---
+title: "Views"
+---
 The reusable app's request adapters live in `micboard.views` and serve HTML/HTMX dashboards,
 settings pages, assignments, alerts, and authenticated kiosk-support responses. Concrete paths
 and names are defined by `micboard.urls`; use Django's `reverse()` rather than hard-coding them.

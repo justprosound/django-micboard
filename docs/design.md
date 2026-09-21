@@ -1,5 +1,6 @@
-# Design
-
+---
+title: "Design"
+---
 ## Architecture Overview
 
 The app keeps a reusable Django package layout with a configuration registry, manufacturer plugin registry, and optional multitenancy module. Core services resolve settings through a scope-aware registry and use tenant-aware query helpers to keep data isolation consistent.

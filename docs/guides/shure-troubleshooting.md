@@ -1,5 +1,6 @@
-# Shure troubleshooting
-
+---
+title: "Shure troubleshooting"
+---
 Use these checks to separate configuration, transport, discovery, polling, and queue failures.
 Run project commands through the locked uv environment.
 

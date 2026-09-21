@@ -71,6 +71,14 @@ hooks = [
     always_run = true
   },
   {
+    id = "docs-frontmatter",
+    name = "documentation frontmatter",
+    entry = "uv run --no-sync python scripts/check_docs_frontmatter.py",
+    language = "system",
+    pass_filenames = false,
+    always_run = true
+  },
+  {
     id = "docs-requirements-lock",
     name = "docs requirements lock consistency",
     entry = "uv run --no-sync python scripts/check_docs_requirements.py",

@@ -1,5 +1,6 @@
-# ADR-002: Extract Business Logic from Models to Services
-
+---
+title: "ADR-002: Extract Business Logic from Models to Services"
+---
 **Status:** Implemented
 **Date:** 2026-05-20
 **Updated:** 2026-07-14

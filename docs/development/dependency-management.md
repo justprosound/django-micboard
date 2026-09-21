@@ -1,5 +1,6 @@
-# Dependency Management
-
+---
+title: "Dependency Management"
+---
 This project uses uv to manage Python dependencies. Direct and optional dependencies are defined in `pyproject.toml`; reproducible versions are recorded in `uv.lock`.
 
 ## Updating Dependencies

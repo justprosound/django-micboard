@@ -1,5 +1,6 @@
-# Regulatory Coverage Monitoring
-
+---
+title: "Regulatory Coverage Monitoring"
+---
 ## Overview
 
 Django Micboard includes automatic monitoring and alerting for RF channels operating without regulatory frequency data coverage. This helps ensure compliance and data completeness.

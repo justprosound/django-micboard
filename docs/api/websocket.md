@@ -1,5 +1,6 @@
-# WebSocket API
-
+---
+title: "WebSocket API"
+---
 Django Micboard provides real-time updates via WebSocket connections.
 
 ## Connection

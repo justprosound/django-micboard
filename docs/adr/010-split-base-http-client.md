@@ -1,5 +1,6 @@
-# ADR-010: Split base_http_client.py into Three Concerns
-
+---
+title: "ADR-010: Split base_http_client.py into Three Concerns"
+---
 **Status:** Superseded — plan abandoned in favor of composite client pattern
 **Date:** 2026-05-21
 **Deciders:** (to be assigned)

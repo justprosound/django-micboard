@@ -1,5 +1,6 @@
-# Developer guide
-
+---
+title: "Developer guide"
+---
 This guide covers the supported repository workflow. Architecture decisions live in
 `docs/adr/`; domain language and boundaries live in `CONTEXT.md`.
 

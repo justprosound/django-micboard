@@ -1,5 +1,6 @@
-# Performer Assignment Architecture
-
+---
+title: "Performer Assignment Architecture"
+---
 ## Purpose
 
 Performer assignments connect three existing records:

@@ -1,5 +1,6 @@
-# Device Discovery Workflow
-
+---
+title: "Device Discovery Workflow"
+---
 ## Overview
 
 Django-micboard implements a comprehensive device discovery and deduplication system that maintains an authoritative registry of wireless microphone equipment across multi-vendor networks. The system detects new devices, tracks movements, identifies conflicts, and provides an approval workflow for manual review.

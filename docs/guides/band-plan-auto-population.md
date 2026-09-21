@@ -1,5 +1,6 @@
-# Band Plan Auto-Population Guide
-
+---
+title: "Band Plan Auto-Population Guide"
+---
 ## Overview
 
 When configuring wireless chassis devices in Django Micboard, you can select from **standard band plans** to automatically populate frequency ranges. This eliminates the need to manually enter `band_plan_min_mhz` and `band_plan_max_mhz` values for each device.

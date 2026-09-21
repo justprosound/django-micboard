@@ -1,5 +1,6 @@
-# HTTP Endpoints
-
+---
+title: "HTTP Endpoints"
+---
 django-micboard does not currently ship a general-purpose REST API. The reusable app exposes
 HTML/HTMX views, authenticated kiosk-support JSON responses, and the service layer documented
 below. A stable REST API remains tracked in

@@ -1,5 +1,6 @@
-# PRD-002: Admin Modernization
-
+---
+title: "PRD-002: Admin Modernization"
+---
 **Status:** Completed
 **Date:** 2026-05-20
 

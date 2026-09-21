@@ -1,5 +1,8 @@
-# SRED Project Summary — 2026 Admin Dashboard Modularization
-
+---
+title: "SRED Project Summary — 2026 Admin Dashboard Modularization"
+sidebar:
+  label: "Admin Dashboard Modularization"
+---
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words

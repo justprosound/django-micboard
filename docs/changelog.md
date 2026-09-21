@@ -1,5 +1,6 @@
-# Changelog
-
+---
+title: "Changelog"
+---
 All notable changes to django-micboard are documented here.
 
 **Version format:** CalVer (`YY.MM.0D.MICRO`)

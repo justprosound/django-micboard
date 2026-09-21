@@ -1,5 +1,6 @@
-# PRD-001: Service Architecture Refinement
-
+---
+title: "PRD-001: Service Architecture Refinement"
+---
 **Status:** Implemented
 **Date:** 2026-05-20
 **Updated:** 2026-07-14

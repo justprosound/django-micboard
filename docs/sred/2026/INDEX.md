@@ -1,5 +1,8 @@
-# SRED Project Index — 2026 (FY)
-
+---
+title: "SRED Project Index — 2026 (FY)"
+sidebar:
+  label: "2026 (FY)"
+---
 **Project:** django-micboard
 **Fiscal Year:** 2026 (Calendar year 2026-01-01 to 2026-12-31)
 **Status:** Living document — updated as projects complete

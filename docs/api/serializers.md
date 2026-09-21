@@ -1,5 +1,6 @@
-# Serializers
-
+---
+title: "Serializers"
+---
 django-micboard does not currently expose a stable public REST serializer package. A versioned,
 tenant-safe REST API is tracked in
 [GitHub issue #74](https://github.com/justprosound/django-micboard/issues/74).

@@ -1,5 +1,8 @@
-# SRED Project Summary — 2026 Standardize Manufacturer Plugins
-
+---
+title: "SRED Project Summary — 2026 Standardize Manufacturer Plugins"
+sidebar:
+  label: "Standardize Manufacturer Plugins"
+---
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words

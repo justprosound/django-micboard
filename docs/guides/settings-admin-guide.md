@@ -1,5 +1,6 @@
-# Settings Management - Admin Quick Reference
-
+---
+title: "Settings Management - Admin Quick Reference"
+---
 ## Overview
 
 The Settings system allows you to configure how django-micboard behaves **without editing any code**. All changes take effect immediately.
