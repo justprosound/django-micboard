@@ -12,6 +12,7 @@ from datetime import timedelta
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.utils import timezone
 
 import pytest
@@ -111,3 +112,67 @@ def test_reseeding_rotates_the_demo_password_and_keeps_it_unprivileged() -> None
     assert user.check_password("second-password")
     assert user.is_superuser is False
     assert user.groups.get().name == DEMO_GROUP_NAME
+
+
+def test_seeding_refuses_a_database_that_holds_other_hardware() -> None:
+    """The fixture carries explicit primary keys, so it must never land on real records."""
+    chassis_model = apps.get_model("micboard", "WirelessChassis")
+    manufacturer_model = apps.get_model("micboard", "Manufacturer")
+    manufacturer = manufacturer_model.objects.create(name="Real Vendor", code="shure")
+    chassis_model.objects.create(
+        manufacturer=manufacturer,
+        api_device_id="production-receiver-1",
+        role="receiver",
+        ip="192.0.2.10",
+    )
+
+    with pytest.raises(ValueError, match="refusing to seed"):
+        DemoSeedService().seed()
+
+
+def test_dropping_the_password_retires_the_existing_account() -> None:
+    """Removing the environment variable must not leave a known staff login usable."""
+    DemoSeedService().seed(read_only_password="first-password")
+
+    DemoSeedService().seed()
+
+    user = get_user_model().objects.get(username=DEMO_USERNAME)
+    assert user.is_active is False
+    assert user.is_staff is False
+    assert not user.check_password("first-password")
+    assert not user.has_usable_password()
+
+
+def test_reseeding_reactivates_a_retired_account() -> None:
+    """A redeploy that restores the password must restore the ability to sign in."""
+    DemoSeedService().seed(read_only_password="first-password")
+    DemoSeedService().seed()
+
+    DemoSeedService().seed(read_only_password="second-password")
+
+    user = get_user_model().objects.get(username=DEMO_USERNAME)
+    assert user.is_active is True
+    assert user.is_staff is True
+    assert user.check_password("second-password")
+
+
+def test_the_command_reports_what_it_seeded(capsys: pytest.CaptureFixture[str]) -> None:
+    """The management command is the deployment's entry point, so it must run clean."""
+    call_command("seed_demo_data")
+
+    output = capsys.readouterr().out
+    assert "Loaded the demo fixture" in output
+    assert "the 'demo' account was not created" in output
+
+
+def test_the_command_creates_then_resets_the_account(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Deployments pass the password through the environment on every start."""
+    call_command("seed_demo_data", read_only_password="from-the-environment")
+    assert "Created the read-only 'demo' account" in capsys.readouterr().out
+
+    call_command("seed_demo_data", read_only_password="rotated")
+
+    assert "Reset the password" in capsys.readouterr().out
+    assert get_user_model().objects.get(username=DEMO_USERNAME).check_password("rotated")
