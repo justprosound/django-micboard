@@ -7,6 +7,48 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A read-only demonstration deployment. `micboard/fixtures/demo.json` holds the structural
+  demo dataset (a Shure ULXD4Q receiver, its channels, four transmitters, a monitoring group,
+  and performer assignments), and the new `seed_demo_data` command loads it, writes telemetry
+  relative to the current time, and manages a `demo` staff account that holds only `view_`
+  permissions. The account is created only when `MICBOARD_DEMO_PASSWORD` is set, so a
+  deployment cannot publish a login with a default password. A root `Dockerfile` and a `demo`
+  extra (gunicorn, whitenoise, dj-database-url, psycopg) build the image; see
+  [the deployment guide](docs/demo-deployment.md).
+
+### Changed
+
+- ci: `docs:`- and `ci:`-prefixed commits on `main` no longer open a release pull request.
+  Neither can change the distributed package — `docs/` and the workflows are pruned from the
+  wheel — so they were cutting releases whose only difference was the version number. Their
+  CHANGELOG entries wait for the next release that ships code.
+- ci: `deploy-docs` also runs on `workflow_dispatch`. A merge performed with `GITHUB_TOKEN`,
+  such as a bot-merged release pull request, does not raise the `push` event, so the
+  documentation site could silently go unpublished for that commit; it can now be republished
+  with `gh workflow run ci.yml --ref main`.
+- ci: `docs:`- and `ci:`-prefixed commits on `main` no longer open a release pull request.
+  Neither can change the distributed package — `docs/` and the workflows are pruned from the
+  wheel — so they were cutting releases whose only difference was the version number. Their
+  CHANGELOG entries wait for the next release that ships code.
+- ci: `deploy-docs` also runs on `workflow_dispatch`. A merge performed with `GITHUB_TOKEN`,
+  such as a bot-merged release pull request, does not raise the `push` event, so the
+  documentation site could silently go unpublished for that commit; it can now be republished
+  with `gh workflow run ci.yml --ref main`.
+
+### Fixed
+
+- `collectstatic` failed outright under `ManifestStaticFilesStorage`, the standard
+  production choice, because `micboard/static/micboard/css/theme.css` referenced IBM Plex
+  font files that were never vendored: the stylesheet was compiled with the whole
+  `@ibm/plex` package imported, emitting 424 `@font-face` blocks across nine families with
+  `url()` paths pointing outside the package. Only IBM Plex Sans and Mono are ever applied
+  by a rule, so the 202 blocks for the other seven families are removed and the two real
+  families now load Latin-1 `woff2` subsets vendored under
+  `micboard/static/micboard/vendor/ibm-plex/`, alongside the SIL Open Font License. The
+  stylesheet drops from 458 KB to 285 KB (#261).
+
 ## [2026.9.21.2] - 2026-09-21
 
 ### Fixed

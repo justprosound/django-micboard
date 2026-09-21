@@ -183,3 +183,32 @@ MICBOARD_CONFIG: dict[str, t.Any] = {
     "API_HEALTH_LOG_RETENTION_DAYS": 7,
     "AUDIT_ARCHIVE_PATH": "audit_archives",
 }
+
+# ============================================================================
+# Public demo deployment
+# ============================================================================
+# Only engaged when the environment asks for it, so local development keeps the
+# permissive defaults above. See docs/demo-deployment.md.
+if _is_package_installed("whitenoise"):
+    # Immediately after SecurityMiddleware, as WhiteNoise requires.
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+
+# A platform such as Render terminates TLS at its proxy, so Django needs to be told
+# that a forwarded request was secure before it will set secure cookies.
+if os.environ.get("DJANGO_BEHIND_TLS_PROXY", "False").lower() == "true":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# Django requires the scheme-qualified origin for admin logins behind a proxy.
+CSRF_TRUSTED_ORIGINS = [
+    origin
+    for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin
+]
