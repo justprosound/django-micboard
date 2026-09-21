@@ -1,5 +1,6 @@
-# Real-time Updates
-
+---
+title: "Real-time Updates"
+---
 Django Micboard provides real-time monitoring of Shure wireless microphone systems through WebSocket connections and automatic data synchronization.
 
 ## WebSocket Architecture

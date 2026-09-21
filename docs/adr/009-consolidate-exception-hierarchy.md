@@ -1,5 +1,6 @@
-# ADR-009: Consolidate Exception Hierarchy
-
+---
+title: "ADR-009: Consolidate Exception Hierarchy"
+---
 **Status:** Implemented
 **Date:** 2026-05-21
 **Updated:** 2026-07-14

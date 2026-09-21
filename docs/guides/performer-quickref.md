@@ -1,5 +1,6 @@
-# Performer Assignment Quick Reference
-
+---
+title: "Performer Assignment Quick Reference"
+---
 Performers are the people using wireless units. They are separate from Django users, who are the operators managing those assignments.
 
 ## Imports

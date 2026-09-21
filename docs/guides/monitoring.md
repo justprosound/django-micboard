@@ -1,5 +1,6 @@
-# Monitoring Devices
-
+---
+title: "Monitoring Devices"
+---
 Learn how to monitor your Shure wireless microphone system with django-micboard.
 
 ## Device Status Overview

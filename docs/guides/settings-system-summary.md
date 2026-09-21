@@ -1,5 +1,6 @@
-# Settings System Summary
-
+---
+title: "Settings System Summary"
+---
 Micboard settings are split by responsibility without exposing parallel public APIs.
 
 ## Modules

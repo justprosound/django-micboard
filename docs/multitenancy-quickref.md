@@ -1,5 +1,6 @@
-# Multi-Tenancy Quick Reference
-
+---
+title: "Multi-Tenancy Quick Reference"
+---
 ## 🚀 Quick Start
 
 ### Option 1: Single-Site (Default) - No Changes Needed

@@ -1,5 +1,6 @@
-# Python and integration reference
-
+---
+title: "Python and integration reference"
+---
 django-micboard is a reusable Django app. Its stable integration surface is the typed service
 layer, management commands, model managers, and authenticated WebSocket consumer. A general REST
 API is not shipped yet; see [HTTP endpoints](../api/endpoints.md) for current status.

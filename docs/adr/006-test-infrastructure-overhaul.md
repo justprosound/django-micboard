@@ -1,5 +1,6 @@
-# ADR-006: Test Infrastructure Overhaul
-
+---
+title: "ADR-006: Test Infrastructure Overhaul"
+---
 **Status:** Accepted
 **Date:** 2026-05-20
 **Updated:** 2026-07-14

@@ -1,5 +1,6 @@
-# Admin interface
-
+---
+title: "Admin interface"
+---
 django-micboard registers its operational models with Django admin. Available modules depend on
 installed optional packages and enabled multitenancy settings.
 

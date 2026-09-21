@@ -1,5 +1,8 @@
-# SRED Project Summary — 2026 Introduce DRF API Layer (v1 Read-Only)
-
+---
+title: "SRED Project Summary — 2026 Introduce DRF API Layer (v1 Read-Only)"
+sidebar:
+  label: "Introduce DRF API Layer (v1 Read-Only)"
+---
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words

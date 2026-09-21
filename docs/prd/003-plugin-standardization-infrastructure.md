@@ -1,5 +1,6 @@
-# PRD-003: Plugin Standardization & Infrastructure Unification
-
+---
+title: "PRD-003: Plugin Standardization & Infrastructure Unification"
+---
 **Status:** Implemented
 **Date:** 2026-05-20
 **Updated:** 2026-07-14

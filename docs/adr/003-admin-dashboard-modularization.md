@@ -1,5 +1,6 @@
-# ADR-003: Admin Dashboard Modularization
-
+---
+title: "ADR-003: Admin Dashboard Modularization"
+---
 **Status:** Completed
 **Date:** 2026-05-20
 **Deciders:** Project team

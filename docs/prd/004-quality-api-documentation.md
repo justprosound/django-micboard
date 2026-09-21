@@ -1,5 +1,6 @@
-# PRD-004: Quality, API, and Documentation
-
+---
+title: "PRD-004: Quality, API, and Documentation"
+---
 **Status:** In Progress
 **Date:** 2026-05-20
 **Updated:** 2026-07-14

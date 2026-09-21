@@ -1,5 +1,6 @@
-# Battery Health Tracking Implementation
-
+---
+title: "Battery Health Tracking Implementation"
+---
 ## Overview
 
 Added comprehensive battery health tracking to **WirelessUnit** model, integrating with Shure System API battery health endpoints and manufacturer APIs.

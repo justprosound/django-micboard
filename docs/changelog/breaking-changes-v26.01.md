@@ -1,5 +1,6 @@
-# Breaking Changes - django-micboard v26.01.27+
-
+---
+title: "Breaking Changes - django-micboard v26.01.27+"
+---
 ## URL Namespace Addition (CRITICAL)
 
 ### What Changed

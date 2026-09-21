@@ -1,5 +1,6 @@
-# Quick Start Guide
-
+---
+title: "Quick Start Guide"
+---
 Get django-micboard up and running with your Shure wireless microphone system in minutes.
 
 ## Prerequisites

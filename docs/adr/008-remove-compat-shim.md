@@ -1,5 +1,6 @@
-# ADR-008: Remove Compat Shim Layer
-
+---
+title: "ADR-008: Remove Compat Shim Layer"
+---
 **Status:** Implemented
 **Date:** 2026-05-20
 **Updated:** 2026-07-14

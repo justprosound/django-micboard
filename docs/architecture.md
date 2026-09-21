@@ -1,5 +1,6 @@
-# Django Micboard - Architecture & Developer Guide
-
+---
+title: "Django Micboard - Architecture & Developer Guide"
+---
 ## Core Architecture
 
 Django Micboard is a reusable Django app for monitoring multi-manufacturer wireless audio hardware. It emphasizes:

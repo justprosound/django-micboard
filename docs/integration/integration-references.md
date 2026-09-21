@@ -1,5 +1,6 @@
-# Manufacturer integration reference
-
+---
+title: "Manufacturer integration reference"
+---
 django-micboard currently ships Shure System API and Sennheiser SSCv2 plugins. Both use the
 shared `httpx` transport, retry/circuit-breaker behavior, exception hierarchy, and cache-backed
 request pacing in `micboard.services.common.base`.

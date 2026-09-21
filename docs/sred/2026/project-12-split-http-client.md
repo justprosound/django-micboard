@@ -1,5 +1,8 @@
-# SRED Project Summary — 2026 Split Base HTTP Client (Superseded — Plan Abandoned)
-
+---
+title: "SRED Project Summary — 2026 Split Base HTTP Client (Superseded — Plan Abandoned)"
+sidebar:
+  label: "Split Base HTTP Client (Superseded — Plan Abandoned)"
+---
 <aside>
 💡 Try to be concise with answers
 Each project submission has to be reduced to around 400 words

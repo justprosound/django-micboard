@@ -1,5 +1,6 @@
-# Shure System API Integration
-
+---
+title: "Shure System API Integration"
+---
 django-micboard connects to Shure System API over authenticated HTTPS. It can synchronize
 discovery IPs, poll device state, and subscribe to manufacturer WebSocket updates.
 

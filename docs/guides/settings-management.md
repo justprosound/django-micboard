@@ -1,5 +1,6 @@
-# Settings Management
-
+---
+title: "Settings Management"
+---
 Micboard exposes one runtime read interface and one authorized write workflow. Application code must not import the internal registry or read `MICBOARD_*` values directly from Django settings.
 
 ## Runtime reads

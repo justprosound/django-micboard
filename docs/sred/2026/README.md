@@ -1,5 +1,6 @@
-# SRED Project Descriptions — 2026
-
+---
+title: "SRED Project Descriptions — 2026"
+---
 This document indexes all SRED-eligible projects for the 2026 fiscal year. Each child document follows the SRED project template with Project Description, Project Goals, Technical Uncertainties (with Experiments, Results, and Documentation), Participants, and Project Documentation & Links.
 
 ---

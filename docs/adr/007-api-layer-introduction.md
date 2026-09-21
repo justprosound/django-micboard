@@ -1,5 +1,6 @@
-# ADR-007: Introduce DRF API Layer with Versioning
-
+---
+title: "ADR-007: Introduce DRF API Layer with Versioning"
+---
 **Status:** Proposed
 **Date:** 2026-05-20
 **Deciders:** (to be assigned)

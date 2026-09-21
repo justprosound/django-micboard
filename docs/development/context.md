@@ -1,5 +1,6 @@
-# django-micboard - Domain Context
-
+---
+title: "django-micboard - Domain Context"
+---
 ## Purpose
 
 django-micboard is a Django-based wireless microphone fleet management system. It discovers, monitors, and manages RF (radio frequency) devices across venues - tracking chassis, wireless units, chargers, frequencies, performers, and compliance with regional RF regulations.

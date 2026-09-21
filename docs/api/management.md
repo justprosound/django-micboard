@@ -1,5 +1,6 @@
-# Management Commands
-
+---
+title: "Management Commands"
+---
 ::: micboard.management
     options:
       show_signature: true

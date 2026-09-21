@@ -1,5 +1,6 @@
-# Micboard Configuration
-
+---
+title: "Micboard Configuration"
+---
 To use `django-micboard` in your project, you need to configure your project's `settings.py` file.
 
 ## INSTALLED_APPS

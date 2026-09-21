@@ -1,5 +1,6 @@
-# API Band Plan Auto-Detection
-
+---
+title: "API Band Plan Auto-Detection"
+---
 ## Overview
 
 The WirelessChassis model now automatically detects band plan information from manufacturer APIs (Shure System API, etc.). This minimizes data entry by extracting `frequencyBand` from API responses and resolving it to standard band plans with min/max frequencies.

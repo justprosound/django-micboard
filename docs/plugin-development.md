@@ -1,5 +1,6 @@
-# Manufacturer plugin development
-
+---
+title: "Manufacturer plugin development"
+---
 This guide describes the plugin boundary that exists in the current codebase. Use it when adding
 a manufacturer under `micboard/integrations/<vendor>/`.
 
