@@ -3,10 +3,11 @@
 # The image carries the example project, not a production deployment of the app: the
 # reusable app itself is consumed as a dependency by host projects, which bring their own
 # settings and server.
-FROM python:3.13-slim-bookworm AS base
+FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26 AS base
 
 # uv is the only supported way to install dependencies in this project.
-COPY --from=ghcr.io/astral-sh/uv:0.12.16 /uv /uvx /bin/
+# renovate: datasource=docker depName=ghcr.io/astral-sh/uv
+COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /bin/
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -14,7 +15,8 @@ ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
     PATH="/app/.venv/bin:$PATH" \
-    DJANGO_SETTINGS_MODULE=example_project.settings
+    DJANGO_SETTINGS_MODULE=example_project.settings \
+    MICBOARD_DEMO_MODE=true
 
 WORKDIR /app
 

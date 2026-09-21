@@ -25,6 +25,10 @@ from django.utils import timezone
 from micboard.services.demo.dtos import DemoSeedSummary
 
 DEMO_FIXTURE = "demo"
+FOREIGN_HARDWARE_ERROR = (
+    "refusing to seed: this database already contains wireless hardware that is not part "
+    "of the demo dataset. seed_demo_data is only for a throwaway demo database."
+)
 DEMO_CHASSIS_API_ID = "demo-ulxd4q-001"
 DEMO_GROUP_NAME = "Demo (read-only)"
 DEMO_USERNAME = "demo"
@@ -43,17 +47,33 @@ class DemoSeedService:
         Safe to run on every deployment start: the fixture upserts on its committed primary
         keys, and the telemetry window is rewritten rather than appended to.
         """
+        self._refuse_on_foreign_hardware()
         call_command("loaddata", DEMO_FIXTURE, verbosity=0)
         units = list(self._demo_units())
         samples = self._refresh_telemetry(units)
-        created = False
         if read_only_password:
             created = self._apply_read_only_account(password=read_only_password)
+        else:
+            # The environment is authoritative: dropping the password must retire the
+            # account rather than leave a known staff login usable.
+            created = False
+            self._retire_read_only_account()
         return DemoSeedSummary(
             units=len(units),
             telemetry_samples=samples,
             read_only_user_created=created,
         )
+
+    def _refuse_on_foreign_hardware(self) -> None:
+        """Abort when the database holds hardware the demo fixture does not own.
+
+        The fixture carries explicit primary keys, so loading it over real records would
+        overwrite them. Its keys start at 900001 to make that implausible, and this check
+        makes it impossible to do quietly.
+        """
+        chassis_model = apps.get_model("micboard", "WirelessChassis")
+        if chassis_model.objects.exclude(api_device_id=DEMO_CHASSIS_API_ID).exists():
+            raise ValueError(FOREIGN_HARDWARE_ERROR)
 
     def _demo_units(self) -> Any:
         """Return the transmitters belonging to the demo chassis."""
@@ -118,10 +138,22 @@ class DemoSeedService:
         )
         # Reapplied on every run so a rotated password takes effect, and so an account that
         # somehow gained privileges cannot keep them across a redeploy.
+        user.is_active = True
         user.is_staff = True
         user.is_superuser = False
         user.set_password(password)
-        user.save(update_fields=["is_staff", "is_superuser", "password"])
+        user.save(update_fields=["is_active", "is_staff", "is_superuser", "password"])
         user.groups.set([group])
         user.user_permissions.clear()
         return created
+
+    def _retire_read_only_account(self) -> None:
+        """Disable the demo account when no password is configured for it."""
+        user_model = get_user_model()
+        user = user_model.objects.filter(username=DEMO_USERNAME).first()
+        if user is None:
+            return
+        user.is_active = False
+        user.is_staff = False
+        user.set_unusable_password()
+        user.save(update_fields=["is_active", "is_staff", "password"])

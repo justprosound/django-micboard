@@ -40,6 +40,10 @@ MICBOARD_DEMO_PASSWORD=... uv run --no-sync python manage.py seed_demo_data
 
 The command is idempotent and runs on every container start.
 
+It refuses to run against a database holding wireless hardware that the fixture does not
+own. The fixture's primary keys start at 900001 and `loaddata` overwrites whatever occupies
+the keys it carries, so this check keeps the command from quietly replacing real records.
+
 ## Platform choice
 
 Both of these have a perpetual free tier and need no payment method:
@@ -74,6 +78,7 @@ recreated empty, on each cold start.
    | `DJANGO_CSRF_TRUSTED_ORIGINS` | `https://` plus the deployment hostname |
    | `DJANGO_BEHIND_TLS_PROXY` | `True` |
    | `MICBOARD_DEMO_PASSWORD` | The read-only account's password |
+   | `MICBOARD_DEMO_MODE` | `True`, which disables password changes for the shared account |
 
    `DJANGO_BEHIND_TLS_PROXY` tells Django that the platform terminated TLS at its proxy, which
    it needs before it will set secure cookies or accept an admin login.
@@ -87,6 +92,14 @@ permission for `micboard` and `micboard_multitenancy`, and nothing else. The acc
 `is_staff` so the admin opens, and never `is_superuser`. Every redeploy reapplies this, so an
 account that somehow gained privileges loses them again on the next start, and a rotated
 password takes effect immediately.
+
+Removing `MICBOARD_DEMO_PASSWORD` and redeploying **retires** the account: the next start
+deactivates it, strips its staff flag, and sets an unusable password. The environment is the
+only thing that keeps the login alive.
+
+With `MICBOARD_DEMO_MODE=True` the deployment also overrides Django's two password-change
+routes, under `admin/` and `accounts/`, with a permission error. Everyone shares one account,
+so a visitor changing its password would lock out everyone else until the next redeploy.
 
 Background polling is left off. With no `SHURE_API_SHARED_KEY` configured there is nothing to
 poll, and the demo's telemetry is seeded rather than collected.
