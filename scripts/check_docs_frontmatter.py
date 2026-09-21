@@ -43,14 +43,31 @@ def iter_docs() -> Iterator[Path]:
         yield path
 
 
+# The closing fence may be the last line of a file, with no trailing newline.
+CLOSING_FENCE = re.compile(r"\n---[ \t]*(?:\n|\Z)")
+TITLE_FIELD = re.compile(r"^title:[ \t]*(?P<value>.*?)[ \t]*$", re.MULTILINE)
+LEADING_HEADING = re.compile(r"# (?P<title>.+?)[ \t]*(?:\n|\Z)")
+
+
 def split_frontmatter(content: str) -> tuple[str | None, str]:
     """Return the raw frontmatter block (without fences) and the remaining body."""
     if not content.startswith("---\n"):
         return None, content
-    end = content.find("\n---\n", 3)
-    if end == -1:
+    fence = CLOSING_FENCE.search(content, 3)
+    if fence is None:
         return None, content
-    return content[4:end], content[end + 5 :]
+    return content[4 : fence.start()], content[fence.end() :]
+
+
+def frontmatter_title(frontmatter: str) -> str | None:
+    """Return the declared title, unquoting the simple scalars this project uses."""
+    match = TITLE_FIELD.search(frontmatter)
+    if match is None:
+        return None
+    value = match.group("value")
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        value = value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+    return value.strip()
 
 
 def quote(value: str) -> str:
@@ -67,29 +84,43 @@ def sidebar_label(title: str) -> str | None:
     return None
 
 
-def build_frontmatter(title: str) -> str:
-    """Return the frontmatter block for a page with the given title."""
-    lines = ["---", f"title: {quote(title)}"]
+def build_frontmatter(title: str, existing: str = "") -> str:
+    """Return a frontmatter block declaring ``title``, keeping any existing fields."""
+    lines = [f"title: {quote(title)}"]
     label = sidebar_label(title)
-    if label:
+    if label and not re.search(r"^sidebar:", existing, re.MULTILINE):
         lines += ["sidebar:", f"  label: {quote(label)}"]
-    lines += ["---", ""]
-    return "\n".join(lines)
+    kept = existing.strip("\n")
+    if kept:
+        lines.append(kept)
+    return "---\n" + "\n".join(lines) + "\n---\n"
 
 
 def repair(content: str) -> tuple[str, str | None]:
     """Return the repaired page content, plus the reason a repair was impossible."""
     frontmatter, body = split_frontmatter(content)
-    if frontmatter is not None and re.search(r"^title:", frontmatter, re.MULTILINE):
-        return content, None
-
     stripped = body.lstrip("\n")
-    match = re.match(r"# (?P<title>.+?)[ \t]*\n", stripped)
-    if match is None:
+    heading = LEADING_HEADING.match(stripped)
+    declared = frontmatter_title(frontmatter) if frontmatter is not None else None
+
+    if declared is not None:
+        if heading is None:
+            return content, None
+        # Removing a heading that says something else would discard content, so a
+        # mismatch is reported for a human to reconcile instead of being rewritten.
+        if heading.group("title").strip() != declared:
+            return content, (
+                f"body heading {heading.group('title').strip()!r} differs from the "
+                f"frontmatter title {declared!r}; reconcile them manually"
+            )
+        return f"---\n{frontmatter}\n---\n" + stripped[heading.end() :].lstrip("\n"), None
+
+    if heading is None:
         return content, "no frontmatter title and no leading '# ' heading to derive one from"
 
-    remainder = stripped[match.end() :].lstrip("\n")
-    return build_frontmatter(match.group("title").strip()) + remainder, None
+    remainder = stripped[heading.end() :].lstrip("\n")
+    title = heading.group("title").strip()
+    return build_frontmatter(title, frontmatter or "") + remainder, None
 
 
 def problems(path: Path) -> list[Problem]:
@@ -102,7 +133,11 @@ def problems(path: Path) -> list[Problem]:
         return [Problem(path, "frontmatter does not define 'title'")]
     if re.match(r"\n*# ", body):
         return [
-            Problem(path, "body starts with a '# ' heading that duplicates the frontmatter title")
+            Problem(
+                path,
+                "body starts with a '# ' heading; the frontmatter title is already "
+                "rendered as the page heading",
+            )
         ]
     return []
 

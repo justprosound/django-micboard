@@ -7,7 +7,7 @@ would render the title twice, and a page with no title cannot be rendered at all
 
 from __future__ import annotations
 
-from scripts.check_docs_frontmatter import iter_docs, problems, repair
+from scripts.check_docs_frontmatter import iter_docs, problems, repair, split_frontmatter
 
 
 def test_every_documentation_page_declares_a_title() -> None:
@@ -34,14 +34,54 @@ def test_repair_shortens_verbose_sred_titles_for_the_sidebar() -> None:
     assert 'label: "Unify Settings Proxy"' in repaired
 
 
-def test_repair_leaves_pages_that_already_have_a_title_untouched() -> None:
+def test_repair_leaves_a_page_that_is_already_valid_untouched() -> None:
     """Hand-written frontmatter is authoritative and must not be rewritten."""
-    content = '---\ntitle: "Kept"\n---\n# Also a heading\n'
+    content = '---\ntitle: "Kept"\ndescription: "Also kept"\n---\nBody.\n'
 
     repaired, reason = repair(content)
 
     assert reason is None
     assert repaired == content
+
+
+def test_repair_removes_a_body_heading_that_repeats_the_declared_title() -> None:
+    """`--fix` has to be able to clear every defect that the check reports."""
+    content = '---\ntitle: "Kept"\n---\n# Kept\n\nBody.\n'
+
+    repaired, reason = repair(content)
+
+    assert reason is None
+    assert repaired == '---\ntitle: "Kept"\n---\nBody.\n'
+
+
+def test_repair_refuses_to_delete_a_body_heading_that_says_something_else() -> None:
+    """Silently dropping a differing heading would discard page content."""
+    content = '---\ntitle: "Declared"\n---\n# Something else\n'
+
+    repaired, reason = repair(content)
+
+    assert repaired == content
+    assert reason is not None
+    assert "reconcile them manually" in reason
+
+
+def test_repair_keeps_frontmatter_fields_when_adding_a_missing_title() -> None:
+    """A partially populated frontmatter block must not lose its other fields."""
+    content = '---\ndescription: "Keep me"\n---\n# Page Title\n\nBody.\n'
+
+    repaired, reason = repair(content)
+
+    assert reason is None
+    assert 'title: "Page Title"' in repaired
+    assert 'description: "Keep me"' in repaired
+
+
+def test_frontmatter_is_recognized_without_a_trailing_newline() -> None:
+    """A page whose closing fence ends the file still parses as frontmatter."""
+    frontmatter, body = split_frontmatter('---\ntitle: "Terse"\n---')
+
+    assert frontmatter == 'title: "Terse"'
+    assert body == ""
 
 
 def test_repair_reports_a_page_with_no_heading_to_derive_a_title_from() -> None:
