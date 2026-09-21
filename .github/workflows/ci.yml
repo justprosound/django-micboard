@@ -281,8 +281,13 @@ jobs:
   deploy-docs:
     name: Deploy Documentation
     needs: build-docs
-    # Publish only the canonical branch; pull requests validate the build without deploying.
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Publish only the canonical branch; pull requests validate the build without
+    # deploying. `workflow_dispatch` is accepted so the site can still be published when a
+    # merge performed with GITHUB_TOKEN does not trigger the push event, as happens with
+    # bot-merged release pull requests.
+    if: >-
+      github.ref == 'refs/heads/main'
+      && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # `pages: write` publishes the built site; `id-token: write` lets deploy-pages mint the
