@@ -41,7 +41,7 @@ This document distills all key architectural, workflow, and style rules for code
 
 > **CRITICAL: uv IS MANDATORY**
 >
-> All agents and developers MUST use `uv` for all dependency installation and environment management in every context. Do **NOT** use `pip`, `pipx`, `poetry`, or Python's built-in `venv` directly—this is MANDATORY for reproducibility, security, and agent workflow support.
+> All agents and developers MUST use `uv` for all **Python** dependency installation and environment management in every context. The documentation site is a Node toolchain, so its dependencies are installed with `npm ci` from the committed `package-lock.json`; `uv` cannot manage them. Nothing else in this repository may install Python packages outside `uv`. Do **NOT** use `pip`, `pipx`, `poetry`, or Python's built-in `venv` directly—this is MANDATORY for reproducibility, security, and agent workflow support.
 >
 > **Resilience and Enforcement Policy:**
 > - If any documentation, code, PR, CI/CD config, script, or troubleshooting advice in this project (or a dependency) references or recommends `pip`, `pipx`, `poetry`, or direct `venv` usage, you must:
@@ -106,6 +106,24 @@ This document distills all key architectural, workflow, and style rules for code
     ```bash
     uv run --no-sync bandit -r micboard -ll
     ```
+
+- **Documentation site:** built with [Astro Starlight](https://starlight.astro.build) from the
+  plain Markdown in `docs/`. Node and npm are prerequisites alongside `uv`; install them
+  first, then `just install` installs both dependency trees (`uv sync` and `npm ci`).
+  Never move pages out of `docs/`; the content collection loads them from there.
+
+    ```bash
+    just docs         # build the static site into site/
+    just serve-docs   # serve it on http://localhost:9000 with hot reload
+    just docs-api     # regenerate docs/api/reference/ from Google-style docstrings
+    just docs-verify  # frontmatter, reference freshness, page coverage, and link checks
+    just docs-e2e     # offline search, brand, and WCAG 2.1 AA suite (Playwright + axe-core)
+    ```
+
+    The API reference is generated statically with Griffe by `scripts/generate_api_docs.py`
+    and committed; add a module to its `PAGES` list to document a new public surface. The
+    documentation build must never import Django or require `DJANGO_SETTINGS_MODULE`. See
+    [ADR-013](docs/adr/013-documentation-platform-starlight.md).
 
 ---
 

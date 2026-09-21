@@ -11,25 +11,30 @@
         "(?<currentValue>\\d+\\.\\d+\\.\\d+)[\\\"']?\\s*#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>uv)"
       ],
       "versioningTemplate": "pep440"
+    },
+    {
+      "description": "Update the Node version used by the documentation build",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)\\.github/workflows/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "node-version:\\s*[\"']?(?<currentValue>\\d+)[\"']?\\s*#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>node)"
+      ],
+      "versioningTemplate": "node"
     }
   ],
   "dependencyDashboard": true,
   "dependencyDashboardAutoclose": true,
   "platformAutomerge": true,
-  "ignorePaths": ["docs/requirements.txt"],
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["* 0-4 * * 1"],
+    "schedule": [
+      "* 0-4 * * 1"
+    ],
     "automerge": true,
     "automergeType": "pr",
-    "automergeStrategy": "squash",
-    "postUpgradeTasks": {
-      "commands": [
-        "uv export --locked --no-dev --extra docs --no-emit-project --python 3.13 --output-file docs/requirements.txt"
-      ],
-      "fileFilters": ["docs/requirements.txt"],
-      "executionMode": "branch"
-    }
+    "automergeStrategy": "squash"
   },
   "vulnerabilityAlerts": {
     "enabled": true,
@@ -75,9 +80,15 @@
     },
     {
       "description": "Ignore Django major version updates - CI handles compatibility testing",
-      "matchDatasources": ["pypi"],
-      "matchDepNames": ["Django"],
-      "matchUpdateTypes": ["major"],
+      "matchDatasources": [
+        "pypi"
+      ],
+      "matchDepNames": [
+        "Django"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "enabled": false
     },
     {

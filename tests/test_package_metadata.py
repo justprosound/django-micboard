@@ -15,18 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_documentation_tooling_is_opt_in() -> None:
-    """Runtime installs must not include the MkDocs documentation toolchain."""
+    """Runtime installs must not include the documentation toolchain."""
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     runtime_dependencies = project["project"]["dependencies"]
     docs_dependencies = project["project"]["optional-dependencies"]["docs"]
-    docs_packages = (
-        "mkdocs",
-        "mkdocs-git-revision-date-localized-plugin",
-        "mkdocs-material",
-        "mkdocs-minify-plugin",
-        "mkdocstrings[python]",
-        "pymdown-extensions",
-    )
+    docs_packages = ("griffelib",)
 
     assert all(not dependency.startswith(docs_packages) for dependency in runtime_dependencies)
     assert all(

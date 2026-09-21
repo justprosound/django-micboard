@@ -32,7 +32,11 @@ Run `just` to display the canonical list.
 | `just test` | Run the pytest suite |
 | `just coverage` | Run tests with the CI floor and validate the coverage inventory |
 | `just migrate` | Apply checked-in migrations to the example database |
-| `just docs` | Build the MkDocs documentation site |
+| `just docs` | Build the Astro Starlight documentation site into `site/` |
+| `just serve-docs` | Serve the documentation site on port 9000 with hot reload |
+| `just docs-api` | Regenerate the committed Python API reference from docstrings |
+| `just docs-verify` | Check documentation frontmatter, reference freshness, page coverage, and links |
+| `just docs-e2e` | Run the documentation search, brand, and accessibility suite |
 | `just example` | Start the root `manage.py` example project |
 | `just wheel` | Build source/wheel artifacts and validate the installed package contents |
 | `just type-check` | Run mypy for `micboard` |
@@ -98,8 +102,14 @@ uv run --no-sync ruff check .
 uv run --no-sync ruff format --check .
 uv run --no-sync python -m mypy micboard
 uv run --no-sync bandit -r micboard -ll
-uv run --no-sync mkdocs build
+npm run docs:build
 ```
+
+The documentation site is an [Astro Starlight](https://starlight.astro.build) build, so it
+requires Node and npm as prerequisites alongside `uv`; with those installed, `just install`
+installs both dependency trees. Pages are
+authored as plain Markdown in `docs/`; see
+[ADR-013](../adr/013-documentation-platform-starlight.md) for the platform decision.
 
 After `uv sync`, use `--no-sync` for repeatable commands that must not alter the environment.
 

@@ -372,7 +372,21 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 - [Architecture Guide](micboard/ARCHITECTURE.md) - System design and patterns
 - [Contributing Guide](CONTRIBUTING.md) - Development process
 - [Changelog](CHANGELOG.md) - Release notes
-- [API Documentation](docs/) - Full reference
+- [Documentation site sources](docs/) - Guides, API reference, ADRs, and PRDs
+
+The documentation site is published at
+<https://justprosound.github.io/django-micboard/> and built with
+[Astro Starlight](https://starlight.astro.build) from the Markdown in `docs/`:
+
+```bash
+just docs        # build the static site into site/
+just serve-docs  # serve it on http://localhost:9000 with hot reload
+just docs-api    # regenerate the Python API reference from docstrings
+```
+
+Building the site requires Node and npm in addition to `uv`. With all three installed,
+`just install` installs both dependency trees (`uv sync` and `npm ci`). See
+[ADR-013](docs/adr/013-documentation-platform-starlight.md) for the platform decision.
 
 ## Support & Contributing
 

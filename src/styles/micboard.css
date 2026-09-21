@@ -1,0 +1,54 @@
+/*
+ * Brand tokens for the documentation site.
+ *
+ * Colours mirror the application palette in
+ * micboard/static/micboard/css/theme.css. Each theme picks its own accent ramp so text
+ * and links keep a WCAG 2.1 AA contrast ratio against the surrounding surface:
+ * #006494 on white is 6.5:1, #a5d8f0 on the dark surface is 12:1.
+ */
+
+:root {
+  /* Dark theme (Starlight's default). */
+  --sl-color-accent-low: #00283b;
+  --sl-color-accent: #0079b3;
+  --sl-color-accent-high: #a5d8f0;
+
+  --micboard-brand-blue: #006494;
+  --micboard-brand-green: #69b578;
+  --micboard-brand-red: #dc493a;
+  --micboard-brand-yellow: #ef9d51;
+
+  --sl-font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", "Menlo",
+    "Consolas", monospace;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #cfe8f5;
+  --sl-color-accent: #006494;
+  --sl-color-accent-high: #00405f;
+}
+
+/* The logo is a square mark; keep it legible without letting it dominate the header. */
+.site-title img {
+  height: 2rem;
+  width: auto;
+}
+
+/* Wide reference tables (device specs, settings matrices) scroll instead of overflowing. */
+.sl-markdown-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Respect an explicit preference for reduced motion across theme and nav transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

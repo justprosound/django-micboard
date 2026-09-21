@@ -9,7 +9,7 @@ repo = "builtin"
 hooks = [
   { id = "trailing-whitespace", exclude = "(^|/)migrations/" },
   { id = "end-of-file-fixer", exclude = "(^|/)migrations/" },
-  { id = "check-yaml", exclude = "(^|/)migrations/|^mkdocs\\.yml$" },
+  { id = "check-yaml", exclude = "(^|/)migrations/" },
   { id = "check-json", exclude = "(^|/)migrations/" },
   { id = "check-toml", exclude = "(^|/)migrations/" },
   { id = "check-merge-conflict", exclude = "(^|/)migrations/" }
@@ -79,9 +79,9 @@ hooks = [
     always_run = true
   },
   {
-    id = "docs-requirements-lock",
-    name = "docs requirements lock consistency",
-    entry = "uv run --no-sync python scripts/check_docs_requirements.py",
+    id = "docs-api-reference",
+    name = "generated API reference freshness",
+    entry = "uv run --no-sync python scripts/generate_api_docs.py --check",
     language = "system",
     pass_filenames = false,
     always_run = true
