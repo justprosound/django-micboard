@@ -192,32 +192,39 @@ MICBOARD_CONFIG: dict[str, t.Any] = {
 # ============================================================================
 # Only engaged when the environment asks for it, so local development keeps the
 # permissive defaults above. See docs/demo-deployment.md.
+#
+# Each setting below is assigned unconditionally, with its off value matching Django's own
+# default, rather than existing only inside an `if`. Conditionally defined settings read
+# as dead code to static analysis, since the framework consumes them through
+# django.conf.settings rather than from this module.
 if _is_package_installed("whitenoise"):
     # Immediately after SecurityMiddleware, as WhiteNoise requires.
     MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
-    STORAGES = {
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {
-            # Compression without a manifest. The manifest variant post-processes CSS and
-            # hard-fails on a missing referenced file, and micboard/static/micboard/css/
-            # theme.css carries 96 references to IBM Plex Mono font files that are not
-            # vendored in this repository: the stylesheet is compiled output whose SCSS
-            # imported @ibm/plex from node_modules. Tracked in issue #261; drop this
-            # override once the stylesheet is fixed.
-            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-        },
-    }
 
-# A platform such as Render terminates TLS at its proxy, so Django needs to be told
-# that a forwarded request was secure before it will set secure cookies.
-if os.environ.get("DJANGO_BEHIND_TLS_PROXY", "False").lower() == "true":
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_SSL_REDIRECT = True
-    # One hour, and deliberately without includeSubDomains or preload: a demo on a
-    # shared platform hostname has no business setting a domain-wide policy.
-    SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "3600"))
+# Hashed filenames, so a deployment can serve static files with a long cache lifetime.
+# This needs every asset referenced by a stylesheet to exist, which #261 made true by
+# vendoring the IBM Plex fonts that theme.css references.
+_STATICFILES_BACKEND = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    if _is_package_installed("whitenoise")
+    else "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"
+)
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": _STATICFILES_BACKEND},
+}
+
+# A platform such as Render terminates TLS at its proxy, so Django needs to be told that a
+# forwarded request was secure before it will set secure cookies or accept an admin login.
+BEHIND_TLS_PROXY = os.environ.get("DJANGO_BEHIND_TLS_PROXY", "False").lower() == "true"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if BEHIND_TLS_PROXY else None
+SESSION_COOKIE_SECURE = BEHIND_TLS_PROXY
+CSRF_COOKIE_SECURE = BEHIND_TLS_PROXY
+SECURE_SSL_REDIRECT = BEHIND_TLS_PROXY
+# One hour, and deliberately without includeSubDomains or preload: a demo on a shared
+# platform hostname has no business setting a domain-wide policy. Zero is Django's default
+# and disables the header entirely.
+SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "3600")) if BEHIND_TLS_PROXY else 0
 
 # Django requires the scheme-qualified origin for admin logins behind a proxy.
 CSRF_TRUSTED_ORIGINS = [
