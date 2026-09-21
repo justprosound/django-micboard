@@ -1,24 +1,33 @@
 {
-  "name": "django-micboard",
-  "version": "1.0.0",
-  "description": "This Django app provides wireless microphone monitoring functionality, ported from the original micboard project. It uses the **Shure System API** as middleware for device communication, providing a modern, maintainable architecture.",
-  "main": "index.js",
-  "directories": {
-    "test": "tests"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "name": "django-micboard-docs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Documentation site for django-micboard, built with Astro Starlight.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/justprosound/django-micboard.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/justprosound/django-micboard/issues"
   },
-  "homepage": "https://github.com/justprosound/django-micboard#readme"
+  "homepage": "https://github.com/justprosound/django-micboard#readme",
+  "scripts": {
+    "docs:assets": "node ./scripts/sync-docs-assets.mjs",
+    "docs:build": "npm run docs:assets && astro build",
+    "docs:dev": "npm run docs:assets && astro dev --port 9000 --ignore-lock",
+    "docs:preview": "astro preview --port 9000 --ignore-lock",
+    "docs:check": "astro check",
+    "docs:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.2",
+    "astro": "^7.3.3",
+    "github-slugger": "^2.0.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0"
+  }
 }

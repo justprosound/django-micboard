@@ -7,6 +7,35 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- docs: migrate the documentation site from MkDocs + Material + `mkdocstrings` to Astro
+  Starlight (#161). Pages stay authored as plain Markdown in `docs/`; search is now offline
+  (Pagefind); `just docs` builds the static site into `site/` and `just serve-docs` serves it
+  on port 9000. See [ADR-013](docs/adr/013-documentation-platform-starlight.md).
+- docs: replace build-time `mkdocstrings` autodoc with `scripts/generate_api_docs.py`, which
+  extracts Google-style docstrings statically with Griffe into committed Markdown under
+  `docs/api/reference/`. The documentation build no longer loads Django settings, and the
+  reference now covers the model domains, service layer, management commands, WebSocket
+  consumers, and exception hierarchy.
+- build: the documentation toolchain moved from the `docs` Python extra (MkDocs) to
+  `package.json` (Astro Starlight); the `docs` extra now holds only the docstring extractor
+  (`griffelib`) and `PyYAML`. Building the docs requires Node and npm in addition to `uv`.
+
+### Added
+
+- ci: the `build-docs` job now verifies generated-reference freshness, page coverage, internal
+  link and anchor integrity, and runs a Playwright suite covering offline search, brand
+  rendering, and WCAG 2.1 AA compliance via axe-core.
+- ci: a `deploy-docs` job publishes the built site to GitHub Pages from `main`, so the
+  documentation is served at <https://justprosound.github.io/django-micboard/>.
+- `just docs-api`, `just docs-verify`, `just docs-frontmatter`, and `just docs-e2e` recipes.
+
+### Removed
+
+- `mkdocs.yml`, `.readthedocs.yaml`, the exported `docs/requirements.txt` and its consistency
+  check, and the MkDocs-specific `docs/stylesheets/extra.css`.
+
 ## [2026.9.21.0] - 2026-09-21
 
 - docs: add frontmatter titles to every documentation page (#161) (#253) (c21bd81)

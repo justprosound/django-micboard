@@ -53,7 +53,7 @@ django-micboard/
 │   └── websockets/          # Authenticated Channels routing/consumer
 ├── example_project/         # Development host project
 ├── tests/                   # Pytest suite, factories, and settings
-├── docs/                    # MkDocs source
+├── docs/                    # Documentation site content (Astro Starlight)
 ├── manage.py                # Root example-project entry point
 ├── Justfile                 # Canonical development recipes
 └── pyproject.toml           # Package and tool configuration
@@ -163,9 +163,12 @@ vendor integration. It documents the live registry, base classes, transport, dis
 security, native Huey, and test boundaries.
 
 ```bash
-just docs
-uv run --no-sync mkdocs serve
+just docs        # build the site into site/
+just serve-docs  # serve it on http://localhost:9000 with hot reload
 ```
+
+Add a module to `PAGES` in `scripts/generate_api_docs.py` when a new public surface should
+appear in the API reference, then run `just docs-api` to regenerate the committed Markdown.
 
 Update `README.md` for user-facing behavior and `CHANGELOG.md` under `[Unreleased]`. Keep commands,
 paths, setting names, and optional dependencies aligned with repository code.

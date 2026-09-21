@@ -19,7 +19,8 @@ recursive-exclude * *.py[co]
 recursive-exclude * .DS_Store
 recursive-exclude * .git*
 recursive-exclude micboard/fuzzers *
-exclude .gitignore .pre-commit-config.yaml pytest.ini mkdocs.yml
+exclude .gitignore .pre-commit-config.yaml pytest.ini
+exclude astro.config.mjs playwright.config.ts tsconfig.json package.json package-lock.json
 exclude *.sh
 exclude SECURITY.md ARCHITECTURE_*.md *_SUMMARY.md *_TRACKING.md *_WORKSHEET.md IMPLEMENTATION_*.md BREAKING_*.md LINTING_*.md MIGRATION_*.md PERFORMER_*.md REFACTORING_*.md SETTINGS_*.md QUICK_START*.md BATTERY_*.md
 
@@ -34,3 +35,6 @@ prune .clusterfuzzlite
 prune .codegraph
 prune scratch
 prune site
+prune src
+prune public
+prune node_modules
