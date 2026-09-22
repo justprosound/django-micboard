@@ -159,10 +159,10 @@ class ManufacturerSyncService:
             force=force,
         )
 
-        manufacturer_filters: dict[str, str | bool] = {"code": manufacturer_code}
-        if not force:
-            manufacturer_filters["is_active"] = True
-        manufacturer = Manufacturer.objects.filter(**manufacturer_filters).first()
+        # Reload by code alone: `_sync_inventory` has already applied the activation policy
+        # and reported a failure if it was not met, and a manufacturer that deactivated during
+        # vendor I/O still needs the poll recorded against it.
+        manufacturer = Manufacturer.objects.filter(code=manufacturer_code).first()
         if manufacturer is None:
             return result
 
@@ -223,10 +223,24 @@ class ManufacturerSyncService:
 
         try:
             plugin = build_manufacturer_plugin(manufacturer)
-        except (ImportError, ValueError):
+        except ImportError:
             return ManufacturerSyncResult(
                 success=False,
                 errors=[f"Plugin not found: {manufacturer_code}"],
+                device_limit=limits.max_devices,
+            )
+        except Exception as exc:
+            # A vendor constructor reads host configuration and can fail for reasons that are
+            # not a missing integration. Reporting those as "not found" would send an operator
+            # looking for the wrong problem, and letting them escape would skip the audit.
+            logger.exception(
+                "Manufacturer plugin initialization failed for %s",
+                manufacturer_code,
+                exc_info=sanitized_exception_info(exc),
+            )
+            return ManufacturerSyncResult(
+                success=False,
+                errors=[f"Plugin initialization failed ({type(exc).__name__}); details redacted."],
                 device_limit=limits.max_devices,
             )
 

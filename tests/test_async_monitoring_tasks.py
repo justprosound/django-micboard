@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
@@ -96,8 +97,10 @@ def test_subscription_adapts_connection_tracking_to_sync_database(
 
     connection = RealTimeConnection.objects.get(chassis=chassis)
     assert connection.connection_type == transport
-    assert connection.status == "connected"
+    # The callback wrote through the thread hop, which is what this covers; the stream then
+    # returned, so the round closed the row rather than leaving it claiming to be connected.
     assert connection.last_message_at is not None
+    assert connection.status == "stopped"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -186,3 +189,62 @@ def test_realtime_updates_adapt_model_persistence_and_broadcast_lookup(
     chassis.refresh_from_db()
     assert chassis.name == "After event"
     broadcast.assert_called_once()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_cancelled_subscription_does_not_leave_the_connection_open() -> None:
+    """Supervisor rotation cancels the task, and `CancelledError` is not an `Exception`.
+
+    Without explicit cleanup the row keeps whatever state it reached, so an operator reading
+    the admin sees a connection that is still connecting or connected long after it ended.
+    """
+    import asyncio
+
+    manufacturer = _manufacturer()
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+
+    class HangingPlugin(ConnectionOnlyPlugin):
+        async def subscribe_to_chassis(self, chassis: Any, callback: Any) -> None:
+            await asyncio.Event().wait()
+
+    async def cancel_mid_subscription() -> None:
+        task = asyncio.create_task(
+            _subscribe_chassis(HangingPlugin(manufacturer, chassis), "sse", chassis)
+        )
+        await asyncio.sleep(0.2)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    run_async_with_heartbeat(cancel_mid_subscription())
+
+    connection = RealTimeConnection.objects.get(chassis=chassis)
+    assert connection.status not in {"connecting", "connected"}
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_subscription_that_returns_normally_closes_its_connection() -> None:
+    """A stream that ends on its own is finished, not still connected."""
+    manufacturer = _manufacturer()
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+
+    run_async_with_heartbeat(
+        _subscribe_chassis(ConnectionOnlyPlugin(manufacturer, chassis), "sse", chassis)
+    )
+
+    connection = RealTimeConnection.objects.get(chassis=chassis)
+    assert connection.status == "stopped"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_failed_subscription_keeps_its_error_state() -> None:
+    """Cleanup must not overwrite the error an operator needs to see."""
+    manufacturer = _manufacturer()
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+
+    run_async_with_heartbeat(
+        _subscribe_chassis(FailingPlugin(manufacturer, chassis, "sse"), "sse", chassis)
+    )
+
+    connection = RealTimeConnection.objects.get(chassis=chassis)
+    assert connection.status == "error"

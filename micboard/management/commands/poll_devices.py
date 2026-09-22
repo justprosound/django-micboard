@@ -141,6 +141,23 @@ class Command(BaseCommand):
                 manufacturer_code=manufacturer.code,
                 force=force,
             )
+            if not result.success:
+                # Expected failures — a missing integration, an inventory over its limit, a
+                # manufacturer deactivated mid-poll — are reported in the result rather than
+                # raised, so they have to be read here or the poll looks like it worked.
+                logger.warning(
+                    "Poll reported %d failure(s) for %s",
+                    len(result.errors),
+                    manufacturer.code,
+                    extra={"code": manufacturer.code, "errors": result.errors},
+                )
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"[{manufacturer.code}] Poll failed with "
+                        f"{len(result.errors)} error(s); details in the log."
+                    )
+                )
+                return
             summary = (
                 f"Success: {result.devices_added} created, "
                 f"{result.devices_updated} updated, "

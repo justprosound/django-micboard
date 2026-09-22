@@ -269,7 +269,8 @@ def test_a_subscription_round_delegates_updates_to_the_shared_lifecycle(monkeypa
         process,
     )
     monkeypatch.setattr(runner, "sync_to_async", direct_sync_adapter)
-    monkeypatch.setattr(runner, "_track_connection", Mock(return_value=object()))
+    monkeypatch.setattr(runner, "_track_connection", Mock(return_value=Mock()))
+    monkeypatch.setattr(runner, "mark_stopped", Mock())
     monkeypatch.setattr(runner, "received_message", Mock())
     chassis = SimpleNamespace(pk=28, api_device_id="device-1")
 

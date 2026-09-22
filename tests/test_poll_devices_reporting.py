@@ -16,6 +16,7 @@ import pytest
 
 from micboard.services.core.hardware import NormalizedHardware
 from micboard.services.manufacturer.sync import ManufacturerSyncService
+from micboard.services.sync.polling_dtos import ManufacturerSyncResult
 from tests.factories.discovery import ManufacturerFactory
 
 pytestmark = pytest.mark.django_db
@@ -113,3 +114,56 @@ def _payload(**overrides: object) -> NormalizedHardware:
     }
     values.update(overrides)
     return NormalizedHardware(**values)  # type: ignore[arg-type]
+
+
+def test_a_failed_poll_is_reported_as_an_error_not_a_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sync that returns success=False must not be printed as a successful summary.
+
+    `sync_devices_for_manufacturer` reports expected failures — a missing integration, an
+    inventory over its limit, a manufacturer deactivated mid-poll — in the result rather than
+    by raising, so the command has to read it.
+    """
+    ManufacturerFactory(code="vendor", name="Vendor")
+    monkeypatch.setattr(
+        ManufacturerSyncService,
+        "sync_devices_for_manufacturer",
+        Mock(
+            return_value=ManufacturerSyncResult(
+                success=False,
+                errors=["Plugin not found: vendor"],
+                device_limit=64,
+            )
+        ),
+    )
+    out, err = StringIO(), StringIO()
+
+    call_command("poll_devices", "--manufacturer", "vendor", stdout=out, stderr=err)
+
+    assert "Success" not in out.getvalue()
+    assert "vendor" in err.getvalue()
+
+
+def test_a_failed_poll_does_not_leak_its_error_detail_to_the_operator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failure messages reach the log, while the console stays free of vendor payloads."""
+    secret = "bearer-token-77"
+    ManufacturerFactory(code="vendor", name="Vendor")
+    monkeypatch.setattr(
+        ManufacturerSyncService,
+        "sync_devices_for_manufacturer",
+        Mock(
+            return_value=ManufacturerSyncResult(
+                success=False,
+                errors=[secret],
+                device_limit=64,
+            )
+        ),
+    )
+    err = StringIO()
+
+    call_command("poll_devices", "--manufacturer", "vendor", stdout=StringIO(), stderr=err)
+
+    assert secret not in err.getvalue()

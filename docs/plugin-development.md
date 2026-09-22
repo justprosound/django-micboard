@@ -288,9 +288,11 @@ partially valid hardware identities.
 The plugin should remain a thin delegate:
 
 ```python
+from collections.abc import Awaitable, Callable
 from typing import Any
 
-from micboard.services.common.base.plugin import ManufacturerPlugin
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base.plugin import ManufacturerPlugin, RealtimeTransport
 
 from .client import AcmeAudioSystemAPIClient
 from .transformers import AcmeAudioDataTransformer
@@ -341,7 +343,23 @@ class AcmeAudioPlugin(ManufacturerPlugin):
 
     def remove_discovery_ips(self, ips: list[str]) -> bool:
         return self.get_client().discovery.remove_discovery_ips(ips)
+
+    @property
+    def realtime_transport(self) -> RealtimeTransport | None:
+        # Return "sse" or "websocket" once the integration streams; None until then.
+        return None
+
+    async def subscribe_to_chassis(
+        self,
+        chassis: WirelessChassis,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        raise NotImplementedError("Acme Audio does not stream realtime updates yet.")
 ```
+
+Both realtime members are abstract, so a plugin that declares no stream still has to say so.
+Returning `None` from `realtime_transport` is how an integration opts out: the subscription
+runner then refuses to start a supervisor for it, and `subscribe_to_chassis` is never awaited.
 
 If a plugin holds a client for its lifetime, the caller that owns that plugin also owns cleanup.
 Do not create a new client for every endpoint call.

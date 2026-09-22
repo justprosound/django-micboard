@@ -259,7 +259,26 @@ class AcmePlugin(ManufacturerPlugin):
 
     def check_health(self) -> dict[str, Any]:
         return {"status": "healthy"}
+
+    def add_discovery_ips(self, ips: list[str]) -> bool:
+        return False
+
+    def get_discovery_ips(self) -> list[str]:
+        return []
+
+    def remove_discovery_ips(self, ips: list[str]) -> bool:
+        return False
+
+    @property
+    def realtime_transport(self) -> str | None:
+        return None
+
+    async def subscribe_to_chassis(self, chassis: Any, callback: Any) -> None:
+        raise NotImplementedError("Acme does not stream realtime updates.")
 ```
+
+Every member above is abstract, so an integration that does not stream still declares
+`realtime_transport = None` rather than omitting it.
 
 Resolve the class or build a bound instance; no central registration file is required:
 

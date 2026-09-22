@@ -156,6 +156,7 @@ async def _subscribe_chassis(
             transport=transport,
         )
 
+    closed = False
     try:
         connection = await sync_to_async(_track_connection, thread_sensitive=True)(
             chassis,
@@ -172,8 +173,22 @@ async def _subscribe_chassis(
                 manufacturer_id,
             )
             await sync_to_async(mark_stopped, thread_sensitive=True)(connection)
+            closed = True
             return
         await plugin.subscribe_to_chassis(chassis, update_callback)
+    except asyncio.CancelledError:
+        # Supervisor rotation and shutdown cancel this task, and `CancelledError` is a
+        # `BaseException`, so the handler below never sees it. Close the row here or it keeps
+        # claiming to be connecting or connected for as long as it survives.
+        logger.info(
+            "%s subscription cancelled for chassis ID %s",
+            transport,
+            chassis.pk,
+        )
+        if connection is not None:
+            await sync_to_async(mark_stopped, thread_sensitive=True)(connection)
+            closed = True
+        raise
     except Exception as exc:
         logger.exception(
             "Error in %s subscription for chassis ID %s",
@@ -184,3 +199,9 @@ async def _subscribe_chassis(
         if connection is not None:
             error_status = f"{transport} subscription failed: {type(exc).__name__}"[:160]
             await sync_to_async(mark_error, thread_sensitive=True)(connection, error_status)
+            closed = True
+    finally:
+        # A stream that returned on its own is finished, not still connected. A row already
+        # marked stopped or errored keeps that state.
+        if connection is not None and not closed:
+            await sync_to_async(mark_stopped, thread_sensitive=True)(connection)
