@@ -1,9 +1,26 @@
 ---
 title: "ADR-011: Introduce EventBus for Signal-Based Communication"
 ---
-**Status:** Proposed
+**Status:** Deferred — not implemented
 **Date:** 2026-05-21
 **Deciders:** (to be assigned)
+**Reviewed:** 2026-09-22
+
+> **Not implemented (reviewed 2026-09-22).** No `EventBus` exists in `micboard/`, and the
+> class name has zero references outside this document. The Compliance section below described
+> rules that were never in force: there is no CI check for `@receiver` decorators, model
+> signals are still wired in `micboard/model_lifecycle.py`, and services still call
+> `broadcast_service.py` directly. That section is retained as a record of the original
+> proposal, not as a rule to follow.
+>
+> Part of the premise has since been addressed without a bus. The realtime paths now have one
+> declared seam each: `services/realtime/subscription_lifecycle_service.py` owns transform,
+> persistence, chassis projection, and broadcast for both transports, and
+> `ManufacturerSyncService` owns the poll audit and broadcast. "What happens when a chassis is
+> saved" is still answered by reading `model_lifecycle.py`, which is the remaining cost.
+>
+> Whether to build the bus is still open. Until it is decided, new code follows the existing
+> mechanisms rather than the Compliance section here.
 
 ## Context
 
