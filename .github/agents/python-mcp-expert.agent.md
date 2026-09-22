@@ -48,9 +48,12 @@ logger = logging.getLogger(__name__)
 # Initialize MCP server
 mcp = FastMCP("server-name")
 
+
 class ToolInput(BaseModel):
     """Input schema with validation"""
+
     param: str = Field(..., description="Parameter description")
+
 
 @mcp.tool()
 async def example_tool(input: ToolInput) -> str:
@@ -66,6 +69,7 @@ async def example_tool(input: ToolInput) -> str:
     logger.info(f"Tool called with: {input.param}")
     return f"Result: {input.param}"
 
+
 if __name__ == "__main__":
     mcp.run()
 ```
@@ -75,6 +79,7 @@ if __name__ == "__main__":
 ```python
 from fastmcp import Resource
 
+
 @mcp.resource("resource://example/{id}")
 async def get_resource(id: str) -> Resource:
     """Provide dynamic resources with URI templates"""
@@ -83,7 +88,7 @@ async def get_resource(id: str) -> Resource:
         uri=f"resource://example/{id}",
         name=f"Resource {id}",
         mimeType="application/json",
-        text=content
+        text=content,
     )
 ```
 
@@ -92,17 +97,11 @@ async def get_resource(id: str) -> Resource:
 ```python
 from fastmcp import Prompt, Message
 
+
 @mcp.prompt()
 async def example_prompt(topic: str) -> Prompt:
     """Reusable prompt template"""
-    return Prompt(
-        messages=[
-            Message(
-                role="user",
-                content=f"Analyze the following topic: {topic}"
-            )
-        ]
-    )
+    return Prompt(messages=[Message(role="user", content=f"Analyze the following topic: {topic}")])
 ```
 
 ### Transport Configuration
@@ -126,6 +125,7 @@ if __name__ == "__main__":
 ```python
 from fastmcp.exceptions import McpError
 
+
 @mcp.tool()
 async def safe_tool(input: ToolInput) -> str:
     """Tool with comprehensive error handling"""
@@ -144,6 +144,7 @@ async def safe_tool(input: ToolInput) -> str:
 
 ```python
 from fastmcp import Context
+
 
 @mcp.tool()
 async def tool_with_context(input: ToolInput, ctx: Context) -> str:
@@ -186,8 +187,10 @@ project/
 ```python
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     """Server configuration with environment variable support"""
+
     server_name: str = "my-mcp-server"
     log_level: str = "INFO"
     api_key: str = ""
@@ -195,6 +198,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
 
 settings = Settings()
 ```
@@ -205,19 +209,18 @@ settings = Settings()
 import pytest
 from fastmcp.testing import MCPTestClient
 
+
 @pytest.fixture
 async def client():
     """Test client fixture"""
     async with MCPTestClient(mcp) as client:
         yield client
 
+
 @pytest.mark.asyncio
 async def test_tool(client):
     """Test tool functionality"""
-    result = await client.call_tool(
-        "example_tool",
-        {"param": "test"}
-    )
+    result = await client.call_tool("example_tool", {"param": "test"})
     assert result == "Result: test"
 ```
 
@@ -267,6 +270,7 @@ async def test_tool(client):
 ```python
 import httpx
 
+
 @mcp.tool()
 async def fetch_data(url: str) -> str:
     """Fetch data from URL"""
@@ -279,6 +283,7 @@ async def fetch_data(url: str) -> str:
 ### File System Tool
 ```python
 from pathlib import Path
+
 
 @mcp.tool()
 async def read_file(filepath: str) -> str:
@@ -293,6 +298,7 @@ async def read_file(filepath: str) -> str:
 ```python
 import asyncpg
 
+
 async def get_db():
     """Database connection dependency"""
     conn = await asyncpg.connect("postgresql://...")
@@ -300,6 +306,7 @@ async def get_db():
         yield conn
     finally:
         await conn.close()
+
 
 @mcp.tool()
 async def query_db(sql: str, ctx: Context) -> list[dict]:
