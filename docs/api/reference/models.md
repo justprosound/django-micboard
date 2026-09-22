@@ -648,11 +648,67 @@ Real-time connection model domain.
 
 Models for tracking real-time connections and subscriptions.
 
+### `RealTimeConnectionQuerySet`
+
+Bases: `models.QuerySet['RealTimeConnection']`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L13)
+
+Every state a realtime connection can be moved into, defined once.
+
+Each transition is a bulk update, so a single row held by the subscription runner and a
+changelist selection made in the admin go through the same definition and cannot drift
+into different spellings of the same state.
+
+#### `mark_connecting() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L21)
+
+Record that a connection attempt is in progress.
+
+The error history is deliberately preserved: a reconnect is not yet a success.
+
+#### `mark_connected() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L28)
+
+Record an established connection and clear every trace of the last failure.
+
+#### `record_message() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L41)
+
+Record message activity, establishing a connection that was still pending.
+
+#### `mark_error(error_message: str) -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L47)
+
+Record one redacted transport error, counting consecutive failures.
+
+#### `mark_disconnected() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L56)
+
+Record an unintentional loss of the connection.
+
+#### `mark_stopped() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L60)
+
+Record an intentional connection stop.
+
+#### `reset_errors() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L64)
+
+Clear a stale error count without claiming the connection is back.
+
 ### `RealTimeConnection`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L10)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L69)
 
 Tracks real-time connections (SSE/WebSocket) for wireless chassis.
 

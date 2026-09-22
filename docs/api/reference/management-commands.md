@@ -281,15 +281,15 @@ Management command to check and display real-time connection status.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L16)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L15)
 
 #### `add_arguments(parser: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L19)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L18)
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L37)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L36)
 
 ## `micboard.management.commands.realtime_subscribe`
 

@@ -1,17 +1,23 @@
 """Admin interface for real-time connection monitoring."""
 
+from datetime import timedelta
 from typing import Any
 
 from django.contrib import admin
-from django.utils import timezone
 from django.utils.html import format_html
 
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.realtime.connection import RealTimeConnection
-from micboard.services.realtime.connection_service import (
-    connection_duration,
-    time_since_last_message,
-)
+
+
+def _elapsed_display(elapsed: timedelta | None) -> str:
+    """Render an elapsed duration as hh:mm:ss, or a dash when there is none."""
+    if elapsed is None:
+        return "-"
+    total_seconds = int(elapsed.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 @admin.register(RealTimeConnection)
@@ -91,53 +97,35 @@ class RealTimeConnectionAdmin(MicboardModelAdmin):
     @admin.display(description="Duration")
     def connection_duration(self, obj: Any) -> Any:
         """Display connection duration."""
-        duration = connection_duration(obj)
-        if duration:
-            total_seconds = int(duration.total_seconds())
-            hours, remainder = divmod(total_seconds, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        return "-"
+        return _elapsed_display(obj.connected_duration)
 
     @admin.display(description="Since Last Message")
     def time_since_last_message(self, obj: Any) -> Any:
         """Display time since last message."""
-        elapsed = time_since_last_message(obj)
-        if elapsed:
-            total_seconds = int(elapsed.total_seconds())
-            hours, remainder = divmod(total_seconds, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        return "-"
+        return _elapsed_display(obj.time_since_last_message)
 
     @admin.action(permissions=["change"], description="Mark as connected")
     def mark_connected(self, request: Any, queryset: Any) -> None:
         """Mark selected connections as connected."""
-        updated = queryset.update(
-            status="connected",
-            connected_at=timezone.now(),
-            last_message_at=timezone.now(),
-            error_count=0,
-            error_message="",
-        )
+        updated = queryset.mark_connected()
         self.message_user(request, f"Marked {updated} connection(s) as connected.")
 
     @admin.action(permissions=["change"], description="Mark as disconnected")
     def mark_disconnected(self, request: Any, queryset: Any) -> None:
         """Mark selected connections as disconnected."""
-        updated = queryset.update(status="disconnected", disconnected_at=timezone.now())
+        updated = queryset.mark_disconnected()
         self.message_user(request, f"Marked {updated} connection(s) as disconnected.")
 
     @admin.action(permissions=["change"], description="Reset error count")
     def reset_error_count(self, request: Any, queryset: Any) -> None:
         """Reset error count for selected connections."""
-        updated = queryset.update(error_count=0, error_message="")
+        updated = queryset.reset_errors()
         self.message_user(request, f"Reset error count for {updated} connection(s).")
 
     @admin.action(permissions=["change"], description="Stop connections")
     def stop_connections(self, request: Any, queryset: Any) -> None:
         """Stop selected connections."""
-        updated = queryset.update(status="stopped", disconnected_at=timezone.now())
+        updated = queryset.mark_stopped()
         self.message_user(request, f"Stopped {updated} connection(s).")
 
     def get_queryset(self, request: Any) -> Any:
