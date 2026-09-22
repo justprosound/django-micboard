@@ -34,8 +34,15 @@ No backward-compat shims were introduced (per AGENTS.md policy).
 ## Consequences
 
 - **Positive:** Each module independently navigable and testable. Merge conflicts reduced.
-- **Positive:** The reachable admin surface is entirely domain-owned.
+- **Positive:** Each admin module is registered against one domain and routes only to that
+  domain's models.
 - **Known:** `configuration.py` (~240 lines), `receivers.py` (~432 lines) remain slightly over or near the 400-line target.
 - **Cleanup (2026-07-14):** Removed the unreachable dashboard and gap-analysis modules, their
   template, DTOs, and tests. Neither module was imported, registered, or routed; retaining them
   would have preserved global unscoped data views as latent security hazards.
+- **Cleanup (2026-09-22):** Splitting the file by domain did not make every admin module a thin
+  presentation layer. `receivers.py` still owned the full bulk-deletion sequence — locking,
+  grouped cleanup, hook suppression, and their ordering — with the authorization check running
+  last. That work moved to `ChassisBulkDeleteService`, leaving the admin action three lines. The
+  earlier claim that the reachable admin surface was "entirely domain-owned" described the
+  registration layout, not where the logic lived.
