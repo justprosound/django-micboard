@@ -39,7 +39,7 @@ def _poll(
 
     outcomes = ["created"] * created + ["updated"] * updated
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(

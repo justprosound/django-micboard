@@ -79,8 +79,8 @@ def test_sync_reports_missing_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configured manufacturers still require an installed integration."""
     ManufacturerFactory(code="vendor")
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
-        Mock(return_value=None),
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
+        Mock(side_effect=ModuleNotFoundError("no integration for vendor")),
     )
 
     assert ManufacturerSyncService.sync_devices_for_manufacturer(
@@ -94,7 +94,7 @@ def test_sync_returns_zero_counts_for_empty_inventory(monkeypatch: pytest.Monkey
     plugin = Mock()
     plugin.get_devices.return_value = None
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
 
@@ -118,7 +118,7 @@ def test_sync_rechecks_activation_under_lock_after_vendor_request(
     plugin.get_devices.side_effect = deactivate_during_request
     persist = Mock(return_value="created")
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(
@@ -154,7 +154,7 @@ def test_forced_sync_preserves_explicit_override_after_vendor_request(
     plugin.get_devices.side_effect = deactivate_during_request
     persist = Mock(return_value="created")
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(
@@ -180,7 +180,7 @@ def test_sync_counts_created_and_updated_outcomes(monkeypatch: pytest.MonkeyPatc
     plugin.get_devices.return_value = [{"id": "raw"}]
     payloads = [_payload(), _payload(api_device_id="device-2"), _payload(api_device_id="device-3")]
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(ManufacturerSyncService, "_normalize_devices", Mock(return_value=payloads))
@@ -209,7 +209,7 @@ def test_sync_stops_at_limit_plus_one_and_refuses_partial_inventory(
     plugin = Mock()
     plugin.get_devices.return_value = inventory()
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
 
@@ -509,7 +509,7 @@ def test_sync_does_not_rehome_cross_vendor_identity_at_changed_ip(
     plugin = Mock()
     plugin.get_devices.return_value = [{"id": payload.api_device_id}]
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(
@@ -561,7 +561,7 @@ def test_sync_rejects_foreign_mac_hidden_behind_same_vendor_serial(
     plugin = Mock()
     plugin.get_devices.return_value = [{"id": payload.api_device_id}]
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(
@@ -667,7 +667,7 @@ def test_sync_contains_manufacturer_api_failures(monkeypatch: pytest.MonkeyPatch
     secret = "manufacturer-secret-token"
     plugin.get_devices.side_effect = TimeoutError(secret)
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
 

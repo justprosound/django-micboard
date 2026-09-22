@@ -65,10 +65,10 @@ def test_sse_service_handles_missing_capability_devices_and_errors(
         ]
     )
     monkeypatch.setattr(sse_tasks.Manufacturer.objects, "get", get)
-    unsupported = Mock(return_value=SimpleNamespace())
-    supported = Mock(return_value=SimpleNamespace(connect_and_subscribe=AsyncMock()))
+    unsupported = SimpleNamespace()
+    supported = SimpleNamespace(connect_and_subscribe=AsyncMock())
     plugin_loader = Mock(side_effect=[unsupported, supported, supported])
-    monkeypatch.setattr(sse_tasks, "get_manufacturer_plugin", plugin_loader)
+    monkeypatch.setattr(sse_tasks, "build_manufacturer_plugin", plugin_loader)
     isolated_supervisor_lease.side_effect = [
         [],
         [SimpleNamespace(api_device_id="one"), SimpleNamespace(api_device_id="two")],
@@ -102,8 +102,8 @@ def test_sse_service_skips_external_work_when_supervisor_lease_is_held(monkeypat
     )
     monkeypatch.setattr(
         sse_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=plugin)),
+        "build_manufacturer_plugin",
+        Mock(return_value=plugin),
     )
     monkeypatch.setattr(
         sse_tasks.WirelessChassis.objects,
@@ -133,8 +133,8 @@ def test_sse_service_filters_one_persisted_chassis_id(monkeypatch) -> None:
     monkeypatch.setattr(sse_tasks.Manufacturer.objects, "get", Mock(return_value=manufacturer))
     monkeypatch.setattr(
         sse_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=plugin)),
+        "build_manufacturer_plugin",
+        Mock(return_value=plugin),
     )
     monkeypatch.setattr(
         sse_tasks.WirelessChassis.objects,
@@ -164,8 +164,8 @@ def test_sse_service_reloads_next_fair_window_off_event_loop(
     monkeypatch.setattr(sse_tasks.Manufacturer.objects, "get", Mock(return_value=manufacturer))
     monkeypatch.setattr(
         sse_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=plugin)),
+        "build_manufacturer_plugin",
+        Mock(return_value=plugin),
     )
     monkeypatch.setattr(sse_tasks.WirelessChassis.objects, "filter", Mock(return_value=Mock()))
     monkeypatch.setattr(sse_tasks, "sync_to_async", direct_sync_adapter)
@@ -192,8 +192,8 @@ def test_sse_reload_stops_rotating_work_after_manufacturer_deactivation(
     monkeypatch.setattr(sse_tasks.Manufacturer.objects, "get", Mock(return_value=manufacturer))
     monkeypatch.setattr(
         sse_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=SimpleNamespace(connect_and_subscribe=AsyncMock()))),
+        "build_manufacturer_plugin",
+        Mock(return_value=SimpleNamespace(connect_and_subscribe=AsyncMock())),
     )
     monkeypatch.setattr(sse_tasks.WirelessChassis.objects, "filter", Mock(return_value=Mock()))
     monkeypatch.setattr(sse_tasks, "sync_to_async", direct_sync_adapter)
@@ -225,8 +225,8 @@ def test_websocket_service_skips_external_work_when_supervisor_lease_is_held(mon
     )
     monkeypatch.setattr(
         websocket_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=object())),
+        "build_manufacturer_plugin",
+        Mock(return_value=object()),
     )
     monkeypatch.setattr(
         ChassisModel.objects,
@@ -259,8 +259,8 @@ def test_websocket_service_filters_one_persisted_chassis_id(monkeypatch) -> None
     )
     monkeypatch.setattr(
         websocket_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=plugin)),
+        "build_manufacturer_plugin",
+        Mock(return_value=plugin),
     )
     monkeypatch.setattr(
         websocket_tasks.WirelessChassis.objects,
@@ -293,8 +293,8 @@ def test_websocket_service_reloads_next_fair_window_off_event_loop(
     )
     monkeypatch.setattr(
         websocket_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=object())),
+        "build_manufacturer_plugin",
+        Mock(return_value=object()),
     )
     monkeypatch.setattr(
         websocket_tasks.WirelessChassis.objects,
@@ -333,8 +333,8 @@ def test_websocket_reload_stops_after_manufacturer_deactivation(
     )
     monkeypatch.setattr(
         websocket_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=object())),
+        "build_manufacturer_plugin",
+        Mock(return_value=object()),
     )
     monkeypatch.setattr(
         websocket_tasks.WirelessChassis.objects,
@@ -532,9 +532,7 @@ def test_start_websocket_subscriptions_runs_each_chassis_and_contains_outer_erro
     )
     monkeypatch.setattr(ChassisModel.objects, "filter", Mock(return_value=chassis))
     plugin = object()
-    monkeypatch.setattr(
-        websocket_tasks, "get_manufacturer_plugin", Mock(return_value=Mock(return_value=plugin))
-    )
+    monkeypatch.setattr(websocket_tasks, "build_manufacturer_plugin", Mock(return_value=plugin))
     start = AsyncMock()
     monkeypatch.setattr(websocket_tasks, "_start_receiver_websocket_async", start)
 
@@ -575,8 +573,8 @@ def test_start_websocket_subscriptions_handles_empty_iteration_after_existence_c
     monkeypatch.setattr(ChassisModel.objects, "filter", Mock(return_value=ChangedQueryset()))
     monkeypatch.setattr(
         websocket_tasks,
-        "get_manufacturer_plugin",
-        Mock(return_value=Mock(return_value=object())),
+        "build_manufacturer_plugin",
+        Mock(return_value=object()),
     )
     websocket_tasks.run_shure_websocket_subscriptions(23)
 

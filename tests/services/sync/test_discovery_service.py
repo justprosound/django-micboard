@@ -23,7 +23,7 @@ def test_manufacturer_discovery_reconciles_remote_and_local_candidates() -> None
 
     with (
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch(
@@ -69,7 +69,7 @@ def test_manufacturer_discovery_batches_candidate_queries_and_vendor_calls(
 
     with (
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         django_assert_num_queries(2),
@@ -107,7 +107,7 @@ def test_manufacturer_discovery_excludes_candidates_owned_by_another_vendor() ->
             return_value=({}, {}, 0, True),
         ),
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
     ):
@@ -138,7 +138,7 @@ def test_manufacturer_discovery_contains_batch_write_failures(failure: object) -
 
     with (
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch(
@@ -167,7 +167,7 @@ def test_manufacturer_discovery_recovers_when_remote_list_cannot_be_read() -> No
 
     with (
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
     ):
@@ -192,7 +192,7 @@ def test_manufacturer_discovery_treats_empty_remote_response_as_no_candidates() 
     plugin.add_discovery_ips.return_value = True
 
     with patch(
-        "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+        "micboard.services.sync.discovery_service.build_manufacturer_plugin",
         return_value=plugin,
     ):
         DiscoveryService().run_manufacturer_discovery(

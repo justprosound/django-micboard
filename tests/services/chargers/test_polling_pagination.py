@@ -47,8 +47,8 @@ def _plugin(inventory: object) -> Mock:
 
 def _plugin_patch(plugin: Mock):
     return patch(
-        "micboard.services.chargers.polling_service.get_manufacturer_plugin",
-        return_value=Mock(return_value=plugin),
+        "micboard.services.chargers.polling_service.build_manufacturer_plugin",
+        return_value=plugin,
     )
 
 

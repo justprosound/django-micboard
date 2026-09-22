@@ -47,7 +47,7 @@ def test_hundred_device_sync_registers_one_discovery_dispatch(
 
     with (
         patch(
-            "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+            "micboard.services.manufacturer.sync.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch.object(

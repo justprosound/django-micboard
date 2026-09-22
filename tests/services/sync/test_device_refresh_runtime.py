@@ -41,10 +41,10 @@ def test_refresh_many_counts_success_and_failure() -> None:
     assert service.refresh_discovered_devices_from_api([1, 2, 3]) == (2, 1)
 
 
-@patch("micboard.services.sync.device_refresh_service.get_manufacturer_plugin")
+@patch("micboard.services.sync.device_refresh_service.build_manufacturer_plugin")
 def test_refresh_single_applies_transformed_data(get_plugin: MagicMock) -> None:
     discovered = _discovered()
-    plugin = get_plugin.return_value.return_value
+    plugin = get_plugin.return_value
     plugin.get_device.return_value = {"id": "device-1", "status": "ONLINE"}
     plugin.get_device_channels.return_value = [{"channel": 1}]
     plugin.transform_device_data.return_value = {
@@ -61,7 +61,7 @@ def test_refresh_single_applies_transformed_data(get_plugin: MagicMock) -> None:
     discovered.save.assert_called_once()
 
 
-@patch("micboard.services.sync.device_refresh_service.get_manufacturer_plugin")
+@patch("micboard.services.sync.device_refresh_service.build_manufacturer_plugin")
 def test_refresh_single_contains_plugin_loading_failure(get_plugin: MagicMock) -> None:
     discovered = _discovered()
     get_plugin.side_effect = ModuleNotFoundError("integration unavailable")
@@ -77,10 +77,10 @@ def test_refresh_single_rejects_device_without_manufacturer() -> None:
     discovered.save.assert_not_called()
 
 
-@patch("micboard.services.sync.device_refresh_service.get_manufacturer_plugin")
+@patch("micboard.services.sync.device_refresh_service.build_manufacturer_plugin")
 def test_refresh_single_returns_false_without_device_data(get_plugin: MagicMock) -> None:
     discovered = _discovered()
-    plugin = get_plugin.return_value.return_value
+    plugin = get_plugin.return_value
     plugin.get_device.return_value = None
     plugin.get_devices.return_value = []
 
@@ -88,12 +88,12 @@ def test_refresh_single_returns_false_without_device_data(get_plugin: MagicMock)
     discovered.save.assert_not_called()
 
 
-@patch("micboard.services.sync.device_refresh_service.get_manufacturer_plugin")
+@patch("micboard.services.sync.device_refresh_service.build_manufacturer_plugin")
 def test_refresh_single_preserves_raw_data_when_transform_returns_none(
     get_plugin: MagicMock,
 ) -> None:
     discovered = _discovered()
-    plugin = get_plugin.return_value.return_value
+    plugin = get_plugin.return_value
     plugin.get_device.return_value = {"raw": True}
     plugin.get_device_channels.return_value = []
     plugin.transform_device_data.return_value = None

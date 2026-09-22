@@ -12,7 +12,7 @@ from asgiref.sync import sync_to_async
 from micboard.integrations.shure.websocket import connect_and_subscribe
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.common.base.plugin import get_manufacturer_plugin
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.services.manufacturer.activation_service import ManufacturerActivationService
 from micboard.services.realtime.connection_service import (
     mark_connecting,
@@ -53,8 +53,7 @@ def run_shure_websocket_subscriptions(
             )
             return
 
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
+        plugin = build_manufacturer_plugin(manufacturer)
 
         limits = RealtimeSubscriptionSupervisor.limits()
         lease = RealtimeSubscriptionSupervisor.acquire(

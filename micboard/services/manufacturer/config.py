@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 
 from micboard.models.discovery.configuration import ManufacturerConfiguration
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,44 @@ REQUIRED_FIELDS_MAP: dict[str, list[str]] = {
     "shure": ["SHURE_API_BASE_URL", "SHURE_API_SHARED_KEY"],
     "sennheiser": ["SENNHEISER_API_BASE_URL"],
 }
+
+
+def _probe_manufacturer_plugin(config: ManufacturerConfiguration) -> list[str]:
+    """Return the errors found while building this code's plugin and reaching its client."""
+    manufacturer = Manufacturer.objects.filter(code=config.code).first()
+    if manufacturer is None:
+        return [f"No manufacturer registered for code: {config.code}"]
+
+    try:
+        plugin = build_manufacturer_plugin(manufacturer)
+    except (ImportError, ValueError) as exc:
+        logger.warning(
+            "Manufacturer plugin could not be built for %s",
+            config.code,
+            exc_info=sanitized_exception_info(exc),
+        )
+        return [f"Plugin not found or not enabled: {config.code}"]
+    except Exception as exc:
+        logger.exception(
+            "Manufacturer plugin initialization failed for %s",
+            config.code,
+            exc_info=sanitized_exception_info(exc),
+        )
+        return [f"Plugin initialization failed ({type(exc).__name__}); details redacted."]
+
+    try:
+        client = plugin.get_client()
+    except Exception as exc:
+        logger.exception(
+            "Manufacturer plugin health check failed for %s",
+            config.code,
+            exc_info=sanitized_exception_info(exc),
+        )
+        return [f"Plugin health check failed ({type(exc).__name__}); details redacted."]
+
+    if not client:
+        return [f"Plugin client initialization failed for {config.code}"]
+    return []
 
 
 def validate_manufacturer_config(
@@ -32,40 +71,7 @@ def validate_manufacturer_config(
 
     Does NOT mutate the config instance — caller must persist results.
     """
-    errors: list[str] = []
-
-    try:
-        plugin = PluginRegistry.get_plugin(config.code)
-        if not plugin:
-            errors.append(f"Plugin not found or not enabled: {config.code}")
-        else:
-            try:
-                client = plugin.get_client()
-                if not client:
-                    errors.append(f"Plugin client initialization failed for {config.code}")
-            except Exception as health_err:
-                logger.exception(
-                    "Manufacturer plugin health check failed for %s",
-                    config.code,
-                    exc_info=sanitized_exception_info(health_err),
-                )
-                errors.append(
-                    f"Plugin health check failed ({type(health_err).__name__}); details redacted."
-                )
-    except ImportError as exc:
-        logger.exception(
-            "Manufacturer plugin import failed for %s",
-            config.code,
-            exc_info=sanitized_exception_info(exc),
-        )
-        errors.append(f"Plugin import failed for {config.code}")
-    except Exception as exc:
-        logger.exception(
-            "Manufacturer plugin initialization failed for %s",
-            config.code,
-            exc_info=sanitized_exception_info(exc),
-        )
-        errors.append(f"Plugin initialization failed ({type(exc).__name__}); details redacted.")
+    errors: list[str] = _probe_manufacturer_plugin(config)
 
     required_fields = REQUIRED_FIELDS_MAP.get(config.code, [])
     for field in required_fields:

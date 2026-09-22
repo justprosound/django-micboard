@@ -16,7 +16,7 @@ from micboard.services.chargers.polling_dtos import (
     ChargerSlotSnapshot,
     ChargerStationSnapshot,
 )
-from micboard.services.common.base.plugin import get_manufacturer_plugin
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.utils.exception_logging import sanitized_exception_info
 
@@ -42,8 +42,7 @@ class ChargerPollingService:
     def poll(cls, manufacturer: Any) -> ChargerPollResult:
         """Poll supported stations without unbounded inventory or channel work."""
         limits = cls.limits()
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
+        plugin = build_manufacturer_plugin(manufacturer)
         cursor = ChargerPollingCacheAdapter.read_cursor(manufacturer)
         inventory_page = cls._inventory_page(
             plugin.get_devices(),

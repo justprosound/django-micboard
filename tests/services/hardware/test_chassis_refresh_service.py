@@ -16,7 +16,6 @@ from micboard.services.hardware.chassis_refresh_service import (
     MAX_CHASSIS_REFRESH_BATCH,
     ChassisRefreshService,
 )
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
 from tests.factories.base import UserFactory
 from tests.factories.hardware import WirelessChassisFactory
 from tests.factories.locations import BuildingFactory, LocationFactory
@@ -65,7 +64,10 @@ class _NameOnlyPlugin(_Plugin):
 def test_refresh_persists_details_and_online_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
     """A responding selected chassis persists details and a valid online transition."""
     chassis = WirelessChassisFactory(status="offline")
-    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
 
@@ -84,7 +86,10 @@ def test_refresh_does_not_hold_database_transaction_during_network_call(
 ) -> None:
     """Slow manufacturer I/O happens before the short persistence transaction."""
     chassis = WirelessChassisFactory(status="offline")
-    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
     _Plugin.observed_atomic_blocks = []
 
     ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
@@ -96,7 +101,10 @@ def test_refresh_never_widens_selected_queryset(monkeypatch: pytest.MonkeyPatch)
     """A shared manufacturer must not turn one selected row into a global poll."""
     selected = WirelessChassisFactory(status="online")
     unselected = WirelessChassisFactory(manufacturer=selected.manufacturer, status="online")
-    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
     _Plugin.requested_ids = []
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=selected.pk))
@@ -111,7 +119,10 @@ def test_refresh_reports_missing_device_without_mutation(monkeypatch: pytest.Mon
     """A missing API device is reported and leaves the selected row unchanged."""
     chassis = WirelessChassisFactory(api_device_id="missing-device", status="offline")
     original_name = chassis.name
-    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
 
@@ -129,9 +140,8 @@ def test_refresh_reports_untransformable_device_without_mutation(
     chassis = WirelessChassisFactory(status="offline")
     original_name = chassis.name
     monkeypatch.setattr(
-        PluginRegistry,
-        "get_plugin_class",
-        staticmethod(lambda _code: _EmptyTransformPlugin),
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _EmptyTransformPlugin,
     )
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
@@ -155,9 +165,8 @@ def test_refresh_contains_one_transport_failure_and_continues_siblings(
         status="offline",
     )
     monkeypatch.setattr(
-        PluginRegistry,
-        "get_plugin_class",
-        staticmethod(lambda _code: _SelectiveFailurePlugin),
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _SelectiveFailurePlugin,
     )
 
     result = ChassisRefreshService.refresh(
@@ -180,9 +189,8 @@ def test_refresh_preserves_lifecycle_contract_without_missing_firmware(
     """Discovered devices transition legally while retired devices stay retired."""
     chassis = WirelessChassisFactory(status=initial_status, firmware_version="1.0.0")
     monkeypatch.setattr(
-        PluginRegistry,
-        "get_plugin_class",
-        staticmethod(lambda _code: _NameOnlyPlugin),
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _NameOnlyPlugin,
     )
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
@@ -215,7 +223,10 @@ def test_queued_refresh_rechecks_actor_tenant_scope(monkeypatch: pytest.MonkeyPa
         status="offline",
         location=LocationFactory(building=BuildingFactory(organization_id=foreign_organization.pk)),
     )
-    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
     _Plugin.requested_ids = []
 
     result = ChassisRefreshService.refresh_authorized_ids(
@@ -251,7 +262,10 @@ def test_queued_refresh_rejects_tenant_role_downgrade(
     )
     membership.role = downgraded_role
     membership.save(update_fields=["role"])
-    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
     _Plugin.requested_ids = []
 
     result = ChassisRefreshService.refresh_authorized_ids(
@@ -269,7 +283,10 @@ def test_queued_refresh_rejects_deactivated_actor(monkeypatch: pytest.MonkeyPatc
     """Deactivation after enqueue prevents transport and persistence work."""
     actor = UserFactory(is_active=False, is_staff=True, is_superuser=True)
     chassis = WirelessChassisFactory(status="offline")
-    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
     _Plugin.requested_ids = []
 
     result = ChassisRefreshService.refresh_authorized_ids(
@@ -297,7 +314,10 @@ def test_queued_refresh_requires_staff_and_django_permission(
     if grant_permission:
         actor.user_permissions.add(Permission.objects.get(codename="change_wirelesschassis"))
     chassis = WirelessChassisFactory(status="offline")
-    monkeypatch.setattr(PluginRegistry, "get_plugin_class", staticmethod(lambda _code: _Plugin))
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
     _Plugin.requested_ids = []
 
     result = ChassisRefreshService.refresh_authorized_ids(

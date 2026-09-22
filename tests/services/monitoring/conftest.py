@@ -20,8 +20,8 @@ def assigned_unit(db) -> SimpleNamespace:
     with (
         override_settings(TESTING=True),
         patch(
-            "micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin",
-            return_value=None,
+            "micboard.services.common.base.plugin.build_manufacturer_plugin",
+            side_effect=ModuleNotFoundError("no integration"),
         ),
     ):
         chassis = WirelessChassisFactory(max_channels=1)

@@ -72,9 +72,7 @@ HUEY = {
 
 # Configure Micboard
 MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": os.environ.get(
-        "MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"
-    ),
+    "SHURE_API_BASE_URL": os.environ.get("MICBOARD_SHURE_API_BASE_URL", "https://localhost:10000"),
     "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
     "SHURE_API_TIMEOUT": int(os.environ.get("MICBOARD_SHURE_API_TIMEOUT", "10")),
     "POLL_INTERVAL": 5,  # seconds
@@ -223,7 +221,7 @@ See [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for detailed architectu
 ## Plugin Architecture
 
 Extend Micboard with manufacturer-specific plugins. Put each plugin in
-`micboard/integrations/<code>/plugin.py`; `PluginRegistry` discovers it by module and class name.
+`micboard/integrations/<code>/plugin.py`; micboard discovers it by module and class name.
 For example, `micboard/integrations/acme/plugin.py` can contain:
 
 ```python
@@ -263,13 +261,16 @@ class AcmePlugin(ManufacturerPlugin):
         return {"status": "healthy"}
 ```
 
-Load the class or an instance through the registry; no central registration file is required:
+Resolve the class or build a bound instance; no central registration file is required:
 
 ```python
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base.plugin import (
+    build_manufacturer_plugin,
+    get_manufacturer_plugin,
+)
 
-plugin_class = PluginRegistry.get_plugin_class("acme")
-plugin = PluginRegistry.get_plugin("acme", manufacturer=manufacturer)
+plugin_class = get_manufacturer_plugin("acme")
+plugin = build_manufacturer_plugin(manufacturer)
 ```
 
 ## Testing

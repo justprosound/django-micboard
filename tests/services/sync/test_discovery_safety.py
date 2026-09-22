@@ -34,7 +34,7 @@ def test_incomplete_discovery_still_removes_proven_cross_vendor_conflicts() -> N
             return_value=({}, {}, 0, False),
         ),
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
     ):
@@ -62,7 +62,7 @@ def test_manufacturer_discovery_aborts_before_vendor_writes_when_local_read_fail
             side_effect=RuntimeError("database unavailable"),
         ),
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ) as get_plugin,
         pytest.raises(RuntimeError, match="database unavailable"),
@@ -89,7 +89,7 @@ def test_manufacturer_discovery_suppresses_removals_when_dns_is_incomplete() -> 
 
     with (
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch(
@@ -126,7 +126,7 @@ def test_manufacturer_discovery_suppresses_removals_when_local_inventory_is_trun
             return_value=({}, {}, 0, True),
         ),
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
     ):
@@ -153,7 +153,7 @@ def test_manufacturer_discovery_marks_oversized_remote_state_incomplete() -> Non
 
     with (
         patch(
-            "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch.object(DiscoveryService, "_get_conflicting_ips", return_value=set()),
@@ -185,7 +185,7 @@ def test_manufacturer_discovery_bounds_invalid_remote_iterable_before_filtering(
 
     plugin.get_discovery_ips.return_value = invalid_remote_items()
     with patch(
-        "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+        "micboard.services.sync.discovery_service.build_manufacturer_plugin",
         return_value=plugin,
     ):
         succeeded = DiscoveryService().run_manufacturer_discovery(

@@ -1,4 +1,9 @@
-"""Tests for manufacturer configuration validation service functions."""
+"""How a manufacturer configuration is validated.
+
+Validation answers one operator question: would a poll using this configuration work? That
+needs a plugin built for the configured code, a client it can reach, and the fields the
+integration requires.
+"""
 
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +15,7 @@ from micboard.services.manufacturer.config import (
     apply_manufacturer_config,
     validate_manufacturer_config,
 )
+from tests.factories.discovery import ManufacturerFactory
 
 
 class FakePlugin:
@@ -39,15 +45,16 @@ class ValidateManufacturerConfigTests(TestCase):
     def _make_config(
         self, code: str = "test_mfr", config: dict | None = None
     ) -> ManufacturerConfiguration:
+        ManufacturerFactory(code=code)
         return ManufacturerConfiguration(
             code=code,
             name="Test Manufacturer",
             config=config or {},
         )
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_valid_config(self, mock_get_plugin):
-        mock_get_plugin.return_value = FakePlugin()
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_valid_config(self, mock_build_plugin):
+        mock_build_plugin.return_value = FakePlugin()
         cfg = self._make_config(
             code="shure",
             config={
@@ -61,9 +68,19 @@ class ValidateManufacturerConfigTests(TestCase):
         self.assertTrue(result["is_valid"])
         self.assertEqual(result["errors"], [])
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_plugin_not_found(self, mock_get_plugin):
-        mock_get_plugin.return_value = None
+    def test_configuration_for_an_unregistered_manufacturer_is_invalid(self):
+        """Nothing polls a configuration whose code has no manufacturer row behind it."""
+        cfg = ManufacturerConfiguration(code="orphan", name="Orphan", config={})
+
+        result = validate_manufacturer_config(config=cfg)
+        errors: list[str] = result["errors"]  # type: ignore[assignment]
+
+        self.assertFalse(result["is_valid"])
+        self.assertIn("No manufacturer registered for code: orphan", errors)
+
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_plugin_not_found(self, mock_build_plugin):
+        mock_build_plugin.side_effect = ModuleNotFoundError("no integration for unknown")
         cfg = self._make_config(code="unknown")
 
         result = validate_manufacturer_config(config=cfg)
@@ -72,19 +89,20 @@ class ValidateManufacturerConfigTests(TestCase):
         self.assertFalse(result["is_valid"])
         self.assertIn("Plugin not found or not enabled: unknown", errors)
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_plugin_import_error_fails_validation(self, mock_get_plugin):
-        mock_get_plugin.side_effect = ImportError("No module named 'x'")
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_an_unbuildable_plugin_reports_one_failure_shape(self, mock_build_plugin):
+        """A missing module and an unusable plugin class are the same operator error."""
+        mock_build_plugin.side_effect = ImportError("No module named 'x'")
         cfg = self._make_config()
 
         result = validate_manufacturer_config(config=cfg)
 
         self.assertFalse(result["is_valid"])
-        self.assertEqual(result["errors"], ["Plugin import failed for test_mfr"])
+        self.assertEqual(result["errors"], ["Plugin not found or not enabled: test_mfr"])
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_plugin_init_other_error_caught(self, mock_get_plugin):
-        mock_get_plugin.side_effect = RuntimeError("Boom")
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_plugin_init_other_error_caught(self, mock_build_plugin):
+        mock_build_plugin.side_effect = RuntimeError("Boom")
         cfg = self._make_config()
 
         result = validate_manufacturer_config(config=cfg)
@@ -93,9 +111,9 @@ class ValidateManufacturerConfigTests(TestCase):
         self.assertFalse(result["is_valid"])
         self.assertTrue(any("Plugin initialization failed" in e for e in errors))
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_client_returns_none(self, mock_get_plugin):
-        mock_get_plugin.return_value = FakePluginNoClient()
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_client_returns_none(self, mock_build_plugin):
+        mock_build_plugin.return_value = FakePluginNoClient()
         cfg = self._make_config()
 
         result = validate_manufacturer_config(config=cfg)
@@ -104,9 +122,9 @@ class ValidateManufacturerConfigTests(TestCase):
         self.assertFalse(result["is_valid"])
         self.assertIn("Plugin client initialization failed for test_mfr", errors)
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_client_raises_exception(self, mock_get_plugin):
-        mock_get_plugin.return_value = FakePluginBrokenClient()
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_client_raises_exception(self, mock_build_plugin):
+        mock_build_plugin.return_value = FakePluginBrokenClient()
         cfg = self._make_config()
 
         result = validate_manufacturer_config(config=cfg)
@@ -115,9 +133,9 @@ class ValidateManufacturerConfigTests(TestCase):
         self.assertFalse(result["is_valid"])
         self.assertTrue(any("Plugin health check failed" in e for e in errors))
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_missing_required_fields(self, mock_get_plugin):
-        mock_get_plugin.return_value = FakePlugin()
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_missing_required_fields(self, mock_build_plugin):
+        mock_build_plugin.return_value = FakePlugin()
         cfg = self._make_config(code="shure", config={})
 
         result = validate_manufacturer_config(config=cfg)
@@ -127,9 +145,9 @@ class ValidateManufacturerConfigTests(TestCase):
         for field in REQUIRED_FIELDS_MAP["shure"]:
             self.assertTrue(any(f"Missing required configuration: {field}" in e for e in errors))
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_unknown_code_skips_field_validation(self, mock_get_plugin):
-        mock_get_plugin.return_value = FakePlugin()
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_unknown_code_skips_field_validation(self, mock_build_plugin):
+        mock_build_plugin.return_value = FakePlugin()
         cfg = self._make_config(code="unknown_vendor")
 
         result = validate_manufacturer_config(config=cfg)
@@ -137,9 +155,9 @@ class ValidateManufacturerConfigTests(TestCase):
         self.assertTrue(result["is_valid"])
         self.assertEqual(result["errors"], [])
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_does_not_mutate_config(self, mock_get_plugin):
-        mock_get_plugin.return_value = FakePlugin()
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_does_not_mutate_config(self, mock_build_plugin):
+        mock_build_plugin.return_value = FakePlugin()
         cfg = self._make_config(
             code="shure",
             config={
@@ -157,9 +175,9 @@ class ValidateManufacturerConfigTests(TestCase):
         self.assertEqual(cfg.validation_errors, original_errors)
         self.assertEqual(cfg.last_validated, original_validated)
 
-    @patch("micboard.services.manufacturer.config.PluginRegistry.get_plugin")
-    def test_multiple_errors(self, mock_get_plugin):
-        mock_get_plugin.return_value = None
+    @patch("micboard.services.manufacturer.config.build_manufacturer_plugin")
+    def test_multiple_errors(self, mock_build_plugin):
+        mock_build_plugin.side_effect = ModuleNotFoundError("no integration for shure")
         cfg = self._make_config(code="shure", config={})
 
         result = validate_manufacturer_config(config=cfg)

@@ -44,7 +44,7 @@ def test_cache_all_candidates_isolates_manufacturer_failures() -> None:
             ],
         ) as run,
         patch(
-            "micboard.services.sync.discovery_execution_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_execution_service.build_manufacturer_plugin",
             side_effect=[first_plugin, RuntimeError("plugin unavailable")],
         ),
         patch("micboard.services.sync.discovery_execution_service.cache", cache),
@@ -84,7 +84,7 @@ def test_cache_all_candidates_skips_non_successful_reconciliation(
             ),
         ),
         patch(
-            "micboard.services.sync.discovery_execution_service.get_manufacturer_plugin_instance"
+            "micboard.services.sync.discovery_execution_service.build_manufacturer_plugin"
         ) as get_plugin,
         patch("micboard.services.sync.discovery_execution_service.cache") as cache,
     ):
@@ -118,7 +118,7 @@ def test_cache_all_candidates_rechecks_activation_after_reconciliation(
             side_effect=deactivate_after_reconciliation,
         ),
         patch(
-            "micboard.services.sync.discovery_execution_service.get_manufacturer_plugin_instance"
+            "micboard.services.sync.discovery_execution_service.build_manufacturer_plugin"
         ) as get_plugin,
         patch("micboard.services.sync.discovery_execution_service.cache") as cache,
     ):
@@ -148,7 +148,7 @@ def test_cache_all_candidates_rejects_oversized_remote_state() -> None:
             return_value=DiscoveryReconciliationResult(manufacturer=5, status="success"),
         ),
         patch(
-            "micboard.services.sync.discovery_execution_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_execution_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch("micboard.services.sync.discovery_execution_service.cache") as cache,
@@ -183,7 +183,7 @@ def test_cache_all_candidates_bounds_invalid_vendor_iterable_before_validation()
             return_value=DiscoveryReconciliationResult(manufacturer=6, status="success"),
         ),
         patch(
-            "micboard.services.sync.discovery_execution_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_execution_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch("micboard.services.sync.discovery_execution_service.cache") as cache,

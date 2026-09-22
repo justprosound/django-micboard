@@ -12,6 +12,7 @@ from micboard.discovery.limits import (
     MAX_DISCOVERY_CANDIDATES,
 )
 from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.services.manufacturer.activation_service import ManufacturerActivationService
 from micboard.services.sync.discovery_claim_service import DiscoverySyncClaimService
 from micboard.services.sync.discovery_dtos import (
@@ -19,7 +20,6 @@ from micboard.services.sync.discovery_dtos import (
     DiscoverySyncSummary,
 )
 from micboard.services.sync.discovery_service import DiscoveryService
-from micboard.services.sync.discovery_utils import get_manufacturer_plugin_instance
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -214,9 +214,7 @@ class DiscoveryExecutionService:
                         activation_failure,
                     )
                     continue
-                remote_ips = (
-                    get_manufacturer_plugin_instance(manufacturer).get_discovery_ips() or []
-                )
+                remote_ips = build_manufacturer_plugin(manufacturer).get_discovery_ips() or []
                 raw_ips = list(islice(iter(remote_ips), MAX_DISCOVERY_CANDIDATES + 1))
                 bounded_ips, rejected_count = DiscoveryService.canonicalize_ip_addresses(
                     raw_ips[:MAX_DISCOVERY_CANDIDATES]

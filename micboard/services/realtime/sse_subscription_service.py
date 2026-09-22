@@ -11,7 +11,7 @@ from asgiref.sync import sync_to_async
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.common.base.plugin import get_manufacturer_plugin
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.services.manufacturer.activation_service import ManufacturerActivationService
 from micboard.services.realtime.connection_service import (
     mark_connecting,
@@ -34,8 +34,7 @@ def run_sse_subscriptions(manufacturer_id: int, *, chassis_id: int | None = None
     """Run the singleton, bounded SSE supervisor for one manufacturer."""
     try:
         manufacturer = Manufacturer.objects.get(pk=manufacturer_id, is_active=True)
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
+        plugin = build_manufacturer_plugin(manufacturer)
 
         if not hasattr(plugin, "connect_and_subscribe"):
             logger.error(

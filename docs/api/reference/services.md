@@ -605,71 +605,6 @@ Bases: `PydanticBaseDTO`
 
 Best-effort persistence result safe to render to an operator.
 
-## `micboard.services.manufacturer.plugin_registry`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/manufacturer/plugin_registry.py)
-
-Centralized plugin registry and loading service.
-
-Provides a single point for plugin loading with caching, error handling,
-and logging to reduce duplication across the codebase.
-
-### `PluginRegistry`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/manufacturer/plugin_registry.py#L21)
-
-Centralized registry for manufacturer plugin loading and caching.
-
-#### `get_plugin_class(manufacturer_code: str) -> type[ManufacturerPlugin]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/manufacturer/plugin_registry.py#L24)
-
-Get plugin class by manufacturer code with caching.
-
-**Parameters:**
-
-- `manufacturer_code` (`str`) — Manufacturer code (e.g., 'shure', 'sennheiser').
-
-**Returns:**
-
-- `type[ManufacturerPlugin]` — Plugin class implementing ManufacturerPlugin interface.
-
-**Raises:**
-
-- `ModuleNotFoundError` — If plugin not found.
-- `ImportError` — If plugin class not found in module.
-
-#### `get_plugin(manufacturer_code: str, manufacturer: object | None = None) -> ManufacturerPlugin | None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/manufacturer/plugin_registry.py#L58)
-
-Get plugin instance by manufacturer code.
-
-**Parameters:**
-
-- `manufacturer_code` (`str`) — Manufacturer code.
-- `manufacturer` (`object | None`) — Manufacturer model instance (optional).
-
-**Returns:**
-
-- `ManufacturerPlugin | None` — Plugin instance or None if not found.
-
-#### `clear_cache() -> None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/manufacturer/plugin_registry.py#L92)
-
-Clear plugin cache (useful for testing).
-
-#### `get_all_active_plugins() -> list[ManufacturerPlugin]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/manufacturer/plugin_registry.py#L99)
-
-Get instances of all active manufacturer plugins.
-
-**Returns:**
-
-- `list[ManufacturerPlugin]` — List of plugin instances for active manufacturers.
-
 ## `micboard.services.shared.access_policy`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py)
@@ -744,11 +679,27 @@ Base DTO with standard configuration for all service layer DTOs.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py)
 
+### `clear_plugin_cache() -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L16)
+
+Forget resolved plugin classes, so a test starts from a cold cache.
+
+### `build_manufacturer_plugin(manufacturer: Manufacturer) -> ManufacturerPlugin`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L21)
+
+Return a plugin bound to ``manufacturer``.
+
+This is the one way to obtain a plugin. It raises when a manufacturer has no shipped
+integration, so every caller sees the same failure rather than a ``None`` some branch on
+and others do not.
+
 ### `get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L13)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L32)
 
-Return the plugin class for a manufacturer code.
+Return the plugin class for a manufacturer code, resolving it at most once.
 
 Attempts to import ``micboard.integrations.<code>.plugin`` and
 locate a concrete ``ManufacturerPlugin`` subclass. Prefers
@@ -758,13 +709,13 @@ locate a concrete ``ManufacturerPlugin`` subclass. Prefers
 
 Bases: `ABC`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L54)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L78)
 
 Base interface for all manufacturer plugins.
 
 #### `get_devices() -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L73)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L97)
 
 Retrieve a list of all devices associated with or discovered by this plugin.
 
@@ -772,61 +723,61 @@ Retrieve a list of all devices associated with or discovered by this plugin.
 
 Bases: `BasePlugin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L79)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L103)
 
 Extended plugin interface specifically for manufacturer hardware integrations.
 
 #### `get_device_channels(device_id: str) -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L82)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L106)
 
 Retrieve all channels associated with a specific device identifier.
 
 #### `get_client() -> BaseAPIClient`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L87)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L111)
 
 Get an instance of the configured API client for this manufacturer.
 
 #### `transform_device_data(api_data: dict[str, Any]) -> dict[str, Any] | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L92)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L116)
 
 Transform raw API device data into the standardized application format.
 
 #### `get_device(device_id: str) -> dict[str, Any] | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L97)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L121)
 
 Fetch details for a single device by its identifier.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L102)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L126)
 
 Check if the plugin and its underlying integrations are currently healthy.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L107)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L131)
 
 Perform a detailed health check and return the results as a dictionary.
 
 #### `add_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L112)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L136)
 
 Add a list of IP addresses to the plugin's discovery targets.
 
 #### `get_discovery_ips() -> list[str]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L117)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L141)
 
 Retrieve the list of currently configured discovery IP addresses.
 
 #### `remove_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L122)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L146)
 
 Remove a list of IP addresses from the plugin's discovery targets.
 

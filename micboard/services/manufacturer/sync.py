@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager, HardwareStatus
 from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 from micboard.services.deduplication.identity_mutation_lock import (
@@ -20,7 +21,6 @@ from micboard.services.deduplication.tracking import log_device_movement
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
 from micboard.services.sync.discovery_trigger_service import coalesce_discovery_scheduling
 from micboard.services.sync.polling_dtos import (
     ManufacturerPollLimits,
@@ -221,8 +221,9 @@ class ManufacturerSyncService:
                 device_limit=limits.max_devices,
             )
 
-        plugin = PluginRegistry.get_plugin(manufacturer_code)
-        if not plugin:
+        try:
+            plugin = build_manufacturer_plugin(manufacturer)
+        except (ImportError, ValueError):
             return ManufacturerSyncResult(
                 success=False,
                 errors=[f"Plugin not found: {manufacturer_code}"],

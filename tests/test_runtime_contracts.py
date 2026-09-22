@@ -126,7 +126,6 @@ def test_offline_chassis_checks_attached_wireless_units() -> None:
 def test_websocket_service_instantiates_plugin_and_uses_chassis_status() -> None:
     """WebSocket startup honors plugin-class and WirelessChassis field contracts."""
     manufacturer = Mock(pk=14, code="shure", name="Shure")
-    plugin_class = Mock()
 
     with (
         patch(
@@ -135,9 +134,8 @@ def test_websocket_service_instantiates_plugin_and_uses_chassis_status() -> None
         ) as get_manufacturer,
         patch(
             "micboard.services.realtime.shure_websocket_subscription_service."
-            "get_manufacturer_plugin",
-            return_value=plugin_class,
-        ),
+            "build_manufacturer_plugin",
+        ) as build_plugin,
         patch(
             "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.filter",
             return_value=[],
@@ -151,7 +149,7 @@ def test_websocket_service_instantiates_plugin_and_uses_chassis_status() -> None
         run_shure_websocket_subscriptions(14)
 
     get_manufacturer.assert_called_once_with(pk=14, code="shure", is_active=True)
-    plugin_class.assert_called_once_with(manufacturer)
+    build_plugin.assert_called_once_with(manufacturer)
     filter_chassis.assert_called_once_with(
         manufacturer_id=14,
         manufacturer__is_active=True,

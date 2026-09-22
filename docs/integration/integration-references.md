@@ -61,15 +61,13 @@ control resource, which is configured over a separate authenticated connection.
 
 ## Plugin loading
 
-`PluginRegistry` resolves a plugin from the persisted manufacturer's code:
+`build_manufacturer_plugin` resolves a plugin from the persisted manufacturer's code and
+raises when no integration ships for it:
 
 ```python
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 
-plugin = PluginRegistry.get_plugin(manufacturer.code, manufacturer=manufacturer)
-if plugin is None:
-    raise RuntimeError(f"No plugin for {manufacturer.code}")
-
+plugin = build_manufacturer_plugin(manufacturer)
 health = plugin.check_health()
 ```
 
@@ -119,7 +117,7 @@ uv run --no-sync pytest \
 
 # Plugin loading and runtime polling paths
 uv run --no-sync pytest \
-  tests/test_plugin_registry.py \
+  tests/test_manufacturer_plugin_resolution.py \
   tests/test_polling_api_service.py \
   tests/tasks/sync/test_polling_tasks.py \
   tests/services/manufacturer/test_sync_service.py \

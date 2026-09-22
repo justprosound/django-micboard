@@ -5,19 +5,41 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from micboard.models.hardware.manufacturer import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
 
     from .client import BaseAPIClient
 
 
+_plugin_cache: dict[str, type[ManufacturerPlugin]] = {}
+
+
+def clear_plugin_cache() -> None:
+    """Forget resolved plugin classes, so a test starts from a cold cache."""
+    _plugin_cache.clear()
+
+
+def build_manufacturer_plugin(manufacturer: Manufacturer) -> ManufacturerPlugin:
+    """Return a plugin bound to ``manufacturer``.
+
+    This is the one way to obtain a plugin. It raises when a manufacturer has no shipped
+    integration, so every caller sees the same failure rather than a ``None`` some branch on
+    and others do not.
+    """
+    plugin_class = get_manufacturer_plugin(manufacturer.code)
+    return plugin_class(manufacturer)
+
+
 def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
-    """Return the plugin class for a manufacturer code.
+    """Return the plugin class for a manufacturer code, resolving it at most once.
 
     Attempts to import ``micboard.integrations.<code>.plugin`` and
     locate a concrete ``ManufacturerPlugin`` subclass. Prefers
     ``<CodeTitle>Plugin``, then falls back to another plugin subclass.
     """
     code_str = str(code)
+    cached = _plugin_cache.get(code_str)
+    if cached is not None:
+        return cached
     module_paths = [
         f"micboard.integrations.{code_str}.plugin",
         f"micboard.integrations.{code_str}",
@@ -37,6 +59,7 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
     if hasattr(mod, candidate_name):
         cls = getattr(mod, candidate_name)
         if isinstance(cls, type) and issubclass(cls, ManufacturerPlugin):
+            _plugin_cache[code_str] = cls
             return cls
 
     for attr in dir(mod):
@@ -46,6 +69,7 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
             and obj is not ManufacturerPlugin
             and issubclass(obj, ManufacturerPlugin)
         ):
+            _plugin_cache[code_str] = obj
             return obj
 
     raise ImportError(f"No ManufacturerPlugin subclass found in micboard.integrations.{code_str}")

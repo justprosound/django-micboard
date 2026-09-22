@@ -7,15 +7,15 @@ a manufacturer under `micboard/integrations/<vendor>/`.
 !!! note "Implemented architecture"
     [ADR-004](adr/004-standardize-manufacturer-plugins.md) keeps shared transport and plugin
     contracts in `micboard/services/common/base/` while protocol-specific code remains under
-    `micboard/integrations/<vendor>/`. `PluginRegistry` loads those integrations by convention;
-    there is no central registration module.
+    `micboard/integrations/<vendor>/`. `micboard.services.common.base.plugin` loads those
+    integrations by convention; there is no central registration module.
 
 ## Runtime boundaries
 
 | Concern | Current entry point |
 | --- | --- |
 | Plugin contract and dynamic import | `micboard.services.common.base.plugin` |
-| Cached class lookup and instance construction | `micboard.services.manufacturer.plugin_registry.PluginRegistry` |
+| Cached class lookup and bound construction | `micboard.services.common.base.plugin.build_manufacturer_plugin` |
 | Shared verified HTTP transport | `micboard.services.common.base.client.BaseHTTPClient` |
 | API exceptions | `micboard.exceptions` |
 | Rate limiting | `micboard.services.common.base.rate_limiter.rate_limit` |
@@ -357,19 +357,19 @@ discovery is deterministic.
 Verify class loading:
 
 ```python
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 
-plugin_class = PluginRegistry.get_plugin_class("acme_audio")
+plugin_class = get_manufacturer_plugin("acme_audio")
 assert plugin_class.__name__ == "AcmeAudioPlugin"
 ```
 
 Create or enable a `micboard.models.discovery.manufacturer.Manufacturer` row whose `code` is exactly
-`acme_audio`. `PluginRegistry.get_plugin()` can then instantiate the class with that row, and
-`get_all_active_plugins()` includes it when `is_active=True`.
+`acme_audio`. `build_manufacturer_plugin(manufacturer)` then returns a plugin bound to that row;
+it is the only way callers obtain an instance, and it raises when no integration ships for the
+code.
 
-`PluginRegistry` caches plugin classes. Call `PluginRegistry.clear_cache()` only in tests or an
-explicit development reload path. Do not add package re-exports or a compatibility registration
-module.
+Class resolution is cached per process. Call `clear_plugin_cache()` only in tests or an explicit
+development reload path. Do not add package re-exports or a compatibility registration module.
 
 `ManufacturerConfiguration` validation and the admin API-server connection checker have explicit
 vendor behavior. Extend those separate surfaces only if the new integration uses them; do not
@@ -475,7 +475,8 @@ Build coverage at each boundary without contacting real hardware:
    callback errors, normal close, and secret-safe logging.
 9. **Huey:** test the plain task function and native-Huey enqueue/on-commit behavior separately.
 
-Existing examples live in `tests/test_plugin_registry.py`, `tests/test_httpx_clients.py`,
+Existing examples live in `tests/test_manufacturer_plugin_resolution.py`,
+`tests/test_httpx_clients.py`,
 `tests/test_authenticated_transport_security.py`, `tests/services/sync/`, and
 `tests/test_huey_integration.py`.
 
@@ -506,6 +507,6 @@ just docs
 - [ ] Any new task is a thin native-Huey wrapper registered by `MicboardConfig`.
 - [ ] Any new optional dependency is scoped to an existing/relevant extra and locked with `uv`.
 - [ ] Registry, transport, transformer, discovery, security, service, and streaming tests pass.
-- [ ] `PluginRegistry.get_plugin_class("<vendor>")` resolves the intended class.
+- [ ] `get_manufacturer_plugin("<vendor>")` resolves the intended class.
 - [ ] An active `Manufacturer` row exists with the exact plugin code.
 - [ ] Developer docs and `CHANGELOG.md` describe the supported integration behavior.

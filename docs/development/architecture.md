@@ -74,7 +74,7 @@ and safety behavior.
 
 **Key Components**:
 - `micboard.services.common.base.plugin.ManufacturerPlugin` - Plugin contract
-- `micboard.services.manufacturer.plugin_registry.PluginRegistry` - Cached construction boundary
+- `micboard.services.common.base.plugin.build_manufacturer_plugin` - Cached construction boundary
 - `micboard.services.common.base.client.BaseHTTPClient` - Shared verified HTTP transport
 - `micboard.integrations.<vendor>` - Manufacturer-local clients, discovery, transforms, and streams
 
@@ -290,13 +290,17 @@ per-manufacturer health logs; public request rendering never performs manufactur
 ## Plugin System
 
 ### Plugin Discovery
-`PluginRegistry` discovers plugins from the manufacturer code and caches the selected class:
+`micboard.services.common.base.plugin` discovers plugins from the manufacturer code and caches
+the selected class:
 
 ```python
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base.plugin import (
+    build_manufacturer_plugin,
+    get_manufacturer_plugin,
+)
 
-plugin_class = PluginRegistry.get_plugin_class("shure")
-plugin = PluginRegistry.get_plugin("shure", manufacturer=manufacturer)
+plugin_class = get_manufacturer_plugin("shure")
+plugin = build_manufacturer_plugin(manufacturer)
 ```
 
 For code `acme_audio`, class discovery imports `micboard.integrations.acme_audio.plugin` and
@@ -307,7 +311,7 @@ prefers `AcmeAudioPlugin`. No package initializer or registry map needs editing.
 2. Implement a concrete, conventionally named `ManufacturerPlugin` subclass.
 3. Keep device, discovery, transform, and streaming behavior in that integration package.
 4. Create or enable a `Manufacturer` row whose `code` matches the package name.
-5. Verify `PluginRegistry.get_plugin_class("<code>")` resolves the class.
+5. Verify `get_manufacturer_plugin("<code>")` resolves the class.
 
 ### Data Isolation
 - Each manufacturer's data is stored with manufacturer relationships

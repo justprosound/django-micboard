@@ -47,33 +47,35 @@ micboard/
   exceptions.py
   services/
     common/base/
-      plugin.py           # ManufacturerPlugin and convention-based class discovery
+      plugin.py           # ManufacturerPlugin, cached class discovery, bound construction
       client.py           # Verified HTTP transport
       bounded_transport.py
       rate_limiter.py
-    manufacturer/
-      plugin_registry.py  # Cached class lookup and instance construction
   integrations/
     shure/                 # REST, discovery, transforms, WebSocket
     sennheiser/            # REST, discovery, transforms, SSE
 ```
 
-**Using the Plugin Registry:**
+**Obtaining a plugin:**
 
 ```python
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base.plugin import (
+    build_manufacturer_plugin,
+    get_manufacturer_plugin,
+)
 
-# Get plugin class
-plugin_class = PluginRegistry.get_plugin_class("shure")
+# Resolve the plugin class for a manufacturer code (cached per process)
+plugin_class = get_manufacturer_plugin("shure")
 
-# Get plugin instance
-plugin = PluginRegistry.get_plugin("shure", manufacturer=shure_obj)
-
-# Get all active plugins
-plugins = PluginRegistry.get_all_active_plugins()
+# Build a plugin bound to a persisted manufacturer — the one way callers get an instance
+plugin = build_manufacturer_plugin(shure_obj)
 ```
 
-**Implementing a New Plugin:** Create `micboard/integrations/<code>/plugin.py` with a concrete, conventionally named `ManufacturerPlugin` subclass. For code `my_manufacturer`, the loader prefers `MyManufacturerPlugin`. Create a matching active `Manufacturer` row, then verify discovery with `PluginRegistry.get_plugin_class("my_manufacturer")`. There is no central registration map or package re-export to edit. See [Manufacturer plugin development](plugin-development.md) for the complete contract.
+`build_manufacturer_plugin` raises `ModuleNotFoundError` or `ImportError` when a manufacturer
+has no shipped integration, so every outbound path sees the same failure instead of a `None`
+some callers branch on and others do not.
+
+**Implementing a New Plugin:** Create `micboard/integrations/<code>/plugin.py` with a concrete, conventionally named `ManufacturerPlugin` subclass. For code `my_manufacturer`, the loader prefers `MyManufacturerPlugin`. Create a matching active `Manufacturer` row, then verify discovery with `get_manufacturer_plugin("my_manufacturer")`. There is no central registration map or package re-export to edit. See [Manufacturer plugin development](plugin-development.md) for the complete contract.
 
 ### 3. Multi-Tenancy
 
@@ -144,7 +146,7 @@ micboard/models/
 
 Core services in `micboard/services/`:
 
-- `manufacturer/plugin_registry.py`: Manufacturer plugin loading
+- `common/base/plugin.py`: Manufacturer plugin resolution and construction
 - `settings/settings_service.py`: Unified host and scoped settings resolution
 - `settings/registry.py`: Internal database-backed scope resolution
 - `settings/persistence_service.py`: Authorized scoped setting writes

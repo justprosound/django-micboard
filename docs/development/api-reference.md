@@ -40,14 +40,13 @@ assignment = PerformerAssignmentService.create_assignment(
 
 ## Manufacturer integrations
 
-Resolve plugins through the registry:
+Build a plugin bound to a persisted manufacturer:
 
 ```python
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 
-plugin = PluginRegistry.get_plugin("shure")
-if plugin is not None:
-    devices = plugin.get_devices()
+plugin = build_manufacturer_plugin(manufacturer)
+devices = plugin.get_devices()
 ```
 
 The Shure HTTP client is also available for integration-specific operations:
