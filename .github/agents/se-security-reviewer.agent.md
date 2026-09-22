@@ -41,12 +41,13 @@ Select 3-5 most relevant check categories based on context.
 **A01 - Broken Access Control:**
 ```python
 # VULNERABILITY
-@app.route('/user/<user_id>/profile')
+@app.route("/user/<user_id>/profile")
 def get_profile(user_id):
     return User.get(user_id).to_json()
 
+
 # SECURE
-@app.route('/user/<user_id>/profile')
+@app.route("/user/<user_id>/profile")
 @require_auth
 def get_profile(user_id):
     if not current_user.can_access_user(user_id):
@@ -61,7 +62,8 @@ password_hash = hashlib.md5(password.encode()).hexdigest()
 
 # SECURE
 from werkzeug.security import generate_password_hash
-password_hash = generate_password_hash(password, method='scrypt')
+
+password_hash = generate_password_hash(password, method="scrypt")
 ```
 
 **A03 - Injection Attacks:**
@@ -110,6 +112,7 @@ return filtered
 def internal_api(data):
     return process(data)
 
+
 # ZERO TRUST
 def internal_api(data, auth_token):
     if not verify_service_token(auth_token):
@@ -135,8 +138,8 @@ for attempt in range(3):
         if response.status_code == 200:
             break
     except httpx.HTTPError as e:
-        logger.warning(f'Attempt {attempt + 1} failed: {e}')
-        time.sleep(2 ** attempt)
+        logger.warning(f"Attempt {attempt + 1} failed: {e}")
+        time.sleep(2**attempt)
 ```
 
 ## Document Creation

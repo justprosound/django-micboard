@@ -122,6 +122,7 @@ import asyncio
 # Initialize server
 mcp = FastMCP("[Server Name]")
 
+
 @mcp.tool()
 async def tool_name(param1: str, param2: int) -> dict:
     """
@@ -140,6 +141,7 @@ async def tool_name(param1: str, param2: int) -> dict:
         return result
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
 
 if __name__ == "__main__":
     mcp.run()
