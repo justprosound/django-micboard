@@ -7,6 +7,59 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the `sse_subscribe` and `websocket_subscribe` management commands are replaced by
+  a single `realtime_subscribe --manufacturer <code>`, and the `start_sse_subscriptions` and
+  `start_shure_websocket_subscriptions` Huey entry points by `start_realtime_subscriptions`. The
+  transport was never an operator's choice — an integration streams over exactly one — so the
+  runner now reads it from the plugin. `ManufacturerPlugin` gains two abstract members,
+  `realtime_transport` and `subscribe_to_chassis(chassis, callback)`, and loses the
+  non-abstract `connect_and_subscribe`; third-party plugins must implement both. Connection setup,
+  authentication, framing, and cleanup now live entirely inside the integration package, so no
+  orchestration code imports a vendor module or branches on a manufacturer code.
+
+- `build_device_https_url` moved from `micboard.services.realtime.subscription_supervisor` to
+  `micboard.services.common.base.utils`, so an integration can build a per-device origin without
+  depending on the realtime orchestration layer.
+
+- There is now one way to obtain a manufacturer plugin. `PluginRegistry` and
+  `get_manufacturer_plugin_instance` are removed in favour of
+  `micboard.services.common.base.plugin.build_manufacturer_plugin(manufacturer)`, which
+  resolves the class once per process and raises `ModuleNotFoundError`/`ImportError` when a
+  manufacturer has no shipped integration. Callers that previously had to branch on a `None`
+  now handle one failure shape. `clear_plugin_cache()` replaces `PluginRegistry.clear_cache()`,
+  and the unused `get_all_active_plugins()` is gone.
+
+- Validating a `ManufacturerConfiguration` whose `code` has no `Manufacturer` row is now
+  reported as an error rather than passing. Nothing polls such a configuration, so the previous
+  result was a false pass.
+
+### Fixed
+
+- `poll_devices` printed a successful summary for a failed poll. `sync_devices_for_manufacturer`
+  reports expected failures — a missing integration, an inventory over its configured limit, a
+  manufacturer deactivated mid-poll — in the returned result rather than by raising, and the
+  command never read `result.success`, so an operator saw
+  `Success: 0 created, 0 updated, 0 examined` and an exit status of zero.
+
+- A poll whose manufacturer was deactivated during vendor I/O left no audit row. The wrapper
+  reloaded the manufacturer with an `is_active` filter before recording the audit, so the
+  reload returned nothing and the durable record of a poll that had already reached the vendor
+  was skipped.
+
+- A manufacturer plugin whose constructor failed for a reason other than a missing module
+  escaped `sync_devices_for_manufacturer` as an exception, skipping the audit, and a
+  configuration error such as a missing vendor password was reported as `Plugin not found`.
+  Initialization failures now return a redacted failed result that is distinguishable from an
+  absent integration.
+
+- A realtime connection row stayed in `connecting` or `connected` after its subscription ended.
+  Supervisor rotation and shutdown cancel the subscription task, and `asyncio.CancelledError`
+  is a `BaseException`, so the round's `except Exception` never saw it; a stream that returned
+  on its own was not closed either. Both paths now mark the connection stopped, while a genuine
+  failure keeps its error state.
+
 ## [2026.9.21.2] - 2026-09-21
 
 ### Fixed
