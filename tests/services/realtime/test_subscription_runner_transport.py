@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, call
 
 import pytest
 
@@ -92,7 +92,7 @@ def test_a_held_lease_skips_external_work(monkeypatch) -> None:
     monkeypatch.setattr(
         runner.WirelessChassis.objects,
         "filter",
-        Mock(return_value=SimpleNamespace(values_list=Mock(return_value=["device-1"]))),
+        Mock(return_value=Mock(values_list=Mock(return_value=["device-1"]))),
     )
     acquire = Mock(return_value=None)
     monkeypatch.setattr(runner.RealtimeSubscriptionSupervisor, "acquire", acquire)
@@ -148,7 +148,8 @@ def test_a_selected_device_narrows_the_window_to_one_chassis(monkeypatch) -> Non
 
     runner.run_realtime_subscriptions(17, chassis_id=27)
 
-    all_chassis.filter.assert_called_once_with(pk=27)
+    # Once for the pre-lease eligibility check, once for the bounded selection.
+    assert all_chassis.filter.call_args_list == [call(pk=27), call(pk=27)]
     run.call_args.args[0].close()
 
 
@@ -363,3 +364,32 @@ def test_realtime_logs_exclude_vendor_and_device_sentinels(monkeypatch, caplog) 
         assert sentinel not in caplog.text
     assert "manufacturer ID 41" in caplog.text
     assert "chassis ID 42" in caplog.text
+
+
+def test_an_empty_inventory_does_not_burn_the_transport_lease(monkeypatch) -> None:
+    """Leases expire rather than being released, so taking one for no work blocks the next run.
+
+    The rotation cursor is advanced by the fair-window selection, so the cheap check that
+    decides whether to acquire must not be that selection.
+    """
+    plugin = _plugin()
+    monkeypatch.setattr(
+        runner.Manufacturer.objects,
+        "get",
+        Mock(return_value=plugin.manufacturer),
+    )
+    _bind(monkeypatch, plugin)
+    monkeypatch.setattr(
+        runner.RealtimeSubscriptionLifecycleService,
+        "has_eligible_chassis",
+        Mock(return_value=False),
+    )
+    acquire = Mock()
+    monkeypatch.setattr(runner.RealtimeSubscriptionSupervisor, "acquire", acquire)
+    select = Mock()
+    monkeypatch.setattr(runner.RealtimeSubscriptionLifecycleService, "select_chassis", select)
+
+    runner.run_realtime_subscriptions(17)
+
+    acquire.assert_not_called()
+    select.assert_not_called()

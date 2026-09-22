@@ -37,6 +37,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- `poll_manufacturer_devices` evaluated post-poll alerts and logged `Polling task complete`
+  even when the sync returned `success=False`, so a failed poll ran its success path against
+  stale inventory. The task now reports the failure and returns without evaluating alerts.
+- An empty chassis inventory acquired the realtime transport lease before discovering there
+  was no work. Leases expire rather than being released, so the next run was skipped for the
+  whole lease timeout. Eligibility is now checked with a query that does not advance the fair
+  rotation cursor, before the lease is taken.
 - `poll_devices` printed a successful summary for a failed poll. `sync_devices_for_manufacturer`
   reports expected failures — a missing integration, an inventory over its configured limit, a
   manufacturer deactivated mid-poll — in the returned result rather than by raising, and the

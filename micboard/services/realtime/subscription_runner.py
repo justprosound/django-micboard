@@ -55,6 +55,19 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
             )
             return
 
+        # Check for work before taking the lease. A lease expires rather than being released,
+        # so acquiring one for an empty inventory blocks the next run for its whole timeout.
+        if not RealtimeSubscriptionLifecycleService.has_eligible_chassis(
+            manufacturer_id=manufacturer_id,
+            chassis_id=chassis_id,
+        ):
+            logger.info(
+                "No active chassis found for %s subscriptions on manufacturer ID %s",
+                transport,
+                manufacturer_id,
+            )
+            return
+
         limits = RealtimeSubscriptionSupervisor.limits()
         lease = RealtimeSubscriptionSupervisor.acquire(transport=transport, scope=manufacturer_id)
         if lease is None:

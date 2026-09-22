@@ -5,6 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
+import pytest
+
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.integrations import ManufacturerAPIServer
 from micboard.services.sync.polling_dtos import ManufacturerSyncResult
@@ -158,3 +160,36 @@ def test_poll_task_contains_and_redacts_service_failures(caplog) -> None:
 
     assert secret not in caplog.text
     assert "RuntimeError" in caplog.text
+
+
+def test_a_failed_sync_skips_alert_evaluation_and_reports_the_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A poll that failed has no fresh inventory, so evaluating alerts reads stale state."""
+    manufacturer = SimpleNamespace(pk=3, code="vendor", name="Vendor")
+    monkeypatch.setattr(
+        Manufacturer.objects,
+        "get",
+        Mock(return_value=manufacturer),
+    )
+    monkeypatch.setattr(
+        "micboard.services.manufacturer.sync.ManufacturerSyncService.sync_devices_for_manufacturer",
+        Mock(
+            return_value=ManufacturerSyncResult(
+                success=False,
+                errors=["Plugin not found: vendor"],
+                device_limit=64,
+            )
+        ),
+    )
+    evaluate = Mock()
+    monkeypatch.setattr(
+        "micboard.services.monitoring.poll_alert_service.PollAlertService.evaluate_manufacturer",
+        evaluate,
+    )
+
+    result = poll_manufacturer_devices(3)
+
+    evaluate.assert_not_called()
+    assert result is not None
+    assert result["success"] is False

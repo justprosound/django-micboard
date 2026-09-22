@@ -97,6 +97,17 @@ def poll_manufacturer_devices(
             force=force,
         )
 
+        if not result.success:
+            # No fresh inventory was persisted, so evaluating alerts would read stale state
+            # and the completion log would claim a poll that did not happen.
+            logger.warning(
+                "Polling task failed for %s with %d error(s)",
+                manufacturer.name,
+                len(result.errors),
+                extra={"code": manufacturer.code, "errors": result.errors},
+            )
+            return result.model_dump()
+
         from micboard.services.monitoring.poll_alert_service import PollAlertService
 
         alert_scan = PollAlertService.evaluate_manufacturer(manufacturer)
