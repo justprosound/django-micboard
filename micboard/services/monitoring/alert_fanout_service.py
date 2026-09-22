@@ -10,11 +10,11 @@ from django.core.cache import cache
 from django.db import models
 from django.db.models import Case, IntegerField, Q, QuerySet, Value, When
 
-from micboard.models.base_managers import TenantOptimizedQuerySet
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.access_policy import visible_to
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -151,10 +151,11 @@ class AlertFanoutService:
         if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
             return True
 
-        tenant_units: QuerySet[WirelessUnit] = TenantOptimizedQuerySet(
+        tenant_units: QuerySet[WirelessUnit] = visible_to(
             WirelessUnit,
+            user=user,
             using=unit._state.db or WirelessUnit.objects.db,
-        ).for_user(user=user)
+        )
         return tenant_units.filter(pk=unit.pk).exists()
 
     @classmethod

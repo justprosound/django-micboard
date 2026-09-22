@@ -78,10 +78,7 @@ def test_kiosk_auth_get_and_post_cover_success_and_missing_wall() -> None:
 def test_kiosk_list_detail_and_section_views_scope_querysets_and_context() -> None:
     kiosk_request = request()
     queryset = MagicMock()
-    with patch(
-        "micboard.views.kiosk.MonitoringService.get_accessible_display_walls",
-        return_value=queryset,
-    ):
+    with patch("micboard.views.kiosk.visible_to", return_value=queryset):
         list_view = DisplayWallListView()
         list_view.request = kiosk_request
         assert list_view.get_queryset() is queryset.filter.return_value.order_by.return_value
@@ -101,10 +98,7 @@ def test_kiosk_list_detail_and_section_views_scope_querysets_and_context() -> No
             "micboard.views.kiosk.MonitoringService.get_accessible_wall_sections",
             return_value=sections,
         ),
-        patch(
-            "micboard.views.kiosk.MonitoringService.get_accessible_display_walls",
-            return_value=queryset,
-        ),
+        patch("micboard.views.kiosk.visible_to", return_value=queryset),
         patch("micboard.views.kiosk.get_object_or_404", return_value="wall"),
         patch.object(ListView, "get_context_data", return_value={"sections": []}),
     ):

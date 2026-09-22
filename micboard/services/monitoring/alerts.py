@@ -13,7 +13,6 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from micboard.models.base_managers import TenantOptimizedQuerySet
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.alert import Alert
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
@@ -21,6 +20,7 @@ from micboard.services.hardware.wireless_unit_service import get_battery_percent
 from micboard.services.monitoring.alert_delivery_service import AlertDeliveryService
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.monitoring.alert_fanout_service import AlertFanoutService
+from micboard.services.shared.access_policy import visible_to
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +30,7 @@ def get_alerts_for_user(user: User | AnonymousUser) -> QuerySet[Alert]:
     if not user.is_authenticated or not getattr(user, "is_active", False):
         return Alert.objects.none()
 
-    tenant_alerts: QuerySet[Alert] = TenantOptimizedQuerySet(
-        Alert,
-        using=Alert.objects.db,
-    ).for_user(user=user)
+    tenant_alerts: QuerySet[Alert] = visible_to(Alert, user=user, using=Alert.objects.db)
     if user.is_superuser:
         return tenant_alerts
     return tenant_alerts.filter(user_id=user.pk)
