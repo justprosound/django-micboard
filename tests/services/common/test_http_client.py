@@ -410,3 +410,30 @@ def test_context_manager_closes_transport(transport_client) -> None:
     with transport_client as entered:
         assert entered is transport_client
     transport_client.client.close.assert_called_once_with()
+
+
+def test_health_responses_share_one_timestamped_shape() -> None:
+    """Every health result carries a status and a timestamp, and details only when present."""
+    detailed = client_module.standardize_health_response(
+        status="healthy",
+        details={"latency_ms": 4},
+        error="warning",
+    )
+    bare = client_module.standardize_health_response(status="unhealthy")
+
+    assert detailed["status"] == "healthy"
+    assert detailed["details"] == {"latency_ms": 4}
+    assert detailed["error"] == "warning"
+    assert detailed["timestamp"]
+    assert bare["status"] == "unhealthy"
+    assert "details" not in bare
+    assert "error" not in bare
+
+
+def test_an_invented_health_status_becomes_unknown(caplog: pytest.LogCaptureFixture) -> None:
+    """The status vocabulary is closed, so an unrecognized state is reported as unknown."""
+    with caplog.at_level("WARNING"):
+        response = client_module.standardize_health_response(status="invented")
+
+    assert response["status"] == "unknown"
+    assert "Invalid health status" in caplog.text
