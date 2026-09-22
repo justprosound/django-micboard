@@ -68,8 +68,8 @@ def test_hundred_device_sync_registers_one_discovery_dispatch(
             manufacturer_code=manufacturer.code,
         )
 
-    assert result["success"] is True
-    assert result["devices_added"] == 100
+    assert result.success is True
+    assert result.devices_added == 100
     dispatch.assert_called_once_with(
         manufacturer_id=manufacturer.pk,
         scan_cidrs=False,

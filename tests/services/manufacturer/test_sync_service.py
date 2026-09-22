@@ -24,6 +24,7 @@ from micboard.services.sync.polling_dtos import (
     DEFAULT_MAX_POLL_DEVICES,
     HARD_MAX_POLL_DEVICES,
     ManufacturerPollLimits,
+    ManufacturerSyncResult,
 )
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
@@ -52,7 +53,7 @@ def _payload(**overrides: object) -> NormalizedHardware:
     return NormalizedHardware(**values)  # type: ignore[arg-type]
 
 
-def _result(**overrides: object) -> dict[str, object]:
+def _result(**overrides: object) -> ManufacturerSyncResult:
     values: dict[str, object] = {
         "success": True,
         "devices_added": 0,
@@ -64,7 +65,7 @@ def _result(**overrides: object) -> dict[str, object]:
         "inventory_complete": True,
     }
     values.update(overrides)
-    return values
+    return ManufacturerSyncResult(**values)  # type: ignore[arg-type]
 
 
 def test_sync_reports_missing_manufacturer() -> None:
@@ -82,9 +83,9 @@ def test_sync_reports_missing_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
         Mock(return_value=None),
     )
 
-    assert ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")[
-        "errors"
-    ] == ["Plugin not found: vendor"]
+    assert ManufacturerSyncService.sync_devices_for_manufacturer(
+        manufacturer_code="vendor"
+    ).errors == ["Plugin not found: vendor"]
 
 
 def test_sync_returns_zero_counts_for_empty_inventory(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -672,8 +673,8 @@ def test_sync_contains_manufacturer_api_failures(monkeypatch: pytest.MonkeyPatch
 
     result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
 
-    assert result["success"] is False
-    assert result["errors"] == ["Device synchronization failed (TimeoutError); details redacted."]
+    assert result.success is False
+    assert result.errors == ["Device synchronization failed (TimeoutError); details redacted."]
     assert secret not in str(result)
 
 

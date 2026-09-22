@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager, HardwareStatus
@@ -94,13 +95,94 @@ class ManufacturerSyncService:
     """Write operations for manufacturer device synchronization."""
 
     @staticmethod
+    def _record_poll_audit(
+        *,
+        manufacturer: Manufacturer,
+        started_at: datetime,
+        result: ManufacturerSyncResult,
+    ) -> None:
+        """Delegate bounded audit persistence without widening this interface."""
+        from micboard.services.maintenance.sync_audit_service import ServiceSyncAuditService
+
+        ServiceSyncAuditService.record_poll_result(
+            manufacturer=manufacturer,
+            started_at=started_at,
+            result=result,
+        )
+
+    @staticmethod
+    def _broadcast_persisted_devices(manufacturer: Manufacturer) -> None:
+        """Publish the persisted snapshot, containing broadcast failures."""
+        from micboard.services.notification.device_broadcast_service import (
+            DeviceSnapshotBroadcastService,
+        )
+        from micboard.services.sync.polling_dtos import ManufacturerPollLimits
+
+        try:
+            limits = ManufacturerPollLimits.from_settings()
+            DeviceSnapshotBroadcastService.broadcast(
+                manufacturer=manufacturer,
+                namespace="poll",
+                max_devices=limits.max_devices,
+                chunk_size=limits.broadcast_chunk_size,
+                statuses=["online", "degraded", "provisioning"],
+            )
+        except Exception as exc:
+            logger.exception(
+                "Failed to broadcast device updates for manufacturer %s",
+                manufacturer.pk,
+                exc_info=sanitized_exception_info(exc),
+            )
+
+    @staticmethod
     def sync_devices_for_manufacturer(
         *,
         manufacturer_code: str,
         organization_id: int | None = None,
         campus_id: int | None = None,
         force: bool = False,
-    ) -> dict[str, Any]:
+    ) -> ManufacturerSyncResult:
+        """Poll one manufacturer, persist its inventory, audit the run, and broadcast it.
+
+        One poll has one outcome: the returned DTO is what operators, background tasks, and
+        the audit trail all read, so their counts cannot disagree.
+        """
+        from django.utils import timezone
+
+        from micboard.models.discovery.manufacturer import Manufacturer
+
+        started_at = timezone.now()
+        result = ManufacturerSyncService._sync_inventory(
+            manufacturer_code=manufacturer_code,
+            organization_id=organization_id,
+            campus_id=campus_id,
+            force=force,
+        )
+
+        manufacturer_filters: dict[str, str | bool] = {"code": manufacturer_code}
+        if not force:
+            manufacturer_filters["is_active"] = True
+        manufacturer = Manufacturer.objects.filter(**manufacturer_filters).first()
+        if manufacturer is None:
+            return result
+
+        ManufacturerSyncService._record_poll_audit(
+            manufacturer=manufacturer,
+            started_at=started_at,
+            result=result,
+        )
+        if not result.errors:
+            ManufacturerSyncService._broadcast_persisted_devices(manufacturer)
+        return result
+
+    @staticmethod
+    def _sync_inventory(
+        *,
+        manufacturer_code: str,
+        organization_id: int | None = None,
+        campus_id: int | None = None,
+        force: bool = False,
+    ) -> ManufacturerSyncResult:
         """Synchronize all devices from a manufacturer.
 
         Polls the manufacturer API and updates local models.
@@ -137,7 +219,7 @@ class ManufacturerSyncService:
                 success=False,
                 errors=[f"Manufacturer not found or inactive: {manufacturer_code}"],
                 device_limit=limits.max_devices,
-            ).as_dict()
+            )
 
         plugin = PluginRegistry.get_plugin(manufacturer_code)
         if not plugin:
@@ -145,7 +227,7 @@ class ManufacturerSyncService:
                 success=False,
                 errors=[f"Plugin not found: {manufacturer_code}"],
                 device_limit=limits.max_devices,
-            ).as_dict()
+            )
 
         try:
             api_devices = plugin.get_devices() or ()
@@ -163,7 +245,7 @@ class ManufacturerSyncService:
                     devices_examined=len(inventory.devices),
                     device_limit=limits.max_devices,
                     inventory_complete=False,
-                ).as_dict()
+                )
 
             normalized_devices = ManufacturerSyncService._normalize_devices(
                 inventory.devices,
@@ -175,7 +257,7 @@ class ManufacturerSyncService:
                     success=True,
                     devices_examined=len(inventory.devices),
                     device_limit=limits.max_devices,
-                ).as_dict()
+                )
 
             persisted_counts = ManufacturerSyncService._persist_normalized_devices(
                 normalized_devices,
@@ -192,7 +274,7 @@ class ManufacturerSyncService:
                     ],
                     devices_examined=len(inventory.devices),
                     device_limit=limits.max_devices,
-                ).as_dict()
+                )
             created_count, updated_count = persisted_counts
 
             return ManufacturerSyncResult(
@@ -201,7 +283,7 @@ class ManufacturerSyncService:
                 devices_updated=updated_count,
                 devices_examined=len(inventory.devices),
                 device_limit=limits.max_devices,
-            ).as_dict()
+            )
 
         except Exception as exc:
             logger.exception(
@@ -213,7 +295,7 @@ class ManufacturerSyncService:
                 success=False,
                 errors=[f"Device synchronization failed ({type(exc).__name__}); details redacted."],
                 device_limit=limits.max_devices,
-            ).as_dict()
+            )
 
     @staticmethod
     def _persist_normalized_devices(

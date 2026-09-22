@@ -8,7 +8,7 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError
 
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.services.sync.polling_service import PollingService
+from micboard.services.manufacturer.sync import ManufacturerSyncService
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class Command(BaseCommand):
     """Poll manufacturer APIs for device data and update models.
 
-    Uses the centralized PollingService to coordinate between manufacturer
+    Uses the manufacturer inventory sync to coordinate between manufacturer
     plugins, model updates, and real-time broadcasts.
     """
 
@@ -62,12 +62,11 @@ class Command(BaseCommand):
                     f"Starting device polling for {len(manufacturers)} manufacturer(s)..."
                 )
             )
-            polling_service = PollingService()
             for manufacturer in manufacturers:
                 if use_async:
                     self._enqueue_manufacturer(manufacturer, force=force)
                 else:
-                    self._poll_manufacturer(polling_service, manufacturer, force=force)
+                    self._poll_manufacturer(manufacturer, force=force)
 
             self.stdout.write(self.style.SUCCESS("Device polling command completed."))
         except CommandError as e:
@@ -132,18 +131,20 @@ class Command(BaseCommand):
 
     def _poll_manufacturer(
         self,
-        polling_service: PollingService,
         manufacturer: Any,
         *,
         force: bool = False,
     ) -> None:
         self.stdout.write(f"Polling {manufacturer.name} ({manufacturer.code})...")
         try:
-            result = polling_service.poll_manufacturer(manufacturer, force=force)
+            result = ManufacturerSyncService.sync_devices_for_manufacturer(
+                manufacturer_code=manufacturer.code,
+                force=force,
+            )
             summary = (
-                f"Success: {result.get('devices_created', 0)} created, "
-                f"{result.get('devices_updated', 0)} updated, "
-                f"{result.get('units_synced', 0)} wireless units"
+                f"Success: {result.devices_added} created, "
+                f"{result.devices_updated} updated, "
+                f"{result.devices_examined} examined"
             )
             self.stdout.write(self.style.SUCCESS(f"[{manufacturer.code}] {summary}"))
         except Exception as exc:

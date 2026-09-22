@@ -260,7 +260,7 @@ Bases: `BaseCommand`
 
 Poll manufacturer APIs for device data and update models.
 
-Uses the centralized PollingService to coordinate between manufacturer
+Uses the manufacturer inventory sync to coordinate between manufacturer
 plugins, model updates, and real-time broadcasts.
 
 #### `add_arguments(parser: Any) -> Any`

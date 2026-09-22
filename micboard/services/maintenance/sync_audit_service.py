@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from django.db import DEFAULT_DB_ALIAS
 from django.utils import timezone
@@ -13,6 +12,7 @@ from django.utils import timezone
 from pydantic import Field
 
 from micboard.services.shared.base_dto import PydanticBaseDTO
+from micboard.services.sync.polling_dtos import ManufacturerSyncResult
 from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:
@@ -40,21 +40,20 @@ class ServiceSyncAuditDTO(PydanticBaseDTO):
         cls,
         *,
         started_at: datetime,
-        result: Mapping[str, Any],
+        result: ManufacturerSyncResult,
     ) -> ServiceSyncAuditDTO:
-        """Build an audit record from the public polling result contract."""
-        errors = result.get("errors")
-        error_count = len(errors) if isinstance(errors, list) else int(bool(errors))
+        """Build an audit record from one manufacturer inventory sync outcome."""
+        error_count = len(result.errors)
         return cls(
             started_at=started_at,
             completed_at=timezone.now(),
             status="failed" if error_count else "success",
-            device_count=max(0, int(result.get("devices_examined", 0) or 0)),
-            created_count=max(0, int(result.get("devices_created", 0) or 0)),
-            updated_count=max(0, int(result.get("devices_updated", 0) or 0)),
+            device_count=max(0, result.devices_examined),
+            created_count=max(0, result.devices_added),
+            updated_count=max(0, result.devices_updated),
             error_count=error_count,
-            device_limit=result.get("device_limit"),
-            inventory_complete=bool(result.get("inventory_complete", True)),
+            device_limit=result.device_limit,
+            inventory_complete=result.inventory_complete,
         )
 
 
@@ -66,7 +65,7 @@ class ServiceSyncAuditService:
         *,
         manufacturer: Manufacturer,
         started_at: datetime,
-        result: Mapping[str, Any],
+        result: ManufacturerSyncResult,
     ) -> ServiceSyncLog | None:
         """Record one bounded run, containing and redacting audit failures."""
         from micboard.models.audit.activity_log import ServiceSyncLog
