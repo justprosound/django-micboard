@@ -33,6 +33,9 @@ class PreferredPlugin(ManufacturerPlugin):
     async def subscribe_to_chassis(self, chassis, callback):
         return None
 
+    def transform_transmitter_data(self, api_data, channel_number):
+        return None
+
     def get_device_channels(self, device_id):
         return []
 
