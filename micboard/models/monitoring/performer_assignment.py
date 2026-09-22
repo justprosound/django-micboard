@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, ClassVar, cast
 
 from django.contrib.auth import get_user_model
 from django.db import models
 
-from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 User = get_user_model()
 
@@ -31,48 +30,6 @@ class PerformerAssignmentQuerySet(TenantOptimizedQuerySet):
     def active(self) -> PerformerAssignmentQuerySet:
         """Get all active assignments."""
         return self.filter(is_active=True)
-
-    def by_monitoring_group(self, *, group: Any) -> PerformerAssignmentQuerySet:
-        """Filter by monitoring group that manages this assignment."""
-        return self.filter(monitoring_group=group)
-
-    def with_performer_and_unit(self) -> PerformerAssignmentQuerySet:
-        """Optimize: select related performer and wireless unit."""
-        return self.select_related(
-            "performer",
-            "wireless_unit",
-            "wireless_unit__base_chassis",
-            "wireless_unit__base_chassis__location",
-        )
-
-    def needing_alerts(self, *, after: datetime | None = None) -> PerformerAssignmentQuerySet:
-        """Filter assignments with alerts enabled."""
-        qs = self.active().filter(
-            models.Q(alert_on_battery_low=True)
-            | models.Q(alert_on_signal_loss=True)
-            | models.Q(alert_on_hardware_offline=True)
-            | models.Q(alert_on_audio_low=True)
-        )
-        if after:
-            qs = qs.filter(updated_at__gte=after)
-        return qs
-
-
-class PerformerAssignmentManager(TenantOptimizedManager):
-    """Manager for performer assignments."""
-
-    def get_queryset(self) -> PerformerAssignmentQuerySet:
-        return PerformerAssignmentQuerySet(self.model, using=self._db)
-
-    def active(self) -> PerformerAssignmentQuerySet:
-        return self.get_queryset().active()
-
-    def for_user(self, *, user: Any) -> PerformerAssignmentQuerySet:
-        """Return assignments visible to the user."""
-        return self.get_queryset().for_user(user=user)
-
-    def by_monitoring_group(self, *, group: Any) -> PerformerAssignmentQuerySet:
-        return self.get_queryset().by_monitoring_group(group=group)
 
 
 class PerformerAssignment(models.Model):
@@ -164,7 +121,7 @@ class PerformerAssignment(models.Model):
         help_text="Last update timestamp",
     )
 
-    objects = PerformerAssignmentManager()
+    objects = PerformerAssignmentQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Performer Assignment"

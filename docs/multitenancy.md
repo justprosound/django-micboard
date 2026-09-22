@@ -173,7 +173,7 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.monitoring.monitoring_access import MonitoringService
 
-chassis = WirelessChassis.objects.for_user(user=request.user).active()
+chassis = WirelessChassis.objects.for_user(user=request.user).filter(is_active=True)
 units = WirelessUnit.objects.for_user(user=request.user).active()
 locations = MonitoringService.get_accessible_locations(request.user)
 ```
@@ -183,31 +183,32 @@ locations = MonitoringService.get_accessible_locations(request.user)
 Do not replace an authenticated scope with optional tenant identifiers:
 
 ```python
-chassis = WirelessChassis.objects.for_user(user=request.user).active()
+chassis = WirelessChassis.objects.for_user(user=request.user).filter(is_active=True)
 ```
 
 ## Managers & Querysets
 
-### TenantOptimizedManager
+### TenantOptimizedQuerySet
 
-The `TenantOptimizedManager` provides consistent filtering across deployment modes:
+`TenantOptimizedQuerySet` provides consistent filtering across deployment modes, and models
+expose it directly through `as_manager()`:
 
 ```python
-from micboard.models.base_managers import TenantOptimizedManager
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 class MyModel(models.Model):
     # ... fields
 
-    objects = TenantOptimizedManager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
 # Usage
-queryset = MyModel.objects.for_organization(organization=org)
-queryset = MyModel.objects.for_campus(campus_id=campus.id)
-queryset = MyModel.objects.for_site(site_id=1)
 queryset = MyModel.objects.for_user(user=request.user)
+queryset = MyModel.objects.for_site(site_id=1)
 ```
 
-Methods automatically handle single-site mode (no-op) vs multi-tenant mode (filtering).
+`for_user` resolves the caller's deployment mode — MSP membership, multi-site, or
+monitoring-group scoping — and fails closed for an anonymous or unscoped user. `for_site` and
+`for_memberships` are the narrower filters it composes. Both are no-ops in single-site mode.
 
 ## Middleware
 
@@ -221,7 +222,7 @@ def my_view(request):
     org = request.organization  # Current organization or None
     campus_id = request.campus_id  # Current campus ID or None
 
-    chassis = WirelessChassis.objects.for_user(user=request.user).active()
+    chassis = WirelessChassis.objects.for_user(user=request.user).filter(is_active=True)
 ```
 
 **Organization detection priority:**
@@ -249,7 +250,7 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 class ReceiverListAPIView(View):
     def get(self, request):
-        chassis = WirelessChassis.objects.for_user(user=request.user).active()
+        chassis = WirelessChassis.objects.for_user(user=request.user).filter(is_active=True)
 
         # Return as JSON
         return JsonResponse({
@@ -439,6 +440,6 @@ print(f"MSP: {micboard_settings.msp_enabled}")
 See `micboard.multitenancy` module for complete API documentation:
 
 - `models.py` - Organization, Campus, OrganizationMembership
-- `micboard.models.base_managers` - TenantOptimizedManager and TenantOptimizedQuerySet
+- `micboard.models.base_managers` - TenantOptimizedQuerySet
 - `middleware.py` - TenantMiddleware
 - `admin.py` - Django admin interfaces

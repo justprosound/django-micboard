@@ -12,7 +12,7 @@ from django.test import override_settings
 
 import pytest
 
-from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
+from micboard.models.base_managers import TenantOptimizedQuerySet
 from micboard.models.discovery.discovery_queue import DeviceMovementLog
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.charger import ChargerSlot
@@ -147,63 +147,6 @@ def test_nested_tenant_models_use_explicit_reviewed_ownership_paths(
     assert "SELECT" in str(queryset.for_memberships([(1, 2)]).query)
 
 
-@pytest.mark.parametrize(
-    ("attribute", "expected"),
-    [
-        ("organization_id", {"organization_id": 9}),
-        ("building", {"building__organization_id": 9}),
-        ("location", {"location__building__organization_id": 9}),
-        ("campus", {"campus__organization_id": 9}),
-    ],
-)
-@override_settings(MICBOARD_MSP_ENABLED=True)
-def test_organization_filter_uses_available_tenant_path(
-    attribute: str, expected: dict[str, int]
-) -> None:
-    """Verify that organization filter uses available tenant path."""
-    queryset = _queryset_with_model(**{attribute: object()})
-    organization = SimpleNamespace(id=9)
-    result = TenantOptimizedQuerySet.for_organization(
-        queryset,
-        organization=cast(Any, organization),
-    )
-    assert result is queryset.filter.return_value
-    queryset.filter.assert_called_once_with(**expected)
-
-
-@override_settings(MICBOARD_MSP_ENABLED=False)
-def test_organization_and_campus_filters_are_noops_when_disabled() -> None:
-    """Verify that organization and campus filters are noops when disabled."""
-    queryset = _queryset_with_model(organization_id=None, campus_id=None)
-    assert TenantOptimizedQuerySet.for_organization(queryset, organization=1) is queryset
-    assert TenantOptimizedQuerySet.for_campus(queryset, campus_id=1) is queryset
-
-
-@override_settings(MICBOARD_MSP_ENABLED=True)
-def test_organization_and_campus_filters_allow_missing_context() -> None:
-    """Verify that organization and campus filters allow missing context."""
-    queryset = _queryset_with_model()
-    assert TenantOptimizedQuerySet.for_organization(queryset) is queryset
-    assert TenantOptimizedQuerySet.for_campus(queryset) is queryset
-
-
-@pytest.mark.parametrize(
-    ("attribute", "expected"),
-    [
-        ("campus_id", {"campus_id": 5}),
-        ("building", {"building__campus_id": 5}),
-        ("location", {"location__building__campus_id": 5}),
-    ],
-)
-@override_settings(MICBOARD_MSP_ENABLED=True)
-def test_campus_filter_uses_available_tenant_path(attribute: str, expected: dict[str, int]) -> None:
-    """Verify that campus filter uses available tenant path."""
-    queryset = _queryset_with_model(**{attribute: object()})
-    result = TenantOptimizedQuerySet.for_campus(queryset, campus_id=5)
-    assert result is queryset.filter.return_value
-    queryset.filter.assert_called_once_with(**expected)
-
-
 @override_settings(MICBOARD_MSP_ENABLED=True)
 def test_msp_user_filter_denies_users_without_memberships() -> None:
     """Verify that msp user filter denies users without memberships."""
@@ -279,21 +222,6 @@ def test_monitoring_group_fallback_is_scoped() -> None:
     queryset.filter.assert_called_once_with(
         Q(location__monitoring_groups__in=active_groups) | Q(location__building_id__in=buildings)
     )
-
-
-def test_manager_methods_delegate_to_tenant_queryset() -> None:
-    """Verify that manager methods delegate to tenant queryset."""
-    manager = cast(Any, TenantOptimizedManager())
-    manager.get_queryset = Mock()
-    queryset = manager.get_queryset.return_value
-    manager.for_site(site_id=1)
-    manager.for_organization(organization=2)
-    manager.for_campus(campus_id=3)
-    manager.for_user(user=Mock())
-    queryset.for_site.assert_called_once_with(site_id=1)
-    queryset.for_organization.assert_called_once_with(organization=2)
-    queryset.for_campus.assert_called_once_with(campus_id=3)
-    queryset.for_user.assert_called_once()
 
 
 def _request(**kwargs: Any) -> Any:

@@ -6,36 +6,7 @@ from typing import Any, ClassVar
 
 from django.db import models, router, transaction
 
-from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
-
-
-class ChargerQuerySet(TenantOptimizedQuerySet):
-    """Enhanced queryset for Charger model with tenant filtering."""
-
-    def by_location(self, *, location_id: int) -> ChargerQuerySet:
-        return self.filter(location_id=location_id)
-
-    def active(self) -> ChargerQuerySet:
-        return self.filter(is_active=True)
-
-    def with_inventory(self) -> ChargerQuerySet:
-        return self.prefetch_related("slots")
-
-
-class ChargerManager(TenantOptimizedManager):
-    """Enhanced manager for Charger model with tenant support."""
-
-    def get_queryset(self) -> ChargerQuerySet:
-        return ChargerQuerySet(self.model, using=self._db)
-
-    def by_location(self, *, location_id: int) -> ChargerQuerySet:
-        return self.get_queryset().by_location(location_id=location_id)
-
-    def active(self) -> ChargerQuerySet:
-        return self.get_queryset().active()
-
-    def with_inventory(self) -> ChargerQuerySet:
-        return self.get_queryset().with_inventory()
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 
 class Charger(models.Model):
@@ -138,7 +109,7 @@ class Charger(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    objects = ChargerManager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Charger"
