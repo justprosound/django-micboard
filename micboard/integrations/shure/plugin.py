@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from micboard.services.common.base.plugin import ManufacturerPlugin
+from asgiref.sync import sync_to_async
+
+from micboard.services.common.base.plugin import ManufacturerPlugin, RealtimeTransport
+from micboard.services.common.base.utils import build_device_https_url
 
 if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 from .client import ShureSystemAPIClient
 from .transformers import ShureDataTransformer
@@ -62,13 +66,32 @@ class ShurePlugin(ManufacturerPlugin):
         """Transform transmitter data from Shure format to micboard format."""
         return self.transformer.transform_transmitter_data(tx_data, channel_num)
 
-    async def connect_and_subscribe(
-        self, device_id: str, callback: Callable[[dict[str, Any]], None]
-    ) -> None:
-        """Establish WebSocket connection and subscribe to Shure device updates."""
-        from .websocket import connect_and_subscribe as ws_connect_and_subscribe
+    @property
+    def realtime_transport(self) -> RealtimeTransport:
+        """Shure receivers stream over a WebSocket opened directly against the device."""
+        return "websocket"
 
-        await ws_connect_and_subscribe(self.get_client(), device_id, callback)
+    async def subscribe_to_chassis(
+        self,
+        chassis: WirelessChassis,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        """Subscribe to one receiver over a WebSocket opened against its own address."""
+        from . import websocket as websocket_module
+
+        base_url = build_device_https_url(
+            ip_address=chassis.ip,
+            port=getattr(chassis, "port", 443),
+        )
+        client = await sync_to_async(ShureSystemAPIClient, thread_sensitive=True)(base_url=base_url)
+        try:
+            await websocket_module.connect_and_subscribe(
+                client,
+                chassis.api_device_id,
+                callback,
+            )
+        finally:
+            await sync_to_async(client.close, thread_sensitive=True)()
 
     def is_healthy(self) -> bool:
         """Check if the Shure API client is healthy."""

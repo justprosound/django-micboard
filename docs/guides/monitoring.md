@@ -65,19 +65,19 @@ tenant scope are revalidated immediately before alert persistence and again befo
 so deactivation or reassignment during a poll fails closed. A cache outage falls back to the first
 bounded page and never disables alert evaluation.
 
-Polling does not start realtime subscription supervisors. Launch the appropriate supervisor as a
-separate foreground process:
+Polling does not start realtime subscription supervisors. Launch one per manufacturer as a
+separate foreground process; the integration decides its own transport:
 
 ```bash
 # Shure
-uv run --no-sync python manage.py websocket_subscribe
+uv run --no-sync python manage.py realtime_subscribe --manufacturer shure
 
 # Sennheiser
-uv run --no-sync python manage.py sse_subscribe --manufacturer sennheiser
+uv run --no-sync python manage.py realtime_subscribe --manufacturer sennheiser
 ```
 
 Hosts that schedule through native Huey should explicitly enqueue the registered
-`start_shure_websocket_subscriptions` or `start_sse_subscriptions` entrypoint once. Multi-process
+`start_realtime_subscriptions` entrypoint once per manufacturer. Multi-process
 deployments require a process-shared Django cache for the singleton lease. A stopped or crashed
 supervisor may take up to 60 seconds to become eligible for restart. See
 [Real-time Updates](realtime-updates.md#running-subscription-supervisors) for limits and settings.

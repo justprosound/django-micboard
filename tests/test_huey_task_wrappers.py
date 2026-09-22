@@ -8,24 +8,15 @@ from micboard.services.chargers.polling_dtos import ChargerPollResult
 from micboard.services.realtime.health_dtos import RealtimeConnectionHealthResult
 from micboard.tasks.maintenance import charger as charger_tasks
 from micboard.tasks.monitoring import health as health_tasks
-from micboard.tasks.monitoring import sse as sse_tasks
-from micboard.tasks.monitoring import websocket as websocket_tasks
+from micboard.tasks.monitoring import realtime as realtime_tasks
 
 
-def test_sse_subscription_task_delegates_only_persisted_ids() -> None:
-    """The SSE queue seam passes no vendor-controlled device identifier."""
-    with patch.object(sse_tasks, "run_sse_subscriptions") as run:
-        sse_tasks.start_sse_subscriptions(7, 17)
+def test_realtime_subscription_task_delegates_only_persisted_ids() -> None:
+    """The realtime queue seam passes no vendor-controlled device identifier."""
+    with patch.object(realtime_tasks, "run_realtime_subscriptions") as run:
+        realtime_tasks.start_realtime_subscriptions(7, 17)
 
     run.assert_called_once_with(7, chassis_id=17)
-
-
-def test_websocket_subscription_task_delegates_only_persisted_ids() -> None:
-    """The WebSocket queue seam passes no vendor-controlled device identifier."""
-    with patch.object(websocket_tasks, "run_shure_websocket_subscriptions") as run:
-        websocket_tasks.start_shure_websocket_subscriptions(8, 18)
-
-    run.assert_called_once_with(8, chassis_id=18)
 
 
 def test_realtime_health_task_serializes_bounded_service_result() -> None:

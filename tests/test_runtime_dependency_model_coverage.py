@@ -54,14 +54,13 @@ def test_app_config_registers_every_native_huey_entrypoint() -> None:
     ):
         app_config._register_background_tasks()
 
-    assert register.call_count == 12
+    assert register.call_count == 11
     assert {call.args[0].__name__ for call in register.call_args_list} == {
         "poll_charger_data",
         "check_manufacturer_api_health",
         "check_realtime_connection_health",
         "check_selected_api_server_connections",
-        "start_sse_subscriptions",
-        "start_shure_websocket_subscriptions",
+        "start_realtime_subscriptions",
         "cache_all_discovery_candidates",
         "run_discovery_sync_task",
         "run_manufacturer_discovery_task",

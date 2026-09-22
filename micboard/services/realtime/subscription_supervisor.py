@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import logging
 import math
 import secrets
@@ -44,30 +43,6 @@ SUBSCRIPTION_SELECTION_CURSOR_SECONDS = 30 * 24 * 60 * 60
 
 SubscriptionItem = TypeVar("SubscriptionItem")
 SubscriptionModel = TypeVar("SubscriptionModel", bound=models.Model)
-
-
-def build_device_https_url(*, ip_address: object, port: object = 443) -> str:
-    """Build an HTTPS origin with correct IPv4/IPv6 authority syntax."""
-    try:
-        parsed_address = ipaddress.ip_address(str(ip_address))
-    except ValueError:
-        raise ValueError("Device IP address is invalid") from None
-
-    if isinstance(port, bool) or not isinstance(port, int | str):
-        raise ValueError("Device port must be between 1 and 65535")
-    try:
-        parsed_port = int(port)
-    except ValueError:
-        raise ValueError("Device port must be between 1 and 65535") from None
-    if not 1 <= parsed_port <= 65535:
-        raise ValueError("Device port must be between 1 and 65535")
-
-    host = (
-        f"[{parsed_address.compressed}]"
-        if isinstance(parsed_address, ipaddress.IPv6Address)
-        else parsed_address.compressed
-    )
-    return f"https://{host}:{parsed_port}"
 
 
 @dataclass(frozen=True, slots=True)

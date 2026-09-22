@@ -51,10 +51,11 @@ The required methods are:
 | `add_discovery_ips(ips)` | Add validated manual-discovery addresses; report success. |
 | `get_discovery_ips()` | Return the current manual-discovery address list. |
 | `remove_discovery_ips(ips)` | Remove validated manual-discovery addresses; report success. |
+| `realtime_transport` | `"sse"`, `"websocket"`, or `None` when the integration has no stream. |
+| `subscribe_to_chassis(chassis, callback)` | Open this integration's stream for one chassis. |
 
-`connect_and_subscribe()` and `transform_transmitter_data()` are not abstract members today. Add
-them when the integration supports streaming telemetry or transmitter/channel persistence, because
-those runtime paths call them when enabled.
+`transform_transmitter_data()` is not an abstract member today. Add it when the integration
+supports transmitter/channel persistence, because that runtime path calls it when enabled.
 
 ## Create the integration
 
@@ -392,20 +393,22 @@ Place stream parsing in a vendor module such as `sse_client.py` or `stream.py`. 
 timeout, and allow an unbounded read timeout only for the event stream. Parse only `data:` records,
 validate JSON, and await an async callback.
 
-The generic SSE task path awaits `plugin.connect_and_subscribe(device_id, callback)`, so a new SSE
-plugin should expose an async method with that shape. Do not treat the existing vendor-specific
-bridge as a base-class API.
+The shared runner awaits `plugin.subscribe_to_chassis(chassis, callback)` after declaring
+`realtime_transport = "sse"`, so the integration owns the connection while the runner owns the
+lease, the inventory window, connection tracking, and persistence.
 
 ### Manufacturer WebSocket
 
-Use an async `connect_and_subscribe()` method and a vendor transport module. Require an absolute
-`wss://` URL, rely on the WebSocket library's certificate-verification defaults, validate the
-handshake, and redact transport IDs, device IDs, URLs containing credentials, and payload secrets
-from logs.
+Declare `realtime_transport` as `"websocket"` and implement the async
+`subscribe_to_chassis(chassis, callback)` contract against a vendor transport module. Require an
+absolute `wss://` URL, rely on the WebSocket library's certificate-verification defaults, validate
+the handshake, and redact transport IDs, device IDs, URLs containing credentials, and payload
+secrets from logs.
 
-The Shure WebSocket path and `start_shure_websocket_subscriptions()` task are Shure-specific. A new
-WebSocket vendor needs its own service boundary and thin task wrapper; it must not import or branch
-inside Shure code.
+Connection setup, authentication, framing, and cleanup belong to the integration; leasing,
+inventory selection, connection tracking, and persistence belong to
+`micboard.services.realtime.subscription_runner`. A new WebSocket vendor therefore needs no
+service boundary or task wrapper of its own, and must not import or branch inside Shure code.
 
 Manufacturer WebSockets are backend-to-hardware transports. They are separate from the browser
 Channels endpoint at `/ws` documented in the [WebSocket API](api/websocket.md).

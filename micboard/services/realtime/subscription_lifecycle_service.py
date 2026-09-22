@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any
 
 from asgiref.sync import sync_to_async
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base.plugin import RealtimeTransport
 from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.realtime.subscription_supervisor import (
     RealtimeSubscriptionSupervisor,
@@ -17,7 +18,6 @@ from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
-RealtimeTransport = Literal["sse", "websocket"]
 _TRANSPORT_LABELS: dict[RealtimeTransport, str] = {
     "sse": "SSE",
     "websocket": "WebSocket",

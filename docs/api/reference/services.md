@@ -681,13 +681,13 @@ Base DTO with standard configuration for all service layer DTOs.
 
 ### `clear_plugin_cache() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L16)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L21)
 
 Forget resolved plugin classes, so a test starts from a cold cache.
 
 ### `build_manufacturer_plugin(manufacturer: Manufacturer) -> ManufacturerPlugin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L26)
 
 Return a plugin bound to ``manufacturer``.
 
@@ -697,7 +697,7 @@ and others do not.
 
 ### `get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L32)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L37)
 
 Return the plugin class for a manufacturer code, resolving it at most once.
 
@@ -709,13 +709,13 @@ locate a concrete ``ManufacturerPlugin`` subclass. Prefers
 
 Bases: `ABC`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L78)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L83)
 
 Base interface for all manufacturer plugins.
 
 #### `get_devices() -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L97)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L102)
 
 Retrieve a list of all devices associated with or discovered by this plugin.
 
@@ -723,61 +723,70 @@ Retrieve a list of all devices associated with or discovered by this plugin.
 
 Bases: `BasePlugin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L103)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L108)
 
 Extended plugin interface specifically for manufacturer hardware integrations.
 
+#### `async subscribe_to_chassis(chassis: WirelessChassis, callback: Callable[[dict[str, Any]], Awaitable[None]]) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L121)
+
+Open this integration's stream for one chassis and await its updates.
+
+The integration owns connection setup, authentication, framing, and cleanup; the
+runner owns leasing, inventory selection, connection tracking, and persistence.
+
 #### `get_device_channels(device_id: str) -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L106)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L134)
 
 Retrieve all channels associated with a specific device identifier.
 
 #### `get_client() -> BaseAPIClient`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L111)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L139)
 
 Get an instance of the configured API client for this manufacturer.
 
 #### `transform_device_data(api_data: dict[str, Any]) -> dict[str, Any] | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L116)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L144)
 
 Transform raw API device data into the standardized application format.
 
 #### `get_device(device_id: str) -> dict[str, Any] | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L121)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L149)
 
 Fetch details for a single device by its identifier.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L126)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L154)
 
 Check if the plugin and its underlying integrations are currently healthy.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L131)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L159)
 
 Perform a detailed health check and return the results as a dictionary.
 
 #### `add_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L136)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L164)
 
 Add a list of IP addresses to the plugin's discovery targets.
 
 #### `get_discovery_ips() -> list[str]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L141)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L169)
 
 Retrieve the list of currently configured discovery IP addresses.
 
 #### `remove_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L146)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L174)
 
 Remove a list of IP addresses from the plugin's discovery targets.
 

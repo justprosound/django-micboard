@@ -29,7 +29,6 @@ from micboard.services.realtime.subscription_dtos import (
 from micboard.services.realtime.subscription_supervisor import (
     RealtimeSubscriptionLease,
     RealtimeSubscriptionSupervisor,
-    build_device_https_url,
 )
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
@@ -595,27 +594,3 @@ def test_supervisor_consumes_only_the_capped_generator_prefix() -> None:
     )
 
     assert consumed == [0, 1, 2]
-
-
-def test_device_https_url_formats_ipv4_and_ipv6_authorities() -> None:
-    """IPv6 literals are bracketed while IPv4 addresses remain plain."""
-    assert build_device_https_url(ip_address="192.0.2.10", port=8443) == "https://192.0.2.10:8443"
-    assert (
-        build_device_https_url(ip_address="2001:db8::10", port="443")
-        == "https://[2001:db8::10]:443"
-    )
-
-
-@pytest.mark.parametrize("port", [0, 65536, True, None, "invalid"])
-def test_device_https_url_rejects_invalid_ports(port: object) -> None:
-    """Invalid ports fail before constructing a manufacturer client."""
-    with pytest.raises(ValueError, match="between 1 and 65535"):
-        build_device_https_url(ip_address="192.0.2.10", port=port)
-
-
-def test_device_https_url_rejects_non_ip_hosts_without_echoing_input() -> None:
-    """The client origin cannot be redirected to a hostname or malformed authority."""
-    with pytest.raises(ValueError, match="Device IP address is invalid") as error:
-        build_device_https_url(ip_address="private-hostname.example", port=443)
-
-    assert "private-hostname" not in str(error.value)

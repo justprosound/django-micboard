@@ -32,10 +32,12 @@ would have only two consumers. Similar filenames are not sufficient evidence for
    persistence and orchestration boundary.
 5. Contract-test each protocol against authoritative behavior, including authentication, bounded
    payloads, origin validation, and connection lifecycle.
-6. Share the transport-neutral subscription lifecycle in
-   `services/realtime/subscription_lifecycle_service.py`: eligible inventory selection, transform,
-   persistence, chassis projection, and broadcast. Keep connection setup, authentication, event
-   framing, and cleanup in each transport adapter.
+6. Share the transport-neutral subscription lifecycle: `services/realtime/subscription_runner.py`
+   owns leasing, eligible inventory selection, connection tracking, and activation rechecks, and
+   `services/realtime/subscription_lifecycle_service.py` owns transform, persistence, chassis
+   projection, and broadcast. Each integration declares its own `realtime_transport` and
+   implements `subscribe_to_chassis`, keeping connection setup, authentication, event framing, and
+   cleanup inside the integration package. No orchestration code names a vendor.
 7. Keep vendor client APIs limited to operations used by the production plugin contract. Do not
    retain speculative enrichment endpoints, test-only forwarding methods, or a second polling
    orchestrator alongside the manufacturer synchronization service.

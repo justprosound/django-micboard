@@ -195,8 +195,9 @@ uv run --no-sync python manage.py realtime_status --verbose
 
 The system now supports real-time updates via WebSocket (Shure) and SSE (Sennheiser):
 
-- **Explicit Subscription**: Run `websocket_subscribe` or `sse_subscribe` as a foreground process,
-  or explicitly enqueue its registered native Huey entrypoint
+- **Explicit Subscription**: Run `realtime_subscribe` as a foreground process, or explicitly
+  enqueue its registered native Huey entrypoint. The integration declares its own transport, so
+  there is one command for both
 - **Independent Polling**: Queued polling never starts or multiplies subscription supervisors
 - **Singleton Safety**: Multi-process deployments use a shared Django cache lease; restart after a
   stop or crash can take up to 60 seconds
@@ -205,8 +206,8 @@ The system now supports real-time updates via WebSocket (Shure) and SSE (Sennhei
 - **Health Monitoring**: Automatic cleanup of stale connections and error recovery
 
 ```bash
-uv run --no-sync python manage.py websocket_subscribe
-uv run --no-sync python manage.py sse_subscribe --manufacturer sennheiser
+uv run --no-sync python manage.py realtime_subscribe --manufacturer shure
+uv run --no-sync python manage.py realtime_subscribe --manufacturer sennheiser
 ```
 
 ### Connection States

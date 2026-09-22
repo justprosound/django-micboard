@@ -255,18 +255,15 @@ uv run --no-sync python manage.py discovery_add_devices --ips 192.168.1.100,192.
 # Subscribe to real-time status
 uv run --no-sync python manage.py realtime_status
 
-# WebSocket subscriptions
-uv run --no-sync python manage.py websocket_subscribe
-
-# Server-Sent Events subscription
-uv run --no-sync python manage.py sse_subscribe
+# Realtime subscriptions (the integration decides WebSocket or SSE)
+uv run --no-sync python manage.py realtime_subscribe --manufacturer shure
 ```
 
 See [API Reference](api/management.md) for detailed command documentation.
 
 ### Realtime subscription supervisors
 
-The SSE and WebSocket task entrypoints and management commands share a cache-backed singleton
+The realtime task entrypoint and management command share a cache-backed singleton
 lease. Production deployments with multiple Huey processes must configure a process-shared Django
 cache and may select it with `MICBOARD_REALTIME_CACHE_ALIAS` (default: `"default"`). Local-memory
 caches only deduplicate workers inside one process.

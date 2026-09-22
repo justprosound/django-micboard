@@ -22,9 +22,7 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.maintenance.audit import AuditService
 from micboard.services.maintenance.logging_mode import LoggingModeService
-from micboard.services.realtime.shure_websocket_subscription_service import (
-    run_shure_websocket_subscriptions,
-)
+from micboard.services.realtime.subscription_runner import run_realtime_subscriptions
 from micboard.services.sync.device_promotion_service import DevicePromotionService
 from micboard.services.sync.device_update_service import DeviceUpdateService
 
@@ -123,8 +121,8 @@ def test_offline_chassis_checks_attached_wireless_units() -> None:
     assert check_alerts.call_args.args[0] == unit
 
 
-def test_websocket_service_instantiates_plugin_and_uses_chassis_status() -> None:
-    """WebSocket startup honors plugin-class and WirelessChassis field contracts."""
+def test_realtime_startup_builds_the_plugin_and_uses_chassis_status() -> None:
+    """Subscription startup honors plugin-construction and WirelessChassis field contracts."""
     manufacturer = Mock(pk=14, code="shure", name="Shure")
 
     with (
@@ -133,22 +131,21 @@ def test_websocket_service_instantiates_plugin_and_uses_chassis_status() -> None
             return_value=manufacturer,
         ) as get_manufacturer,
         patch(
-            "micboard.services.realtime.shure_websocket_subscription_service."
-            "build_manufacturer_plugin",
+            "micboard.services.realtime.subscription_runner.build_manufacturer_plugin",
         ) as build_plugin,
         patch(
             "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.filter",
             return_value=[],
         ) as filter_chassis,
         patch(
-            "micboard.services.realtime.shure_websocket_subscription_service."
+            "micboard.services.realtime.subscription_runner."
             "RealtimeSubscriptionSupervisor.select_fair_queryset_batch",
             return_value=[],
         ),
     ):
-        run_shure_websocket_subscriptions(14)
+        run_realtime_subscriptions(14)
 
-    get_manufacturer.assert_called_once_with(pk=14, code="shure", is_active=True)
+    get_manufacturer.assert_called_once_with(pk=14, is_active=True)
     build_plugin.assert_called_once_with(manufacturer)
     filter_chassis.assert_called_once_with(
         manufacturer_id=14,

@@ -6,10 +6,11 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from micboard.services.common.base.plugin import ManufacturerPlugin
+from micboard.services.common.base.plugin import ManufacturerPlugin, RealtimeTransport
 
 if TYPE_CHECKING:
-    from micboard.models.hardware.manufacturer import Manufacturer
+    from micboard.models.discovery.manufacturer import Manufacturer
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 from .client import SennheiserSystemAPIClient
 
@@ -61,13 +62,18 @@ class SennheiserPlugin(ManufacturerPlugin):
         """Transform transmitter data from Sennheiser format to micboard format."""
         return self.transformer.transform_transmitter_data(tx_data, channel_num)
 
-    async def connect_and_subscribe(
+    @property
+    def realtime_transport(self) -> RealtimeTransport:
+        """Sennheiser SSCv2 streams over the SSE subscription its system client opens."""
+        return "sse"
+
+    async def subscribe_to_chassis(
         self,
-        device_id: str,
+        chassis: WirelessChassis,
         callback: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
-        """Establish SSE connection and subscribe to Sennheiser device updates."""
-        await self.client.connect_and_subscribe(device_id, callback)
+        """Subscribe to one device through the manufacturer-level SSCv2 client."""
+        await self.client.connect_and_subscribe(chassis.api_device_id, callback)
 
     def is_healthy(self) -> bool:
         """Check if the Sennheiser SSCv2 API client is healthy."""

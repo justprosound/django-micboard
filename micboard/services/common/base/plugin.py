@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import importlib
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from micboard.models.discovery.manufacturer import Manufacturer
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
 
     from .client import BaseAPIClient
+
+RealtimeTransport = Literal["sse", "websocket"]
 
 
 _plugin_cache: dict[str, type[ManufacturerPlugin]] = {}
@@ -102,6 +107,29 @@ class BasePlugin(ABC):
 
 class ManufacturerPlugin(BasePlugin):
     """Extended plugin interface specifically for manufacturer hardware integrations."""
+
+    @property
+    @abstractmethod
+    def realtime_transport(self) -> RealtimeTransport | None:
+        """The transport this integration streams over, or ``None`` when it has no stream.
+
+        The shared subscription runner reads this rather than mapping manufacturer codes to
+        transports, so no orchestration code needs to know a vendor by name.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def subscribe_to_chassis(
+        self,
+        chassis: WirelessChassis,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        """Open this integration's stream for one chassis and await its updates.
+
+        The integration owns connection setup, authentication, framing, and cleanup; the
+        runner owns leasing, inventory selection, connection tracking, and persistence.
+        """
+        raise NotImplementedError()
 
     @abstractmethod
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
