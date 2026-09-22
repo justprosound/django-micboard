@@ -2,9 +2,68 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import ClassVar
 
 from django.db import models
+from django.db.models import F
+from django.utils import timezone
+
+
+class RealTimeConnectionQuerySet(models.QuerySet["RealTimeConnection"]):
+    """Every state a realtime connection can be moved into, defined once.
+
+    Each transition is a bulk update, so a single row held by the subscription runner and a
+    changelist selection made in the admin go through the same definition and cannot drift
+    into different spellings of the same state.
+    """
+
+    def mark_connecting(self) -> int:
+        """Record that a connection attempt is in progress.
+
+        The error history is deliberately preserved: a reconnect is not yet a success.
+        """
+        return self.update(status="connecting")
+
+    def mark_connected(self) -> int:
+        """Record an established connection and clear every trace of the last failure."""
+        now = timezone.now()
+        return self.update(
+            status="connected",
+            connected_at=now,
+            last_message_at=now,
+            disconnected_at=None,
+            error_count=0,
+            error_message="",
+            reconnect_attempts=0,
+        )
+
+    def record_message(self) -> int:
+        """Record message activity, establishing a connection that was still pending."""
+        established = self.exclude(status="connected").mark_connected()
+        moved = self.filter(status="connected").update(last_message_at=timezone.now())
+        return established + moved
+
+    def mark_error(self, error_message: str) -> int:
+        """Record one redacted transport error, counting consecutive failures."""
+        return self.update(
+            status="error",
+            error_message=error_message,
+            error_count=F("error_count") + 1,
+            last_error_at=timezone.now(),
+        )
+
+    def mark_disconnected(self) -> int:
+        """Record an unintentional loss of the connection."""
+        return self.update(status="disconnected", disconnected_at=timezone.now())
+
+    def mark_stopped(self) -> int:
+        """Record an intentional connection stop."""
+        return self.update(status="stopped", disconnected_at=timezone.now())
+
+    def reset_errors(self) -> int:
+        """Clear a stale error count without claiming the connection is back."""
+        return self.update(error_count=0, error_message="")
 
 
 class RealTimeConnection(models.Model):
@@ -72,6 +131,8 @@ class RealTimeConnection(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = RealTimeConnectionQuerySet.as_manager()
+
     class Meta:
         verbose_name = "Real-Time Connection"
         verbose_name_plural = "Real-Time Connections"
@@ -83,3 +144,17 @@ class RealTimeConnection(models.Model):
 
     def __str__(self) -> str:
         return f"{self.connection_type} - {self.chassis} ({self.status})"
+
+    @property
+    def connected_duration(self) -> timedelta | None:
+        """Return how long this connection has been up, or none outside a live session."""
+        if not self.connected_at or self.status != "connected":
+            return None
+        return timezone.now() - self.connected_at
+
+    @property
+    def time_since_last_message(self) -> timedelta | None:
+        """Return elapsed time since the latest message, when one exists."""
+        if not self.last_message_at:
+            return None
+        return timezone.now() - self.last_message_at

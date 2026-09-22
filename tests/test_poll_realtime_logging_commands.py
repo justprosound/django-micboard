@@ -181,9 +181,9 @@ def test_realtime_command_error_empty_and_verbose_paths(monkeypatch) -> None:
         connected_at="now",
         last_message_at="later",
         error_message=secret,
+        connected_duration="1m",
     )
     command._get_connections.return_value = _Query([connection])
-    monkeypatch.setattr(realtime_command, "connection_duration", Mock(return_value="1m"))
     command.handle(manufacturer="vendor", status="error", verbose=True)
     assert "Vendor - Rack: ERROR" in output.getvalue()
     assert "Error: present; details redacted" in output.getvalue()

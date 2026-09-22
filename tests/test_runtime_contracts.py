@@ -181,7 +181,7 @@ def test_realtime_status_query_and_output_use_chassis_relation() -> None:
         connected_at=None,
         last_message_at=None,
         error_message="",
-        connection_duration=None,
+        connected_duration=None,
     )
     command._write_connection(connection)
 

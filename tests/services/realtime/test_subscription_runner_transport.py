@@ -244,20 +244,20 @@ def test_existing_connection_tracking_is_retargeted_to_the_active_transport(
     from micboard.models.realtime.connection import RealTimeConnection
 
     chassis = object()
-    connection = SimpleNamespace(connection_type="websocket", save=Mock())
+    connection = SimpleNamespace(pk=3, connection_type="websocket", save=Mock())
     monkeypatch.setattr(
         RealTimeConnection.objects,
         "get_or_create",
         Mock(return_value=(connection, False)),
     )
-    mark = Mock()
-    monkeypatch.setattr(runner, "mark_connecting", mark)
+    tracked = Mock()
+    monkeypatch.setattr(RealTimeConnection.objects, "filter", Mock(return_value=tracked))
 
-    assert runner._track_connection(chassis, "sse") is connection
+    assert runner._track_connection(chassis, "sse") is tracked
 
     assert connection.connection_type == "sse"
     connection.save.assert_called_once_with(update_fields=["connection_type", "updated_at"])
-    mark.assert_called_once_with(connection)
+    tracked.mark_connecting.assert_called_once_with()
 
     connection.save.reset_mock()
     runner._track_connection(chassis, "sse")
@@ -274,8 +274,6 @@ def test_a_subscription_round_delegates_updates_to_the_shared_lifecycle(monkeypa
     )
     monkeypatch.setattr(runner, "sync_to_async", direct_sync_adapter)
     monkeypatch.setattr(runner, "_track_connection", Mock(return_value=Mock()))
-    monkeypatch.setattr(runner, "mark_stopped", Mock())
-    monkeypatch.setattr(runner, "received_message", Mock())
     chassis = SimpleNamespace(pk=28, api_device_id="device-1")
 
     async def deliver(_chassis, callback):
@@ -296,7 +294,7 @@ def test_a_round_stops_before_the_stream_when_the_manufacturer_deactivates(
     monkeypatch,
 ) -> None:
     """Activation is rechecked after tracking setup, so a deactivation stops the round."""
-    connection = object()
+    connection = Mock()
     monkeypatch.setattr(runner, "sync_to_async", direct_sync_adapter)
     monkeypatch.setattr(runner, "_track_connection", Mock(return_value=connection))
     monkeypatch.setattr(
@@ -304,15 +302,13 @@ def test_a_round_stops_before_the_stream_when_the_manufacturer_deactivates(
         "is_active",
         Mock(return_value=False),
     )
-    stopped = Mock()
-    monkeypatch.setattr(runner, "mark_stopped", stopped)
     plugin = _plugin()
     chassis = SimpleNamespace(pk=28, api_device_id="device-1")
 
     asyncio.run(runner._subscribe_chassis(plugin, "sse", chassis))
 
     plugin.subscribe_to_chassis.assert_not_awaited()
-    stopped.assert_called_once_with(connection)
+    connection.mark_stopped.assert_called_once_with()
 
 
 def test_a_failure_before_tracking_exists_is_still_contained(monkeypatch, caplog) -> None:
