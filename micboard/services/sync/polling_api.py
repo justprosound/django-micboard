@@ -19,6 +19,7 @@ from micboard.exceptions import MicboardError, ServiceError
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.integrations import ManufacturerAPIServer
 from micboard.models.locations.structure import Location
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.services.integrations.api_server_service import APIServerConnectionService
 from micboard.utils.exception_logging import sanitized_exception_info
 
@@ -26,10 +27,11 @@ logger = logging.getLogger(__name__)
 
 
 class APIServerPollingService:
-    """Business logic for direct API server device status polling.
+    """Poll one explicitly managed chassis through its persisted API server.
 
-    This service handles low-level polling of manufacturer API servers.
-    For high-level polling orchestration and broadcasting, see polling_service.py.
+    This is the managed-device path: an operator registers a `ManufacturerAPIServer` and
+    micboard polls a single chassis it owns. Whole-manufacturer inventory synchronisation,
+    with its audit row and broadcast, belongs to `ManufacturerSyncService`.
     """
 
     @staticmethod
@@ -63,13 +65,12 @@ class APIServerPollingService:
                 == target_device_id
             ]
 
-            from micboard.integrations.shure.plugin import ShurePlugin
             from micboard.services.sync.device_update_service import DeviceUpdateService
 
             updated = DeviceUpdateService.update_models_from_api_data(
                 api_data=target_devices[:1],
                 manufacturer=chassis.manufacturer,
-                plugin=ShurePlugin(chassis.manufacturer),
+                plugin=build_manufacturer_plugin(chassis.manufacturer),
             )
 
             server.status = ManufacturerAPIServer.Status.ACTIVE

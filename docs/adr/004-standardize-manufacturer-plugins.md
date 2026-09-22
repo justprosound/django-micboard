@@ -39,8 +39,23 @@ would have only two consumers. Similar filenames are not sufficient evidence for
    implements `subscribe_to_chassis`, keeping connection setup, authentication, event framing, and
    cleanup inside the integration package. No orchestration code names a vendor.
 7. Keep vendor client APIs limited to operations used by the production plugin contract. Do not
-   retain speculative enrichment endpoints, test-only forwarding methods, or a second polling
-   orchestrator alongside the manufacturer synchronization service.
+   retain speculative enrichment endpoints or test-only forwarding methods.
+8. There are two polling surfaces, and they are not duplicates.
+   `ManufacturerSyncService` owns whole-manufacturer inventory synchronisation with its audit
+   row and broadcast; `services/sync/polling_api.py` owns the managed-device path, polling one
+   operator-registered chassis through its persisted `ManufacturerAPIServer` after an ownership
+   check. Neither may grow the other's responsibility.
+9. Outside `micboard/integrations/`, only the API-server connection surface
+   (`services/integrations/api_server_service.py`) and the admin connection checker may name a
+   vendor. Every other module obtains its integration through
+   `build_manufacturer_plugin(manufacturer)`.
+
+**Correction (2026-09-22):** clause 7 read as though only one polling module existed, while
+`services/sync/polling_api.py` had been polling managed devices alongside the synchronization
+service the whole time; clauses 8 and 9 record the boundary that actually holds. That module
+also imported `ShurePlugin` directly and pointed its docstring at `polling_service.py`, which
+no longer exists — it now builds through `build_manufacturer_plugin` like every other
+outbound path.
 
 ## Consequences
 

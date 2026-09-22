@@ -53,9 +53,10 @@ The required methods are:
 | `remove_discovery_ips(ips)` | Remove validated manual-discovery addresses; report success. |
 | `realtime_transport` | `"sse"`, `"websocket"`, or `None` when the integration has no stream. |
 | `subscribe_to_chassis(chassis, callback)` | Open this integration's stream for one chassis. |
+| `transform_transmitter_data(api_data, channel_number)` | Normalize one wireless-unit payload. |
 
-`transform_transmitter_data()` is not an abstract member today. Add it when the integration
-supports transmitter/channel persistence, because that runtime path calls it when enabled.
+Every member above is abstract. `DeviceUpdateService` persists through the plugin it is handed
+and calls `transform_transmitter_data` on it, so an integration cannot ship without one.
 
 ## Create the integration
 
