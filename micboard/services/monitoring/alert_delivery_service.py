@@ -37,7 +37,7 @@ class AlertDeliveryService:
         budget: AlertFanoutBudget | None = None,
     ) -> Alert | None:
         """Create an alert when the recipient remains active, assigned, and in scope."""
-        if not AlertFanoutService.recipient_has_unit_scope(unit=unit, user=user):
+        if not AlertFanoutService.recipient_has_alert_scope(unit=unit, user=user):
             logger.warning(
                 "Skipped alert recipient outside device tenant: unit=%s user=%s",
                 unit.pk,

@@ -137,13 +137,21 @@ class AlertFanoutService:
         ).exists()
         if not assignment_is_current:
             return None
-        if not cls.recipient_has_unit_scope(unit=unit, user=current_user):
+        if not cls.recipient_has_alert_scope(unit=unit, user=current_user):
             return None
         return current_user
 
     @staticmethod
-    def recipient_has_unit_scope(*, unit: WirelessUnit, user: Any) -> bool:
-        """Intersect an active authenticated recipient with the unit's tenant boundary."""
+    def recipient_has_alert_scope(*, unit: WirelessUnit, user: Any) -> bool:
+        """Intersect an active recipient with both boundaries a delivered alert crosses.
+
+        A delivered alert is attached to the unit's assigned RF channel, and the read path
+        scopes alerts through ``channel__chassis``, while the unit's own boundary is reached
+        through ``base_chassis``. Those resolve to the same building for a unit assigned to a
+        channel on its own chassis and to different buildings as soon as it is not — nothing
+        below the admin forms enforces same-chassis assignment. Authorizing only the unit
+        would therefore let delivery persist an alert its own recipient cannot read.
+        """
         if not getattr(user, "is_authenticated", False) or not getattr(user, "is_active", False):
             return False
         if unit.pk is None:
@@ -151,12 +159,26 @@ class AlertFanoutService:
         if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
             return True
 
+        database = unit._state.db or WirelessUnit.objects.db
         tenant_units: QuerySet[WirelessUnit] = visible_to(
             WirelessUnit,
             user=user,
-            using=unit._state.db or WirelessUnit.objects.db,
+            using=database,
         )
-        return tenant_units.filter(pk=unit.pk).exists()
+        if not tenant_units.filter(pk=unit.pk).exists():
+            return False
+
+        channel = unit.assigned_resource
+        if channel is None:
+            return True
+
+        from micboard.models.hardware.wireless_chassis import WirelessChassis
+
+        return (
+            visible_to(WirelessChassis, user=user, using=database)
+            .filter(pk=channel.chassis_id)
+            .exists()
+        )
 
     @classmethod
     def _rotating_page(
