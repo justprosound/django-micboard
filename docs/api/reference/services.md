@@ -794,57 +794,67 @@ Remove a list of IP addresses from the plugin's discovery targets.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py)
 
+### `standardize_health_response(status: str, details: dict[str, Any] | None = None, error: str | None = None) -> dict[str, Any]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L27)
+
+Return one health result in the shape every consumer reads.
+
+Consumers — the admin, the API-health context processor, and the manufacturer health task —
+read `status` from a closed vocabulary plus a timestamp, so an unrecognized status becomes
+`unknown` rather than propagating a vendor's own word for it.
+
 ### `BaseAPIClient`
 
 Bases: `ABC`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L24)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L54)
 
 Base API client interface.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L27)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L57)
 
 Check if the client is healthy.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L32)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L62)
 
 Perform a health check and return details.
 
 ### `BaseHTTPClient`
 
-Bases: `BaseAPIClient`, `HealthCheckMixin`
+Bases: `BaseAPIClient`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L45)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L75)
 
 Base HTTP client with circuit breaker and retries.
 
 #### `get_exception_class() -> type[APIError]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L122)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L152)
 
 Get the exception class for API errors.
 
 #### `get_rate_limit_exception_class() -> type[APIRateLimitError]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L127)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L157)
 
 Get the exception class for rate limit errors.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L142)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L172)
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L145)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L175)
 
 #### `close() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L405)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L435)
 
 Close the underlying HTTP connection pool.
 

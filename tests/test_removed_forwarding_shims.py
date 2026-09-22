@@ -15,7 +15,6 @@ from micboard.services.core.hardware_sync import HardwareSyncService
 from micboard.services.hardware import chassis_regulatory_service
 from micboard.services.hardware.chassis_refresh_service import ChassisRefreshService
 from micboard.services.monitoring import alerts
-from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
 from micboard.services.notification import email_notification as email
 from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.notification.email_notification import EmailService
@@ -38,8 +37,6 @@ def test_forwarding_functions_and_aliases_are_absent() -> None:
     assert not hasattr(SennheiserMetadataAccessor, "get_hardware_version")
     assert not hasattr(SennheiserMetadataAccessor, "get_software_version")
     assert not hasattr(ChassisRefreshService, "refresh_ids")
-    assert not hasattr(HealthCheckMixin, "is_degraded")
-    assert not hasattr(HealthCheckMixin, "is_unhealthy")
     assert not hasattr(alerts, "check_transmitter_alerts")
     assert not hasattr(alerts, "check_hardware_offline_alerts")
     assert not hasattr(settings_visibility, "resolve_scope")
@@ -85,6 +82,8 @@ def test_noop_device_api_status_module_is_absent() -> None:
     assert find_spec("micboard.services.chargers.charger_display_service") is None
     assert find_spec("micboard.chargers.views") is None
     assert find_spec("micboard.services.monitoring.connection_validation") is None
+    assert find_spec("micboard.services.monitoring.base_health_mixin") is None
+    assert find_spec("micboard.services.realtime.connection_service") is None
 
 
 def test_unverified_vendor_enrichment_and_duplicate_polling_apis_are_absent() -> None:
