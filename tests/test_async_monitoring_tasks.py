@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import threading
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
@@ -213,8 +212,10 @@ def test_a_cancelled_subscription_does_not_leave_the_connection_open() -> None:
         )
         await asyncio.sleep(0.2)
         task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        # Mirror the supervisor's own shutdown: it cancels the subscription group and then
+        # gathers it with `return_exceptions=True`, which is what lets the round's cleanup
+        # finish before anything reads the connection row.
+        await asyncio.gather(task, return_exceptions=True)
 
     run_async_with_heartbeat(cancel_mid_subscription())
 
