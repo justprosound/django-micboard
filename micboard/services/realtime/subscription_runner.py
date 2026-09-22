@@ -129,6 +129,20 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
         )
 
 
+def _close_tracking(chassis: WirelessChassis, connection: Any) -> None:
+    """Mark this chassis's connection stopped, even if the caller never captured the row.
+
+    Cancellation can arrive while `_track_connection` is still running, after it has marked
+    the row connecting but before the coroutine holds it, so the row is resolved by chassis
+    when the local handle is missing.
+    """
+    from micboard.models.realtime.connection import RealTimeConnection
+
+    row = connection or RealTimeConnection.objects.filter(chassis=chassis).first()
+    if row is not None:
+        mark_stopped(row)
+
+
 def _track_connection(chassis: WirelessChassis, transport: RealtimeTransport) -> Any:
     """Open connection tracking for one chassis in Django's synchronous context."""
     from micboard.models.realtime.connection import RealTimeConnection
@@ -198,9 +212,8 @@ async def _subscribe_chassis(
             transport,
             chassis.pk,
         )
-        if connection is not None:
-            await sync_to_async(mark_stopped, thread_sensitive=True)(connection)
-            closed = True
+        await sync_to_async(_close_tracking, thread_sensitive=True)(chassis, connection)
+        closed = True
         raise
     except Exception as exc:
         logger.exception(
@@ -216,5 +229,5 @@ async def _subscribe_chassis(
     finally:
         # A stream that returned on its own is finished, not still connected. A row already
         # marked stopped or errored keeps that state.
-        if connection is not None and not closed:
-            await sync_to_async(mark_stopped, thread_sensitive=True)(connection)
+        if not closed:
+            await sync_to_async(_close_tracking, thread_sensitive=True)(chassis, connection)

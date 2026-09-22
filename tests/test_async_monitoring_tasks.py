@@ -201,26 +201,41 @@ def test_a_cancelled_subscription_does_not_leave_the_connection_open() -> None:
 
     manufacturer = _manufacturer()
     chassis = _chassis(manufacturer=manufacturer, status="online")
+    streaming = asyncio.Event()
 
     class HangingPlugin(ConnectionOnlyPlugin):
         async def subscribe_to_chassis(self, chassis: Any, callback: Any) -> None:
+            streaming.set()
             await asyncio.Event().wait()
 
     async def cancel_mid_subscription() -> None:
         task = asyncio.create_task(
             _subscribe_chassis(HangingPlugin(manufacturer, chassis), "sse", chassis)
         )
-        await asyncio.sleep(0.2)
+        # Wait for the stream to actually open rather than guessing at a delay, so the
+        # cancellation lands where this test means it to on any machine.
+        await asyncio.wait_for(streaming.wait(), timeout=10)
         task.cancel()
-        # Mirror the supervisor's own shutdown: it cancels the subscription group and then
-        # gathers it with `return_exceptions=True`, which is what lets the round's cleanup
-        # finish before anything reads the connection row.
         await asyncio.gather(task, return_exceptions=True)
 
     run_async_with_heartbeat(cancel_mid_subscription())
 
     connection = RealTimeConnection.objects.get(chassis=chassis)
     assert connection.status not in {"connecting", "connected"}
+
+
+@pytest.mark.django_db(transaction=True)
+def test_cancellation_during_tracking_setup_still_closes_the_row() -> None:
+    """Cancellation can arrive before the round holds the row it already marked connecting."""
+    manufacturer = _manufacturer()
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+
+    run_async_with_heartbeat(
+        _close_tracking_async(chassis),
+    )
+
+    connection = RealTimeConnection.objects.get(chassis=chassis)
+    assert connection.status == "stopped"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -249,3 +264,16 @@ def test_a_failed_subscription_keeps_its_error_state() -> None:
 
     connection = RealTimeConnection.objects.get(chassis=chassis)
     assert connection.status == "error"
+
+
+async def _close_tracking_async(chassis: Any) -> None:
+    """Create tracking, then close it the way a cancelled round does, with no handle."""
+    from asgiref.sync import sync_to_async
+
+    from micboard.services.realtime.subscription_runner import (
+        _close_tracking,
+        _track_connection,
+    )
+
+    await sync_to_async(_track_connection, thread_sensitive=True)(chassis, "sse")
+    await sync_to_async(_close_tracking, thread_sensitive=True)(chassis, None)

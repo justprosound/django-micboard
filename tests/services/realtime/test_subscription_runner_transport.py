@@ -38,6 +38,9 @@ def isolated_supervisor_lease(monkeypatch):
         "select_fair_queryset_batch",
         selector,
     )
+    # These cover orchestration against chassis doubles, so the round's end-of-stream cleanup
+    # must not reach the database. Tests that assert on closing patch it themselves.
+    monkeypatch.setattr(runner, "_close_tracking", Mock())
     return selector
 
 

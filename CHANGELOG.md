@@ -40,6 +40,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - `poll_manufacturer_devices` evaluated post-poll alerts and logged `Polling task complete`
   even when the sync returned `success=False`, so a failed poll ran its success path against
   stale inventory. The task now reports the failure and returns without evaluating alerts.
+- A realtime subscription cancelled while its connection tracking was still being created
+  left the row in `connecting`. The round had marked it connecting inside the worker thread
+  but did not yet hold it, so the cleanup path skipped it. Closing now resolves the row by
+  chassis when the handle is missing.
 - An empty chassis inventory acquired the realtime transport lease before discovering there
   was no work. Leases expire rather than being released, so the next run was skipped for the
   whole lease timeout. Eligibility is now checked with a query that does not advance the fair
