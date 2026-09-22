@@ -66,13 +66,6 @@ class AlertAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_alert_row_partial_hides_another_users_alert(self) -> None:
-        response = self.client.get(
-            reverse("micboard:alert_row_partial", args=[self.other_alert.pk])
-        )
-
-        self.assertEqual(response.status_code, 404)
-
     def test_pending_alert_actions_render(self) -> None:
         self.owner_alert.status = "pending"
         self.owner_alert.channel_data = {"vendor": "<script>alert('xss')</script>"}
@@ -98,15 +91,6 @@ class AlertAccessTests(TestCase):
         self.assertNotContains(detail_response, "<script>alert('xss')</script>")
         self.assertContains(detail_response, "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;")
         self.assertNotContains(detail_response, "TEMPLATE ERROR")
-
-        partial_response = self.client.get(
-            reverse("micboard:alert_row_partial", args=[self.owner_alert.pk])
-        )
-        self.assertEqual(partial_response.status_code, 200)
-        self.assertContains(
-            partial_response,
-            reverse("micboard:acknowledge_alert", args=[self.owner_alert.pk]),
-        )
 
     def test_alert_mutations_hide_another_users_alert(self) -> None:
         self.other_alert.status = "pending"
@@ -564,7 +548,6 @@ class ChargerAndKioskScopeTests(TestCase):
             reverse("micboard:kiosk_content", args=[self.foreign_wall.pk]),
             reverse("micboard:kiosk_health", args=[self.foreign_wall.pk]),
             reverse("micboard:kiosk_display", args=[self.foreign_wall.kiosk_id]),
-            reverse("micboard:wall_section_partial", args=[self.foreign_section.pk]),
         ]
 
         for url in urls:

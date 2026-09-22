@@ -36,15 +36,6 @@ from micboard.views.kiosk import (
     KioskHealthView,
     WallSectionListView,
 )
-from micboard.views.partials import (
-    alert_row_partial,
-    assignment_row_partial,
-    channel_card_partial,
-    charger_grid_partial,
-    charger_slot_partial,
-    device_tiles_partial,
-    wall_section_partial,
-)
 from micboard.views.settings import (
     BulkSettingConfigView,
     ManufacturerSettingsView,
@@ -111,18 +102,4 @@ urlpatterns = [
     path("walls/<int:wall_id>/content/", KioskContentView.as_view(), name="kiosk_content"),
     path("walls/<int:wall_id>/health/", KioskHealthView.as_view(), name="kiosk_health"),
     path("kiosk/<str:kiosk_id>/", KioskAuthView.as_view(), name="kiosk_display"),
-    # HTMX Partials
-    path("partials/channel/<int:channel_id>/", channel_card_partial, name="channel_card_partial"),
-    path("partials/charger-slot/<int:slot_id>/", charger_slot_partial, name="charger_slot_partial"),
-    path(
-        "partials/wall-section/<int:section_id>/", wall_section_partial, name="wall_section_partial"
-    ),
-    path("partials/alert/<int:alert_id>/", alert_row_partial, name="alert_row_partial"),
-    path(
-        "partials/assignment/<int:assignment_id>/",
-        assignment_row_partial,
-        name="assignment_row_partial",
-    ),
-    path("partials/charger-grid/", charger_grid_partial, name="charger_grid_partial"),
-    path("partials/device-tiles/", device_tiles_partial, name="device_tiles_partial"),
 ]
