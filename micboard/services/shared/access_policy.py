@@ -6,7 +6,7 @@ from typing import Any, Final
 
 from django.apps import apps
 from django.conf import settings as django_settings
-from django.db import models
+from django.db import models, router
 from django.db.models import Exists, F, OuterRef, Q
 
 from micboard.models.base_managers import TenantOptimizedQuerySet
@@ -45,6 +45,26 @@ SHARED_TENANT_OWNERSHIP_MODEL_LABELS: Final[frozenset[str]] = frozenset({"micboa
 def has_unrestricted_tenant_access(user: Any) -> bool:
     """Return whether ``user`` may bypass organization membership boundaries."""
     return bool(getattr(user, "is_superuser", False) and micboard_settings.allow_cross_org_view)
+
+
+def visible_to(
+    model: type[models.Model],
+    *,
+    user: Any,
+    using: str | None = None,
+) -> models.QuerySet[Any]:
+    """Return the rows of ``model`` that ``user`` may see.
+
+    Models with a tenant-aware manager narrow visibility themselves, sometimes with a
+    model-specific rule on top of the shared cascade; models on Django's default manager get
+    the shared cascade directly. Callers ask the same question either way.
+    """
+    database = using or router.db_for_read(model)
+    manager = getattr(model, "objects", model._default_manager)
+    model_for_user = getattr(manager, "for_user", None)
+    if callable(model_for_user):
+        return model_for_user(user=user).using(database)  # type: ignore[no-any-return]
+    return TenantOptimizedQuerySet(model, using=database).for_user(user=user)
 
 
 class TenantRoleAccessService:

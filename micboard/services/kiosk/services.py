@@ -26,6 +26,7 @@ from micboard.services.kiosk.dtos import (
     WallSectionSnapshot,
 )
 from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.services.shared.access_policy import visible_to
 
 
 class KioskService:
@@ -179,7 +180,7 @@ class KioskService:
             "pk",
         )[: MAX_KIOSK_OCCUPIED_SLOTS_PER_CHARGER + 1]
         return (
-            MonitoringService.get_accessible_chargers(user)
+            visible_to(Charger, user=user)
             .filter(is_active=True)
             .order_by("order", "name", "pk")
             .prefetch_related(
@@ -207,7 +208,7 @@ class KioskService:
             )
         )
         return (
-            MonitoringService.get_accessible_display_walls(user)
+            visible_to(DisplayWall, user=user)
             .filter(is_active=True)
             .prefetch_related(
                 Prefetch(
@@ -285,7 +286,7 @@ class KioskService:
     def record_heartbeat(kiosk_id: str, *, user: Any) -> bool:
         """Record activity only for a visible active kiosk."""
         updated = (
-            MonitoringService.get_accessible_display_walls(user)
+            visible_to(DisplayWall, user=user)
             .filter(kiosk_id=kiosk_id, is_active=True)
             .update(last_heartbeat=timezone.now())
         )

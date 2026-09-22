@@ -617,45 +617,55 @@ Shared policy for tenant-wide read and mutation access decisions.
 
 Return whether ``user`` may bypass organization membership boundaries.
 
-### `TenantRoleAccessService`
+### `visible_to(model: type[models.Model], user: Any, using: str | None = None) -> models.QuerySet[Any]`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L50)
+
+Return the rows of ``model`` that ``user`` may see.
+
+Models with a tenant-aware manager narrow visibility themselves, sometimes with a
+model-specific rule on top of the shared cascade; models on Django's default manager get
+the shared cascade directly. Callers ask the same question either way.
+
+### `TenantRoleAccessService`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L70)
 
 Apply MSP membership roles without narrowing read-only visibility.
 
 #### `management_memberships(user: Any, using: str | None = None) -> list[tuple[int, int | None]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L60)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L80)
 
 Return active organization/campus scopes where ``user`` may administer.
 
 #### `is_platform_global_model(model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L94)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L114)
 
 Return whether ``model`` is a reviewed host-wide admin surface.
 
 #### `scope_manageable_queryset(queryset: models.QuerySet[Any], user: Any) -> models.QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L129)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L149)
 
 Intersect ``queryset`` with scopes where ``user`` has an admin role.
 
 #### `can_add_model(user: Any, model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L170)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L190)
 
 Authorize adds only where a new row can carry exclusive tenant ownership.
 
 #### `can_manage_model(user: Any, model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L186)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L206)
 
 Authorize adding or bulk-mutating rows of one tenant-owned model.
 
 #### `can_manage_object(user: Any, obj: models.Model) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L201)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L221)
 
 Authorize mutation only when the object's exact tenant role permits it.
 

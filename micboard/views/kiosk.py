@@ -17,6 +17,7 @@ from micboard.services.kiosk.dtos import DisplayWallSnapshot
 from micboard.services.kiosk.health_service import KioskHealthService
 from micboard.services.kiosk.services import KioskService
 from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.services.shared.access_policy import visible_to
 
 
 @method_decorator(login_required, name="dispatch")
@@ -61,7 +62,7 @@ class DisplayWallListView(ListView):
     def get_queryset(self) -> QuerySet[DisplayWall]:
         """Get display walls for user's location."""
         return (
-            MonitoringService.get_accessible_display_walls(self.request.user)
+            visible_to(DisplayWall, user=self.request.user)
             .filter(is_active=True)
             .order_by("location__name", "name")
         )
@@ -82,9 +83,7 @@ class DisplayWallDetailView(DetailView):
 
     def get_queryset(self) -> QuerySet[DisplayWall]:
         """Limit wall lookup to the authenticated user's locations."""
-        return MonitoringService.get_accessible_display_walls(self.request.user).filter(
-            is_active=True
-        )
+        return visible_to(DisplayWall, user=self.request.user).filter(is_active=True)
 
 
 @method_decorator(login_required, name="dispatch")
@@ -113,7 +112,7 @@ class WallSectionListView(ListView):
         context = super().get_context_data(**kwargs)
         wall_id = self.kwargs.get("wall_id")
         context["wall"] = get_object_or_404(
-            MonitoringService.get_accessible_display_walls(self.request.user),
+            visible_to(DisplayWall, user=self.request.user),
             id=wall_id,
         )
         return context

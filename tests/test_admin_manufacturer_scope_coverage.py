@@ -160,27 +160,18 @@ def test_admin_scope_allows_reviewed_platform_global_superuser() -> None:
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_MULTI_SITE_MODE=True)
-def test_admin_scope_intersects_manager_visibility_using_same_database() -> None:
+def test_admin_scope_intersects_the_shared_visibility_predicate() -> None:
+    """The changelist narrows to the same rows every other read path would see."""
     queryset = _queryset()
     visible = MagicMock()
-    queryset.model.objects.for_user.return_value = visible
-    result = MicboardModelAdmin._scope_queryset_for_user(queryset, user=_request().user)
+    user = _request().user
+
+    with patch("micboard.admin.mixins.visible_to", return_value=visible) as predicate:
+        result = MicboardModelAdmin._scope_queryset_for_user(queryset, user=user)
+
+    predicate.assert_called_once_with(queryset.model, user=user, using="default")
     assert result is queryset.filter.return_value
-    visible.using.assert_called_once_with("default")
-    queryset.filter.assert_called_once_with(pk__in=visible.using.return_value.values.return_value)
-
-
-@override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_MULTI_SITE_MODE=True)
-def test_admin_scope_falls_back_to_tenant_queryset_contract() -> None:
-    queryset = _queryset()
-    queryset.model.objects = SimpleNamespace()
-    tenant_queryset = MagicMock()
-    with patch(
-        "micboard.models.base_managers.TenantOptimizedQuerySet", return_value=tenant_queryset
-    ) as constructor:
-        MicboardModelAdmin._scope_queryset_for_user(queryset, user=_request().user)
-    constructor.assert_called_once_with(queryset.model, using="default")
-    tenant_queryset.for_user.assert_called_once()
+    queryset.filter.assert_called_once_with(pk__in=visible.values.return_value)
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_MULTI_SITE_MODE=True)
