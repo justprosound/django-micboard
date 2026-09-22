@@ -15,6 +15,7 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
+from tests.factories.base import UserFactory
 from tests.factories.hardware import WirelessChassisFactory
 
 
@@ -24,6 +25,7 @@ def test_admin_save_model_runs_chassis_save_hook_once() -> None:
     chassis = WirelessChassisFactory()
     chassis.name = "Updated through admin"
     request = RequestFactory().post("/admin/micboard/wirelesschassis/")
+    request.user = UserFactory(is_staff=True, is_superuser=True)
     model_admin = WirelessChassisAdmin(WirelessChassis, admin.site)
 
     with patch.object(HardwarePostSaveHooks, "handle_chassis_save") as handle_save:
@@ -58,6 +60,7 @@ def test_admin_bulk_delete_registers_one_grouped_cleanup() -> None:
     second = WirelessChassisFactory(manufacturer=first.manufacturer)
     chassis_ids = {first.pk, second.pk}
     request = RequestFactory().post("/admin/micboard/wirelesschassis/")
+    request.user = UserFactory(is_staff=True, is_superuser=True)
     model_admin = WirelessChassisAdmin(WirelessChassis, admin.site)
     queryset_class = type(WirelessChassis._default_manager.all())
     select_for_update_method = queryset_class.select_for_update

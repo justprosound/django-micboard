@@ -69,6 +69,12 @@ This violates the single-responsibility principle. Models should define data str
 - **Negative:** Save behavior still includes delegated lifecycle effects. Developers must inspect
   `model_lifecycle.py` when changing write semantics and must use the documented suppression
   context only in reviewed bulk workflows.
+- **Cleanup (2026-09-22):** `suppress_chassis_delete_hooks` was imported by
+  `admin/receivers.py`, which is presentation code rather than a reviewed bulk workflow. That
+  admin action also locked rows, registered discovery reconciliation, and ordered the whole
+  sequence itself, which put those side effects before the authorization check that could reject
+  the request. `services/hardware/chassis_bulk_delete_service.py` now owns the sequence with
+  authorization first, and the suppression context has no presentation-layer caller.
 
 ## Migration Summary
 
