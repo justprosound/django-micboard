@@ -160,37 +160,6 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
             return self.none()
         return self.filter(**{site_lookup: site_id}).distinct()
 
-    def for_organization(
-        self, *, organization: OrganizationLike | int | None = None
-    ) -> TenantOptimizedQuerySet[_ModelT]:
-        """Filter by Organization (MSP mode)."""
-        if not deployment_controls.msp_enabled:
-            return self
-
-        if organization is None:
-            return self
-
-        org_id = organization.id if hasattr(organization, "id") else organization
-
-        lookups = TenantOptimizedQuerySet._tenant_lookups(self)
-        if lookups is None:
-            return self.none()
-        organization_lookup, _ = lookups
-        return self.filter(**{organization_lookup: org_id})
-
-    def for_campus(self, *, campus_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]:
-        """Filter by Campus (MSP mode)."""
-        if not deployment_controls.msp_enabled:
-            return self
-
-        if campus_id is None:
-            return self
-
-        campus_lookup = TenantOptimizedQuerySet._campus_lookup(self)
-        if campus_lookup is None:
-            return self.none()
-        return self.filter(**{campus_lookup: campus_id})
-
     def for_memberships(
         self,
         memberships: Sequence[tuple[int, int | None]],
@@ -268,63 +237,3 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
             ).distinct()
 
         return self
-
-    def with_manufacturer(self) -> TenantOptimizedQuerySet[_ModelT]:
-        """Optimize: select_related manufacturer."""
-        if hasattr(self.model, "manufacturer"):
-            return self.select_related("manufacturer")
-        return self
-
-    def with_location(self) -> TenantOptimizedQuerySet[_ModelT]:
-        """Optimize: select_related location and building."""
-        if hasattr(self.model, "location"):
-            return self.select_related("location", "location__building")
-        return self
-
-    def with_chassis(self) -> TenantOptimizedQuerySet[_ModelT]:
-        """Optimize: select_related chassis."""
-        if hasattr(self.model, "chassis"):
-            return self.select_related("chassis", "chassis__manufacturer")
-        return self
-
-    def recently_seen(self, *, minutes: int = 30) -> TenantOptimizedQuerySet[_ModelT]:
-        """Filter objects seen within N minutes."""
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        if not hasattr(self.model, "last_seen"):
-            return self
-
-        threshold = timezone.now() - timedelta(minutes=minutes)
-        return self.filter(last_seen__gte=threshold)
-
-
-class TenantOptimizedManager(models.Manager[_ModelT]):
-    """Base manager with tenant filtering and optimization methods."""
-
-    def get_queryset(self) -> TenantOptimizedQuerySet[_ModelT]:
-        return TenantOptimizedQuerySet(self.model, using=self._db)
-
-    def for_site(self, *, site_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]:
-        return self.get_queryset().for_site(site_id=site_id)
-
-    def for_organization(
-        self, *, organization: OrganizationLike | int | None = None
-    ) -> TenantOptimizedQuerySet[_ModelT]:
-        return self.get_queryset().for_organization(organization=organization)
-
-    def for_campus(self, *, campus_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]:
-        return self.get_queryset().for_campus(campus_id=campus_id)
-
-    def for_user(self, *, user: Any) -> TenantOptimizedQuerySet[_ModelT]:
-        return self.get_queryset().for_user(user=user)
-
-    def with_manufacturer(self) -> TenantOptimizedQuerySet[_ModelT]:
-        return self.get_queryset().with_manufacturer()
-
-    def with_location(self) -> TenantOptimizedQuerySet[_ModelT]:
-        return self.get_queryset().with_location()
-
-    def recently_seen(self, *, minutes: int = 30) -> TenantOptimizedQuerySet[_ModelT]:
-        return self.get_queryset().recently_seen(minutes=minutes)

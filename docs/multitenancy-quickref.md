@@ -129,15 +129,14 @@ membership = OrganizationMembership.objects.create(
 ## 🔍 Tenant-Aware Managers
 
 ```python
-from micboard.models.base_managers import TenantOptimizedManager
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 class MyModel(models.Model):
-    objects = TenantOptimizedManager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
 # Usage
-qs = MyModel.objects.for_organization(organization=org)
-qs = MyModel.objects.for_campus(campus_id=campus.id)
 qs = MyModel.objects.for_user(user=request.user)
+qs = MyModel.objects.for_site(site_id=1)
 ```
 
 ## 🌐 Request Context (Views)
@@ -243,7 +242,7 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 org = Organization.objects.create(name='Test Org', slug='test', site_id=1)
 
 # Test isolation
-receivers = WirelessChassis.objects.for_organization(organization=org)
+receivers = WirelessChassis.objects.for_user(user=member)
 assert all(r.location.building.organization_id == org.pk for r in receivers)
 ```
 

@@ -48,68 +48,7 @@ from typing import Any, ClassVar
 
 from django.db import models, router, transaction
 
-from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
-
-
-class WirelessChassisQuerySet(TenantOptimizedQuerySet):
-    """Enhanced queryset for WirelessChassis model with role and tenant filtering."""
-
-    def active(self) -> WirelessChassisQuerySet:
-        """Get all active devices (not offline)."""
-        return self.filter(status__in=["online", "degraded", "provisioning"])
-
-    def inactive(self) -> WirelessChassisQuerySet:
-        """Get all inactive/offline devices."""
-        return self.filter(status="offline")
-
-    def by_status(self, *, status: str) -> WirelessChassisQuerySet:
-        """Filter by lifecycle status."""
-        return self.filter(status=status)
-
-    def by_role(self, *, role: str) -> WirelessChassisQuerySet:
-        """Filter by RF role (receiver/transmitter/transceiver)."""
-        return self.filter(role=role)
-
-    def by_manufacturer(self, *, manufacturer: str | int) -> WirelessChassisQuerySet:
-        """Filter by manufacturer (code or ID)."""
-        if isinstance(manufacturer, str):
-            return self.filter(manufacturer__code=manufacturer)
-        return self.filter(manufacturer_id=manufacturer)
-
-    def with_channels(self) -> WirelessChassisQuerySet:
-        """Optimize: prefetch related RF channels."""
-        return self.prefetch_related("rf_channels")
-
-
-class WirelessChassisManager(TenantOptimizedManager):
-    """Enhanced manager for WirelessChassis model with tenant support."""
-
-    def get_queryset(self) -> WirelessChassisQuerySet:
-        return WirelessChassisQuerySet(self.model, using=self._db)
-
-    def active(self) -> WirelessChassisQuerySet:
-        """Get all active chassis."""
-        return self.get_queryset().active()
-
-    def inactive(self) -> WirelessChassisQuerySet:
-        """Get all inactive chassis."""
-        return self.get_queryset().inactive()
-
-    def by_status(self, *, status: str) -> WirelessChassisQuerySet:
-        """Filter by status."""
-        return self.get_queryset().by_status(status=status)
-
-    def by_role(self, *, role: str) -> WirelessChassisQuerySet:
-        """Filter by RF role."""
-        return self.get_queryset().by_role(role=role)
-
-    def by_manufacturer(self, *, manufacturer: str | int) -> WirelessChassisQuerySet:
-        """Filter by manufacturer."""
-        return self.get_queryset().by_manufacturer(manufacturer=manufacturer)
-
-    def with_channels(self) -> WirelessChassisQuerySet:
-        """Optimize with RF channels."""
-        return self.get_queryset().with_channels()
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 
 class WirelessChassis(models.Model):
@@ -345,7 +284,7 @@ class WirelessChassis(models.Model):
         help_text="Band plan identifier (e.g., 'UHF Band IV', 'G50 470-534MHz', 'J7 578-608MHz')",
     )
 
-    objects = WirelessChassisManager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Wireless Chassis"

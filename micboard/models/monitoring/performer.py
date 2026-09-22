@@ -7,7 +7,7 @@ from typing import Any, ClassVar, cast
 from django.db import models
 from django.db.models import QuerySet
 
-from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
+from micboard.models.base_managers import TenantOptimizedQuerySet
 from micboard.settings.deployment_controls import deployment_controls
 
 
@@ -35,35 +35,6 @@ class PerformerQuerySet(TenantOptimizedQuerySet):
         if not deployment_controls.msp_enabled:
             visibility |= models.Q(assignments__isnull=True)
         return tenant_scope.filter(visibility).distinct()
-
-    def active(self) -> PerformerQuerySet:
-        """Get all active performers."""
-        return self.filter(is_active=True)
-
-    def with_assignments(self) -> PerformerQuerySet:
-        """Optimize: prefetch related assignments and units."""
-        return self.prefetch_related("assignments", "assignments__wireless_unit")
-
-    def by_monitoring_group(self, *, group: Any) -> PerformerQuerySet:
-        """Filter performers by monitoring group (through assignments)."""
-        return self.filter(assignments__monitoring_group=group).distinct()
-
-
-class PerformerManager(TenantOptimizedManager):
-    """Manager with typed helpers for performers."""
-
-    def get_queryset(self) -> PerformerQuerySet:
-        return PerformerQuerySet(self.model, using=self._db)
-
-    def active(self) -> PerformerQuerySet:
-        return self.get_queryset().active()
-
-    def for_user(self, *, user: Any) -> PerformerQuerySet:
-        """Return performers visible to the user."""
-        return self.get_queryset().for_user(user=user)
-
-    def with_assignments(self) -> PerformerQuerySet:
-        return self.get_queryset().with_assignments()
 
 
 class Performer(models.Model):
@@ -130,7 +101,7 @@ class Performer(models.Model):
         help_text="Last update timestamp",
     )
 
-    objects = PerformerManager()
+    objects = PerformerQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Performer"
