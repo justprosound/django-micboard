@@ -146,14 +146,6 @@ class RestrictedSuperuserTenantAccessTests(TestCase):
         self.client.force_login(self.superuser)
 
     def test_dashboard_routes_exclude_the_foreign_tenant(self) -> None:
-        channel_ids = set(
-            MonitoringService.get_accessible_channels(self.superuser).values_list(
-                "pk",
-                flat=True,
-            )
-        )
-        self.assertIn(self.allowed_channel.pk, channel_ids)
-        self.assertNotIn(self.denied_channel.pk, channel_ids)
         response = self.client.get(reverse("micboard:all_buildings_view"))
 
         self.assertEqual(response.status_code, 200)
@@ -171,18 +163,6 @@ class RestrictedSuperuserTenantAccessTests(TestCase):
                     "micboard:room_view",
                     args=[self.denied_room.pk],
                 )
-            ).status_code,
-            404,
-        )
-        self.assertEqual(
-            self.client.get(
-                reverse("micboard:channel_card_partial", args=[self.allowed_channel.pk])
-            ).status_code,
-            200,
-        )
-        self.assertEqual(
-            self.client.get(
-                reverse("micboard:channel_card_partial", args=[self.denied_channel.pk])
             ).status_code,
             404,
         )

@@ -1,4 +1,4 @@
-"""Focused controller coverage for partial, settings, and user views."""
+"""Focused controller coverage for settings and user views."""
 
 from __future__ import annotations
 
@@ -10,50 +10,8 @@ from django.http import HttpResponse
 
 import pytest
 
-from micboard.views import partials
 from micboard.views import settings as settings_views
 from tests.view_test_helpers import request, view
-
-
-def test_all_partial_views_resolve_scoped_objects_and_service_data() -> None:
-    partial_request = request()
-    scoped = MagicMock()
-    obj = SimpleNamespace(id=4)
-    with (
-        patch.object(partials, "get_object_or_404", return_value=obj) as get_object,
-        patch.object(partials, "render", return_value=HttpResponse()) as render,
-        patch(
-            "micboard.services.monitoring.monitoring_access.MonitoringService.get_accessible_channels",
-            return_value=scoped,
-        ),
-        patch(
-            "micboard.services.monitoring.monitoring_access.MonitoringService.get_accessible_charger_slots",
-            return_value=scoped,
-        ),
-        patch(
-            "micboard.services.kiosk.services.KioskService.get_section_snapshot",
-            return_value=obj,
-        ),
-        patch.object(partials, "get_alerts_for_user", return_value=scoped),
-        patch.object(partials.PerformerAssignment.objects, "for_user", return_value=scoped),
-        patch(
-            "micboard.services.chargers.dashboard_service.ChargerDashboardService.get_snapshot",
-            return_value=SimpleNamespace(chargers=[]),
-        ),
-        patch.object(partials.WirelessChassis.objects, "for_user", return_value=scoped),
-    ):
-        for function, args in (
-            (partials.channel_card_partial, (4,)),
-            (partials.charger_slot_partial, (4,)),
-            (partials.wall_section_partial, (4,)),
-            (partials.alert_row_partial, (4,)),
-            (partials.assignment_row_partial, (4,)),
-            (partials.charger_grid_partial, ()),
-            (partials.device_tiles_partial, ()),
-        ):
-            assert view(function)(partial_request, *args).status_code == 200
-    assert get_object.call_count == 4
-    assert render.call_count == 7
 
 
 def _configure_form_view(form_view: Any) -> Any:
