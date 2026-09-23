@@ -24,6 +24,7 @@ from micboard.services.notification.realtime_routing_service import (
     site_updates_group,
 )
 from micboard.websockets.consumers import (
+    COMMAND_BUDGET_EXHAUSTED_CLOSE_CODE,
     UNAUTHENTICATED_CLOSE_CODE,
     UNAUTHORIZED_CLOSE_CODE,
     MicboardConsumer,
@@ -304,7 +305,7 @@ def test_global_permission_revocation_blocks_next_group_event(regular_user: User
     current_groups = MicboardConsumer._current_group_names(regular_user.pk)
     assert GLOBAL_UPDATES_GROUP not in current_groups
     consumer._current_groups_for_user = AsyncMock(return_value=current_groups)
-    asyncio.run(consumer.status_update({"message": "revoked"}))
+    asyncio.run(consumer.device_update({"data": {"id": 1}}))
 
     consumer.send.assert_not_awaited()
     consumer.channel_layer.group_discard.assert_awaited_once_with(
@@ -325,7 +326,7 @@ def test_user_deactivation_blocks_next_site_event(regular_user: User) -> None:
     current_groups = MicboardConsumer._current_group_names(regular_user.pk)
     assert current_groups == ()
     consumer._current_groups_for_user = AsyncMock(return_value=current_groups)
-    asyncio.run(consumer.status_update({"message": "revoked"}))
+    asyncio.run(consumer.device_update({"data": {"id": 1}}))
 
     consumer.send.assert_not_awaited()
     consumer.channel_layer.group_discard.assert_awaited_once_with(
@@ -387,3 +388,53 @@ def test_producer_event_handlers_forward_complete_payloads(
 
     forwarded = json.loads(consumer.send.await_args.kwargs["text_data"])
     assert forwarded == event
+
+
+@pytest.mark.django_db
+@override_settings(
+    MICBOARD_MSP_ENABLED=False,
+    MICBOARD_MULTI_SITE_MODE=True,
+    SITE_ID=1,
+    MICBOARD_WEBSOCKET_AUTHORIZATION_TTL_SECONDS=300,
+)
+def test_a_broadcast_storm_costs_one_authorization_read(regular_user: User) -> None:
+    """Forwarding many events inside one time to live re-reads authorization once.
+
+    A busy chassis broadcasts far faster than memberships change, so re-reading per frame
+    let the rate of hardware updates set the rate of database work.
+    """
+    consumer = _consumer_for(regular_user)
+    asyncio.run(consumer.connect())
+    reads = AsyncMock(return_value=(site_updates_group(1),))
+    consumer._current_groups_for_user = reads
+
+    for index in range(25):
+        asyncio.run(consumer.device_update({"data": {"id": index}}))
+
+    assert consumer.send.await_count == 25
+    reads.assert_awaited_once()
+
+
+@pytest.mark.django_db
+@override_settings(
+    MICBOARD_MSP_ENABLED=False,
+    MICBOARD_MULTI_SITE_MODE=True,
+    SITE_ID=1,
+    MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE=3,
+)
+def test_a_client_cannot_spend_more_commands_than_its_budget(regular_user: User) -> None:
+    """The keepalive ping is the one lever a client has, so it is metered.
+
+    Without a budget a client could issue pings as fast as the socket allows and pace the
+    server's authorization work itself.
+    """
+    consumer = _consumer_for(regular_user)
+    asyncio.run(consumer.connect())
+    consumer._current_groups_for_user = AsyncMock(return_value=(site_updates_group(1),))
+
+    for _ in range(4):
+        asyncio.run(consumer.receive(text_data='{"command": "ping"}'))
+
+    replies = [json.loads(call.kwargs["text_data"]) for call in consumer.send.await_args_list]
+    assert replies == [{"type": "pong"}] * 3
+    consumer.close.assert_awaited_once_with(code=COMMAND_BUDGET_EXHAUSTED_CLOSE_CODE)
