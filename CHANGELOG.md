@@ -22,7 +22,45 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   tenant-aware manager and the shared cascade, which five modules had each written out
   separately.
 
+- `micboard.services.settings.browser_refresh_service` — the one module that decides how often
+  each live browser surface re-polls. Every browser update Micboard ships is delivered by
+  short-polling over ordinary HTTP, so the refresh interval multiplied by open tabs is the
+  whole request volume a deployment puts through its reverse proxy. Four new `MICBOARD_CONFIG`
+  keys (`REFRESH_INTERVAL_ALERTS`, `REFRESH_INTERVAL_ASSIGNMENTS`, `REFRESH_INTERVAL_CHARGERS`
+  and `REFRESH_INTERVAL_KIOSK_HEARTBEAT`) make that number reachable, each clamped to the 2 to
+  3,600 second bounds that already governed a stored `DisplayWall.refresh_interval_seconds`.
+
+- `micboard.websockets.authorization` — `AuthorizationCache` and `CommandBudget`, which put a
+  declared number on what one WebSocket connection may cost. Two new Django settings configure
+  them: `MICBOARD_WEBSOCKET_AUTHORIZATION_TTL_SECONDS` (default 5, maximum 300) and
+  `MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE` (default 60, maximum 6,000).
+
+- `micboard.W002` and `micboard.W003` system checks, which report a WebSocket delivery mode a
+  deployment has only half wired. Channels installed without an `ASGI_APPLICATION` accepts no
+  handshake, and Channels without a `CHANNEL_LAYERS` backend discards every broadcast at debug
+  level. Both were previously silent, so a deployment could believe it was pushing while every
+  client was really still polling.
+
+- Reverse-proxy guidance in the installation guide, covering what each delivery mode actually
+  puts through a proxy, the `proxy_read_timeout` the nginx WebSocket block omitted (nginx
+  defaults it to 60 seconds, which closes a healthy but quiet connection), and the equivalent
+  Traefik `respondingTimeouts` and `forwardingTimeouts` configuration.
+
 ### Changed
+
+- `MicboardConsumer` reuses one authorization decision for a bounded time to live instead of
+  re-reading it from the database before every outbound frame. The guarantee is unchanged —
+  the connection still fails closed when authentication or any joined route is revoked — but
+  its cost is now bounded: a broadcast storm costs one query rather than one query per frame.
+  Revocation takes effect within `MICBOARD_WEBSOCKET_AUTHORIZATION_TTL_SECONDS` (default 5)
+  rather than on the very next frame; set it to `0` to restore per-frame re-reading.
+
+- The inbound keepalive ping is metered per connection. It was the one lever a client had over
+  the server's authorization work, and it was unthrottled. A connection that exceeds
+  `MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE` is now closed with code `4429`.
+
+- The alert, assignment and charger pages read their poll interval from settings instead of
+  declaring it in markup. Behaviour is unchanged at the shipped defaults (5s, 5s and 10s).
 
 - `ManufacturerPlugin.transform_transmitter_data` is now abstract. `DeviceUpdateService`
   persists through whichever plugin it is handed and calls that method for raw wireless-unit
@@ -38,6 +76,18 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   connection surface and the admin connection checker.
 
 ### Removed
+
+- **Breaking:** `MicboardConsumer.status_update`. Nothing in Micboard ever sent a
+  `status_update` event, and its name shadowed `device_status_update`, which does have a
+  producer — so a host wiring "status" was likely to pick the handler that would never fire.
+  Use `device_status_update` for persisted hardware transitions and `api_health_update` for
+  manufacturer API health.
+
+- **Breaking:** the entire `micboard/static/micboard/js/` tree (13 files). No template in this
+  package loaded any of it, and the endpoint its poll targeted (`/api/data/`) has no URL
+  pattern. It also expected `chart-update` and `data-update` messages that the consumer never
+  sends. It read as a working second front-end and described behaviour the package does not
+  have. A host project that vendored these files should keep its own copy.
 
 - **Breaking:** `MonitoringService.get_accessible_chargers` and
   `MonitoringService.get_accessible_display_walls`, which were one-line forwarders to

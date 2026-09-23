@@ -1,7 +1,25 @@
 ---
 title: "Real-time Updates"
 ---
-Django Micboard provides real-time monitoring of Shure wireless microphone systems through WebSocket connections and automatic data synchronization.
+Django Micboard provides real-time monitoring of wireless microphone systems through
+automatic data synchronization and, optionally, WebSocket push.
+
+## Delivery modes
+
+Micboard has two ways of getting an update in front of a person, and a deployment chooses
+between them.
+
+**HTTP polling is the default.** Every browser surface Micboard ships — alerts, assignments,
+the charger grid, and kiosk walls — refreshes itself with a short request on a timer. No
+persistent connection is involved and nothing needs configuring. The intervals are settings
+rather than template literals, so a deployment under reverse-proxy pressure tunes them
+without forking markup. See `REFRESH_INTERVAL_*` in [Configuration](../configuration.md).
+
+**WebSocket push is opt-in.** Micboard ships an authenticated consumer and the routing for
+it, but no browser client: a host project supplies the client and wires the ASGI application
+described below. Until it does, the consumer is unreachable and every surface keeps polling.
+Micboard reports a half-wired setup through the `micboard.W002` and `micboard.W003` system
+checks rather than failing silently.
 
 ## WebSocket Architecture
 
@@ -117,11 +135,13 @@ class MicboardWebSocket {
             case 'device_update':
                 this.updateDeviceDisplay(data);
                 break;
-            case 'connection_update':
+            case 'device_status_update':
                 this.updateConnectionStatus(data);
                 break;
-            case 'system_alert':
-                this.showAlert(data);
+            case 'api_health_update':
+                this.updateApiHealth(data);
+                break;
+            case 'pong':
                 break;
         }
     }
@@ -490,20 +510,23 @@ def check_websocket_health():
 ### Common Patterns
 
 **Heartbeat Implementation:**
+
+Micboard sends nothing on a quiet connection, so a reverse proxy that closes idle upstream
+connections will close a healthy one. The client drives the keepalive:
+
 ```javascript
-// Client heartbeat
+// Client heartbeat. The command key is `command`, not `type`.
 setInterval(() => {
     if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({type: 'ping'}));
+        ws.send(JSON.stringify({command: 'ping'}));
     }
 }, 30000);
-
-// Server heartbeat response
-def receive(self, text_data):
-    data = json.loads(text_data)
-    if data.get('type') == 'ping':
-        self.send_json({'type': 'pong'})
 ```
+
+Micboard replies `{"type": "pong"}`. Choose an interval comfortably shorter than your proxy's
+idle timeout and comfortably under `MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE` (default 60):
+a connection that exceeds its command allowance is closed with code `4429`. See
+[Installation](../installation.md) for the matching nginx and Traefik timeouts.
 
 **Reconnection Logic:**
 ```javascript

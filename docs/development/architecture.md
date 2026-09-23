@@ -142,8 +142,9 @@ copy-safe implementation workflow.
 
 **Message Types**:
 - `device_update` - Full device data updates (manufacturer-filtered)
-- `status_update` - Status messages
-- `ping/pong` - Connection health checks
+- `device_status_update` - Persisted hardware status transitions
+- `api_health_update` - Manufacturer API health transitions
+- `ping/pong` - Client keepalive, metered per connection
 
 ### 4. Django Models
 
