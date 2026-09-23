@@ -260,7 +260,7 @@ Bases: `BaseCommand`
 
 Poll manufacturer APIs for device data and update models.
 
-Uses the centralized PollingService to coordinate between manufacturer
+Uses the manufacturer inventory sync to coordinate between manufacturer
 plugins, model updates, and real-time broadcasts.
 
 #### `add_arguments(parser: Any) -> Any`
@@ -290,6 +290,32 @@ Bases: `BaseCommand`
 #### `handle(*args: Any, **options: Any) -> None`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L37)
+
+## `micboard.management.commands.realtime_subscribe`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py)
+
+Start the bounded realtime subscription supervisor from the command line.
+
+### `Command`
+
+Bases: `BaseCommand`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L18)
+
+Thin foreground adapter for the realtime subscription runner.
+
+#### `add_arguments(parser: CommandParser) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L23)
+
+Register the manufacturer and optional single-device selectors.
+
+#### `handle(*args: Any, **options: Any) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L37)
+
+Resolve the manufacturer and run the singleton supervisor for its transport.
 
 ## `micboard.management.commands.seed_demo_data`
 
@@ -337,32 +363,6 @@ Bases: `BaseCommand`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/set_logging_mode.py#L27)
 
-## `micboard.management.commands.sse_subscribe`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sse_subscribe.py)
-
-Start the bounded SSE subscription supervisor from the command line.
-
-### `Command`
-
-Bases: `BaseCommand`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sse_subscribe.py#L18)
-
-Thin foreground adapter for the SSE subscription service.
-
-#### `add_arguments(parser: CommandParser) -> None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sse_subscribe.py#L23)
-
-Register manufacturer and optional single-device selectors.
-
-#### `handle(*args: Any, **options: Any) -> None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sse_subscribe.py#L37)
-
-Resolve the manufacturer and run the shared singleton supervisor.
-
 ## `micboard.management.commands.sync_discovery`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py)
@@ -385,29 +385,3 @@ Bases: `BaseCommand`
 #### `handle(*args: Any, **options: Any) -> None`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L54)
-
-## `micboard.management.commands.websocket_subscribe`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/websocket_subscribe.py)
-
-Start the bounded Shure WebSocket supervisor from the command line.
-
-### `Command`
-
-Bases: `BaseCommand`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/websocket_subscribe.py#L20)
-
-Thin foreground adapter for the Shure WebSocket subscription service.
-
-#### `add_arguments(parser: CommandParser) -> None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/websocket_subscribe.py#L25)
-
-Register the supported manufacturer and optional device selector.
-
-#### `handle(*args: Any, **options: Any) -> None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/websocket_subscribe.py#L39)
-
-Validate Shure availability and run the shared singleton supervisor.

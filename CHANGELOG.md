@@ -7,6 +7,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A read-only demonstration deployment. `micboard/fixtures/demo.json` holds the structural
+  demo dataset (a Shure ULXD4Q receiver, its channels, four transmitters, a monitoring group,
+  and performer assignments), and the new `seed_demo_data` command loads it, writes telemetry
+  relative to the current time, and manages a `demo` staff account that holds only `view_`
+  permissions. The account is created only when `MICBOARD_DEMO_PASSWORD` is set, so a
+  deployment cannot publish a login with a default password. A root `Dockerfile` and a `demo`
+  extra (gunicorn, whitenoise, dj-database-url, psycopg) build the image; see
+  [the deployment guide](docs/demo-deployment.md).
+
 ## [2026.9.23.0] - 2026-09-23
 
 ### Changed
@@ -410,7 +421,6 @@ bb968a2 - Django reusable app optimizations: settings validation, health checks,
 1ae650a - Switch license to AGPL v3: stronger author protection for SaaS usage (bandwith)
 a7c2ce4 - Update repository URLs to justprosound organization (bandwith)
 d961693 - first commit (bandwith)
-
 
 ### Added
 
