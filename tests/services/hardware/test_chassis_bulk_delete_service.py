@@ -8,7 +8,7 @@ All of that is a side effect, so none of it may happen before the request is aut
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied
@@ -18,6 +18,7 @@ import pytest
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.hardware.chassis_bulk_delete_service import ChassisBulkDeleteService
+from micboard.services.shared.access_policy import tenant_role_access
 from tests.factories.base import UserFactory
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
@@ -156,14 +157,13 @@ def test_a_selection_reaching_into_another_tenant_is_refused(reconciliation: Moc
     assert WirelessChassis.objects.filter(pk__in=[own.pk, foreign.pk]).count() == 2
 
     # The same operator may delete their own organization's row, which is what makes the
-    # rejection above about the foreign row rather than about the operator.
-    assert (
-        ChassisBulkDeleteService.delete(
-            chassis_ids=[own.pk],
-            requested_by=operator,
-        ).deleted_count
-        == 1
+    # rejection above about the foreign row rather than about the operator. The call is kept
+    # out of the assert: `python -O` strips assert statements, which would drop the deletion.
+    permitted = ChassisBulkDeleteService.delete(
+        chassis_ids=[own.pk],
+        requested_by=operator,
     )
+    assert permitted.deleted_count == 1
 
 
 def test_an_empty_selection_does_nothing_at_all(reconciliation: Mock) -> None:
@@ -173,3 +173,38 @@ def test_an_empty_selection_does_nothing_at_all(reconciliation: Mock) -> None:
     assert result.deleted_count == 0
     assert result.reconciled_manufacturer_ids == []
     reconciliation.assert_not_called()
+
+
+def test_scope_is_rechecked_while_the_rows_are_locked(reconciliation: Mock) -> None:
+    """Authorizing before the lock leaves a window where a row can leave the caller's scope.
+
+    A concurrent location change between the check and the lock would otherwise be deleted
+    anyway, because the delete used the originally selected identifiers.
+    """
+    manufacturer = ManufacturerFactory()
+    chassis = WirelessChassisFactory(manufacturer=manufacturer)
+    calls: list[int] = []
+    real = tenant_role_access.scope_manageable_queryset
+
+    def narrow_after_the_first_check(queryset, *, user):
+        calls.append(1)
+        if len(calls) == 1:
+            return real(queryset, user=user)
+        return queryset.none()
+
+    with (
+        patch.object(
+            tenant_role_access,
+            "scope_manageable_queryset",
+            side_effect=narrow_after_the_first_check,
+        ),
+        pytest.raises(PermissionDenied),
+    ):
+        ChassisBulkDeleteService.delete(
+            chassis_ids=[chassis.pk],
+            requested_by=_manager(),
+        )
+
+    assert len(calls) >= 2, "authorization must be re-checked after locking"
+    reconciliation.assert_not_called()
+    assert WirelessChassis.objects.filter(pk=chassis.pk).exists()

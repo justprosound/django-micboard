@@ -173,8 +173,12 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.monitoring.monitoring_access import MonitoringService
 
-chassis = WirelessChassis.objects.for_user(user=request.user).filter(is_active=True)
-units = WirelessUnit.objects.for_user(user=request.user).active()
+chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
+units = WirelessUnit.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 locations = MonitoringService.get_accessible_locations(request.user)
 ```
 
@@ -183,7 +187,9 @@ locations = MonitoringService.get_accessible_locations(request.user)
 Do not replace an authenticated scope with optional tenant identifiers:
 
 ```python
-chassis = WirelessChassis.objects.for_user(user=request.user).filter(is_active=True)
+chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 ## Managers & Querysets
@@ -228,7 +234,9 @@ def my_view(request):
     org = request.organization  # Current organization or None
     campus_id = request.campus_id  # Current campus ID or None
 
-    chassis = WirelessChassis.objects.for_user(user=request.user).filter(is_active=True)
+    chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 **Organization detection priority:**
@@ -256,7 +264,9 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 class ReceiverListAPIView(View):
     def get(self, request):
-        chassis = WirelessChassis.objects.for_user(user=request.user).filter(is_active=True)
+        chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 
         # Return as JSON
         return JsonResponse({

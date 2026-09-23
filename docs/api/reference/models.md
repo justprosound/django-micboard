@@ -685,25 +685,25 @@ the `status="connected"` filter as well, counting one row twice.
 
 #### `mark_error(error_message: str) -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L53)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L56)
 
 Record one redacted transport error, counting consecutive failures.
 
 #### `mark_disconnected() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L64)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L67)
 
 Record an unintentional loss of the connection.
 
 #### `mark_stopped() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L69)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L72)
 
 Record an intentional connection stop.
 
 #### `reset_errors() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L74)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L77)
 
 Clear a stale error count without claiming the connection is back.
 
@@ -711,7 +711,7 @@ Clear a stale error count without claiming the connection is back.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L79)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L82)
 
 Tracks real-time connections (SSE/WebSocket) for wireless chassis.
 

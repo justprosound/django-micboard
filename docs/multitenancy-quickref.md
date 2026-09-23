@@ -49,8 +49,12 @@ uv run --no-sync python manage.py migrate
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 
-chassis = WirelessChassis.objects.for_user(user=request.user).active()
-units = WirelessUnit.objects.for_user(user=request.user).active()
+chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
+units = WirelessUnit.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 ### Authenticated location queries
@@ -147,7 +151,9 @@ def my_view(request):
     org = request.organization  # Set by TenantMiddleware
     campus_id = request.campus_id
 
-    chassis = WirelessChassis.objects.for_user(user=request.user).active()
+    chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 ## 🔄 Organization Switching
@@ -229,7 +235,9 @@ docs/
 Request-facing queries require the authenticated user:
 
 ```python
-WirelessChassis.objects.for_user(user=request.user).active()
+WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 ## 🧪 Testing

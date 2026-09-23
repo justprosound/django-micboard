@@ -155,6 +155,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - `poll_manufacturer_devices` evaluated post-poll alerts and logged `Polling task complete`
   even when the sync returned `success=False`, so a failed poll ran its success path against
   stale inventory. The task now reports the failure and returns without evaluating alerts.
+- `record_message()` resurrected a stopped realtime connection. Stopping a row from the admin
+  does not tear down a live subscription, so a late callback put it back to `connected` and
+  cleared `disconnected_at`. Error and disconnected rows are still recovered; a deliberate
+  stop is not.
+- Bulk chassis deletion authorized the selection before locking the rows, so a concurrent
+  location change could move a chassis out of the caller's tenant scope in between, and the
+  delete used the identifiers the caller supplied rather than the locked rows. Scope is now
+  re-checked while the locks are held, and only the locked primary keys are deleted.
 - A shipped integration whose own dependency was missing was reported as
   `Plugin not found`. `get_manufacturer_plugin` treated any `ModuleNotFoundError` during
   import as "this integration does not exist", including one raised inside the plugin module

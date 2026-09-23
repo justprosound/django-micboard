@@ -20,5 +20,9 @@ def test_assignment_row_paging_breaks_ties_on_primary_key() -> None:
 
     user = User.objects.create_superuser(username="pager", password="x")
     query = str(PerformerAssignmentService.get_visible_assignment_rows(user=user, page=1).query)
+    ordering = query.split("ORDER BY")[-1].split("LIMIT")[0]
 
-    assert query.rstrip().endswith('"id" ASC') or '"id"' in query.split("ORDER BY")[-1]
+    # Order-sensitive: the business ordering has to come first and the tie breaker last, or
+    # the primary key would override the ordering operators actually read the page by.
+    assert ordering.index("priority") < ordering.index('"micboard_performer"."name"')
+    assert ordering.rstrip().rstrip(",").endswith('"micboard_performerassignment"."id" ASC')

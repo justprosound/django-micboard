@@ -205,3 +205,24 @@ def test_every_transition_advances_the_updated_timestamp() -> None:
     RealTimeConnection.objects.filter(pk=connection.pk).update(updated_at=stale)
     RealTimeConnection.objects.filter(pk=connection.pk).record_message()
     assert RealTimeConnection.objects.get(pk=connection.pk).updated_at > stale
+
+
+def test_recording_a_message_does_not_resurrect_a_stopped_connection() -> None:
+    """The admin stop action is a decision; a late callback must not undo it.
+
+    Stopping a row does not tear down a live subscription, so an in-flight update can still
+    arrive afterwards. Error and disconnected rows are recovered, matching the per-row
+    behaviour this replaced, but a deliberate stop is not.
+    """
+    stopped = _connection(status="stopped")
+    disconnected = _connection(status="disconnected")
+    errored = _connection(status="error")
+
+    for row in (stopped, disconnected, errored):
+        RealTimeConnection.objects.filter(pk=row.pk).record_message()
+        row.refresh_from_db()
+
+    assert stopped.status == "stopped"
+    assert stopped.disconnected_at is not None
+    assert disconnected.status == "connected"
+    assert errored.status == "connected"

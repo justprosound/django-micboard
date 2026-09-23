@@ -28,7 +28,9 @@ Host-project views can build their own API using user-scoped model managers:
 ```python
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-chassis = WirelessChassis.objects.for_user(user=request.user).active()
+chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 payload = list(chassis.values("id", "name", "status"))
 ```
 

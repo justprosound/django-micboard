@@ -51,12 +51,24 @@ class ChassisBulkDeleteService:
                 .filter(pk__in=selected_ids)
                 .order_by("pk")
             )
+            # The first check ran before these rows were locked, so a concurrent location
+            # change could have moved one out of scope in between. Re-check against the
+            # locked rows, and delete those, not the identifiers the caller supplied.
+            locked_ids = [chassis.pk for chassis in locked]
+            cls._authorize(
+                selected_ids=locked_ids,
+                requested_by=requested_by,
+                using=using,
+            )
+            if len(locked_ids) != len(selected_ids):
+                raise PermissionDenied
+
             HardwarePostSaveHooks.handle_chassis_bulk_delete(
                 chassis_list=locked,
                 using=using,
             )
             with suppress_chassis_delete_hooks():
-                WirelessChassis._default_manager.using(using).filter(pk__in=selected_ids).delete()
+                WirelessChassis._default_manager.using(using).filter(pk__in=locked_ids).delete()
 
         reconciled = sorted(
             {chassis.manufacturer_id for chassis in locked if chassis.manufacturer_id is not None}

@@ -47,7 +47,10 @@ class RealTimeConnectionQuerySet(models.QuerySet["RealTimeConnection"]):
         """
         now = timezone.now()
         moved = self.filter(status="connected").update(last_message_at=now, updated_at=now)
-        established = self.exclude(status="connected").mark_connected()
+        # A stopped row is a decision an operator made, and stopping does not tear down a
+        # live subscription, so a late callback must not put it back. Error and disconnected
+        # rows are recovered, which is what the per-row helper this replaced did.
+        established = self.exclude(status__in=("connected", "stopped")).mark_connected()
         return moved + established
 
     def mark_error(self, error_message: str) -> int:
