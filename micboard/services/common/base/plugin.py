@@ -54,7 +54,14 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
         try:
             mod = importlib.import_module(path)
             break
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as exc:
+            # Only a missing integration module means "try the next path". A
+            # ModuleNotFoundError raised inside a shipped plugin — a vendor dependency that
+            # is not installed — must escape, or callers report "Plugin not found" for what
+            # is really an initialization failure.
+            missing = exc.name
+            if missing is not None and missing != path and not path.startswith(f"{missing}."):
+                raise
             continue
 
     if mod is None:

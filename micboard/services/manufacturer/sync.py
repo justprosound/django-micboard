@@ -194,14 +194,10 @@ class ManufacturerSyncService:
             force: Permit an explicitly requested operator poll while inactive.
 
         Returns:
-            Dictionary with sync status and counts:
-            {
-                'success': bool,
-                'devices_added': int,
-                'devices_updated': int,
-                'devices_removed': int,
-                'errors': list[str]
-            }
+            A validated `ManufacturerSyncResult`. Read `success` before its counts: an
+            expected failure is reported there rather than raised. `devices_added`,
+            `devices_updated`, `devices_removed` and `devices_examined` describe chassis,
+            not wireless units, and `errors` carries the redacted failure messages.
         """
         from micboard.models.discovery.manufacturer import Manufacturer
         from micboard.services.deduplication.check import check_device

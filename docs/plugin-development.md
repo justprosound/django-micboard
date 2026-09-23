@@ -396,7 +396,10 @@ describe them as automatic consequences of plugin registration.
 
 ## Protocol-specific patterns
 
-Streaming is optional and is not part of `ManufacturerPlugin`'s abstract contract.
+Both realtime members are abstract, so streaming is not optional to *declare*. An
+integration that does not stream still implements `subscribe_to_chassis` and returns
+`None` from `realtime_transport`; the subscription runner then starts no supervisor for it
+and never awaits the method.
 
 ### REST polling
 

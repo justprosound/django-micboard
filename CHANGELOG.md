@@ -40,6 +40,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - `poll_manufacturer_devices` evaluated post-poll alerts and logged `Polling task complete`
   even when the sync returned `success=False`, so a failed poll ran its success path against
   stale inventory. The task now reports the failure and returns without evaluating alerts.
+- A shipped integration whose own dependency was missing was reported as
+  `Plugin not found`. `get_manufacturer_plugin` treated any `ModuleNotFoundError` during
+  import as "this integration does not exist", including one raised inside the plugin module
+  itself, so a missing vendor package sent an operator looking for an uninstalled
+  integration. Only a genuinely absent integration module is swallowed now.
 - A realtime subscription cancelled while its connection tracking was still being created
   left the row in `connecting`. The round had marked it connecting inside the worker thread
   but did not yet hold it, so the cleanup path skipped it. Closing now resolves the row by

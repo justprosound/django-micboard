@@ -64,3 +64,22 @@ def test_building_a_plugin_for_an_unsupported_manufacturer_raises() -> None:
 
     with pytest.raises(ModuleNotFoundError, match="nosuchvendor"):
         build_manufacturer_plugin(manufacturer)
+
+
+def test_a_missing_vendor_dependency_is_not_reported_as_a_missing_integration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A shipped integration that cannot import its own dependency is a different fault.
+
+    Swallowing it would send an operator looking for an uninstalled integration instead of a
+    missing package, the same way a caught `ValueError` once did.
+    """
+    import importlib
+
+    def fail_inside_plugin(name: str) -> object:
+        raise ModuleNotFoundError("No module named 'websockets'", name="websockets")
+
+    monkeypatch.setattr(importlib, "import_module", fail_inside_plugin)
+
+    with pytest.raises(ModuleNotFoundError, match="websockets"):
+        get_manufacturer_plugin("shure")
