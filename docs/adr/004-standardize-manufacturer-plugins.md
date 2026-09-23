@@ -45,10 +45,12 @@ would have only two consumers. Similar filenames are not sufficient evidence for
    row and broadcast; `services/sync/polling_api.py` owns the managed-device path, polling one
    operator-registered chassis through its persisted `ManufacturerAPIServer` after an ownership
    check. Neither may grow the other's responsibility.
-9. Outside `micboard/integrations/`, only the API-server connection surface
-   (`services/integrations/api_server_service.py`) and the admin connection checker may name a
-   vendor. Every other module obtains its integration through
-   `build_manufacturer_plugin(manufacturer)`.
+9. Outside `micboard/integrations/`, only these surfaces may name a vendor: the API-server
+   connection surface (`services/integrations/api_server_service.py`), the admin connection
+   checker, and the managed-device polling gate in `services/sync/polling_api.py`, which
+   admits only `ManufacturerAPIServer.Manufacturer.SHURE` because that is the sole API-server
+   protocol implemented. Every other module obtains its integration through
+   `build_manufacturer_plugin(manufacturer)` and branches on no vendor at all.
 
 **Correction (2026-09-22):** clause 7 read as though only one polling module existed, while
 `services/sync/polling_api.py` had been polling managed devices alongside the synchronization

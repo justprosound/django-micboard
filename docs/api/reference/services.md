@@ -150,37 +150,37 @@ Return one bounded live-refresh slice without a count query.
 
 #### `get_preferred_active_assignments_for_units(user: Any, unit_ids: Collection[int]) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L107)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L115)
 
 Return at most one deterministic active assignment for each requested unit.
 
 #### `get_preferred_active_assignments_for_serials(user: Any, serial_numbers: Collection[str]) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L122)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L130)
 
 Return at most one deterministic active assignment for each requested serial.
 
 #### `ensure_group_can_manage_unit(group: MonitoringGroup, unit: WirelessUnit) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L137)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L145)
 
 Require the selected group to cover the unit in tenant-aware deployments.
 
 #### `ensure_can_modify_unit(user: Any, unit: WirelessUnit) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L165)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L173)
 
 Require an MSP role that permits assignment changes for the unit.
 
 #### `create_assignment(command: CreatePerformerAssignment, user: Any) -> PerformerAssignment`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L229)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L237)
 
 Create an assignment after validating every object against user scope.
 
 #### `update_assignment(command: UpdatePerformerAssignment, user: Any) -> PerformerAssignment`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L286)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L294)
 
 Update fields on an existing assignment and return the instance.
 
@@ -188,13 +188,13 @@ Raises PerformerAssignment.DoesNotExist if the assignment is missing.
 
 #### `delete_assignment(assignment_id: int, user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L315)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L323)
 
 Permanently delete an assignment. Returns True if deleted, False if not found.
 
 #### `deactivate_assignment(assignment_id: int, user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L334)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L342)
 
 Deactivate an existing assignment.
 

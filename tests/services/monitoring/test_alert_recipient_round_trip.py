@@ -139,5 +139,8 @@ def test_no_persisted_alert_is_invisible_to_its_own_recipient() -> None:
 
     alert = _deliver(unit=unit, user=recipient, assignment=assignment)
 
-    if alert is not None:
-        assert list(get_alerts_for_user(recipient)) == [alert]
+    # A recipient holding both organizations is entitled to this alert, so delivery must
+    # produce one — guarding the read assertion behind `if alert` would let the test pass
+    # without ever exercising the read path.
+    assert alert is not None
+    assert list(get_alerts_for_user(recipient)) == [alert]
