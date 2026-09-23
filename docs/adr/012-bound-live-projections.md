@@ -39,10 +39,14 @@ Consequences below draw that line.
 The one live surface that does not follow clause 1 is the performer-assignment refresh fragment
 (`AssignmentRowsView` → `partials/assignment_rows.html`). It renders `PerformerAssignment` rows
 with their related graph rather than a primitive snapshot DTO. It is bounded and deterministic —
-visibility is applied before the 50-row slice, and `unique_together` on
-`("performer", "wireless_unit")` makes the `("-priority", "performer", "wireless_unit")`
-ordering total without a primary-key tie breaker — so it satisfies clause 2. Converting it to a
-snapshot DTO remains open work.
+visibility is applied before the 50-row slice, and the row query now ends in a primary-key
+tie breaker — so it satisfies clause 2. Converting it to a snapshot DTO remains open work.
+
+An earlier revision of this note claimed `unique_together` on
+(`"performer", "wireless_unit"`) already made `("-priority", "performer", "wireless_unit")`
+total. It does not: ordering by those relations sorts by their own `Meta.ordering`
+(`Performer.name`, and `WirelessUnit.base_chassis__name, slot`), none of which is unique, so
+distinct assignments could tie and cross the page boundary between refreshes.
 
 ## Consequences
 

@@ -6,8 +6,9 @@ title: "ADR-011: Introduce EventBus for Signal-Based Communication"
 **Deciders:** (to be assigned)
 **Reviewed:** 2026-09-22
 
-> **Not implemented (reviewed 2026-09-22).** No `EventBus` exists in `micboard/`, and the
-> class name has zero references outside this document. The Compliance section below described
+> **Not implemented (reviewed 2026-09-22).** No `EventBus` exists in `micboard/`. The name
+> appears only in this ADR and in the SRED planning documents under `docs/sred/2026/`,
+> which record it as planned work rather than shipped behaviour. The Compliance section below described
 > rules that were never in force: there is no CI check for `@receiver` decorators, model
 > signals are still wired in `micboard/model_lifecycle.py`, and services still call
 > `broadcast_service.py` directly. That section is retained as a record of the original

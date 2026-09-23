@@ -207,8 +207,14 @@ queryset = MyModel.objects.for_site(site_id=1)
 ```
 
 `for_user` resolves the caller's deployment mode — MSP membership, multi-site, or
-monitoring-group scoping — and fails closed for an anonymous or unscoped user. `for_site` and
-`for_memberships` are the narrower filters it composes. Both are no-ops in single-site mode.
+monitoring-group scoping. It fails closed for an anonymous user, and in MSP mode for a user
+with no active membership. In single-site mode it narrows through monitoring groups only when
+the model has a `location` relation and the user has `monitoring_groups`; otherwise it returns
+the queryset unchanged, because single-site deployments have no tenant boundary to enforce.
+
+`for_site` and `for_memberships` are the narrower filters it composes. `for_site` is a no-op
+outside multi-site mode; `for_memberships` always applies the organization and campus
+identifiers it is given.
 
 ## Middleware
 

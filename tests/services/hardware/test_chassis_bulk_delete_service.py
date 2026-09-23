@@ -10,7 +10,9 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import Mock
 
+from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied
+from django.test import override_settings
 
 import pytest
 
@@ -19,6 +21,8 @@ from micboard.services.hardware.chassis_bulk_delete_service import ChassisBulkDe
 from tests.factories.base import UserFactory
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
+from tests.factories.locations import BuildingFactory, LocationFactory
+from tests.factories.multitenancy import OrganizationFactory, OrganizationMembershipFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -114,6 +118,52 @@ def test_a_selection_mixing_manageable_and_foreign_rows_is_rejected_whole(
 
     reconciliation.assert_not_called()
     assert WirelessChassis.objects.filter(pk=chassis.pk).exists()
+
+
+@override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
+def test_a_selection_reaching_into_another_tenant_is_refused(reconciliation: Mock) -> None:
+    """A row that exists but belongs to another organization is outside the caller's scope.
+
+    A non-existent primary key already fails the count check; this covers the case the
+    authorization is actually for.
+    """
+    own_organization = OrganizationFactory()
+    foreign_organization = OrganizationFactory()
+    operator = UserFactory(is_staff=True, is_superuser=False)
+    operator.user_permissions.add(
+        Permission.objects.get(codename="delete_wirelesschassis"),
+    )
+    OrganizationMembershipFactory(
+        user=operator,
+        organization=own_organization,
+        campus=None,
+        role="admin",
+    )
+    own = WirelessChassisFactory(
+        location=LocationFactory(building=BuildingFactory(organization_id=own_organization.pk)),
+    )
+    foreign = WirelessChassisFactory(
+        location=LocationFactory(building=BuildingFactory(organization_id=foreign_organization.pk)),
+    )
+
+    with pytest.raises(PermissionDenied):
+        ChassisBulkDeleteService.delete(
+            chassis_ids=[own.pk, foreign.pk],
+            requested_by=operator,
+        )
+
+    reconciliation.assert_not_called()
+    assert WirelessChassis.objects.filter(pk__in=[own.pk, foreign.pk]).count() == 2
+
+    # The same operator may delete their own organization's row, which is what makes the
+    # rejection above about the foreign row rather than about the operator.
+    assert (
+        ChassisBulkDeleteService.delete(
+            chassis_ids=[own.pk],
+            requested_by=operator,
+        ).deleted_count
+        == 1
+    )
 
 
 def test_an_empty_selection_does_nothing_at_all(reconciliation: Mock) -> None:

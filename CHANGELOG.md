@@ -17,13 +17,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 ### Changed
 
 - `ManufacturerPlugin.transform_transmitter_data` is now abstract. `DeviceUpdateService`
-  persists through whichever plugin it is handed and calls that method unconditionally, so a
-  plugin without one was already unusable on the managed-device and realtime paths; the
-  contract now says so. Both shipped integrations already implement it.
+  persists through whichever plugin it is handed and calls that method for raw wireless-unit
+  payloads — it uses the payload as-is when the transport already normalised it, and returns
+  early when the payload is not a mapping — so a plugin without one was unusable on those
+  paths. The contract now says so. Both shipped integrations already implement it.
 
-- `services/sync/polling_api.py` builds its plugin through `build_manufacturer_plugin` instead
-  of importing `ShurePlugin`, so no module outside `micboard/integrations/` and the API-server
-  connection surface names a vendor.
+- `services/sync/polling_api.py` builds its plugin through `build_manufacturer_plugin`
+  instead of importing `ShurePlugin`, so no module outside `micboard/integrations/` constructs
+  a vendor plugin directly. That module still gates managed-device polling on
+  `ManufacturerAPIServer.Manufacturer.SHURE`, which is the only API-server protocol
+  implemented; ADR-004 clause 9 records it as a permitted exception alongside the API-server
+  connection surface and the admin connection checker.
 
 ### Removed
 

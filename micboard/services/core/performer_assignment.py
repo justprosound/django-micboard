@@ -65,7 +65,15 @@ class PerformerAssignmentService:
         page_number = cls._normalize_page_number(page)
         start = (page_number - 1) * cls.PAGE_SIZE
         stop = start + cls.PAGE_SIZE
-        return cls.get_visible_assignments(user=user)[start:stop]
+        # `performer` and `wireless_unit` sort by their own non-unique Meta ordering, so the
+        # primary key is what makes this total. Without it, rows tied on the effective
+        # ordering can repeat or disappear across the page boundary between refreshes.
+        return cls.get_visible_assignments(user=user).order_by(
+            "-priority",
+            "performer",
+            "wireless_unit",
+            "pk",
+        )[start:stop]
 
     @staticmethod
     def _get_preferred_active_assignments(

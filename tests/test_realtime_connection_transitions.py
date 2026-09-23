@@ -170,3 +170,38 @@ def test_a_connection_that_is_not_live_reports_no_duration() -> None:
     connection = _connection(status="stopped", connected_at=timezone.now() - timedelta(hours=1))
 
     assert connection.connected_duration is None
+
+
+def test_recording_a_message_counts_each_row_once() -> None:
+    """`update()` returns rows matched, so a pending row must not be counted by both passes."""
+    connection = _connection(status="connecting")
+
+    updated = RealTimeConnection.objects.filter(pk=connection.pk).record_message()
+
+    assert updated == 1
+
+
+def test_every_transition_advances_the_updated_timestamp() -> None:
+    """`QuerySet.update()` skips `auto_now`, so each transition must set it explicitly."""
+    connection = _connection(status="connecting")
+    RealTimeConnection.objects.filter(pk=connection.pk).update(
+        updated_at=timezone.now() - timedelta(hours=2)
+    )
+    stale = RealTimeConnection.objects.get(pk=connection.pk).updated_at
+
+    for transition in ("mark_connecting", "mark_connected", "mark_disconnected", "mark_stopped"):
+        RealTimeConnection.objects.filter(pk=connection.pk).update(updated_at=stale)
+        getattr(RealTimeConnection.objects.filter(pk=connection.pk), transition)()
+        assert RealTimeConnection.objects.get(pk=connection.pk).updated_at > stale, transition
+
+    RealTimeConnection.objects.filter(pk=connection.pk).update(updated_at=stale)
+    RealTimeConnection.objects.filter(pk=connection.pk).mark_error("boom")
+    assert RealTimeConnection.objects.get(pk=connection.pk).updated_at > stale
+
+    RealTimeConnection.objects.filter(pk=connection.pk).update(updated_at=stale)
+    RealTimeConnection.objects.filter(pk=connection.pk).reset_errors()
+    assert RealTimeConnection.objects.get(pk=connection.pk).updated_at > stale
+
+    RealTimeConnection.objects.filter(pk=connection.pk).update(updated_at=stale)
+    RealTimeConnection.objects.filter(pk=connection.pk).record_message()
+    assert RealTimeConnection.objects.get(pk=connection.pk).updated_at > stale

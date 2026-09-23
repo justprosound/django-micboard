@@ -23,7 +23,7 @@ class RealTimeConnectionQuerySet(models.QuerySet["RealTimeConnection"]):
 
         The error history is deliberately preserved: a reconnect is not yet a success.
         """
-        return self.update(status="connecting")
+        return self.update(status="connecting", updated_at=timezone.now())
 
     def mark_connected(self) -> int:
         """Record an established connection and clear every trace of the last failure."""
@@ -36,34 +36,44 @@ class RealTimeConnectionQuerySet(models.QuerySet["RealTimeConnection"]):
             error_count=0,
             error_message="",
             reconnect_attempts=0,
+            updated_at=now,
         )
 
     def record_message(self) -> int:
-        """Record message activity, establishing a connection that was still pending."""
+        """Record message activity, establishing a connection that was still pending.
+
+        Live rows are moved first. Establishing pending rows first would leave them matching
+        the `status="connected"` filter as well, counting one row twice.
+        """
+        now = timezone.now()
+        moved = self.filter(status="connected").update(last_message_at=now, updated_at=now)
         established = self.exclude(status="connected").mark_connected()
-        moved = self.filter(status="connected").update(last_message_at=timezone.now())
-        return established + moved
+        return moved + established
 
     def mark_error(self, error_message: str) -> int:
         """Record one redacted transport error, counting consecutive failures."""
+        now = timezone.now()
         return self.update(
             status="error",
             error_message=error_message,
             error_count=F("error_count") + 1,
-            last_error_at=timezone.now(),
+            last_error_at=now,
+            updated_at=now,
         )
 
     def mark_disconnected(self) -> int:
         """Record an unintentional loss of the connection."""
-        return self.update(status="disconnected", disconnected_at=timezone.now())
+        now = timezone.now()
+        return self.update(status="disconnected", disconnected_at=now, updated_at=now)
 
     def mark_stopped(self) -> int:
         """Record an intentional connection stop."""
-        return self.update(status="stopped", disconnected_at=timezone.now())
+        now = timezone.now()
+        return self.update(status="stopped", disconnected_at=now, updated_at=now)
 
     def reset_errors(self) -> int:
         """Clear a stale error count without claiming the connection is back."""
-        return self.update(error_count=0, error_message="")
+        return self.update(error_count=0, error_message="", updated_at=timezone.now())
 
 
 class RealTimeConnection(models.Model):
