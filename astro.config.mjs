@@ -58,6 +58,10 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "guides" } }],
         },
         {
+          label: "Deployment",
+          items: ["demo-deployment"],
+        },
+        {
           label: "Multi-Tenancy",
           items: ["multitenancy", "multitenancy-quickref"],
         },

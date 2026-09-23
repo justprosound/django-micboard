@@ -14,6 +14,8 @@ import os
 from importlib.util import find_spec
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Base directory of the repository
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -99,26 +101,27 @@ TEMPLATES = [
 WSGI_APPLICATION = "example_project.wsgi.application"
 ASGI_APPLICATION = "example_project.asgi.application"
 
-# Database (uses repo-level db.sqlite3 unless DJANGO_DATABASE_URL is provided)
-DATABASE_URL = os.environ.get("DJANGO_DATABASE_URL")
+# Database (uses repo-level db.sqlite3 unless a database URL is provided). `DATABASE_URL` is
+# accepted because hosting platforms inject that name automatically when a database is
+# attached; the Django-prefixed name wins when both are set.
+DATABASE_URL = os.environ.get("DJANGO_DATABASE_URL") or os.environ.get("DATABASE_URL")
 if DATABASE_URL:
     try:
         import dj_database_url
+    except ImportError as exc:  # pragma: no cover - depends on the installed extras
+        # Falling back to SQLite here would quietly ignore the configured database and
+        # then fail the micboard.E001 production-backend check with a confusing message.
+        raise ImproperlyConfigured(
+            "A database URL is configured but dj-database-url is not installed. "
+            "Install the 'demo' extra, or unset the database URL to use SQLite."
+        ) from exc
 
-        DATABASES = {
-            "default": dj_database_url.config(
-                default=DATABASE_URL,
-                conn_max_age=600,
-            )
-        }
-    except ImportError:
-        # TODO: Add dj-database-url for DB URL parsing in demo environments.
-        DATABASES = {
-            "default": {
-                "ENGINE": "django.db.backends.sqlite3",
-                "NAME": str(BASE_DIR / "db.sqlite3"),
-            }
-        }
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+        )
+    }
 else:
     DATABASES = {
         "default": {
@@ -183,3 +186,47 @@ MICBOARD_CONFIG: dict[str, t.Any] = {
     "API_HEALTH_LOG_RETENTION_DAYS": 7,
     "AUDIT_ARCHIVE_PATH": "audit_archives",
 }
+
+# ============================================================================
+# Public demo deployment
+# ============================================================================
+# Only engaged when the environment asks for it, so local development keeps the
+# permissive defaults above. See docs/demo-deployment.md.
+#
+# Each setting below is assigned unconditionally, with its off value matching Django's own
+# default, rather than existing only inside an `if`. Conditionally defined settings read
+# as dead code to static analysis, since the framework consumes them through
+# django.conf.settings rather than from this module.
+if _is_package_installed("whitenoise"):
+    # Immediately after SecurityMiddleware, as WhiteNoise requires.
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+
+# Hashed filenames, so a deployment can serve static files with a long cache lifetime.
+# This needs every asset referenced by a stylesheet to exist, which #261 made true by
+# vendoring the IBM Plex fonts that theme.css references.
+_STATICFILES_BACKEND = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    if _is_package_installed("whitenoise")
+    else "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"
+)
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": _STATICFILES_BACKEND},
+}
+
+# A platform such as Render terminates TLS at its proxy, so Django needs to be told that a
+# forwarded request was secure before it will set secure cookies or accept an admin login.
+BEHIND_TLS_PROXY = os.environ.get("DJANGO_BEHIND_TLS_PROXY", "False").lower() == "true"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if BEHIND_TLS_PROXY else None
+SESSION_COOKIE_SECURE = BEHIND_TLS_PROXY
+CSRF_COOKIE_SECURE = BEHIND_TLS_PROXY
+SECURE_SSL_REDIRECT = BEHIND_TLS_PROXY
+# One hour, and deliberately without includeSubDomains or preload: a demo on a shared
+# platform hostname has no business setting a domain-wide policy. Zero is Django's default
+# and disables the header entirely.
+SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "3600")) if BEHIND_TLS_PROXY else 0
+
+# Django requires the scheme-qualified origin for admin logins behind a proxy.
+CSRF_TRUSTED_ORIGINS = [
+    origin for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if origin
+]

@@ -278,6 +278,51 @@ jobs:
           path: site/
           retention-days: 30
 
+  demo-image:
+    name: Build Demo Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres@sha256:f4c66b820c6f974249089d3d16d86a3698eae11e8746eb6644b2271031e91232  # 17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: micboard_demo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+
+      - name: Build the read-only demo image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: django-micboard-demo:ci
+
+      # The whole deployment path, not just the build: the app's own micboard.E001
+      # check rejects SQLite when DEBUG is off, so a demo without Postgres cannot start.
+      - name: Migrate, seed, and check against Postgres
+        run: >-
+          docker run --rm --network host
+          -e DJANGO_SECRET_KEY=ci-only-secret-key-with-enough-length-and-variety-4Kq9zX7
+          -e DJANGO_DEBUG=False
+          -e DJANGO_ALLOWED_HOSTS=localhost
+          -e DJANGO_BEHIND_TLS_PROXY=True
+          -e DATABASE_URL=postgres://postgres:postgres@localhost:5432/micboard_demo
+          -e MICBOARD_DEMO_PASSWORD=ci-only-password
+          django-micboard-demo:ci
+          sh -c 'python manage.py migrate --noinput && python manage.py seed_demo_data
+          && python manage.py check --deploy --fail-level ERROR'
+
   deploy-docs:
     name: Deploy Documentation
     needs: build-docs
@@ -412,6 +457,7 @@ jobs:
       - security
       - codeql
       - build-docs
+      - demo-image
       - dependency-review
       - scorecard
       - mutation-testing

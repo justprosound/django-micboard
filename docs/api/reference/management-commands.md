@@ -317,6 +317,32 @@ Register the manufacturer and optional single-device selectors.
 
 Resolve the manufacturer and run the singleton supervisor for its transport.
 
+## `micboard.management.commands.seed_demo_data`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py)
+
+Management command that seeds the demonstration dataset.
+
+### `Command`
+
+Bases: `BaseCommand`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L13)
+
+Create a small, self-consistent demonstration dataset.
+
+#### `add_arguments(parser: Any) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L21)
+
+Register the optional read-only account password.
+
+#### `handle(*_args: Any, **options: Any) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L32)
+
+Delegate to the seeding service and report what it produced.
+
 ## `micboard.management.commands.set_logging_mode`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/set_logging_mode.py)
