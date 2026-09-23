@@ -66,7 +66,11 @@ def test_kiosk_auth_get_and_post_cover_success_and_missing_wall() -> None:
         assert KioskAuthView().get(kiosk_request, "stage").status_code == 200
         assert KioskAuthView().post(kiosk_request, "stage").status_code == 200
         assert KioskAuthView().post(kiosk_request, "missing").status_code == 404
-    assert render.call_args.args[2] == {"snapshot": snapshot, "kiosk": True}
+    assert render.call_args.args[2] == {
+        "snapshot": snapshot,
+        "kiosk": True,
+        "heartbeat_interval_ms": 30_000,
+    }
 
     with (
         patch("micboard.views.kiosk.KioskService.get_kiosk_snapshot", return_value=None),

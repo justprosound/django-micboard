@@ -10,6 +10,7 @@ from micboard.forms.dashboard import DisplayWidthForm
 from micboard.models.users.user_profile import UserProfile
 from micboard.services.chargers.dashboard_service import ChargerDashboardService
 from micboard.services.core.user_profile import UserProfileService
+from micboard.services.settings.browser_refresh_service import browser_refresh_cadence
 
 
 class ChargerDashboardView(LoginRequiredMixin, TemplateView):
@@ -28,6 +29,7 @@ class ChargerDashboardView(LoginRequiredMixin, TemplateView):
             "display_width_form",
             DisplayWidthForm(initial={"display_width_px": profile.display_width_px}),
         )
+        context["refresh_interval_seconds"] = browser_refresh_cadence.seconds_for("chargers")
         return context
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:

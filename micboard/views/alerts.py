@@ -19,6 +19,7 @@ from micboard.services.monitoring.alerts import (
     get_alerts_for_user,
     resolve_alert,
 )
+from micboard.services.settings.browser_refresh_service import browser_refresh_cadence
 
 # Alert business logic has been moved to the service layer
 # (see `micboard.services.monitoring.alerts.AlertManager`).
@@ -47,6 +48,7 @@ def alerts_view(request: HttpRequest) -> HttpResponse:
         "alert_type_filter": criteria.alert_type,
         "alert_types": Alert.ALERT_TYPES,
         "alert_statuses": Alert.ALERT_STATUS,
+        "refresh_interval_seconds": browser_refresh_cadence.seconds_for("alerts"),
     }
     return render(request, "micboard/alerts.html", context)
 

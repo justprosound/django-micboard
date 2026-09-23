@@ -43,7 +43,7 @@
                 headers: {"X-CSRFToken": csrfToken},
             }).catch(error => console.error("Heartbeat failed:", error));
         }
-        setInterval(sendHeartbeat, 30000);
+        setInterval(sendHeartbeat, {{ heartbeat_interval_ms }});
 
         // Record only successful renders so stale displays remain visible to operators.
         function updateTimestamp() {

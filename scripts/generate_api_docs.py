@@ -79,6 +79,7 @@ PAGES: tuple[Page, ...] = (
             "micboard.services.core.device_specs",
             "micboard.services.core.user_profile",
             "micboard.services.settings.settings_service",
+            "micboard.services.settings.browser_refresh_service",
             "micboard.services.settings.registry",
             "micboard.services.settings.dtos",
             "micboard.services.shared.access_policy",
