@@ -208,3 +208,44 @@ def test_scope_is_rechecked_while_the_rows_are_locked(reconciliation: Mock) -> N
     assert len(calls) >= 2, "authorization must be re-checked after locking"
     reconciliation.assert_not_called()
     assert WirelessChassis.objects.filter(pk=chassis.pk).exists()
+
+
+def test_a_row_that_disappears_before_the_lock_refuses_the_whole_selection(
+    reconciliation: Mock,
+) -> None:
+    """Locking can return fewer rows than were authorized, and that is not a partial delete.
+
+    The pre-lock check passed for this identifier, so without the count comparison the
+    deletion would proceed against a selection the service can no longer account for.
+    """
+    manufacturer = ManufacturerFactory()
+    first = WirelessChassisFactory(manufacturer=manufacturer)
+    second = WirelessChassisFactory(manufacturer=manufacturer)
+    real = ChassisBulkDeleteService._authorize
+    calls: list[int] = []
+
+    def drop_a_row_after_the_first_check(*, selected_ids, requested_by, using):
+        calls.append(1)
+        real(selected_ids=selected_ids, requested_by=requested_by, using=using)
+        if len(calls) == 1:
+            # Stand in for a concurrent delete landing between the check and the lock.
+            # That queryset delete registers grouped cleanup of its own, so the spy is reset
+            # afterwards and only records what the service under test does.
+            WirelessChassis.objects.filter(pk=second.pk).delete()
+            reconciliation.reset_mock()
+
+    with (
+        patch.object(
+            ChassisBulkDeleteService,
+            "_authorize",
+            side_effect=drop_a_row_after_the_first_check,
+        ),
+        pytest.raises(PermissionDenied),
+    ):
+        ChassisBulkDeleteService.delete(
+            chassis_ids=[first.pk, second.pk],
+            requested_by=_manager(),
+        )
+
+    reconciliation.assert_not_called()
+    assert WirelessChassis.objects.filter(pk=first.pk).exists()
