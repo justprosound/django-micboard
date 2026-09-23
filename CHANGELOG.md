@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.9.23.0] - 2026-09-23
+
 ### Changed
 
 - **Breaking:** the `sse_subscribe` and `websocket_subscribe` management commands are replaced by
