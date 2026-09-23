@@ -13,7 +13,6 @@ from micboard.discovery.network_utils import resolve_fqdns
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveryCIDR, DiscoveryFQDN
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.common.base.plugin import ManufacturerPlugin, get_manufacturer_plugin
 from micboard.services.sync.discovery_source_cursor_service import (
     DiscoverySource,
     DiscoverySourceCursorService,
@@ -23,20 +22,6 @@ from micboard.utils.exception_logging import sanitized_exception_info
 logger = logging.getLogger(__name__)
 
 AddressIterator = tuple[str, str, Iterator[str]]
-
-
-def get_manufacturer_plugin_instance(manufacturer: Manufacturer) -> ManufacturerPlugin:
-    """Build the discovery-capable plugin for a manufacturer.
-
-    Args:
-        manufacturer: The manufacturer to build a plugin for
-
-    Returns:
-        Configured manufacturer plugin
-    """
-    plugin_class = get_manufacturer_plugin(manufacturer.code)
-    plugin = plugin_class(manufacturer)
-    return plugin
 
 
 def collect_local_candidates(

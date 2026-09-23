@@ -61,8 +61,7 @@ class MicboardConfig(AppConfig):
             check_realtime_connection_health,
             check_selected_api_server_connections,
         )
-        from micboard.tasks.monitoring.sse import start_sse_subscriptions
-        from micboard.tasks.monitoring.websocket import start_shure_websocket_subscriptions
+        from micboard.tasks.monitoring.realtime import start_realtime_subscriptions
         from micboard.tasks.sync.discovery import (
             cache_all_discovery_candidates,
             run_discovery_sync_task,
@@ -79,8 +78,7 @@ class MicboardConfig(AppConfig):
             check_manufacturer_api_health,
             check_realtime_connection_health,
             check_selected_api_server_connections,
-            start_sse_subscriptions,
-            start_shure_websocket_subscriptions,
+            start_realtime_subscriptions,
             cache_all_discovery_candidates,
             run_discovery_sync_task,
             run_manufacturer_discovery_task,

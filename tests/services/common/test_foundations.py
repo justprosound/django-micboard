@@ -13,6 +13,7 @@ from micboard.services.common.base import resilience as resilience_module
 from micboard.services.common.base.client import BaseAPIClient
 from micboard.services.common.base.plugin import BasePlugin, ManufacturerPlugin
 from micboard.services.common.base.utils import (
+    build_device_https_url,
     validate_hostname,
     validate_ipv4_address,
     validate_ipv4_list,
@@ -24,9 +25,13 @@ class PreferredPlugin(ManufacturerPlugin):
 
     name = "Preferred"
     code = "preferred"
+    realtime_transport = None
 
     def get_devices(self):
         return []
+
+    async def subscribe_to_chassis(self, chassis, callback):
+        return None
 
     def get_device_channels(self, device_id):
         return []
@@ -206,3 +211,27 @@ def test_abstract_contract_methods_fail_explicitly(
     callable_method = descriptor.fget if isinstance(descriptor, property) else descriptor
     with pytest.raises(NotImplementedError):
         callable_method(instance, *args)
+
+
+def test_device_https_url_formats_ipv4_and_ipv6_authorities() -> None:
+    """IPv6 literals are bracketed while IPv4 addresses remain plain."""
+    assert build_device_https_url(ip_address="192.0.2.10", port=8443) == "https://192.0.2.10:8443"
+    assert (
+        build_device_https_url(ip_address="2001:db8::10", port="443")
+        == "https://[2001:db8::10]:443"
+    )
+
+
+@pytest.mark.parametrize("port", [0, 65536, True, None, "invalid"])
+def test_device_https_url_rejects_invalid_ports(port: object) -> None:
+    """Invalid ports fail before constructing a manufacturer client."""
+    with pytest.raises(ValueError, match="between 1 and 65535"):
+        build_device_https_url(ip_address="192.0.2.10", port=port)
+
+
+def test_device_https_url_rejects_non_ip_hosts_without_echoing_input() -> None:
+    """The client origin cannot be redirected to a hostname or malformed authority."""
+    with pytest.raises(ValueError, match="Device IP address is invalid") as error:
+        build_device_https_url(ip_address="private-hostname.example", port=443)
+
+    assert "private-hostname" not in str(error.value)

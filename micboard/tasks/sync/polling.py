@@ -90,21 +90,33 @@ def poll_manufacturer_devices(
             manufacturer_filters["is_active"] = True
         manufacturer = Manufacturer.objects.get(**manufacturer_filters)
 
-        # Use the new PollingService for clean service-based approach
-        from micboard.services.sync.polling_service import PollingService
+        from micboard.services.manufacturer.sync import ManufacturerSyncService
 
-        service = PollingService()
-        result = service.poll_manufacturer(manufacturer, force=force)
+        result = ManufacturerSyncService.sync_devices_for_manufacturer(
+            manufacturer_code=manufacturer.code,
+            force=force,
+        )
+
+        if not result.success:
+            # No fresh inventory was persisted, so evaluating alerts would read stale state
+            # and the completion log would claim a poll that did not happen.
+            logger.warning(
+                "Polling task failed for %s with %d error(s)",
+                manufacturer.name,
+                len(result.errors),
+                extra={"code": manufacturer.code, "errors": result.errors},
+            )
+            return result.model_dump()
 
         from micboard.services.monitoring.poll_alert_service import PollAlertService
 
         alert_scan = PollAlertService.evaluate_manufacturer(manufacturer)
 
         logger.info(
-            "Polling task complete for %s: %d devices created/updated, %d transmitters",
+            "Polling task complete for %s: %d chassis created/updated of %d examined",
             manufacturer.name,
-            result.get("devices_created", 0) + result.get("devices_updated", 0),
-            result.get("units_synced", 0),
+            result.devices_added + result.devices_updated,
+            result.devices_examined,
         )
         if alert_scan.failed:
             logger.warning(
@@ -113,7 +125,7 @@ def poll_manufacturer_devices(
                 alert_scan.scanned,
             )
 
-        return result
+        return result.model_dump()
 
     except Manufacturer.DoesNotExist:
         logger.warning(

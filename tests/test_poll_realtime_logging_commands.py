@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from io import StringIO
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, call
+from unittest.mock import MagicMock, Mock, call, patch
 
 from django.core.management.base import CommandError
 
@@ -101,19 +101,31 @@ def test_poll_enqueue_and_sync_result_paths(monkeypatch) -> None:
     assert "Failed to enqueue async task (RuntimeError); details redacted." in errors.getvalue()
     assert queue_secret not in errors.getvalue()
 
-    service = Mock()
-    service.poll_manufacturer.return_value = {
-        "devices_created": 1,
-        "devices_updated": 2,
-        "units_synced": 3,
-    }
-    command._poll_manufacturer(service, manufacturer)
-    assert "1 created, 2 updated, 3 wireless units" in output.getvalue()
-    service.poll_manufacturer.assert_called_once_with(manufacturer, force=False)
+    from micboard.services.sync.polling_dtos import ManufacturerSyncResult
+
+    sync = Mock(
+        return_value=ManufacturerSyncResult(
+            success=True,
+            devices_added=1,
+            devices_updated=2,
+            devices_examined=3,
+            device_limit=100,
+        )
+    )
+    with patch(
+        "micboard.services.manufacturer.sync.ManufacturerSyncService.sync_devices_for_manufacturer",
+        sync,
+    ):
+        command._poll_manufacturer(manufacturer)
+        assert "1 created, 2 updated, 3 examined" in output.getvalue()
+        assert sync.call_args.kwargs == {"manufacturer_code": manufacturer.code, "force": False}
+
     api_secret = "vendor-api-token-in-error"
-    service.poll_manufacturer.side_effect = RuntimeError(api_secret)
-    command._poll_manufacturer(service, manufacturer, force=True)
-    assert service.poll_manufacturer.call_args.kwargs == {"force": True}
+    with patch(
+        "micboard.services.manufacturer.sync.ManufacturerSyncService.sync_devices_for_manufacturer",
+        Mock(side_effect=RuntimeError(api_secret)),
+    ):
+        command._poll_manufacturer(manufacturer, force=True)
     assert "Error polling Shure (RuntimeError); details redacted." in errors.getvalue()
     assert api_secret not in errors.getvalue()
 

@@ -6,7 +6,7 @@ from contextlib import suppress
 from typing import Any
 
 from micboard.models.discovery.registry import DiscoveredDevice
-from micboard.services.common.base.plugin import ManufacturerPlugin, get_manufacturer_plugin
+from micboard.services.common.base.plugin import ManufacturerPlugin, build_manufacturer_plugin
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -50,8 +50,7 @@ class DeviceRefreshService:
                 )
                 return False
 
-            plugin_cls = get_manufacturer_plugin(manufacturer.code)
-            plugin = plugin_cls(manufacturer)
+            plugin = build_manufacturer_plugin(manufacturer)
 
             device_data = self._get_device_data_from_plugin(plugin, discovered)
             if not device_data:

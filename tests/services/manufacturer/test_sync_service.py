@@ -24,6 +24,7 @@ from micboard.services.sync.polling_dtos import (
     DEFAULT_MAX_POLL_DEVICES,
     HARD_MAX_POLL_DEVICES,
     ManufacturerPollLimits,
+    ManufacturerSyncResult,
 )
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
@@ -52,7 +53,7 @@ def _payload(**overrides: object) -> NormalizedHardware:
     return NormalizedHardware(**values)  # type: ignore[arg-type]
 
 
-def _result(**overrides: object) -> dict[str, object]:
+def _result(**overrides: object) -> ManufacturerSyncResult:
     values: dict[str, object] = {
         "success": True,
         "devices_added": 0,
@@ -64,7 +65,7 @@ def _result(**overrides: object) -> dict[str, object]:
         "inventory_complete": True,
     }
     values.update(overrides)
-    return values
+    return ManufacturerSyncResult(**values)  # type: ignore[arg-type]
 
 
 def test_sync_reports_missing_manufacturer() -> None:
@@ -78,13 +79,13 @@ def test_sync_reports_missing_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configured manufacturers still require an installed integration."""
     ManufacturerFactory(code="vendor")
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
-        Mock(return_value=None),
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
+        Mock(side_effect=ModuleNotFoundError("no integration for vendor")),
     )
 
-    assert ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")[
-        "errors"
-    ] == ["Plugin not found: vendor"]
+    assert ManufacturerSyncService.sync_devices_for_manufacturer(
+        manufacturer_code="vendor"
+    ).errors == ["Plugin not found: vendor"]
 
 
 def test_sync_returns_zero_counts_for_empty_inventory(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -93,7 +94,7 @@ def test_sync_returns_zero_counts_for_empty_inventory(monkeypatch: pytest.Monkey
     plugin = Mock()
     plugin.get_devices.return_value = None
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
 
@@ -117,7 +118,7 @@ def test_sync_rechecks_activation_under_lock_after_vendor_request(
     plugin.get_devices.side_effect = deactivate_during_request
     persist = Mock(return_value="created")
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(
@@ -153,7 +154,7 @@ def test_forced_sync_preserves_explicit_override_after_vendor_request(
     plugin.get_devices.side_effect = deactivate_during_request
     persist = Mock(return_value="created")
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(
@@ -179,7 +180,7 @@ def test_sync_counts_created_and_updated_outcomes(monkeypatch: pytest.MonkeyPatc
     plugin.get_devices.return_value = [{"id": "raw"}]
     payloads = [_payload(), _payload(api_device_id="device-2"), _payload(api_device_id="device-3")]
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(ManufacturerSyncService, "_normalize_devices", Mock(return_value=payloads))
@@ -208,7 +209,7 @@ def test_sync_stops_at_limit_plus_one_and_refuses_partial_inventory(
     plugin = Mock()
     plugin.get_devices.return_value = inventory()
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
 
@@ -508,7 +509,7 @@ def test_sync_does_not_rehome_cross_vendor_identity_at_changed_ip(
     plugin = Mock()
     plugin.get_devices.return_value = [{"id": payload.api_device_id}]
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(
@@ -560,7 +561,7 @@ def test_sync_rejects_foreign_mac_hidden_behind_same_vendor_serial(
     plugin = Mock()
     plugin.get_devices.return_value = [{"id": payload.api_device_id}]
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
     monkeypatch.setattr(
@@ -666,14 +667,14 @@ def test_sync_contains_manufacturer_api_failures(monkeypatch: pytest.MonkeyPatch
     secret = "manufacturer-secret-token"
     plugin.get_devices.side_effect = TimeoutError(secret)
     monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.PluginRegistry.get_plugin",
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
 
     result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
 
-    assert result["success"] is False
-    assert result["errors"] == ["Device synchronization failed (TimeoutError); details redacted."]
+    assert result.success is False
+    assert result.errors == ["Device synchronization failed (TimeoutError); details redacted."]
     assert secret not in str(result)
 
 
@@ -1126,3 +1127,71 @@ def test_create_chassis_canonicalizes_mac_at_persistence_boundary() -> None:
         )
 
     assert manager_create.call_args.kwargs["mac_address"] == "aa:bb:cc:dd:ee:ff"
+
+
+def test_a_poll_that_deactivates_mid_run_still_records_its_audit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Vendor I/O happened, so the failed poll has to leave a durable record behind it."""
+    from micboard.models.audit.activity_log import ServiceSyncLog
+
+    manufacturer = ManufacturerFactory(code="vendor")
+    plugin = Mock()
+
+    def deactivate_during_request() -> list[dict[str, str]]:
+        type(manufacturer).objects.filter(pk=manufacturer.pk).update(is_active=False)
+        return [{"id": "raw"}]
+
+    plugin.get_devices.side_effect = deactivate_during_request
+    monkeypatch.setattr(
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
+        Mock(return_value=plugin),
+    )
+    monkeypatch.setattr(
+        ManufacturerSyncService,
+        "_normalize_devices",
+        Mock(return_value=[_payload()]),
+    )
+    monkeypatch.setattr(
+        ManufacturerSyncService,
+        "_sync_normalized_device",
+        Mock(return_value="created"),
+    )
+
+    result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
+
+    assert not result.success
+    assert ServiceSyncLog.objects.filter(service=manufacturer).exists()
+
+
+def test_a_plugin_that_fails_to_initialize_returns_a_failed_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A vendor constructor error is a poll outcome, not an exception for the caller."""
+    ManufacturerFactory(code="vendor")
+    monkeypatch.setattr(
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
+        Mock(side_effect=RuntimeError("vendor client could not start")),
+    )
+
+    result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
+
+    assert not result.success
+    assert result.errors
+    assert "could not start" not in str(result.errors)
+
+
+def test_a_plugin_initialization_failure_is_not_reported_as_a_missing_plugin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A misconfigured integration is a different operator problem from an absent one."""
+    ManufacturerFactory(code="vendor")
+    monkeypatch.setattr(
+        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
+        Mock(side_effect=ValueError("SENNHEISER_API_PASSWORD is required")),
+    )
+
+    result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
+
+    assert not result.success
+    assert result.errors != ["Plugin not found: vendor"]

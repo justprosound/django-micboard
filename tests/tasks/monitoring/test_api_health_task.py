@@ -35,7 +35,6 @@ def test_api_health_check_sanitizes_every_published_snapshot() -> None:
     client.check_health.return_value = raw_health
     plugin = Mock()
     plugin.get_client.return_value = client
-    plugin_class = Mock(return_value=plugin)
     safe_health = {
         "status": "unhealthy",
         "response_time": 0.125,
@@ -45,7 +44,7 @@ def test_api_health_check_sanitizes_every_published_snapshot() -> None:
     create_patch, set_patch, delete_patch, info_patch, broadcast_patch = _publisher_patches()
     with (
         patch.object(health_tasks.Manufacturer.objects, "get", return_value=manufacturer),
-        patch.object(health_tasks, "get_manufacturer_plugin", return_value=plugin_class),
+        patch.object(health_tasks, "build_manufacturer_plugin", return_value=plugin),
         create_patch as create_log,
         set_patch as cache_set,
         delete_patch as cache_delete,
@@ -78,7 +77,7 @@ def test_api_health_check_handles_missing_manufacturer() -> None:
             "get",
             side_effect=health_tasks.Manufacturer.DoesNotExist,
         ) as get_manufacturer,
-        patch.object(health_tasks, "get_manufacturer_plugin") as get_plugin,
+        patch.object(health_tasks, "build_manufacturer_plugin") as get_plugin,
         patch.object(health_tasks.logger, "warning") as warning,
     ):
         health_tasks.check_manufacturer_api_health(404)
@@ -96,7 +95,7 @@ def test_api_health_check_contains_manufacturer_lookup_failure() -> None:
     error = RuntimeError(f"database unavailable: {SECRET_SENTINEL}")
     with (
         patch.object(health_tasks.Manufacturer.objects, "get", side_effect=error),
-        patch.object(health_tasks, "get_manufacturer_plugin") as get_plugin,
+        patch.object(health_tasks, "build_manufacturer_plugin") as get_plugin,
         patch.object(health_tasks.logger, "exception") as exception,
     ):
         health_tasks.check_manufacturer_api_health(404)
@@ -117,7 +116,7 @@ def test_api_health_check_persists_stable_snapshot_after_plugin_failure() -> Non
     create_patch, set_patch, delete_patch, info_patch, broadcast_patch = _publisher_patches()
     with (
         patch.object(health_tasks.Manufacturer.objects, "get", return_value=manufacturer),
-        patch.object(health_tasks, "get_manufacturer_plugin", side_effect=error),
+        patch.object(health_tasks, "build_manufacturer_plugin", side_effect=error),
         patch.object(health_tasks.logger, "exception") as exception,
         create_patch as create_log,
         set_patch as cache_set,
@@ -149,12 +148,11 @@ def test_api_health_publication_failure_logs_sanitized_exception() -> None:
     client.check_health.return_value = {"status": "healthy"}
     plugin = Mock()
     plugin.get_client.return_value = client
-    plugin_class = Mock(return_value=plugin)
     error = RuntimeError(f"database password={SECRET_SENTINEL}")
 
     with (
         patch.object(health_tasks.Manufacturer.objects, "get", return_value=manufacturer),
-        patch.object(health_tasks, "get_manufacturer_plugin", return_value=plugin_class),
+        patch.object(health_tasks, "build_manufacturer_plugin", return_value=plugin),
         patch.object(health_tasks.APIHealthLog.objects, "create", side_effect=error),
         patch.object(health_tasks.logger, "exception") as exception,
     ):

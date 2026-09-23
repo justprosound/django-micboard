@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base import plugin as plugin_module
 
 
 @pytest.fixture(autouse=True)
@@ -17,5 +17,9 @@ def isolate_hardware_factory_side_effects(
 ) -> Iterator[None]:
     """Keep model factories local while preserving their database behavior."""
     settings.TESTING = True
-    monkeypatch.setattr(PluginRegistry, "get_plugin", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        plugin_module,
+        "build_manufacturer_plugin",
+        lambda _manufacturer: (_ for _ in ()).throw(ModuleNotFoundError("no integration")),
+    )
     yield

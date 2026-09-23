@@ -9,9 +9,9 @@ import pytest
 
 from micboard.models.audit.activity_log import ServiceSyncLog
 from micboard.services.maintenance.sync_audit_service import (
-    ServiceSyncAuditDTO,
     ServiceSyncAuditService,
 )
+from micboard.services.sync.polling_dtos import ManufacturerSyncResult
 from tests.factories.discovery import ManufacturerFactory
 
 pytestmark = pytest.mark.django_db
@@ -25,14 +25,14 @@ def test_sync_audit_persists_bounded_success_counts() -> None:
     row = ServiceSyncAuditService.record_poll_result(
         manufacturer=manufacturer,
         started_at=started_at,
-        result={
-            "devices_created": 2,
-            "devices_updated": 3,
-            "devices_examined": 7,
-            "device_limit": 500,
-            "inventory_complete": True,
-            "errors": [],
-        },
+        result=ManufacturerSyncResult(
+            success=True,
+            devices_added=2,
+            devices_updated=3,
+            devices_examined=7,
+            device_limit=500,
+            inventory_complete=True,
+        ),
     )
 
     assert row is not None
@@ -49,7 +49,7 @@ def test_sync_audit_persists_bounded_success_counts() -> None:
     assert row.completed_at >= started_at
 
 
-def test_sync_audit_redacts_failures_and_normalizes_negative_counts() -> None:
+def test_sync_audit_redacts_vendor_error_text() -> None:
     """Vendor errors are represented by counts without persisting their text."""
     manufacturer = ManufacturerFactory()
     private_error = "private vendor credential"
@@ -57,13 +57,12 @@ def test_sync_audit_redacts_failures_and_normalizes_negative_counts() -> None:
     row = ServiceSyncAuditService.record_poll_result(
         manufacturer=manufacturer,
         started_at=timezone.now(),
-        result={
-            "devices_created": -1,
-            "devices_updated": -2,
-            "devices_examined": -3,
-            "inventory_complete": False,
-            "errors": [private_error],
-        },
+        result=ManufacturerSyncResult(
+            success=False,
+            device_limit=500,
+            inventory_complete=False,
+            errors=[private_error],
+        ),
     )
 
     assert row is not None
@@ -73,17 +72,6 @@ def test_sync_audit_redacts_failures_and_normalizes_negative_counts() -> None:
     assert row.error_message == "Polling reported 1 error(s); details redacted."
     assert private_error not in str(row.details)
     assert private_error not in row.error_message
-
-
-def test_sync_audit_dto_handles_non_list_error_contract() -> None:
-    """A malformed but truthy error marker still produces a failed bounded DTO."""
-    audit = ServiceSyncAuditDTO.from_poll_result(
-        started_at=timezone.now(),
-        result={"errors": "failed"},
-    )
-
-    assert audit.status == "failed"
-    assert audit.error_count == 1
 
 
 def test_sync_audit_contains_and_redacts_persistence_failure(caplog) -> None:
@@ -99,7 +87,7 @@ def test_sync_audit_contains_and_redacts_persistence_failure(caplog) -> None:
         row = ServiceSyncAuditService.record_poll_result(
             manufacturer=manufacturer,
             started_at=timezone.now(),
-            result={"errors": []},
+            result=ManufacturerSyncResult(success=True, device_limit=500),
         )
 
     assert row is None

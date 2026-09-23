@@ -14,7 +14,6 @@ import pytest
 from micboard.context_processors import api_health as api_health_context
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.telemetry.health import APIHealthLog
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
 from micboard.services.shared import api_health
 from micboard.services.shared.api_health_dtos import PUBLIC_API_HEALTH_ERROR
 
@@ -41,7 +40,7 @@ def test_context_uses_latest_persisted_snapshot_without_network_probe() -> None:
         details={"status": "unhealthy", "token": "super-secret"},
     )
 
-    with patch.object(PluginRegistry, "get_plugin_class") as get_plugin:
+    with patch("micboard.services.common.base.plugin.get_manufacturer_plugin") as get_plugin:
         context = api_health_context(RequestFactory().get("/"))
 
     get_plugin.assert_not_called()
@@ -71,7 +70,7 @@ def test_per_manufacturer_cache_snapshot_is_projected_to_safe_fields() -> None:
         },
     )
 
-    with patch.object(PluginRegistry, "get_plugin_class") as get_plugin:
+    with patch("micboard.services.common.base.plugin.get_manufacturer_plugin") as get_plugin:
         result = api_health.get_api_health()
 
     get_plugin.assert_not_called()

@@ -101,7 +101,7 @@ def test_batch_candidate_submission_resolves_plugin_when_not_injected() -> None:
     plugin = MagicMock()
     plugin.add_discovery_ips.return_value = True
     with patch(
-        "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+        "micboard.services.sync.discovery_service.build_manufacturer_plugin",
         return_value=plugin,
     ) as get_plugin:
         result = DiscoveryService().add_discovery_candidates(manufacturer, ["192.0.2.80"])

@@ -12,7 +12,7 @@ from micboard.discovery.limits import (
 )
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.discovery.registry import DiscoveryJob
-from micboard.services.common.base.plugin import ManufacturerPlugin
+from micboard.services.common.base.plugin import ManufacturerPlugin, build_manufacturer_plugin
 from micboard.services.manufacturer.activation_service import ManufacturerActivationService
 from micboard.services.notification.device_broadcast_service import (
     DeviceSnapshotBroadcastService,
@@ -27,7 +27,6 @@ from micboard.services.sync.discovery_configuration_service import (
 from micboard.services.sync.discovery_dtos import DiscoverySyncSummary
 from micboard.services.sync.discovery_queue_service import DiscoveryQueueService
 from micboard.services.sync.discovery_service import DiscoveryService
-from micboard.services.sync.discovery_utils import get_manufacturer_plugin_instance
 from micboard.services.sync.polling_dtos import ManufacturerPollLimits
 from micboard.utils.exception_logging import sanitized_exception_info
 
@@ -202,7 +201,7 @@ class DiscoverySyncService:
             fqdns=add_fqdns,
         ):
             summary.record_error(CONFIG_ENTRIES_INCOMPLETE_REASON)
-        plugin = get_manufacturer_plugin_instance(manufacturer)
+        plugin = build_manufacturer_plugin(manufacturer)
         client = plugin.get_client()
         if not DiscoveryConfigurationService.persist_supported_models(
             manufacturer,

@@ -2,22 +2,49 @@ from __future__ import annotations
 
 import importlib
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from micboard.models.hardware.manufacturer import Manufacturer
+    from collections.abc import Awaitable, Callable
+
+    from micboard.models.discovery.manufacturer import Manufacturer
+    from micboard.models.hardware.wireless_chassis import WirelessChassis
 
     from .client import BaseAPIClient
 
+RealtimeTransport = Literal["sse", "websocket"]
+
+
+_plugin_cache: dict[str, type[ManufacturerPlugin]] = {}
+
+
+def clear_plugin_cache() -> None:
+    """Forget resolved plugin classes, so a test starts from a cold cache."""
+    _plugin_cache.clear()
+
+
+def build_manufacturer_plugin(manufacturer: Manufacturer) -> ManufacturerPlugin:
+    """Return a plugin bound to ``manufacturer``.
+
+    This is the one way to obtain a plugin. It raises when a manufacturer has no shipped
+    integration, so every caller sees the same failure rather than a ``None`` some branch on
+    and others do not.
+    """
+    plugin_class = get_manufacturer_plugin(manufacturer.code)
+    return plugin_class(manufacturer)
+
 
 def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
-    """Return the plugin class for a manufacturer code.
+    """Return the plugin class for a manufacturer code, resolving it at most once.
 
     Attempts to import ``micboard.integrations.<code>.plugin`` and
     locate a concrete ``ManufacturerPlugin`` subclass. Prefers
     ``<CodeTitle>Plugin``, then falls back to another plugin subclass.
     """
     code_str = str(code)
+    cached = _plugin_cache.get(code_str)
+    if cached is not None:
+        return cached
     module_paths = [
         f"micboard.integrations.{code_str}.plugin",
         f"micboard.integrations.{code_str}",
@@ -27,7 +54,14 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
         try:
             mod = importlib.import_module(path)
             break
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as exc:
+            # Only a missing integration module means "try the next path". A
+            # ModuleNotFoundError raised inside a shipped plugin — a vendor dependency that
+            # is not installed — must escape, or callers report "Plugin not found" for what
+            # is really an initialization failure.
+            missing = exc.name
+            if missing is not None and missing != path and not path.startswith(f"{missing}."):
+                raise
             continue
 
     if mod is None:
@@ -37,6 +71,7 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
     if hasattr(mod, candidate_name):
         cls = getattr(mod, candidate_name)
         if isinstance(cls, type) and issubclass(cls, ManufacturerPlugin):
+            _plugin_cache[code_str] = cls
             return cls
 
     for attr in dir(mod):
@@ -46,6 +81,7 @@ def get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]:
             and obj is not ManufacturerPlugin
             and issubclass(obj, ManufacturerPlugin)
         ):
+            _plugin_cache[code_str] = obj
             return obj
 
     raise ImportError(f"No ManufacturerPlugin subclass found in micboard.integrations.{code_str}")
@@ -78,6 +114,29 @@ class BasePlugin(ABC):
 
 class ManufacturerPlugin(BasePlugin):
     """Extended plugin interface specifically for manufacturer hardware integrations."""
+
+    @property
+    @abstractmethod
+    def realtime_transport(self) -> RealtimeTransport | None:
+        """The transport this integration streams over, or ``None`` when it has no stream.
+
+        The shared subscription runner reads this rather than mapping manufacturer codes to
+        transports, so no orchestration code needs to know a vendor by name.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def subscribe_to_chassis(
+        self,
+        chassis: WirelessChassis,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        """Open this integration's stream for one chassis and await its updates.
+
+        The integration owns connection setup, authentication, framing, and cleanup; the
+        runner owns leasing, inventory selection, connection tracking, and persistence.
+        """
+        raise NotImplementedError()
 
     @abstractmethod
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:

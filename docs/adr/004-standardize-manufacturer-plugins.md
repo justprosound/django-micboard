@@ -3,7 +3,7 @@ title: "ADR-004: Compose Manufacturer Plugins Around Shared Transport"
 ---
 **Status:** Implemented
 **Date:** 2026-05-20
-**Updated:** 2026-07-14
+**Updated:** 2026-09-22
 **Deciders:** Project team
 
 ## Context
@@ -26,14 +26,18 @@ would have only two consumers. Similar filenames are not sufficient evidence for
    not create a second common hierarchy under integrations.
 2. Keep discovery, device endpoints, transforms, and streaming adapters manufacturer-local.
 3. Extract only proven pure helpers used by at least two live integrations.
-4. Keep `PluginRegistry` as the construction boundary and manufacturer sync services as the
+4. Keep `micboard.services.common.base.plugin` as the construction boundary — one
+   `build_manufacturer_plugin(manufacturer)` front door that resolves the class once, caches it,
+   and raises when no integration ships for the code — and manufacturer sync services as the
    persistence and orchestration boundary.
 5. Contract-test each protocol against authoritative behavior, including authentication, bounded
    payloads, origin validation, and connection lifecycle.
-6. Share the transport-neutral subscription lifecycle in
-   `services/realtime/subscription_lifecycle_service.py`: eligible inventory selection, transform,
-   persistence, chassis projection, and broadcast. Keep connection setup, authentication, event
-   framing, and cleanup in each transport adapter.
+6. Share the transport-neutral subscription lifecycle: `services/realtime/subscription_runner.py`
+   owns leasing, eligible inventory selection, connection tracking, and activation rechecks, and
+   `services/realtime/subscription_lifecycle_service.py` owns transform, persistence, chassis
+   projection, and broadcast. Each integration declares its own `realtime_transport` and
+   implements `subscribe_to_chassis`, keeping connection setup, authentication, event framing, and
+   cleanup inside the integration package. No orchestration code names a vendor.
 7. Keep vendor client APIs limited to operations used by the production plugin contract. Do not
    retain speculative enrichment endpoints, test-only forwarding methods, or a second polling
    orchestrator alongside the manufacturer synchronization service.

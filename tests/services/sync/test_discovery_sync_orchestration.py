@@ -85,7 +85,7 @@ def test_run_returns_stable_failure_when_manufacturer_sync_is_already_running() 
     service = DiscoverySyncService()
     with (
         patch(
-            "micboard.services.sync.discovery_sync_service.get_manufacturer_plugin_instance"
+            "micboard.services.sync.discovery_sync_service.build_manufacturer_plugin"
         ) as get_plugin,
     ):
         result = service.run(manufacturer.pk)
@@ -138,7 +138,7 @@ def test_run_coordinates_services_and_finalizes_successful_job() -> None:
 
     with (
         patch(
-            "micboard.services.sync.discovery_sync_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_sync_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch.object(DiscoveryConfigurationService, "add_entries") as add_config,
@@ -222,7 +222,7 @@ def test_run_reports_incomplete_local_pages_after_safe_bounded_submission() -> N
 
     with (
         patch(
-            "micboard.services.sync.discovery_sync_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_sync_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch.object(
@@ -279,7 +279,7 @@ def test_run_reports_incomplete_scan_expansion_after_safe_submission() -> None:
 
     with (
         patch(
-            "micboard.services.sync.discovery_sync_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_sync_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch.object(
@@ -330,7 +330,7 @@ def test_run_marks_oversized_supported_model_snapshot_incomplete() -> None:
 
     with (
         patch(
-            "micboard.services.sync.discovery_sync_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_sync_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch.object(
@@ -393,7 +393,7 @@ def test_run_clamps_caller_controlled_candidate_limit() -> None:
 
     with (
         patch(
-            "micboard.services.sync.discovery_sync_service.get_manufacturer_plugin_instance",
+            "micboard.services.sync.discovery_sync_service.build_manufacturer_plugin",
             return_value=plugin,
         ),
         patch.object(
@@ -496,7 +496,7 @@ def test_run_finalizes_without_vendor_work_after_post_claim_deactivation() -> No
 
     with (
         patch(
-            "micboard.services.sync.discovery_sync_service.get_manufacturer_plugin_instance"
+            "micboard.services.sync.discovery_sync_service.build_manufacturer_plugin"
         ) as get_plugin,
         patch.object(service, "broadcast_results") as broadcast,
     ):
@@ -524,7 +524,7 @@ def test_run_finalizes_when_post_claim_activation_check_fails() -> None:
             side_effect=RuntimeError("database unavailable"),
         ),
         patch(
-            "micboard.services.sync.discovery_sync_service.get_manufacturer_plugin_instance"
+            "micboard.services.sync.discovery_sync_service.build_manufacturer_plugin"
         ) as get_plugin,
     ):
         result = service.run(manufacturer.pk)

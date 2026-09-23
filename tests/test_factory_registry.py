@@ -60,8 +60,8 @@ def _without_external_lifecycle_effects() -> Iterator[None]:
     """Keep factory smoke tests inside local database seams."""
     with (
         patch(
-            "micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin",
-            return_value=None,
+            "micboard.services.common.base.plugin.build_manufacturer_plugin",
+            side_effect=ModuleNotFoundError("no integration"),
         ),
         patch("micboard.services.sync.discovery_trigger_service.trigger_discovery"),
     ):

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any
+
+from django.db.models import QuerySet
 
 from asgiref.sync import sync_to_async
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base.plugin import RealtimeTransport
 from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.realtime.subscription_supervisor import (
     RealtimeSubscriptionSupervisor,
@@ -17,7 +20,6 @@ from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
-RealtimeTransport = Literal["sse", "websocket"]
 _TRANSPORT_LABELS: dict[RealtimeTransport, str] = {
     "sse": "SSE",
     "websocket": "WebSocket",
@@ -26,6 +28,33 @@ _TRANSPORT_LABELS: dict[RealtimeTransport, str] = {
 
 class RealtimeSubscriptionLifecycleService:
     """Select subscription inventory and persist transport-neutral device events."""
+
+    @classmethod
+    def has_eligible_chassis(
+        cls,
+        *,
+        manufacturer_id: int,
+        chassis_id: int | None,
+    ) -> bool:
+        """Return whether anything is eligible, without advancing the rotation cursor.
+
+        `select_chassis` writes the fair-window cursor, so it cannot be used to decide
+        whether a run is worth taking the transport lease for: a worker that then lost the
+        lease race would have skipped that window for the worker that won it.
+        """
+        return cls._eligible(manufacturer_id=manufacturer_id, chassis_id=chassis_id).exists()
+
+    @staticmethod
+    def _eligible(*, manufacturer_id: int, chassis_id: int | None) -> QuerySet[WirelessChassis]:
+        """Return the chassis a realtime subscription may open, before any cutoff."""
+        queryset = WirelessChassis.objects.filter(
+            manufacturer_id=manufacturer_id,
+            manufacturer__is_active=True,
+            status__in=("online", "degraded", "provisioning"),
+        )
+        if chassis_id is not None:
+            return queryset.filter(pk=chassis_id)
+        return queryset
 
     @classmethod
     def select_chassis(
@@ -37,13 +66,9 @@ class RealtimeSubscriptionLifecycleService:
         limit: int,
     ) -> list[WirelessChassis]:
         """Load one bounded active chassis window for either realtime transport."""
-        queryset = WirelessChassis.objects.filter(
-            manufacturer_id=manufacturer_id,
-            manufacturer__is_active=True,
-            status__in=("online", "degraded", "provisioning"),
-        )
+        queryset = cls._eligible(manufacturer_id=manufacturer_id, chassis_id=chassis_id)
         if chassis_id is not None:
-            return list(queryset.filter(pk=chassis_id).order_by("pk")[:limit])
+            return list(queryset.order_by("pk")[:limit])
         return RealtimeSubscriptionSupervisor.select_fair_queryset_batch(
             queryset=queryset,
             transport=transport,

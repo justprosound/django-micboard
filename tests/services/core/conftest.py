@@ -8,7 +8,7 @@ from django.conf import LazySettings
 
 import pytest
 
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base import plugin as plugin_module
 
 
 @pytest.fixture(autouse=True)
@@ -18,5 +18,9 @@ def isolate_hardware_integrations(
 ) -> Iterator[None]:
     """Keep model lifecycle hooks from loading plugins or dispatching tasks."""
     settings.TESTING = True
-    monkeypatch.setattr(PluginRegistry, "get_plugin", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        plugin_module,
+        "build_manufacturer_plugin",
+        lambda _manufacturer: (_ for _ in ()).throw(ModuleNotFoundError("no integration")),
+    )
     yield

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import threading
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
@@ -10,21 +9,16 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from micboard.integrations.sennheiser.plugin import SennheiserPlugin
+from micboard.integrations.shure.plugin import ShurePlugin
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.realtime.connection import RealTimeConnection
+from micboard.services.common.base.plugin import RealtimeTransport
 from micboard.services.notification.broadcast_service import BroadcastService
-from micboard.services.realtime.shure_websocket_subscription_service import (
-    _start_receiver_websocket_async,
-)
-from micboard.services.realtime.sse_subscription_service import (
-    _subscribe_device_async,
-)
 from micboard.services.realtime.subscription_lifecycle_service import (
     RealtimeSubscriptionLifecycleService,
-    RealtimeTransport,
 )
+from micboard.services.realtime.subscription_runner import _subscribe_chassis
 from tests.async_utils import run_async_with_heartbeat
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
@@ -38,32 +32,21 @@ def _chassis(**kwargs: Any) -> WirelessChassis:
     return cast(WirelessChassis, WirelessChassisFactory(**kwargs))
 
 
-def test_sennheiser_plugin_awaits_native_sse_subscription() -> None:
-    """The plugin exposes the asynchronous SSE contract used by task and CLI loops."""
-    plugin = object.__new__(SennheiserPlugin)
-    callback = AsyncMock()
-    subscribe = AsyncMock()
-    plugin.client = Mock(connect_and_subscribe=subscribe)
-
-    asyncio.run(plugin.connect_and_subscribe("device-1", callback))
-
-    subscribe.assert_awaited_once_with("device-1", callback)
-
-
 class EventPlugin:
     """Small plugin double that leaves database behavior real."""
 
-    def __init__(self, manufacturer: Any, chassis: Any) -> None:
+    def __init__(self, manufacturer: Any, chassis: Any, transport: str = "sse") -> None:
         self.manufacturer = manufacturer
         self.chassis = chassis
+        self.realtime_transport = transport
 
-    async def connect_and_subscribe(
+    async def subscribe_to_chassis(
         self,
-        device_id: str,
+        chassis: Any,
         callback: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
         """Deliver one event through the production async callback."""
-        await callback({"id": device_id, "name": "Callback update"})
+        await callback({"id": chassis.api_device_id, "name": "Callback update"})
 
     def transform_device_data(self, data: dict[str, Any]) -> dict[str, Any] | None:
         """Normalize one event into the polling helper's expected shape."""
@@ -88,63 +71,62 @@ class ConnectionOnlyPlugin(EventPlugin):
         return None
 
 
-class FailingSSEPlugin(ConnectionOnlyPlugin):
+class FailingPlugin(ConnectionOnlyPlugin):
     """Raise a private transport detail after connection tracking starts."""
 
-    async def connect_and_subscribe(
+    async def subscribe_to_chassis(
         self,
-        device_id: str,
+        chassis: Any,
         callback: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
         raise RuntimeError("private credential detail")
 
 
 @pytest.mark.django_db(transaction=True)
-def test_sse_subscription_adapts_connection_tracking_to_sync_database() -> None:
-    """SSE callbacks can create and update real connection rows from an event loop."""
+@pytest.mark.parametrize("transport", ["sse", "websocket"])
+def test_subscription_adapts_connection_tracking_to_sync_database(
+    transport: RealtimeTransport,
+) -> None:
+    """Realtime callbacks can create and update real connection rows from an event loop."""
     manufacturer = _manufacturer()
-    chassis = _chassis(
-        manufacturer=manufacturer,
-        status="online",
-    )
-    plugin = ConnectionOnlyPlugin(manufacturer, chassis)
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+    plugin = ConnectionOnlyPlugin(manufacturer, chassis, transport=transport)
 
-    run_async_with_heartbeat(_subscribe_device_async(plugin, chassis.api_device_id))
+    run_async_with_heartbeat(_subscribe_chassis(plugin, transport, chassis))
 
     connection = RealTimeConnection.objects.get(chassis=chassis)
-    assert connection.connection_type == "sse"
-    assert connection.status == "connected"
+    assert connection.connection_type == transport
+    # The callback wrote through the thread hop, which is what this covers; the stream then
+    # returned, so the round closed the row rather than leaving it claiming to be connected.
     assert connection.last_message_at is not None
+    assert connection.status == "stopped"
 
 
 @pytest.mark.django_db(transaction=True)
-def test_sse_connection_error_state_excludes_private_exception_details() -> None:
+@pytest.mark.parametrize("transport", ["sse", "websocket"])
+def test_connection_error_state_excludes_private_exception_details(
+    transport: RealtimeTransport,
+) -> None:
     """Admin-visible connection state stores only a bounded exception category."""
     manufacturer = _manufacturer()
     chassis = _chassis(manufacturer=manufacturer, status="online")
 
     run_async_with_heartbeat(
-        _subscribe_device_async(
-            FailingSSEPlugin(manufacturer, chassis),
-            chassis.api_device_id,
-        )
+        _subscribe_chassis(FailingPlugin(manufacturer, chassis, transport), transport, chassis)
     )
 
     connection = RealTimeConnection.objects.get(chassis=chassis)
     assert connection.status == "error"
-    assert connection.error_message == "SSE subscription failed: RuntimeError"
+    assert connection.error_message == f"{transport} subscription failed: RuntimeError"
     assert "private credential detail" not in connection.error_message
 
 
 @pytest.mark.django_db(transaction=True)
-def test_websocket_subscription_adapts_connection_tracking_to_sync_database() -> None:
-    """Shure callbacks can create and update real connection rows from an event loop."""
+def test_shure_opens_and_closes_its_device_client_off_the_event_loop() -> None:
+    """Constructing and closing a per-chassis client is synchronous, blocking work."""
     manufacturer = _manufacturer(code="shure")
-    chassis = _chassis(
-        manufacturer=manufacturer,
-        status="online",
-    )
-    plugin = ConnectionOnlyPlugin(manufacturer, chassis)
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+    plugin = ShurePlugin(manufacturer)
     client = Mock()
     client_threads: list[int] = []
     close_threads: list[int] = []
@@ -157,68 +139,31 @@ def test_websocket_subscription_adapts_connection_tracking_to_sync_database() ->
     event_loop_thread = threading.get_ident()
 
     async def deliver_one_event(
-        client: Any,
-        device_id: str,
+        _client: Any,
+        _device_id: str,
         callback: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
-        await callback({"id": device_id, "name": "Callback update"})
+        await callback({"id": "ignored"})
 
     with (
         patch(
-            "micboard.services.realtime.shure_websocket_subscription_service.connect_and_subscribe",
+            "micboard.integrations.shure.websocket.connect_and_subscribe",
             side_effect=deliver_one_event,
         ),
         patch(
-            "micboard.integrations.shure.client.ShureSystemAPIClient",
+            "micboard.integrations.shure.plugin.ShureSystemAPIClient",
             side_effect=make_client,
         ),
     ):
-        run_async_with_heartbeat(_start_receiver_websocket_async(plugin, chassis))
+        run_async_with_heartbeat(plugin.subscribe_to_chassis(chassis, AsyncMock()))
 
-    connection = RealTimeConnection.objects.get(chassis=chassis)
-    assert connection.connection_type == "websocket"
-    assert connection.status == "connected"
-    assert connection.last_message_at is not None
     client.close.assert_called_once_with()
     assert client_threads and client_threads[0] != event_loop_thread
     assert close_threads and close_threads[0] != event_loop_thread
 
 
 @pytest.mark.django_db(transaction=True)
-def test_websocket_connection_error_state_excludes_private_exception_details() -> None:
-    """WebSocket failures persist a category without transport or credential text."""
-    manufacturer = _manufacturer(code="shure")
-    chassis = _chassis(manufacturer=manufacturer, status="online")
-    plugin = ConnectionOnlyPlugin(manufacturer, chassis)
-    client = Mock()
-
-    async def fail_subscription(*_args: Any, **_kwargs: Any) -> None:
-        raise RuntimeError("private credential detail")
-
-    with (
-        patch(
-            "micboard.services.realtime.shure_websocket_subscription_service.connect_and_subscribe",
-            side_effect=fail_subscription,
-        ),
-        patch(
-            "micboard.integrations.shure.client.ShureSystemAPIClient",
-            return_value=client,
-        ),
-    ):
-        run_async_with_heartbeat(_start_receiver_websocket_async(plugin, chassis))
-
-    connection = RealTimeConnection.objects.get(chassis=chassis)
-    assert connection.status == "error"
-    assert connection.error_message == "WebSocket subscription failed: RuntimeError"
-    assert "private credential detail" not in connection.error_message
-    client.close.assert_called_once_with()
-
-
-@pytest.mark.django_db(transaction=True)
-@pytest.mark.parametrize(
-    "transport",
-    ["sse", "websocket"],
-)
+@pytest.mark.parametrize("transport", ["sse", "websocket"])
 def test_realtime_updates_adapt_model_persistence_and_broadcast_lookup(
     transport: RealtimeTransport,
 ) -> None:
@@ -229,7 +174,7 @@ def test_realtime_updates_adapt_model_persistence_and_broadcast_lookup(
         name="Before event",
         status="online",
     )
-    plugin = EventPlugin(manufacturer, chassis)
+    plugin = EventPlugin(manufacturer, chassis, transport=transport)
 
     with patch.object(BroadcastService, "broadcast_device_update") as broadcast:
         run_async_with_heartbeat(
@@ -243,3 +188,92 @@ def test_realtime_updates_adapt_model_persistence_and_broadcast_lookup(
     chassis.refresh_from_db()
     assert chassis.name == "After event"
     broadcast.assert_called_once()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_cancelled_subscription_does_not_leave_the_connection_open() -> None:
+    """Supervisor rotation cancels the task, and `CancelledError` is not an `Exception`.
+
+    Without explicit cleanup the row keeps whatever state it reached, so an operator reading
+    the admin sees a connection that is still connecting or connected long after it ended.
+    """
+    import asyncio
+
+    manufacturer = _manufacturer()
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+    streaming = asyncio.Event()
+
+    class HangingPlugin(ConnectionOnlyPlugin):
+        async def subscribe_to_chassis(self, chassis: Any, callback: Any) -> None:
+            streaming.set()
+            await asyncio.Event().wait()
+
+    async def cancel_mid_subscription() -> None:
+        task = asyncio.create_task(
+            _subscribe_chassis(HangingPlugin(manufacturer, chassis), "sse", chassis)
+        )
+        # Wait for the stream to actually open rather than guessing at a delay, so the
+        # cancellation lands where this test means it to on any machine.
+        await asyncio.wait_for(streaming.wait(), timeout=10)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    run_async_with_heartbeat(cancel_mid_subscription())
+
+    connection = RealTimeConnection.objects.get(chassis=chassis)
+    assert connection.status not in {"connecting", "connected"}
+
+
+@pytest.mark.django_db(transaction=True)
+def test_cancellation_during_tracking_setup_still_closes_the_row() -> None:
+    """Cancellation can arrive before the round holds the row it already marked connecting."""
+    manufacturer = _manufacturer()
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+
+    run_async_with_heartbeat(
+        _close_tracking_async(chassis),
+    )
+
+    connection = RealTimeConnection.objects.get(chassis=chassis)
+    assert connection.status == "stopped"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_subscription_that_returns_normally_closes_its_connection() -> None:
+    """A stream that ends on its own is finished, not still connected."""
+    manufacturer = _manufacturer()
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+
+    run_async_with_heartbeat(
+        _subscribe_chassis(ConnectionOnlyPlugin(manufacturer, chassis), "sse", chassis)
+    )
+
+    connection = RealTimeConnection.objects.get(chassis=chassis)
+    assert connection.status == "stopped"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_failed_subscription_keeps_its_error_state() -> None:
+    """Cleanup must not overwrite the error an operator needs to see."""
+    manufacturer = _manufacturer()
+    chassis = _chassis(manufacturer=manufacturer, status="online")
+
+    run_async_with_heartbeat(
+        _subscribe_chassis(FailingPlugin(manufacturer, chassis, "sse"), "sse", chassis)
+    )
+
+    connection = RealTimeConnection.objects.get(chassis=chassis)
+    assert connection.status == "error"
+
+
+async def _close_tracking_async(chassis: Any) -> None:
+    """Create tracking, then close it the way a cancelled round does, with no handle."""
+    from asgiref.sync import sync_to_async
+
+    from micboard.services.realtime.subscription_runner import (
+        _close_tracking,
+        _track_connection,
+    )
+
+    await sync_to_async(_track_connection, thread_sensitive=True)(chassis, "sse")
+    await sync_to_async(_close_tracking, thread_sensitive=True)(chassis, None)

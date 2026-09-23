@@ -22,7 +22,7 @@ DOMAIN_EXPORTS = {
     "micboard.services.deduplication": ("DeduplicationResult", "check_device"),
     "micboard.services.hardware": ("prepare_chassis_for_save", "get_gap_analysis_summary"),
     "micboard.services.maintenance": ("AuditService", "EFISImportService"),
-    "micboard.services.manufacturer": ("PluginRegistry", "ManufacturerSyncService"),
+    "micboard.services.manufacturer": ("ManufacturerSyncService", "validate_manufacturer_config"),
     "micboard.services.monitoring": ("AlertManager", "MonitoringService"),
     "micboard.services.notification": ("BroadcastService", "EmailService"),
     "micboard.services.settings": ("SettingsService", "settings"),

@@ -29,7 +29,7 @@ DOCUMENTED_SYMBOLS = (
     ("models", "RFChannel"),
     ("services", "HardwareLifecycleManager"),
     ("services", "PerformerAssignmentService"),
-    ("services", "PluginRegistry"),
+    ("services", "ManufacturerPlugin"),
     ("management-commands", "Command"),
     ("websocket-consumers", "MicboardConsumer"),
     ("exceptions", "MicboardError"),

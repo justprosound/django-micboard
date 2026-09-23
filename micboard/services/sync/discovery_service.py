@@ -8,7 +8,7 @@ from itertools import batched, islice
 from micboard.discovery.limits import MAX_DISCOVERY_CANDIDATES, clamp_candidate_limit
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.common.base.plugin import ManufacturerPlugin
+from micboard.services.common.base.plugin import ManufacturerPlugin, build_manufacturer_plugin
 from micboard.services.sync.discovery_dtos import (
     DiscoveryCandidateSubmission,
     DiscoverySourceReconciliation,
@@ -16,7 +16,6 @@ from micboard.services.sync.discovery_dtos import (
 from micboard.services.sync.discovery_utils import (
     collect_local_candidates,
     dedupe_preserve_order,
-    get_manufacturer_plugin_instance,
     prepare_scanning_data,
 )
 from micboard.utils.exception_logging import sanitized_exception_info
@@ -119,7 +118,7 @@ class DiscoveryService:
                 rejected_count=rejected_count,
             )
 
-        discovery_plugin = plugin or get_manufacturer_plugin_instance(manufacturer)
+        discovery_plugin = plugin or build_manufacturer_plugin(manufacturer)
         submitted: set[str] = set()
         failed = set(conflicting_ips)
         for candidate_batch in batched(eligible_ips, batch_size, strict=False):
@@ -206,7 +205,7 @@ class DiscoveryService:
             len(unique_candidate_ips),
         )
 
-        plugin = get_manufacturer_plugin_instance(manufacturer)
+        plugin = build_manufacturer_plugin(manufacturer)
         existing_discovery_ips: list[str] = []
         remote_source_complete = True
         try:

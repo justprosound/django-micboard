@@ -10,7 +10,6 @@ import httpx
 import pytest
 
 import micboard.integrations.sennheiser.sse_client as sse_module
-import micboard.integrations.shure.websocket as websocket_module
 from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
 from micboard.integrations.sennheiser.exceptions import SennheiserAPIError
 from micboard.integrations.sennheiser.plugin import SennheiserPlugin
@@ -66,11 +65,6 @@ def test_shure_plugin_delegates_to_lazy_client_and_transformer(monkeypatch) -> N
     assert plugin.get_discovery_ips() == ["192.0.2.1"]
     assert plugin.remove_discovery_ips(["192.0.2.1"])
 
-    subscribe = AsyncMock()
-    monkeypatch.setattr(websocket_module, "connect_and_subscribe", subscribe)
-    asyncio.run(plugin.connect_and_subscribe("one", AsyncMock()))
-    subscribe.assert_awaited_once()
-
 
 def test_sennheiser_plugin_delegates_to_client_transformer_and_sse(monkeypatch) -> None:
     client = SimpleNamespace(
@@ -110,8 +104,6 @@ def test_sennheiser_plugin_delegates_to_client_transformer_and_sse(monkeypatch) 
     assert plugin.add_discovery_ips([])
     assert plugin.get_discovery_ips() == []
     assert plugin.remove_discovery_ips([])
-    asyncio.run(plugin.connect_and_subscribe("one", AsyncMock()))
-    client.connect_and_subscribe.assert_awaited_once()
 
 
 def test_system_clients_validate_auth_and_websocket_configuration(monkeypatch) -> None:

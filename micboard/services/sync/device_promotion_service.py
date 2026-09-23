@@ -82,10 +82,11 @@ class DevicePromotionService:
         ).first()
 
     def _get_plugin_and_device_data_for_promotion(self, discovered: Any) -> Any:
-        from micboard.services.manufacturer.plugin_registry import PluginRegistry
+        from micboard.services.common.base.plugin import build_manufacturer_plugin
 
-        plugin = PluginRegistry.get_plugin(discovered.manufacturer.code, discovered.manufacturer)
-        if not plugin:
+        try:
+            plugin = build_manufacturer_plugin(discovered.manufacturer)
+        except (ImportError, ValueError):
             return None, None
 
         try:

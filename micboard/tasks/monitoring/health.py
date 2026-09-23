@@ -9,7 +9,7 @@ from django.core.cache import cache
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.telemetry.health import APIHealthLog
-from micboard.services.common.base.plugin import get_manufacturer_plugin
+from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.realtime.health_dtos import RealtimeConnectionHealthResult
 from micboard.services.realtime.health_service import RealtimeConnectionHealthService
@@ -78,8 +78,7 @@ def check_manufacturer_api_health(manufacturer_id: int) -> None:
         return
 
     try:
-        plugin_class = get_manufacturer_plugin(manufacturer.code)
-        plugin = plugin_class(manufacturer)
+        plugin = build_manufacturer_plugin(manufacturer)
         health_status: object = plugin.get_client().check_health()
     except Exception as exc:
         logger.exception(

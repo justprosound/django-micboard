@@ -147,9 +147,14 @@ def test_plugin_device_lookup_handles_missing_plugin_and_empty_inventory(
 ) -> None:
     """Plugin lookup distinguishes unsupported integrations from empty inventory."""
     discovered = DiscoveredDeviceFactory.build()
-    registry_lookup = Mock(side_effect=[None, Mock(get_devices=Mock(return_value=None))])
+    registry_lookup = Mock(
+        side_effect=[
+            ModuleNotFoundError("no integration"),
+            Mock(get_devices=Mock(return_value=None)),
+        ]
+    )
     monkeypatch.setattr(
-        "micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin",
+        "micboard.services.common.base.plugin.build_manufacturer_plugin",
         registry_lookup,
     )
     service = DevicePromotionService()
@@ -172,7 +177,7 @@ def test_plugin_device_lookup_matches_supported_address_alias(
     plugin.get_devices.return_value = [{"ip": "192.0.2.254"}, matched]
     lookup = Mock(return_value=plugin)
     monkeypatch.setattr(
-        "micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin",
+        "micboard.services.common.base.plugin.build_manufacturer_plugin",
         lookup,
     )
 
@@ -180,7 +185,7 @@ def test_plugin_device_lookup_matches_supported_address_alias(
         plugin,
         matched,
     )
-    lookup.assert_called_once_with(discovered.manufacturer.code, discovered.manufacturer)
+    lookup.assert_called_once_with(discovered.manufacturer)
 
 
 def test_plugin_device_lookup_contains_inventory_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -189,7 +194,7 @@ def test_plugin_device_lookup_contains_inventory_errors(monkeypatch: pytest.Monk
     plugin = Mock()
     plugin.get_devices.side_effect = TimeoutError("timed out")
     monkeypatch.setattr(
-        "micboard.services.manufacturer.plugin_registry.PluginRegistry.get_plugin",
+        "micboard.services.common.base.plugin.build_manufacturer_plugin",
         Mock(return_value=plugin),
     )
 

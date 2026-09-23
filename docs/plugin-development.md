@@ -7,15 +7,15 @@ a manufacturer under `micboard/integrations/<vendor>/`.
 !!! note "Implemented architecture"
     [ADR-004](adr/004-standardize-manufacturer-plugins.md) keeps shared transport and plugin
     contracts in `micboard/services/common/base/` while protocol-specific code remains under
-    `micboard/integrations/<vendor>/`. `PluginRegistry` loads those integrations by convention;
-    there is no central registration module.
+    `micboard/integrations/<vendor>/`. `micboard.services.common.base.plugin` loads those
+    integrations by convention; there is no central registration module.
 
 ## Runtime boundaries
 
 | Concern | Current entry point |
 | --- | --- |
 | Plugin contract and dynamic import | `micboard.services.common.base.plugin` |
-| Cached class lookup and instance construction | `micboard.services.manufacturer.plugin_registry.PluginRegistry` |
+| Cached class lookup and bound construction | `micboard.services.common.base.plugin.build_manufacturer_plugin` |
 | Shared verified HTTP transport | `micboard.services.common.base.client.BaseHTTPClient` |
 | API exceptions | `micboard.exceptions` |
 | Rate limiting | `micboard.services.common.base.rate_limiter.rate_limit` |
@@ -51,10 +51,11 @@ The required methods are:
 | `add_discovery_ips(ips)` | Add validated manual-discovery addresses; report success. |
 | `get_discovery_ips()` | Return the current manual-discovery address list. |
 | `remove_discovery_ips(ips)` | Remove validated manual-discovery addresses; report success. |
+| `realtime_transport` | `"sse"`, `"websocket"`, or `None` when the integration has no stream. |
+| `subscribe_to_chassis(chassis, callback)` | Open this integration's stream for one chassis. |
 
-`connect_and_subscribe()` and `transform_transmitter_data()` are not abstract members today. Add
-them when the integration supports streaming telemetry or transmitter/channel persistence, because
-those runtime paths call them when enabled.
+`transform_transmitter_data()` is not an abstract member today. Add it when the integration
+supports transmitter/channel persistence, because that runtime path calls it when enabled.
 
 ## Create the integration
 
@@ -287,9 +288,11 @@ partially valid hardware identities.
 The plugin should remain a thin delegate:
 
 ```python
+from collections.abc import Awaitable, Callable
 from typing import Any
 
-from micboard.services.common.base.plugin import ManufacturerPlugin
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.common.base.plugin import ManufacturerPlugin, RealtimeTransport
 
 from .client import AcmeAudioSystemAPIClient
 from .transformers import AcmeAudioDataTransformer
@@ -340,7 +343,23 @@ class AcmeAudioPlugin(ManufacturerPlugin):
 
     def remove_discovery_ips(self, ips: list[str]) -> bool:
         return self.get_client().discovery.remove_discovery_ips(ips)
+
+    @property
+    def realtime_transport(self) -> RealtimeTransport | None:
+        # Return "sse" or "websocket" once the integration streams; None until then.
+        return None
+
+    async def subscribe_to_chassis(
+        self,
+        chassis: WirelessChassis,
+        callback: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        raise NotImplementedError("Acme Audio does not stream realtime updates yet.")
 ```
+
+Both realtime members are abstract, so a plugin that declares no stream still has to say so.
+Returning `None` from `realtime_transport` is how an integration opts out: the subscription
+runner then refuses to start a supervisor for it, and `subscribe_to_chassis` is never awaited.
 
 If a plugin holds a client for its lifetime, the caller that owns that plugin also owns cleanup.
 Do not create a new client for every endpoint call.
@@ -357,19 +376,19 @@ discovery is deterministic.
 Verify class loading:
 
 ```python
-from micboard.services.manufacturer.plugin_registry import PluginRegistry
+from micboard.services.common.base.plugin import get_manufacturer_plugin
 
-plugin_class = PluginRegistry.get_plugin_class("acme_audio")
+plugin_class = get_manufacturer_plugin("acme_audio")
 assert plugin_class.__name__ == "AcmeAudioPlugin"
 ```
 
 Create or enable a `micboard.models.discovery.manufacturer.Manufacturer` row whose `code` is exactly
-`acme_audio`. `PluginRegistry.get_plugin()` can then instantiate the class with that row, and
-`get_all_active_plugins()` includes it when `is_active=True`.
+`acme_audio`. `build_manufacturer_plugin(manufacturer)` then returns a plugin bound to that row;
+it is the only way callers obtain an instance, and it raises when no integration ships for the
+code.
 
-`PluginRegistry` caches plugin classes. Call `PluginRegistry.clear_cache()` only in tests or an
-explicit development reload path. Do not add package re-exports or a compatibility registration
-module.
+Class resolution is cached per process. Call `clear_plugin_cache()` only in tests or an explicit
+development reload path. Do not add package re-exports or a compatibility registration module.
 
 `ManufacturerConfiguration` validation and the admin API-server connection checker have explicit
 vendor behavior. Extend those separate surfaces only if the new integration uses them; do not
@@ -377,7 +396,10 @@ describe them as automatic consequences of plugin registration.
 
 ## Protocol-specific patterns
 
-Streaming is optional and is not part of `ManufacturerPlugin`'s abstract contract.
+Both realtime members are abstract, so streaming is not optional to *declare*. An
+integration that does not stream still implements `subscribe_to_chassis` and returns
+`None` from `realtime_transport`; the subscription runner then starts no supervisor for it
+and never awaits the method.
 
 ### REST polling
 
@@ -392,20 +414,22 @@ Place stream parsing in a vendor module such as `sse_client.py` or `stream.py`. 
 timeout, and allow an unbounded read timeout only for the event stream. Parse only `data:` records,
 validate JSON, and await an async callback.
 
-The generic SSE task path awaits `plugin.connect_and_subscribe(device_id, callback)`, so a new SSE
-plugin should expose an async method with that shape. Do not treat the existing vendor-specific
-bridge as a base-class API.
+The shared runner awaits `plugin.subscribe_to_chassis(chassis, callback)` after declaring
+`realtime_transport = "sse"`, so the integration owns the connection while the runner owns the
+lease, the inventory window, connection tracking, and persistence.
 
 ### Manufacturer WebSocket
 
-Use an async `connect_and_subscribe()` method and a vendor transport module. Require an absolute
-`wss://` URL, rely on the WebSocket library's certificate-verification defaults, validate the
-handshake, and redact transport IDs, device IDs, URLs containing credentials, and payload secrets
-from logs.
+Declare `realtime_transport` as `"websocket"` and implement the async
+`subscribe_to_chassis(chassis, callback)` contract against a vendor transport module. Require an
+absolute `wss://` URL, rely on the WebSocket library's certificate-verification defaults, validate
+the handshake, and redact transport IDs, device IDs, URLs containing credentials, and payload
+secrets from logs.
 
-The Shure WebSocket path and `start_shure_websocket_subscriptions()` task are Shure-specific. A new
-WebSocket vendor needs its own service boundary and thin task wrapper; it must not import or branch
-inside Shure code.
+Connection setup, authentication, framing, and cleanup belong to the integration; leasing,
+inventory selection, connection tracking, and persistence belong to
+`micboard.services.realtime.subscription_runner`. A new WebSocket vendor therefore needs no
+service boundary or task wrapper of its own, and must not import or branch inside Shure code.
 
 Manufacturer WebSockets are backend-to-hardware transports. They are separate from the browser
 Channels endpoint at `/ws` documented in the [WebSocket API](api/websocket.md).
@@ -475,7 +499,8 @@ Build coverage at each boundary without contacting real hardware:
    callback errors, normal close, and secret-safe logging.
 9. **Huey:** test the plain task function and native-Huey enqueue/on-commit behavior separately.
 
-Existing examples live in `tests/test_plugin_registry.py`, `tests/test_httpx_clients.py`,
+Existing examples live in `tests/test_manufacturer_plugin_resolution.py`,
+`tests/test_httpx_clients.py`,
 `tests/test_authenticated_transport_security.py`, `tests/services/sync/`, and
 `tests/test_huey_integration.py`.
 
@@ -506,6 +531,6 @@ just docs
 - [ ] Any new task is a thin native-Huey wrapper registered by `MicboardConfig`.
 - [ ] Any new optional dependency is scoped to an existing/relevant extra and locked with `uv`.
 - [ ] Registry, transport, transformer, discovery, security, service, and streaming tests pass.
-- [ ] `PluginRegistry.get_plugin_class("<vendor>")` resolves the intended class.
+- [ ] `get_manufacturer_plugin("<vendor>")` resolves the intended class.
 - [ ] An active `Manufacturer` row exists with the exact plugin code.
 - [ ] Developer docs and `CHANGELOG.md` describe the supported integration behavior.

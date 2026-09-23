@@ -284,7 +284,7 @@ def test_reconciliation_path_reuses_lazy_shared_expansion() -> None:
     plugin.add_discovery_ips.return_value = True
 
     with patch(
-        "micboard.services.sync.discovery_service.get_manufacturer_plugin_instance",
+        "micboard.services.sync.discovery_service.build_manufacturer_plugin",
         return_value=plugin,
     ):
         DiscoveryService().run_manufacturer_discovery(

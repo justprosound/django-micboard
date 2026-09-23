@@ -253,28 +253,28 @@ application = ProtocolTypeRouter({
 ### Running subscription supervisors
 
 Subscription supervisors are explicit long-running processes. Polling never starts or enqueues a
-supervisor. The management commands run in the foreground until the subscriptions end or the
-process is interrupted, so run them under your normal process supervisor:
+supervisor. One command drives both transports — the manufacturer's integration declares whether
+it streams over a WebSocket or SSE — and it runs in the foreground until the subscriptions end or
+the process is interrupted, so run it under your normal process supervisor:
 
 ```bash
-# Shure WebSocket supervisor
-uv run --no-sync python manage.py websocket_subscribe
+# Shure, which streams over a per-receiver WebSocket
+uv run --no-sync python manage.py realtime_subscribe --manufacturer shure
 
-# Sennheiser SSE supervisor
-uv run --no-sync python manage.py sse_subscribe --manufacturer sennheiser
+# Sennheiser, which streams over an SSCv2 SSE subscription
+uv run --no-sync python manage.py realtime_subscribe --manufacturer sennheiser
 
 # Optional single-device diagnostic selection
-uv run --no-sync python manage.py sse_subscribe \
+uv run --no-sync python manage.py realtime_subscribe \
   --manufacturer sennheiser --device DEVICE_ID
 ```
 
-For queue-managed deployments, Micboard registers
-`start_shure_websocket_subscriptions` and `start_sse_subscriptions` as native Huey task
-entrypoints. The host deployment or scheduler must explicitly enqueue the appropriate entrypoint
-once; recurring device polls do not do so. These long-running tasks consume a Huey worker slot,
-so reserve worker capacity accordingly.
+For queue-managed deployments, Micboard registers `start_realtime_subscriptions` as a native Huey
+task entrypoint. The host deployment or scheduler must explicitly enqueue it once per
+manufacturer; recurring device polls do not do so. These long-running tasks consume a Huey worker
+slot, so reserve worker capacity accordingly.
 
-Every command and Huey entrypoint uses the same renewable singleton lease. A deployment with more
+Every invocation uses the same renewable singleton lease, keyed by transport and manufacturer. A deployment with more
 than one process must point `MICBOARD_REALTIME_CACHE_ALIAS` (default: `"default"`) at a
 process-shared Django cache. A local-memory cache only deduplicates inside one process. The
 following settings bound each supervisor:

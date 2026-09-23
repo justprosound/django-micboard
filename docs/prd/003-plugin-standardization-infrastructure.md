@@ -44,9 +44,10 @@ also created ambiguous import and configuration paths.
 - **Shared contracts:** Keep verified HTTP transport, bounded responses, retries, circuit breaking,
   health behavior, rate limiting, and plugin interfaces in `micboard/services/common/base/`; keep the
   exception hierarchy in `micboard/exceptions.py`.
-- **Convention-based loading:** `PluginRegistry` delegates class discovery to
-  `get_manufacturer_plugin(code)`, which imports `micboard.integrations.<code>.plugin` and selects the
-  conventionally named concrete `ManufacturerPlugin` subclass. There is no central plugin map.
+- **Convention-based loading:** `get_manufacturer_plugin(code)` imports
+  `micboard.integrations.<code>.plugin` and selects the conventionally named concrete
+  `ManufacturerPlugin` subclass; `build_manufacturer_plugin(manufacturer)` binds it to a persisted
+  row. There is no central plugin map.
 - **Protocol ownership:** Shure and Sennheiser retain manufacturer-local device, discovery,
   transform, and streaming adapters. Only transport-neutral behavior with two verified consumers is
   shared.

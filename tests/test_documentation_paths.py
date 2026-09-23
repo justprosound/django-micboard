@@ -20,10 +20,11 @@ def test_integration_validation_commands_reference_live_tests() -> None:
     """Copyable integration commands cannot silently retain deleted test paths."""
     guide = (ROOT / "docs/integration/integration-references.md").read_text()
     expected_paths = (
-        "tests/test_plugin_registry.py",
+        "tests/test_manufacturer_plugin_resolution.py",
         "tests/test_polling_api_service.py",
         "tests/tasks/sync/test_polling_tasks.py",
-        "tests/services/sync/test_polling_service_contracts.py",
+        "tests/services/manufacturer/test_sync_service.py",
+        "tests/test_poll_devices_reporting.py",
     )
 
     assert "tests/test_polling_runtime.py" not in guide

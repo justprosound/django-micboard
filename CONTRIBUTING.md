@@ -135,14 +135,14 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
    ```python
    from micboard.services.shared.base_dto import PydanticBaseDTO
 
+
    class DeviceDTO(PydanticBaseDTO):
        api_device_id: str
    ```
 
 3. **Add type hints** to all public functions:
    ```python
-   def process_devices(self, device_ids: list[int], org: Organization) -> dict[str, Any]:
-       ...
+   def process_devices(self, device_ids: list[int], org: Organization) -> dict[str, Any]: ...
    ```
 
 4. **Document scope requirements** for multi-tenant code:
@@ -156,11 +156,11 @@ Read [micboard/ARCHITECTURE.md](micboard/ARCHITECTURE.md) for:
        ...
    ```
 
-5. **Use plugin registry** for manufacturer-agnostic behavior:
+5. **Build plugins through the one front door** for manufacturer-agnostic behavior:
    ```python
-   from micboard.services.manufacturer.plugin_registry import PluginRegistry
+   from micboard.services.common.base.plugin import build_manufacturer_plugin
 
-   plugin = PluginRegistry.get_plugin('shure', manufacturer=mfg)
+   plugin = build_manufacturer_plugin(mfg)
    devices = plugin.get_devices()
    ```
 
