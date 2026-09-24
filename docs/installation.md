@@ -389,7 +389,7 @@ server {
         proxy_pass http://unix:/var/www/micboard/micboard.sock;
     }
 
-    # WebSocket support
+    # WebSocket support (only needed when you serve Micboard over ASGI)
     location = /ws {
         proxy_pass http://unix:/var/www/micboard/micboard.sock;
         proxy_http_version 1.1;
@@ -399,6 +399,13 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Micboard never sends unsolicited traffic on a quiet connection, so an idle
+        # WebSocket looks dead to a proxy. Nginx defaults proxy_read_timeout to 60s and
+        # would drop the connection after a minute of quiet; raise it past the longest
+        # gap you expect between broadcasts, and past your client's keepalive interval.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
     }
 }
 ```
@@ -411,6 +418,75 @@ sudo systemctl restart nginx
 sudo systemctl enable micboard
 sudo systemctl start micboard
 ```
+
+### What a reverse proxy in front of Micboard carries
+
+Micboard has two delivery modes, and they put very different loads on a proxy.
+
+**HTTP polling is the default and needs no configuration.** Every live browser surface —
+alerts, assignments, the charger grid, and kiosk walls — refreshes itself with a short
+request on a timer. These are ordinary, short-lived HTTP requests: nothing is held open, so
+no connection limit applies beyond your normal request capacity. What *does* scale is
+request rate. Refresh interval multiplied by open tabs is the whole volume, and each interval
+is a setting (see [Configuration](configuration.md)), so slowing a busy deployment down is a
+settings change rather than a template fork.
+
+**WebSocket push is opt-in and holds a connection open per client.** It is active only when
+you install Channels, point `ASGI_APPLICATION` at a `ProtocolTypeRouter` that includes
+`micboard.websockets.routing.websocket_urlpatterns`, configure `CHANNEL_LAYERS`, and serve the
+project with an ASGI server. If any of those is missing, Micboard's system checks report it
+and browsers keep polling. When it *is* active, each connected client holds one upstream
+connection for as long as the page is open, so size your proxy's connection limits for peak
+concurrent viewers rather than for request rate.
+
+Two behaviours matter for keeping those connections alive:
+
+- **Micboard sends nothing on a quiet connection.** There is no server-initiated keepalive
+  frame. A proxy that closes idle upstream connections will close a healthy but quiet
+  Micboard connection, so its idle timeout must exceed the longest expected gap between
+  broadcasts.
+- **The client drives the keepalive.** A client may send `{"command": "ping"}` and Micboard
+  replies `{"type": "pong"}`. Send it on an interval comfortably shorter than the proxy's
+  idle timeout. Keep it well under `MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE` (default 60);
+  a connection that exceeds its allowance is closed with code `4429`.
+
+**Traefik configuration:**
+
+Traefik upgrades WebSocket connections without extra configuration, but its default
+`respondingTimeouts` will close an idle one. Raise the read and idle timeouts on the
+entrypoint that serves Micboard:
+
+```yaml
+# traefik static configuration
+entryPoints:
+  websecure:
+    address: ":443"
+    transport:
+      respondingTimeouts:
+        # 0 disables the limit entirely; prefer an explicit ceiling over disabling it.
+        readTimeout: 0
+        idleTimeout: 3600s
+```
+
+```yaml
+# traefik dynamic configuration
+http:
+  serversTransports:
+    micboard:
+      forwardingTimeouts:
+        dialTimeout: 30s
+        responseHeaderTimeout: 0
+  services:
+    micboard:
+      loadBalancer:
+        serversTransport: micboard
+        servers:
+          - url: "http://micboard:8000"
+```
+
+If you run more than one Micboard process behind Traefik, use a shared channel layer
+(`channels_redis`) so a broadcast produced by one process reaches clients connected to
+another, and prefer sticky sessions only if your client cannot tolerate reconnecting.
 
 ### Docker Deployment
 
