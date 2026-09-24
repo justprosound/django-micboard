@@ -38,6 +38,10 @@ class SettingsDefaultsTests(SimpleTestCase):
                 "POLL_INTERVAL": 5,
                 "CACHE_TIMEOUT": 30,
                 "TRANSMITTER_INACTIVITY_SECONDS": 10,
+                "REFRESH_INTERVAL_ALERTS": 5,
+                "REFRESH_INTERVAL_ASSIGNMENTS": 5,
+                "REFRESH_INTERVAL_CHARGERS": 10,
+                "REFRESH_INTERVAL_KIOSK_HEARTBEAT": 30,
             },
         )
 

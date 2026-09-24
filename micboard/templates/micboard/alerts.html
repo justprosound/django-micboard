@@ -97,7 +97,7 @@
                             <th scope="col">Actions</th>
                         </tr>
                     </thead>
-                    <tbody hx-get="{% url 'micboard:alert_rows' %}?{{ browse.poll_query_string }}" hx-trigger="every 5s" hx-swap="innerHTML">
+                    <tbody hx-get="{% url 'micboard:alert_rows' %}?{{ browse.poll_query_string }}" hx-trigger="every {{ refresh_interval_seconds }}s" hx-swap="innerHTML">
                         {% include "micboard/partials/alert_rows.html" %}
                     </tbody>
                 </table>

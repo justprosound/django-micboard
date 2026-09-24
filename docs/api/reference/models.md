@@ -53,7 +53,7 @@ Display wall and kiosk models for stage/monitor display management.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L13)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L19)
 
 Physical display kiosk/screen showing stage/charger status.
 
@@ -64,7 +64,7 @@ backstage display, FOH position).
 
 #### `clean() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L119)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L128)
 
 Reject refresh rates that can storm clients or overflow browser timers.
 
@@ -72,7 +72,7 @@ Reject refresh rates that can storm clients or overflow browser timers.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L140)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L149)
 
 Section of a display wall assigned to show charger performers.
 

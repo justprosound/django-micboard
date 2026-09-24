@@ -472,6 +472,78 @@ Invalidate one resolved database value or every cached value.
 
 Invalidate definition metadata and every value derived from it.
 
+## `micboard.services.settings.browser_refresh_service`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py)
+
+One module that decides how often each live browser surface re-polls the server.
+
+Micboard delivers every live browser update by short-polling over ordinary HTTP, so the
+poll interval multiplied by the number of open tabs is the entire request volume the
+deployment's reverse proxy carries. Leaving each interval as a literal in its template put
+that number out of a deployer's reach: slowing a busy page down meant forking presentation
+markup. This module owns the decision instead, resolving each surface through the same
+host-configuration seam the rest of Micboard uses and clamping the result to the bounds
+that already govern stored kiosk refresh rates.
+
+### `bounded_refresh_interval(value: Any, default: int) -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L42)
+
+Return one refresh interval clamped into the range a browser can be trusted with.
+
+`MICBOARD_CONFIG` is host-supplied and unvalidated, so this has to survive anything a
+deployment puts there. An interval that cannot be read as a whole number falls back to
+*default* rather than raising, because a browser surface that will not render is worse
+than one refreshing at the shipped rate.
+
+**Parameters:**
+
+- `value` (`Any`) — Candidate interval from host configuration or a stored row.
+- `default` (`int`) — Interval to use when *value* cannot be read as a whole number.
+
+**Returns:**
+
+- `int` — A whole number of seconds within the shared refresh bounds.
+
+### `BrowserRefreshCadence`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L71)
+
+Resolve the bounded poll interval for one named browser surface.
+
+#### `seconds_for(surface: str) -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L74)
+
+Return how many seconds *surface* waits between refreshes.
+
+**Parameters:**
+
+- `surface` (`str`) — A key of :data:`BROWSER_REFRESH_SURFACES`.
+
+**Returns:**
+
+- `int` — The configured interval, clamped to the shared refresh bounds.
+
+**Raises:**
+
+- `ValueError` — If *surface* is not a declared browser refresh surface.
+
+#### `milliseconds_for(surface: str) -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L92)
+
+Return the same bounded interval as a JavaScript timer duration.
+
+**Parameters:**
+
+- `surface` (`str`) — A key of :data:`BROWSER_REFRESH_SURFACES`.
+
+**Returns:**
+
+- `int` — The configured interval in milliseconds.
+
 ## `micboard.services.settings.registry`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py)

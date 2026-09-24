@@ -17,6 +17,7 @@ from micboard.services.kiosk.dtos import DisplayWallSnapshot
 from micboard.services.kiosk.health_service import KioskHealthService
 from micboard.services.kiosk.services import KioskService
 from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.services.settings.browser_refresh_service import browser_refresh_cadence
 from micboard.services.shared.access_policy import visible_to
 
 
@@ -40,7 +41,13 @@ class KioskAuthView(View):
         return render(
             request,
             "micboard/kiosk/display.html",
-            {"snapshot": snapshot, "kiosk": True},
+            {
+                "snapshot": snapshot,
+                "kiosk": True,
+                "heartbeat_interval_ms": browser_refresh_cadence.milliseconds_for(
+                    "kiosk_heartbeat"
+                ),
+            },
         )
 
     def post(self, request: HttpRequest, kiosk_id: str) -> JsonResponse:

@@ -22,6 +22,7 @@ from micboard.services.core.performer_assignment_dtos import (
     UpdatePerformerAssignment,
 )
 from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.services.settings.browser_refresh_service import browser_refresh_cadence
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,12 @@ class AssignmentListView(LoginRequiredMixin, ListView):
     def get_queryset(self) -> QuerySet[PerformerAssignment]:
         """Filter assignments by user permissions and monitoring groups they manage."""
         return PerformerAssignmentService.get_visible_assignments(user=self.request.user)
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """Add the host-configured poll interval this page refreshes on."""
+        context = super().get_context_data(**kwargs)
+        context["refresh_interval_seconds"] = browser_refresh_cadence.seconds_for("assignments")
+        return context
 
 
 class AssignmentRowsView(AssignmentListView):

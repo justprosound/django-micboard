@@ -8,6 +8,12 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from micboard.models.base_managers import TenantOptimizedQuerySet
+from micboard.settings.defaults import (
+    MAX_REFRESH_INTERVAL_SECONDS as SHARED_MAX_REFRESH_INTERVAL_SECONDS,
+)
+from micboard.settings.defaults import (
+    MIN_REFRESH_INTERVAL_SECONDS as SHARED_MIN_REFRESH_INTERVAL_SECONDS,
+)
 
 
 class DisplayWall(models.Model):
@@ -24,8 +30,11 @@ class DisplayWall(models.Model):
         ("portrait", "Portrait (9:16, 10:16)"),
         ("square", "Square (1:1)"),
     ]
-    MIN_REFRESH_INTERVAL_SECONDS: ClassVar[int] = 2
-    MAX_REFRESH_INTERVAL_SECONDS: ClassVar[int] = 3600
+    # One wall's stored refresh rate and a host's configured poll interval answer the
+    # same question, so they share one pair of bounds.
+    MIN_REFRESH_INTERVAL_SECONDS: ClassVar[int] = SHARED_MIN_REFRESH_INTERVAL_SECONDS
+    MAX_REFRESH_INTERVAL_SECONDS: ClassVar[int] = SHARED_MAX_REFRESH_INTERVAL_SECONDS
+    DEFAULT_REFRESH_INTERVAL_SECONDS: ClassVar[int] = 5
 
     location = models.ForeignKey(
         "micboard.Location",
@@ -86,7 +95,7 @@ class DisplayWall(models.Model):
     )
 
     refresh_interval_seconds = models.IntegerField(
-        default=5,
+        default=DEFAULT_REFRESH_INTERVAL_SECONDS,
         help_text="HTMX refresh interval in seconds",
     )
 

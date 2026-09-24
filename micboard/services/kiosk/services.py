@@ -26,6 +26,7 @@ from micboard.services.kiosk.dtos import (
     WallSectionSnapshot,
 )
 from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.services.settings.browser_refresh_service import bounded_refresh_interval
 from micboard.services.shared.access_policy import visible_to
 
 
@@ -237,12 +238,9 @@ class KioskService:
                 display_width_px=wall.display_width_px,
                 display_height_px=wall.display_height_px,
                 orientation=wall.orientation,
-                refresh_interval_seconds=max(
-                    DisplayWall.MIN_REFRESH_INTERVAL_SECONDS,
-                    min(
-                        wall.refresh_interval_seconds,
-                        DisplayWall.MAX_REFRESH_INTERVAL_SECONDS,
-                    ),
+                refresh_interval_seconds=bounded_refresh_interval(
+                    wall.refresh_interval_seconds,
+                    default=DisplayWall.DEFAULT_REFRESH_INTERVAL_SECONDS,
                 ),
                 show_performer_photos=wall.show_performer_photos,
                 show_rf_levels=wall.show_rf_levels,
