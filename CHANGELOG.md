@@ -7,6 +7,34 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Coverage is measured on one leg of the test matrix rather than all six. Python 3.13 and
+  3.14 against Django 5.2 and 6.1 each report 98.3097% over the same 296 files with an
+  identical set of missed lines, because the package contains no version-conditional branch
+  and the suite contains no version-gated skip — so the previous arrangement computed the same
+  number six times and produced six artifacts and twelve Codecov uploads per run. The 95%
+  threshold and the coverage inventory check still gate the build.
+- Codecov uploads no longer set `fail_ci_if_error: true`. Codecov reports its own
+  `codecov/patch` status and is not a required context, so an outage there should not fail the
+  workflow.
+- OpenSSF Scorecard runs on the default branch only. On a pull request it graded a merge ref
+  and uploaded SARIF for a branch that is never shipped.
+- `.github/workflows/README.md` describes the four workflows that exist. It listed eight,
+  including `auto-release.yml`, `mutation-testing.yml`, `recover-github-release.yml` and
+  `scorecard.yml`, none of which are files in this repository.
+
+### Removed
+
+- The mutation testing job, the `mutmut` development dependency, and its `[tool.mutmut]`
+  configuration. The job had never mutated anything: `mutmut run` aborts during import with
+  `TypeError: can only concatenate list (not "str") to list`, raised by a deprecated
+  `tests_dir` string in the configuration. The workflow swallowed that into a `MUTMUT_EXIT`
+  variable nothing read, and the reporting step's `mutmut results` failed behind `|| true`, so
+  every run on `main` published a summary asserting `Surviving mutants: 0`. A job that reports
+  a passing result from a tool that never executed is worse than no job. Dropping the
+  dependency also removes `textual`, `setproctitle` and `pyyaml-ft` from the lock file.
+
 ### Fixed
 
 - The release publishing workflow serialised every version into one concurrency lane, so a

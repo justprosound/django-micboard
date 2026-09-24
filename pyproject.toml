@@ -171,7 +171,6 @@ dev = [
     "hypothesis>=6.0",
     "hypothesis[django]",
     # Mutation testing — verifies that tests actually catch logic inversions
-    "mutmut>=3.0",
 ]
 # The documentation site itself is built with Astro Starlight (see package.json).
 # Python is only needed to extract the API reference Markdown from docstrings.
@@ -461,21 +460,6 @@ level = "MEDIUM"
 confidence = "MEDIUM"
 exclude_dirs = ["tests", "migrations"]
 skips = []
-
-# ============================================================================
-# Mutmut Mutation Testing
-# ============================================================================
-[tool.mutmut]
-paths_to_mutate = "micboard/"
-tests_dir = "tests/"
-# Exclude generated/declarative code where mutations are semantically meaningless
-exclude = [
-    "micboard/migrations/",
-    "micboard/admin/",
-]
-# Run only the fast unit/service tests during mutation — avoids 77-second
-# full-suite overhead per mutant. Full suite validates surviving mutants in CI.
-test_command = "uv run --no-sync pytest tests/ -x -q --tb=no --no-header -m 'not e2e' --timeout=30"
 
 # ==== CalVer via bump-my-version ====
 [tool.bumpversion]

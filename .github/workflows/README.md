@@ -5,14 +5,14 @@ responsibility; shared policy is enforced by branch protection rules and code re
 
 | Workflow | Responsibility | Trigger |
 | --- | --- | --- |
-| `auto-release.yml` | Automatically dispatch release preparation when features or bug fixes are merged to main | Push to main modifying package or release metadata |
-| `auto-merge.yml` | Enable GitHub native auto-merge for Dependabot pull requests after CI passes | Pull-request activity from Dependabot |
-| `ci.yml` | Lint, type check, migration drift, package and documentation validation, Python/Django compatibility, 95% coverage, dependency review, locked-dependency audit, Bandit, CodeQL, and one stable aggregate check | Push, pull request, weekly schedule, or manual dispatch |
-| `mutation-testing.yml` | Run informational mutation testing without blocking pull requests | Weekly schedule or manual dispatch |
-| `prepare-release.yml` | Create the metadata pull request, observe exact required workflow runs, merge, and dispatch publication | Dispatch from `auto-release.yml` or manually from `main` |
-| `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from the preparation workflow on `main` |
-| `recover-github-release.yml` | Reverify the original PyPI artifact from a failed publication run and finish only its GitHub release | Manual break-glass dispatch from `main` |
-| `scorecard.yml` | OpenSSF Scorecard supply-chain security analysis | Weekly schedule, branch protection changes, or push to main |
+| `ci.yml` | Lint, type check, migration drift, wheel packaging, Python/Django compatibility, 95% coverage, documentation build and deploy, demo image deployment path, dependency review, locked-dependency audit, Bandit, CodeQL, OpenSSF Scorecard, and one stable aggregate check | Push or pull request on `main`/`develop`, weekly schedule, or manual dispatch |
+| `prepare-release.yml` | Compute the next CalVer, open the metadata pull request, observe its required runs, merge it, and dispatch publication | Push to `main` touching package or release metadata, or manual dispatch |
+| `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from `prepare-release.yml` on `main` |
+| `auto-merge-bots.yml` | Enable GitHub native auto-merge for Renovate and Dependabot pull requests so they land once CI passes | Pull-request activity from either bot |
+
+Supply-chain analysis has no workflow of its own. Dependency review, CodeQL and OpenSSF
+Scorecard are jobs inside `ci.yml`, which is why a single `CI required` context can gate
+them all.
 
 ## Shared setup action
 
