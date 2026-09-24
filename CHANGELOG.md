@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The release publishing workflow serialised every version into one concurrency lane, so a
+  stacked release could be discarded without publishing. A single global group holds only one
+  pending run: with `2026.9.24.0` waiting on the publishing environment approval and
+  `2026.9.24.1` queued behind it, dispatching `2026.9.24.2` cancelled `2026.9.24.1` before it
+  claimed a runner, and that version was never published. The group is now keyed by version,
+  so distinct releases publish on their own lanes while two runs for the same version still
+  queue.
+
 ## [2026.9.24.2] - 2026-09-24
 
 ### Added

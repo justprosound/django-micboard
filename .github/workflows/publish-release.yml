@@ -15,8 +15,15 @@ on:
 permissions:
   contents: read
 
+# One lane per version, not one lane for every release. A single global group holds
+# only one pending run, so a newer publish evicted the older one: with 2026.9.24.0
+# waiting on the pypi-release environment approval and 2026.9.24.1 queued behind it,
+# dispatching 2026.9.24.2 cancelled 2026.9.24.1 before it ever claimed a runner, and
+# that version was silently never published. Publishing distinct versions has nothing
+# to serialise — separate tags, separate GitHub releases, separate PyPI files — while
+# two runs for the same version still queue, which is the case that must not race.
 concurrency:
-  group: publish-release
+  group: publish-release-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
