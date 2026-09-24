@@ -90,3 +90,39 @@ def test_every_declared_surface_resolves() -> None:
     """The declaration table is the interface, so nothing in it may be unresolvable."""
     for surface in BROWSER_REFRESH_SURFACES:
         assert browser_refresh_cadence.seconds_for(surface) >= MIN_REFRESH_INTERVAL_SECONDS
+
+
+@override_settings(MICBOARD_CONFIG={"REFRESH_INTERVAL_ALERTS": float("inf")})
+def test_a_non_finite_interval_falls_back_instead_of_raising() -> None:
+    """`int(float("inf"))` raises `OverflowError`, which would break the page.
+
+    `MICBOARD_CONFIG` is host-supplied and unvalidated, so an unusable value has to leave
+    the surface rendering at its default rate rather than fail the request.
+    """
+    assert browser_refresh_cadence.seconds_for("alerts") == 5
+
+
+@override_settings(MICBOARD_CONFIG={"REFRESH_INTERVAL_ALERTS": float("nan")})
+def test_a_nan_interval_falls_back_instead_of_raising() -> None:
+    """`int(float("nan"))` raises `ValueError`; the surface still has to render."""
+    assert browser_refresh_cadence.seconds_for("alerts") == 5
+
+
+@pytest.mark.parametrize(("configured", "expected"), [(0.5, 5), (5.7, 5), (12.0, 12)])
+def test_a_fractional_interval_is_read_as_a_typo_not_as_truncation(
+    configured: float,
+    expected: int,
+) -> None:
+    """`int()` would silently truncate, turning `0.5` into the fastest allowed poll.
+
+    A fractional interval is far more likely to be a mistake than a request to truncate, so
+    it falls back to the default. A float that is already whole is used as written.
+    """
+    with override_settings(MICBOARD_CONFIG={"REFRESH_INTERVAL_ALERTS": configured}):
+        assert browser_refresh_cadence.seconds_for("alerts") == expected
+
+
+@override_settings(MICBOARD_CONFIG={"REFRESH_INTERVAL_ALERTS": "30"})
+def test_a_numeric_string_is_still_accepted() -> None:
+    """Environment-derived configuration arrives as a string and must keep working."""
+    assert browser_refresh_cadence.seconds_for("alerts") == 30

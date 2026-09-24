@@ -42,6 +42,11 @@ BROWSER_REFRESH_SURFACES: Final[dict[str, str]] = {
 def bounded_refresh_interval(value: Any, *, default: int) -> int:
     """Return one refresh interval clamped into the range a browser can be trusted with.
 
+    `MICBOARD_CONFIG` is host-supplied and unvalidated, so this has to survive anything a
+    deployment puts there. An interval that cannot be read as a whole number falls back to
+    *default* rather than raising, because a browser surface that will not render is worse
+    than one refreshing at the shipped rate.
+
     Args:
         value: Candidate interval from host configuration or a stored row.
         default: Interval to use when *value* cannot be read as a whole number.
@@ -51,8 +56,15 @@ def bounded_refresh_interval(value: Any, *, default: int) -> int:
     """
     try:
         seconds = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        # `int()` rejects `None` and unparseable strings, and raises `OverflowError` on
+        # infinity rather than returning anything usable.
         seconds = default
+    else:
+        if not isinstance(value, str) and value != seconds:
+            # `int()` truncates a fractional interval silently, so `0.5` would become the
+            # fastest poll the bounds allow. Read it as a typo instead.
+            seconds = default
     return max(MIN_REFRESH_INTERVAL_SECONDS, min(seconds, MAX_REFRESH_INTERVAL_SECONDS))
 
 

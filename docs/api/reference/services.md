@@ -492,6 +492,11 @@ that already govern stored kiosk refresh rates.
 
 Return one refresh interval clamped into the range a browser can be trusted with.
 
+`MICBOARD_CONFIG` is host-supplied and unvalidated, so this has to survive anything a
+deployment puts there. An interval that cannot be read as a whole number falls back to
+*default* rather than raising, because a browser surface that will not render is worse
+than one refreshing at the shipped rate.
+
 **Parameters:**
 
 - `value` (`Any`) — Candidate interval from host configuration or a stored row.
@@ -503,13 +508,13 @@ Return one refresh interval clamped into the range a browser can be trusted with
 
 ### `BrowserRefreshCadence`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L59)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L71)
 
 Resolve the bounded poll interval for one named browser surface.
 
 #### `seconds_for(surface: str) -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L62)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L74)
 
 Return how many seconds *surface* waits between refreshes.
 
@@ -527,7 +532,7 @@ Return how many seconds *surface* waits between refreshes.
 
 #### `milliseconds_for(surface: str) -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L80)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L92)
 
 Return the same bounded interval as a JavaScript timer duration.
 
