@@ -7,6 +7,17 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.9.24.2] - 2026-09-24
+
+- chore: release 2026.9.24.1 (#277) (d41cc3c)
+- refactor(ui): give browser poll cadence one owner outside the markup (#271) (701b05b)
+- chore: release 2026.9.24.0 (#276) (47601a3)
+- refactor: deepen the domain seams and correct the ADRs (#268) (cb301f3)
+- chore(deps): update python docker tag to v3.14 (#275) (cbdfd1d)
+- chore(deps): update github/codeql-action digest to 2892aa5 (#274) (61616a7)
+- chore(deps): update postgres docker digest to 86c951e (#270) (9770ce3)
+- feat(demo): add a read-only demonstration deployment (#269) (aeae07b)
+
 ## [2026.9.24.1] - 2026-09-24
 
 - refactor(ui): give browser poll cadence one owner outside the markup (#271) (701b05b)
