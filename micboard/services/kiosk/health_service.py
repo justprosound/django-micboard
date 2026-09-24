@@ -19,7 +19,7 @@ from micboard.services.kiosk.dtos import (
     KioskHealthChargerMetadata,
     KioskSlotHealthSnapshot,
 )
-from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.services.shared.access_policy import visible_to
 
 
 class KioskHealthService:
@@ -37,7 +37,7 @@ class KioskHealthService:
         """Return one accessible wall's health without materializing unbounded inventory."""
         slots = ChargerSlot.objects.order_by("slot_number", "pk")[: MAX_KIOSK_SLOTS_PER_CHARGER + 1]
         chargers = (
-            MonitoringService.get_accessible_chargers(user)
+            visible_to(Charger, user=user)
             .filter(is_active=True)
             .prefetch_related(Prefetch("slots", queryset=slots, to_attr="health_slots"))
             .order_by("pk")[: MAX_KIOSK_CHARGERS_PER_SECTION + 1]
@@ -51,7 +51,7 @@ class KioskHealthService:
         )
         try:
             wall = (
-                MonitoringService.get_accessible_display_walls(user)
+                visible_to(DisplayWall, user=user)
                 .filter(is_active=True)
                 .prefetch_related(
                     Prefetch("sections", queryset=sections, to_attr="active_sections")

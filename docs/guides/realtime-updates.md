@@ -305,7 +305,9 @@ manager when a view needs an initial snapshot:
 ```python
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-chassis = WirelessChassis.objects.for_user(user=request.user).active()
+chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 snapshot = list(chassis.values("id", "name", "status"))
 ```
 

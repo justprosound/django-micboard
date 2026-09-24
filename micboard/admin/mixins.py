@@ -7,7 +7,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import router
 
 from micboard.services.settings.settings_service import settings as micboard_settings
-from micboard.services.shared.access_policy import tenant_role_access
+from micboard.services.shared.access_policy import tenant_role_access, visible_to
 from micboard.utils.dependencies import (
     HAS_IMPORT_EXPORT,
     HAS_RANGE_FILTER,
@@ -178,21 +178,8 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
         if user.is_superuser and tenant_role_access.is_platform_global_model(queryset.model):
             return queryset
 
-        manager = getattr(queryset.model, "objects", queryset.model._default_manager)
-        manager_for_user = getattr(manager, "for_user", None)
-        if callable(manager_for_user):
-            visible_queryset = manager_for_user(user=user)
-        else:
-            from micboard.models.base_managers import TenantOptimizedQuerySet
-
-            visible_queryset = TenantOptimizedQuerySet(
-                queryset.model,
-                using=queryset.db,
-            ).for_user(user=user)
-
-        return queryset.filter(
-            pk__in=visible_queryset.using(queryset.db).values("pk"),
-        )
+        visible_queryset = visible_to(queryset.model, user=user, using=queryset.db)
+        return queryset.filter(pk__in=visible_queryset.values("pk"))
 
     def get_queryset(self, request: Any) -> Any:
         """Return only objects visible through the request user's tenant scope."""

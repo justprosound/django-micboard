@@ -4,6 +4,7 @@ title: "ADR-012: Bound Live Monitoring Projections"
 **Status:** Implemented
 **Date:** 2026-07-14
 **Deciders:** Project team
+**Reviewed:** 2026-09-22
 
 ## Context
 
@@ -28,6 +29,24 @@ authorized tenant.
 6. Resolve performers and units only for identities present in the bounded visible window. When
    multiple active assignments exist, rank them in SQL and materialize only the winner for each
    unit, ordered by priority, update time, then primary key.
+
+**Scope clarification (2026-09-22):** clauses 3 through 6 govern the unbounded live monitoring
+windows — the charger dashboard, the display wall, and display-wall health — where a ceiling is
+the only thing standing between inventory growth and an unbounded response. They do not govern
+paginated administrative tables, whose page size already communicates the cutoff; the
+Consequences below draw that line.
+
+The one live surface that does not follow clause 1 is the performer-assignment refresh fragment
+(`AssignmentRowsView` → `partials/assignment_rows.html`). It renders `PerformerAssignment` rows
+with their related graph rather than a primitive snapshot DTO. It is bounded and deterministic —
+visibility is applied before the 50-row slice, and the row query now ends in a primary-key
+tie breaker — so it satisfies clause 2. Converting it to a snapshot DTO remains open work.
+
+An earlier revision of this note claimed `unique_together` on
+(`"performer", "wireless_unit"`) already made `("-priority", "performer", "wireless_unit")`
+total. It does not: ordering by those relations sorts by their own `Meta.ordering`
+(`Performer.name`, and `WirelessUnit.base_chassis__name, slot`), none of which is unique, so
+distinct assignments could tie and cross the page boundary between refreshes.
 
 ## Consequences
 

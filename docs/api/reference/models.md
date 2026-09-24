@@ -18,61 +18,17 @@ Hardware model domain.
 
 Charger and charger slot models for wireless equipment charging and storage.
 
-### `ChargerQuerySet`
-
-Bases: `TenantOptimizedQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L12)
-
-Enhanced queryset for Charger model with tenant filtering.
-
-#### `by_location(location_id: int) -> ChargerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L15)
-
-#### `active() -> ChargerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L18)
-
-#### `with_inventory() -> ChargerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L21)
-
-### `ChargerManager`
-
-Bases: `TenantOptimizedManager`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L25)
-
-Enhanced manager for Charger model with tenant support.
-
-#### `get_queryset() -> ChargerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L28)
-
-#### `by_location(location_id: int) -> ChargerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L31)
-
-#### `active() -> ChargerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L34)
-
-#### `with_inventory() -> ChargerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L37)
-
 ### `Charger`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L41)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L12)
 
 Charger unit for field wireless devices (bodypacks, handheld, IEM receivers).
 
 #### `save(*args: Any, **kwargs: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L157)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L128)
 
 Keep the IP-ownership check and row write in one transaction.
 
@@ -80,7 +36,7 @@ Keep the IP-ownership check and row write in one transaction.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L165)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L136)
 
 Individual charging slot on a charger unit.
 
@@ -93,57 +49,11 @@ over time without link rot.
 
 Display wall and kiosk models for stage/monitor display management.
 
-### `DisplayWallQuerySet`
-
-Bases: `TenantOptimizedQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L13)
-
-Query helpers for display walls with tenant awareness.
-
-#### `active() -> DisplayWallQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L16)
-
-Get all active display walls.
-
-#### `by_location(location_id: int) -> DisplayWallQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L20)
-
-Filter by location.
-
-#### `with_sections() -> DisplayWallQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L24)
-
-Optimize: prefetch sections.
-
-### `DisplayWallManager`
-
-Bases: `TenantOptimizedManager`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L29)
-
-Manager for display walls.
-
-#### `get_queryset() -> DisplayWallQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L32)
-
-#### `active() -> DisplayWallQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L35)
-
-#### `by_location(location_id: int) -> DisplayWallQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L38)
-
 ### `DisplayWall`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L42)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L13)
 
 Physical display kiosk/screen showing stage/charger status.
 
@@ -154,41 +64,15 @@ backstage display, FOH position).
 
 #### `clean() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L148)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L119)
 
 Reject refresh rates that can storm clients or overflow browser timers.
-
-### `WallSectionQuerySet`
-
-Bases: `models.QuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L169)
-
-Query helpers for wall sections.
-
-#### `by_wall(wall_id: int) -> WallSectionQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L172)
-
-Filter by display wall.
-
-#### `active() -> WallSectionQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L176)
-
-Get active sections only.
-
-#### `with_chargers() -> WallSectionQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L180)
-
-Optimize: prefetch chargers.
 
 ### `WallSection`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L185)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L140)
 
 Section of a display wall assigned to show charger performers.
 
@@ -243,103 +127,11 @@ Architecture & Future-Proofing Notes:
       have a single direction or multiple? If patterns don't fit, it's a signal to
       revisit the architecture rather than patch with new roles.
 
-### `WirelessChassisQuerySet`
-
-Bases: `TenantOptimizedQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L54)
-
-Enhanced queryset for WirelessChassis model with role and tenant filtering.
-
-#### `active() -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L57)
-
-Get all active devices (not offline).
-
-#### `inactive() -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L61)
-
-Get all inactive/offline devices.
-
-#### `by_status(status: str) -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L65)
-
-Filter by lifecycle status.
-
-#### `by_role(role: str) -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L69)
-
-Filter by RF role (receiver/transmitter/transceiver).
-
-#### `by_manufacturer(manufacturer: str | int) -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L73)
-
-Filter by manufacturer (code or ID).
-
-#### `with_channels() -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L79)
-
-Optimize: prefetch related RF channels.
-
-### `WirelessChassisManager`
-
-Bases: `TenantOptimizedManager`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L84)
-
-Enhanced manager for WirelessChassis model with tenant support.
-
-#### `get_queryset() -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L87)
-
-#### `active() -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L90)
-
-Get all active chassis.
-
-#### `inactive() -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L94)
-
-Get all inactive chassis.
-
-#### `by_status(status: str) -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L98)
-
-Filter by status.
-
-#### `by_role(role: str) -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L102)
-
-Filter by RF role.
-
-#### `by_manufacturer(manufacturer: str | int) -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L106)
-
-Filter by manufacturer.
-
-#### `with_channels() -> WirelessChassisQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L110)
-
-Optimize with RF channels.
-
 ### `WirelessChassis`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L115)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L54)
 
 BASE STATION/RACK UNIT for wireless audio systems (receiver/transmitter/transceiver).
 
@@ -356,19 +148,19 @@ RFChannel represents RF communication channels/slots on this chassis.
 
 #### `save(*args: Any, **kwargs: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L371)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L310)
 
 Keep the IP-ownership check and row write in one transaction.
 
 #### `delete(*args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L378)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L317)
 
 Keep delete receivers and the row deletion in one transaction.
 
 #### `get_expected_channel_count() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L385)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L324)
 
 Get expected number of channels based on device model.
 
@@ -391,87 +183,21 @@ Links to WirelessChassis base unit and RFChannel for RF path tracking.
 
 Bases: `TenantOptimizedQuerySet`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L24)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L22)
 
 Enhanced queryset for WirelessUnit model with tenant filtering.
 
 #### `for_user(user: Any) -> WirelessUnitQuerySet`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L27)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L25)
 
 Return units reachable through the user's monitoring-group scope.
-
-#### `active() -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L45)
-
-Get all active wireless units.
-
-#### `by_status(status: str) -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L51)
-
-Filter by lifecycle status.
-
-#### `by_type(device_type: str) -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L55)
-
-Filter by wireless unit device type.
-
-#### `low_battery(threshold: int = 25) -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L59)
-
-Filter wireless units with battery level below threshold.
-
-### `WirelessUnitManager`
-
-Bases: `TenantOptimizedManager`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L64)
-
-Enhanced manager for WirelessUnit model with tenant support.
-
-#### `get_queryset() -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L67)
-
-#### `active() -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L70)
-
-Get all active wireless units.
-
-#### `for_user(user: Any) -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L74)
-
-Return wireless units visible to the user.
-
-#### `by_status(status: str) -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L78)
-
-Filter by status.
-
-#### `by_type(device_type: str) -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L82)
-
-Filter by device type.
-
-#### `low_battery(threshold: int = 25) -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L86)
-
-Filter by low battery.
 
 ### `WirelessUnit`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L91)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L44)
 
 Field-side wireless audio device (bodypack, handheld, IEM receiver, etc.).
 
@@ -561,55 +287,11 @@ operator can create their first assignment. MSP mode cannot safely
 expose a tenantless performer, so it only returns performers already
 linked through a tenant-scoped assignment.
 
-#### `active() -> PerformerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L39)
-
-Get all active performers.
-
-#### `with_assignments() -> PerformerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L43)
-
-Optimize: prefetch related assignments and units.
-
-#### `by_monitoring_group(group: Any) -> PerformerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L47)
-
-Filter performers by monitoring group (through assignments).
-
-### `PerformerManager`
-
-Bases: `TenantOptimizedManager`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L52)
-
-Manager with typed helpers for performers.
-
-#### `get_queryset() -> PerformerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L55)
-
-#### `active() -> PerformerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L58)
-
-#### `for_user(user: Any) -> PerformerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L61)
-
-Return performers visible to the user.
-
-#### `with_assignments() -> PerformerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L65)
-
 ### `Performer`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L69)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L40)
 
 Represents a performer/talent with assigned wireless devices.
 
@@ -619,13 +301,13 @@ monitor and manage the devices.
 
 #### `get_assigned_units() -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L148)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L119)
 
 Get all wireless units assigned to this performer.
 
 #### `get_monitoring_groups() -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L157)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L128)
 
 Get all monitoring groups that manage this performer.
 
@@ -639,71 +321,27 @@ Performer assignment model linking performers to wireless units.
 
 Bases: `TenantOptimizedQuerySet`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L16)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L15)
 
 Query helpers for performer assignments with tenant awareness.
 
 #### `for_user(user: Any) -> PerformerAssignmentQuerySet`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L19)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L18)
 
 Return assignments in the user's active monitoring groups.
 
 #### `active() -> PerformerAssignmentQuerySet`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L31)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L30)
 
 Get all active assignments.
-
-#### `by_monitoring_group(group: Any) -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L35)
-
-Filter by monitoring group that manages this assignment.
-
-#### `with_performer_and_unit() -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L39)
-
-Optimize: select related performer and wireless unit.
-
-#### `needing_alerts(after: datetime | None = None) -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L48)
-
-Filter assignments with alerts enabled.
-
-### `PerformerAssignmentManager`
-
-Bases: `TenantOptimizedManager`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L61)
-
-Manager for performer assignments.
-
-#### `get_queryset() -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L64)
-
-#### `active() -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L67)
-
-#### `for_user(user: Any) -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L70)
-
-Return assignments visible to the user.
-
-#### `by_monitoring_group(group: Any) -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L74)
 
 ### `PerformerAssignment`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L78)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L35)
 
 Assignment of a performer to a wireless unit.
 
@@ -1010,11 +648,70 @@ Real-time connection model domain.
 
 Models for tracking real-time connections and subscriptions.
 
+### `RealTimeConnectionQuerySet`
+
+Bases: `models.QuerySet['RealTimeConnection']`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L13)
+
+Every state a realtime connection can be moved into, defined once.
+
+Each transition is a bulk update, so a single row held by the subscription runner and a
+changelist selection made in the admin go through the same definition and cannot drift
+into different spellings of the same state.
+
+#### `mark_connecting() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L21)
+
+Record that a connection attempt is in progress.
+
+The error history is deliberately preserved: a reconnect is not yet a success.
+
+#### `mark_connected() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L28)
+
+Record an established connection and clear every trace of the last failure.
+
+#### `record_message() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L42)
+
+Record message activity, establishing a connection that was still pending.
+
+Live rows are moved first. Establishing pending rows first would leave them matching
+the `status="connected"` filter as well, counting one row twice.
+
+#### `mark_error(error_message: str) -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L56)
+
+Record one redacted transport error, counting consecutive failures.
+
+#### `mark_disconnected() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L67)
+
+Record an unintentional loss of the connection.
+
+#### `mark_stopped() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L72)
+
+Record an intentional connection stop.
+
+#### `reset_errors() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L77)
+
+Clear a stale error count without claiming the connection is back.
+
 ### `RealTimeConnection`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L10)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L82)
 
 Tracks real-time connections (SSE/WebSocket) for wireless chassis.
 
@@ -1082,89 +779,11 @@ Enhanced queryset for RFChannel model with tenant and direction filtering.
 
 Filter RF channels accessible to user via monitoring groups.
 
-#### `by_direction(direction: str) -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L44)
-
-Filter by link direction (receive/send/bidirectional).
-
-#### `receive_links() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L48)
-
-Get all receive-direction links (field→chassis).
-
-#### `send_links() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L52)
-
-Get all send-direction links (chassis→field).
-
-#### `with_chassis() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L56)
-
-Optimize: select related chassis and location.
-
-#### `with_wireless_unit() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L64)
-
-Optimize: prefetch related wireless units.
-
-### `RFChannelManager`
-
-Bases: `TenantOptimizedManager`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L69)
-
-Enhanced manager for RFChannel model with tenant support.
-
-#### `get_queryset() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L72)
-
-#### `for_user(user: User) -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L75)
-
-Get RF channels accessible to user.
-
-#### `by_direction(direction: str) -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L79)
-
-Filter by direction.
-
-#### `receive_links() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L83)
-
-Get all receive-direction links.
-
-#### `send_links() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L87)
-
-Get all send-direction links.
-
-#### `with_chassis() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L91)
-
-Optimize with chassis and location.
-
-#### `with_wireless_unit() -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L95)
-
-Optimize with wireless unit.
-
 ### `RFChannel`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L100)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L45)
 
 Represents a directional RF communication channel on a wireless chassis.
 
@@ -1524,95 +1143,19 @@ Return whether this model has an explicit tenant ownership path.
 
 Filter by Django Site (multi-site mode).
 
-#### `for_organization(organization: OrganizationLike | int | None = None) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L163)
-
-Filter by Organization (MSP mode).
-
-#### `for_campus(campus_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L181)
-
-Filter by Campus (MSP mode).
-
 #### `for_memberships(memberships: Sequence[tuple[int, int | None]]) -> TenantOptimizedQuerySet[_ModelT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L194)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L163)
 
 Filter through explicit organization/campus membership identifiers.
 
 #### `for_user(user: Any) -> TenantOptimizedQuerySet[_ModelT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L220)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L189)
 
 Filter based on user permissions and tenant context.
 
 Respects MSP, multi-site, and single-site modes.
-
-#### `with_manufacturer() -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L272)
-
-Optimize: select_related manufacturer.
-
-#### `with_location() -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L278)
-
-Optimize: select_related location and building.
-
-#### `with_chassis() -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L284)
-
-Optimize: select_related chassis.
-
-#### `recently_seen(minutes: int = 30) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L290)
-
-Filter objects seen within N minutes.
-
-### `TenantOptimizedManager`
-
-Bases: `models.Manager[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L303)
-
-Base manager with tenant filtering and optimization methods.
-
-#### `get_queryset() -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L306)
-
-#### `for_site(site_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L309)
-
-#### `for_organization(organization: OrganizationLike | int | None = None) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L312)
-
-#### `for_campus(campus_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L317)
-
-#### `for_user(user: Any) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L320)
-
-#### `with_manufacturer() -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L323)
-
-#### `with_location() -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L326)
-
-#### `recently_seen(minutes: int = 30) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L329)
 
 ## `micboard.models.mixins`
 

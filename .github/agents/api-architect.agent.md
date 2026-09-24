@@ -24,14 +24,13 @@ You are an expert API architect who designs and implements robust, production-re
 ```python
 import httpx
 
+
 class APIService:
     """Low-level HTTP service for API communication"""
 
     def __init__(self, base_url: str, api_key: str):
         self.client = httpx.AsyncClient(
-            base_url=base_url,
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=30.0
+            base_url=base_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=30.0
         )
 
     async def get(self, endpoint: str, params: dict = None) -> dict:
@@ -62,10 +61,12 @@ class APIService:
 from pydantic import BaseModel
 from typing import Optional
 
+
 class User(BaseModel):
     id: int
     name: str
     email: str
+
 
 class UserManager:
     """Business logic for user operations"""
@@ -85,10 +86,7 @@ class UserManager:
 
     async def create_user(self, name: str, email: str) -> User:
         """Create new user"""
-        data = await self.service.post(
-            "/users",
-            {"name": name, "email": email}
-        )
+        data = await self.service.post("/users", {"name": name, "email": email})
         return User(**data)
 ```
 
@@ -105,16 +103,12 @@ class UserManager:
 
 **Example using tenacity**:
 ```python
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type
-)
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import httpx
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class ResilientUserManager:
     """User manager with resilience patterns"""
@@ -126,7 +120,7 @@ class ResilientUserManager:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(httpx.RequestError),
-        reraise=True
+        reraise=True,
     )
     async def get_user(self, user_id: int) -> Optional[User]:
         """Get user with retry logic"""
@@ -138,9 +132,7 @@ class ResilientUserManager:
             raise
 
     async def get_user_with_fallback(
-        self,
-        user_id: int,
-        fallback: Optional[User] = None
+        self, user_id: int, fallback: Optional[User] = None
     ) -> Optional[User]:
         """Get user with fallback value"""
         try:
@@ -160,19 +152,23 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
+
 class User(BaseModel):
     id: int
     name: str
     email: str
     created_at: datetime
 
+
 class CreateUserRequest(BaseModel):
     name: str = Field(..., min_length=1)
     email: str = Field(..., regex=r"^[\w\.-]+@[\w\.-]+\.\w+$")
 
+
 # service.py
 import httpx
 from typing import Optional
+
 
 class UserAPIService:
     """Layer 1: HTTP transport layer"""
@@ -180,11 +176,8 @@ class UserAPIService:
     def __init__(self, base_url: str, api_key: str, timeout: float = 30.0):
         self.client = httpx.AsyncClient(
             base_url=base_url,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            timeout=timeout
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            timeout=timeout,
         )
 
     async def close(self):
@@ -201,15 +194,14 @@ class UserAPIService:
         return response.json()
 
     async def list_users(self, page: int = 1, per_page: int = 50) -> dict:
-        response = await self.client.get(
-            "/users",
-            params={"page": page, "per_page": per_page}
-        )
+        response = await self.client.get("/users", params={"page": page, "per_page": per_page})
         response.raise_for_status()
         return response.json()
 
+
 # manager.py
 from typing import Optional, List
+
 
 class UserManager:
     """Layer 2: Business logic layer"""
@@ -237,11 +229,7 @@ class UserManager:
         data = await self.service.list_users(page=page)
         return [User(**item) for item in data.get("users", [])]
 
-    async def get_or_create_user(
-        self,
-        email: str,
-        name: str
-    ) -> tuple[User, bool]:
+    async def get_or_create_user(self, email: str, name: str) -> tuple[User, bool]:
         """Get existing user or create new one, return (user, created)"""
         # First, try to find by email (assuming search endpoint exists)
         users = await self.list_users()
@@ -254,14 +242,19 @@ class UserManager:
         user = await self.create_user(request)
         return user, True
 
+
 # resilience.py
 from tenacity import (
-    retry, stop_after_attempt, wait_exponential,
-    retry_if_exception_type, before_sleep_log
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
 )
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class ResilientUserManager:
     """Layer 3: Resilience layer"""
@@ -273,7 +266,7 @@ class ResilientUserManager:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException)),
-        before_sleep=before_sleep_log(logger, logging.WARNING)
+        before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     async def get_user(self, user_id: int) -> Optional[User]:
         """Get user with automatic retry on network errors"""
@@ -282,23 +275,20 @@ class ResilientUserManager:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException))
+        retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException)),
     )
     async def create_user(self, request: CreateUserRequest) -> User:
         """Create user with retry logic"""
         return await self.manager.create_user(request)
 
-    async def get_user_safe(
-        self,
-        user_id: int,
-        default: Optional[User] = None
-    ) -> Optional[User]:
+    async def get_user_safe(self, user_id: int, default: Optional[User] = None) -> Optional[User]:
         """Get user with fallback, never raises"""
         try:
             return await self.get_user(user_id)
         except Exception as e:
             logger.error(f"Failed to get user {user_id}: {e}")
             return default
+
 
 # client.py - Public API
 class UserAPIClient:
@@ -330,12 +320,10 @@ class UserAPIClient:
         # List operations typically don't need retry
         return await self.manager.list_users(page)
 
+
 # Usage
 async def main():
-    async with UserAPIClient(
-        base_url="https://api.example.com",
-        api_key="secret"
-    ) as client:
+    async with UserAPIClient(base_url="https://api.example.com", api_key="secret") as client:
         # Simple operations automatically have retry, validation, etc.
         user = await client.get_user(123)
         if user:
@@ -425,6 +413,7 @@ export class ResilientUserManager {
 ```python
 from pydantic import BaseSettings
 
+
 class APIConfig(BaseSettings):
     base_url: str
     api_key: str
@@ -433,6 +422,7 @@ class APIConfig(BaseSettings):
 
     class Config:
         env_file = ".env"
+
 
 config = APIConfig()
 client = UserAPIClient(config.base_url, config.api_key)
@@ -443,10 +433,12 @@ client = UserAPIClient(config.base_url, config.api_key)
 import pytest
 from unittest.mock import AsyncMock
 
+
 @pytest.fixture
 def mock_service():
     service = AsyncMock(spec=UserAPIService)
     return service
+
 
 @pytest.mark.asyncio
 async def test_get_user(mock_service):
@@ -454,7 +446,7 @@ async def test_get_user(mock_service):
         "id": 1,
         "name": "Test",
         "email": "test@example.com",
-        "created_at": "2024-01-01T00:00:00Z"
+        "created_at": "2024-01-01T00:00:00Z",
     }
 
     manager = UserManager(mock_service)
@@ -469,6 +461,7 @@ async def test_get_user(mock_service):
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class UserManager:
     async def get_user(self, user_id: int) -> Optional[User]:

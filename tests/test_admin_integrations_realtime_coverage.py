@@ -155,26 +155,26 @@ def test_realtime_admin_displays_duration_actions_and_optimized_queryset() -> No
     assert "Connected" in model_admin.status_colored(obj)
     obj.status = "custom"
     assert "Connected" in model_admin.status_colored(obj)
-    with (
-        patch.object(realtime, "connection_duration", return_value=timedelta(seconds=3661)),
-        patch.object(realtime, "time_since_last_message", return_value=timedelta(seconds=62)),
-    ):
-        assert model_admin.connection_duration(obj) == "01:01:01"
-        assert model_admin.time_since_last_message(obj) == "00:01:02"
-    with (
-        patch.object(realtime, "connection_duration", return_value=None),
-        patch.object(realtime, "time_since_last_message", return_value=None),
-    ):
-        assert model_admin.connection_duration(obj) == "-"
-        assert model_admin.time_since_last_message(obj) == "-"
+
+    obj.connected_duration = timedelta(seconds=3661)
+    obj.time_since_last_message = timedelta(seconds=62)
+    assert model_admin.connection_duration(obj) == "01:01:01"
+    assert model_admin.time_since_last_message(obj) == "00:01:02"
+
+    obj.connected_duration = None
+    obj.time_since_last_message = None
+    assert model_admin.connection_duration(obj) == "-"
+    assert model_admin.time_since_last_message(obj) == "-"
+
     queryset = MagicMock()
-    queryset.update.return_value = 2
     model_admin.message_user = Mock()
-    with patch.object(realtime.timezone, "now", return_value=NOW):
-        model_admin.mark_connected(_request(), queryset)
-        model_admin.mark_disconnected(_request(), queryset)
-        model_admin.reset_error_count(_request(), queryset)
-        model_admin.stop_connections(_request(), queryset)
-    assert queryset.update.call_count == 4
+    model_admin.mark_connected(_request(), queryset)
+    model_admin.mark_disconnected(_request(), queryset)
+    model_admin.reset_error_count(_request(), queryset)
+    model_admin.stop_connections(_request(), queryset)
+    queryset.mark_connected.assert_called_once_with()
+    queryset.mark_disconnected.assert_called_once_with()
+    queryset.reset_errors.assert_called_once_with()
+    queryset.mark_stopped.assert_called_once_with()
     with patch.object(MicboardModelAdmin, "get_queryset", return_value=queryset):
         assert model_admin.get_queryset(_request()) is queryset.select_related.return_value

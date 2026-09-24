@@ -35,13 +35,24 @@ Instead of the three-module split, the team adopted a **composite client pattern
 - `BaseHTTPClient` composes:
   - `BoundedHTTPTransport` (streaming response size enforcement)
   - `CircuitBreaker` (failure threshold + recovery timeout)
-  - `HealthCheckMixin` (health check endpoint probing)
+
+  It probes the health endpoint itself and formats the result with the module-level
+  `standardize_health_response`.
 
 - Vendor clients (`ShureSystemAPIClient`, `SennheiserSystemAPIClient`) **inherit** from this composite `BaseHTTPClient` and implement abstract methods for auth, endpoints, and exception classes
 
 - Sub-clients for discovery/devices are **composed on the vendor client** (e.g., `ShureDiscoveryClient`, `ShureDeviceClient`)
 
 This achieves the same goals (transport bounds, circuit breaking, health checking) without the three-module extraction that would have required breaking vendor client public APIs.
+
+**Correction (2026-09-22):** health checking was described above as a composed concern, but it
+arrived as inheritance: `BaseHTTPClient` extended `HealthCheckMixin` from
+`services/monitoring/`, pulling a monitoring module into the transport's base classes. Of the
+mixin's four methods, `check_health` and `is_healthy` were overridden by the client,
+`_parse_health_response` had no caller at all, and only `_standardize_health_response` was
+reachable — from two places in the same file. The mixin is deleted and that helper is now
+`standardize_health_response` beside its callers, so the transport composes its collaborators
+and no longer depends on the monitoring domain.
 
 ## Original Plan (Abandoned)
 

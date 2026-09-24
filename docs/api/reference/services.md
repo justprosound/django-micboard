@@ -150,37 +150,37 @@ Return one bounded live-refresh slice without a count query.
 
 #### `get_preferred_active_assignments_for_units(user: Any, unit_ids: Collection[int]) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L107)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L115)
 
 Return at most one deterministic active assignment for each requested unit.
 
 #### `get_preferred_active_assignments_for_serials(user: Any, serial_numbers: Collection[str]) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L122)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L130)
 
 Return at most one deterministic active assignment for each requested serial.
 
 #### `ensure_group_can_manage_unit(group: MonitoringGroup, unit: WirelessUnit) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L137)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L145)
 
 Require the selected group to cover the unit in tenant-aware deployments.
 
 #### `ensure_can_modify_unit(user: Any, unit: WirelessUnit) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L165)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L173)
 
 Require an MSP role that permits assignment changes for the unit.
 
 #### `create_assignment(command: CreatePerformerAssignment, user: Any) -> PerformerAssignment`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L229)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L237)
 
 Create an assignment after validating every object against user scope.
 
 #### `update_assignment(command: UpdatePerformerAssignment, user: Any) -> PerformerAssignment`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L286)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L294)
 
 Update fields on an existing assignment and return the instance.
 
@@ -188,13 +188,13 @@ Raises PerformerAssignment.DoesNotExist if the assignment is missing.
 
 #### `delete_assignment(assignment_id: int, user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L315)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L323)
 
 Permanently delete an assignment. Returns True if deleted, False if not found.
 
 #### `deactivate_assignment(assignment_id: int, user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L334)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L342)
 
 Deactivate an existing assignment.
 
@@ -617,45 +617,60 @@ Shared policy for tenant-wide read and mutation access decisions.
 
 Return whether ``user`` may bypass organization membership boundaries.
 
-### `TenantRoleAccessService`
+### `visible_to(model: type[models.Model], user: Any, using: str | None = None) -> models.QuerySet[Any]`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L50)
+
+Return the rows of ``model`` that ``user`` may see.
+
+Models with a tenant-aware manager narrow visibility themselves, sometimes with a
+model-specific rule on top of the shared cascade; models on Django's default manager get
+the shared cascade directly. Callers ask the same question either way.
+
+The database is bound before the tenant boundary is applied, not after. Answering this
+in MSP mode takes two reads: `for_user` materialises the caller's active memberships as
+it builds the queryset, so retargeting only the finished queryset would leave that
+boundary read on whichever database the manager defaulted to.
+
+### `TenantRoleAccessService`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L76)
 
 Apply MSP membership roles without narrowing read-only visibility.
 
 #### `management_memberships(user: Any, using: str | None = None) -> list[tuple[int, int | None]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L60)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L86)
 
 Return active organization/campus scopes where ``user`` may administer.
 
 #### `is_platform_global_model(model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L94)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L120)
 
 Return whether ``model`` is a reviewed host-wide admin surface.
 
 #### `scope_manageable_queryset(queryset: models.QuerySet[Any], user: Any) -> models.QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L129)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L155)
 
 Intersect ``queryset`` with scopes where ``user`` has an admin role.
 
 #### `can_add_model(user: Any, model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L170)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L196)
 
 Authorize adds only where a new row can carry exclusive tenant ownership.
 
 #### `can_manage_model(user: Any, model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L186)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L212)
 
 Authorize adding or bulk-mutating rows of one tenant-owned model.
 
 #### `can_manage_object(user: Any, obj: models.Model) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L201)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L227)
 
 Authorize mutation only when the object's exact tenant role permits it.
 
@@ -754,39 +769,48 @@ Get an instance of the configured API client for this manufacturer.
 
 Transform raw API device data into the standardized application format.
 
-#### `get_device(device_id: str) -> dict[str, Any] | None`
+#### `transform_transmitter_data(api_data: dict[str, Any], channel_number: int) -> dict[str, Any] | None`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L156)
+
+Normalize one raw wireless-unit payload for a channel.
+
+`DeviceUpdateService` requires this of every plugin it persists through, so it is
+part of the contract rather than an optional addition.
+
+#### `get_device(device_id: str) -> dict[str, Any] | None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L169)
 
 Fetch details for a single device by its identifier.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L161)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L174)
 
 Check if the plugin and its underlying integrations are currently healthy.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L166)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L179)
 
 Perform a detailed health check and return the results as a dictionary.
 
 #### `add_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L171)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L184)
 
 Add a list of IP addresses to the plugin's discovery targets.
 
 #### `get_discovery_ips() -> list[str]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L176)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L189)
 
 Retrieve the list of currently configured discovery IP addresses.
 
 #### `remove_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L181)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L194)
 
 Remove a list of IP addresses from the plugin's discovery targets.
 
@@ -794,57 +818,67 @@ Remove a list of IP addresses from the plugin's discovery targets.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py)
 
+### `standardize_health_response(status: str, details: dict[str, Any] | None = None, error: str | None = None) -> dict[str, Any]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L27)
+
+Return one health result in the shape every consumer reads.
+
+Consumers — the admin, the API-health context processor, and the manufacturer health task —
+read `status` from a closed vocabulary plus a timestamp, so an unrecognized status becomes
+`unknown` rather than propagating a vendor's own word for it.
+
 ### `BaseAPIClient`
 
 Bases: `ABC`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L24)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L54)
 
 Base API client interface.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L27)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L57)
 
 Check if the client is healthy.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L32)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L62)
 
 Perform a health check and return details.
 
 ### `BaseHTTPClient`
 
-Bases: `BaseAPIClient`, `HealthCheckMixin`
+Bases: `BaseAPIClient`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L45)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L75)
 
 Base HTTP client with circuit breaker and retries.
 
 #### `get_exception_class() -> type[APIError]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L122)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L152)
 
 Get the exception class for API errors.
 
 #### `get_rate_limit_exception_class() -> type[APIRateLimitError]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L127)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L157)
 
 Get the exception class for rate limit errors.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L142)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L172)
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L145)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L175)
 
 #### `close() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L405)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L435)
 
 Close the underlying HTTP connection pool.
 

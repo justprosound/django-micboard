@@ -12,13 +12,11 @@ Links to WirelessChassis base unit and RFChannel for RF path tracking.
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import Any, ClassVar, cast
 
 from django.db import models
-from django.utils import timezone
 
-from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 
 class WirelessUnitQuerySet(TenantOptimizedQuerySet):
@@ -41,51 +39,6 @@ class WirelessUnitQuerySet(TenantOptimizedQuerySet):
             | models.Q(base_chassis__location__building_id__in=all_room_buildings)
             | models.Q(assigned_resource__monitoring_groups__in=groups)
         ).distinct()
-
-    def active(self) -> WirelessUnitQuerySet:
-        """Get all active wireless units."""
-        active_states = ["online", "degraded", "provisioning"]
-        threshold = timezone.now() - timedelta(minutes=5)
-        return self.filter(status__in=active_states, last_seen__gte=threshold)
-
-    def by_status(self, *, status: str) -> WirelessUnitQuerySet:
-        """Filter by lifecycle status."""
-        return self.filter(status=status)
-
-    def by_type(self, *, device_type: str) -> WirelessUnitQuerySet:
-        """Filter by wireless unit device type."""
-        return self.filter(device_type=device_type)
-
-    def low_battery(self, *, threshold: int = 25) -> WirelessUnitQuerySet:
-        """Filter wireless units with battery level below threshold."""
-        return self.filter(battery__lt=threshold).exclude(battery=255)
-
-
-class WirelessUnitManager(TenantOptimizedManager):
-    """Enhanced manager for WirelessUnit model with tenant support."""
-
-    def get_queryset(self) -> WirelessUnitQuerySet:
-        return WirelessUnitQuerySet(self.model, using=self._db)
-
-    def active(self) -> WirelessUnitQuerySet:
-        """Get all active wireless units."""
-        return self.get_queryset().active()
-
-    def for_user(self, *, user: Any) -> WirelessUnitQuerySet:
-        """Return wireless units visible to the user."""
-        return self.get_queryset().for_user(user=user)
-
-    def by_status(self, *, status: str) -> WirelessUnitQuerySet:
-        """Filter by status."""
-        return self.get_queryset().by_status(status=status)
-
-    def by_type(self, *, device_type: str) -> WirelessUnitQuerySet:
-        """Filter by device type."""
-        return self.get_queryset().by_type(device_type=device_type)
-
-    def low_battery(self, *, threshold: int = 25) -> WirelessUnitQuerySet:
-        """Filter by low battery."""
-        return self.get_queryset().low_battery(threshold=threshold)
 
 
 class WirelessUnit(models.Model):
@@ -306,7 +259,7 @@ class WirelessUnit(models.Model):
         help_text="Last update timestamp",
     )
 
-    objects = WirelessUnitManager()
+    objects = WirelessUnitQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Wireless Unit (Field Device)"

@@ -8,7 +8,6 @@ from django.core.management.base import BaseCommand
 from django.db.models import QuerySet
 
 from micboard.models.realtime.connection import RealTimeConnection
-from micboard.services.realtime.connection_service import connection_duration
 from micboard.services.realtime.health_dtos import RealtimeConnectionStatusSummary
 from micboard.services.realtime.health_service import RealtimeConnectionHealthService
 
@@ -95,7 +94,7 @@ class Command(BaseCommand):
             ("Connected", connection.connected_at),
             ("Last message", connection.last_message_at),
             ("Error", "present; details redacted" if connection.error_message else ""),
-            ("Duration", connection_duration(connection)),
+            ("Duration", connection.connected_duration),
         )
         for label, value in details:
             if value:

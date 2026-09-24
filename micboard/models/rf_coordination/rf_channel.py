@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Q
 
-from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 
 class RFChannelQuerySet(TenantOptimizedQuerySet):
@@ -40,61 +40,6 @@ class RFChannelQuerySet(TenantOptimizedQuerySet):
             q_objects |= Q(chassis__location__building__in=user_all_room_buildings)
 
         return tenant_scope.filter(q_objects).distinct()
-
-    def by_direction(self, *, direction: str) -> RFChannelQuerySet:
-        """Filter by link direction (receive/send/bidirectional)."""
-        return self.filter(link_direction=direction)
-
-    def receive_links(self) -> RFChannelQuerySet:
-        """Get all receive-direction links (field→chassis)."""
-        return self.filter(link_direction__in=["receive", "bidirectional"])
-
-    def send_links(self) -> RFChannelQuerySet:
-        """Get all send-direction links (chassis→field)."""
-        return self.filter(link_direction__in=["send", "bidirectional"])
-
-    def with_chassis(self) -> RFChannelQuerySet:
-        """Optimize: select related chassis and location."""
-        return self.select_related(
-            "chassis",
-            "chassis__location",
-            "chassis__location__building",
-        )
-
-    def with_wireless_unit(self) -> RFChannelQuerySet:
-        """Optimize: prefetch related wireless units."""
-        return self.prefetch_related("active_wireless_unit")
-
-
-class RFChannelManager(TenantOptimizedManager):
-    """Enhanced manager for RFChannel model with tenant support."""
-
-    def get_queryset(self) -> RFChannelQuerySet:
-        return RFChannelQuerySet(self.model, using=self._db)
-
-    def for_user(self, *, user: User) -> RFChannelQuerySet:
-        """Get RF channels accessible to user."""
-        return self.get_queryset().for_user(user=user)
-
-    def by_direction(self, *, direction: str) -> RFChannelQuerySet:
-        """Filter by direction."""
-        return self.get_queryset().by_direction(direction=direction)
-
-    def receive_links(self) -> RFChannelQuerySet:
-        """Get all receive-direction links."""
-        return self.get_queryset().receive_links()
-
-    def send_links(self) -> RFChannelQuerySet:
-        """Get all send-direction links."""
-        return self.get_queryset().send_links()
-
-    def with_chassis(self) -> RFChannelQuerySet:
-        """Optimize with chassis and location."""
-        return self.get_queryset().with_chassis()
-
-    def with_wireless_unit(self) -> RFChannelQuerySet:
-        """Optimize with wireless unit."""
-        return self.get_queryset().with_wireless_unit()
 
 
 class RFChannel(models.Model):
@@ -221,7 +166,7 @@ class RFChannel(models.Model):
         help_text="Currently active IEM receiver on this channel (SEND direction)",
     )
 
-    objects = RFChannelManager()
+    objects = RFChannelQuerySet.as_manager()
 
     class Meta:
         verbose_name = "RF Channel"

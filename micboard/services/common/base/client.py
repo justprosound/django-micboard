@@ -7,18 +7,48 @@ from abc import ABC, abstractmethod
 from json import JSONDecodeError
 from typing import Any, NoReturn, Self
 
+from django.utils import timezone
+
 import httpx
 from httpx import RequestError, TimeoutException
 
 from micboard.exceptions import APIError, APIRateLimitError
 from micboard.services.common.base.bounded_transport import BoundedHTTPTransport
 from micboard.services.common.network_limits import HTTPClientLimits
-from micboard.services.monitoring.base_health_mixin import HealthCheckMixin
 from micboard.utils.exception_logging import sanitized_exception_info
 
 from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
+
+HEALTH_STATUSES = frozenset({"healthy", "degraded", "unhealthy", "error", "unknown"})
+
+
+def standardize_health_response(
+    *,
+    status: str,
+    details: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    """Return one health result in the shape every consumer reads.
+
+    Consumers — the admin, the API-health context processor, and the manufacturer health task —
+    read `status` from a closed vocabulary plus a timestamp, so an unrecognized status becomes
+    `unknown` rather than propagating a vendor's own word for it.
+    """
+    if status not in HEALTH_STATUSES:
+        logger.warning("Invalid health status: %s, defaulting to unknown", status)
+        status = "unknown"
+
+    response: dict[str, Any] = {
+        "status": status,
+        "timestamp": timezone.now().isoformat(),
+    }
+    if details:
+        response["details"] = details
+    if error:
+        response["error"] = error
+    return response
 
 
 class BaseAPIClient(ABC):
@@ -42,7 +72,7 @@ class BaseAPIClient(ABC):
         raise NotImplementedError()
 
 
-class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
+class BaseHTTPClient(BaseAPIClient):
     """Base HTTP client with circuit breaker and retries."""
 
     def __init__(self, base_url: str | None = None) -> None:
@@ -161,7 +191,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
                 "last_successful_request": self._last_successful_request,
             }
 
-            return self._standardize_health_response(
+            return standardize_health_response(
                 status=status,
                 details=details,
             )
@@ -172,7 +202,7 @@ class BaseHTTPClient(BaseAPIClient, HealthCheckMixin):
                 self._get_config_prefix(),
                 exc_info=sanitized_exception_info(exc),
             )
-            return self._standardize_health_response(
+            return standardize_health_response(
                 status="error",
                 error=f"Health check failed ({type(exc).__name__}); details redacted.",
             )

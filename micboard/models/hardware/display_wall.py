@@ -7,36 +7,7 @@ from typing import ClassVar
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from micboard.models.base_managers import TenantOptimizedManager, TenantOptimizedQuerySet
-
-
-class DisplayWallQuerySet(TenantOptimizedQuerySet):
-    """Query helpers for display walls with tenant awareness."""
-
-    def active(self) -> DisplayWallQuerySet:
-        """Get all active display walls."""
-        return self.filter(is_active=True)
-
-    def by_location(self, *, location_id: int) -> DisplayWallQuerySet:
-        """Filter by location."""
-        return self.filter(location_id=location_id)
-
-    def with_sections(self) -> DisplayWallQuerySet:
-        """Optimize: prefetch sections."""
-        return self.prefetch_related("sections")
-
-
-class DisplayWallManager(TenantOptimizedManager):
-    """Manager for display walls."""
-
-    def get_queryset(self) -> DisplayWallQuerySet:
-        return DisplayWallQuerySet(self.model, using=self._db)
-
-    def active(self) -> DisplayWallQuerySet:
-        return self.get_queryset().active()
-
-    def by_location(self, *, location_id: int) -> DisplayWallQuerySet:
-        return self.get_queryset().by_location(location_id=location_id)
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 
 class DisplayWall(models.Model):
@@ -134,7 +105,7 @@ class DisplayWall(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    objects = DisplayWallManager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Display Wall"
@@ -164,22 +135,6 @@ class DisplayWall(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.display_width_px}x{self.display_height_px}) @ {self.location}"
-
-
-class WallSectionQuerySet(models.QuerySet):
-    """Query helpers for wall sections."""
-
-    def by_wall(self, *, wall_id: int) -> WallSectionQuerySet:
-        """Filter by display wall."""
-        return self.filter(wall_id=wall_id)
-
-    def active(self) -> WallSectionQuerySet:
-        """Get active sections only."""
-        return self.filter(is_active=True)
-
-    def with_chargers(self) -> WallSectionQuerySet:
-        """Optimize: prefetch chargers."""
-        return self.prefetch_related("chargers")
 
 
 class WallSection(models.Model):
@@ -263,8 +218,6 @@ class WallSection(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    objects = WallSectionQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Wall Section"

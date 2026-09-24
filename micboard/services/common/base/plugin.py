@@ -154,6 +154,19 @@ class ManufacturerPlugin(BasePlugin):
         raise NotImplementedError()
 
     @abstractmethod
+    def transform_transmitter_data(
+        self,
+        api_data: dict[str, Any],
+        channel_number: int,
+    ) -> dict[str, Any] | None:
+        """Normalize one raw wireless-unit payload for a channel.
+
+        `DeviceUpdateService` requires this of every plugin it persists through, so it is
+        part of the contract rather than an optional addition.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Fetch details for a single device by its identifier."""
         raise NotImplementedError()

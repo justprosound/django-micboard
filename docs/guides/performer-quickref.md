@@ -50,11 +50,11 @@ In MSP mode, the user must have an active `operator`, `admin`, or `owner` member
 ```python
 assignments = (
     PerformerAssignment.objects.for_user(user=request.user)
-    .active()
+    .filter(is_active=True)
     .with_performer_and_unit()
 )
 
-performers = Performer.objects.for_user(user=request.user).active()
+performers = Performer.objects.for_user(user=request.user).filter(is_active=True)
 units = WirelessUnit.objects.for_user(user=request.user)
 ```
 
@@ -113,6 +113,6 @@ Use `PerformerAssignment.objects.needing_alerts()` to select active assignments 
 - A performer and wireless unit can have only one assignment row.
 - A monitoring group owns the operational scope of an assignment.
 - `assigned_by` records the user who created the assignment.
-- Deactivated rows remain queryable but are excluded by `.active()`.
+- Deactivated rows remain queryable; filter them out with `.filter(is_active=True)`.
 
 For the complete design and security boundaries, see [Performer Assignment Architecture](performer-assignment-architecture.md).

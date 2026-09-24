@@ -13,8 +13,12 @@ Use the models' user-scoped managers instead of exposing an unscoped queryset:
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 
-active_chassis = WirelessChassis.objects.for_user(user=request.user).active()
-active_units = WirelessUnit.objects.for_user(user=request.user).active()
+active_chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
+active_units = WirelessUnit.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 Never trust tenant IDs supplied by clients; derive access from the authenticated user.

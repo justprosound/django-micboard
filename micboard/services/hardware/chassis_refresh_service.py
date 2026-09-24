@@ -15,7 +15,7 @@ from micboard.services.hardware.dtos import ChassisRefreshResult, WirelessChassi
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
-from micboard.services.shared.access_policy import tenant_role_access
+from micboard.services.shared.access_policy import tenant_role_access, visible_to
 from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:
@@ -127,7 +127,6 @@ class ChassisRefreshService:
         using: str = DEFAULT_DB_ALIAS,
     ) -> ChassisRefreshResult:
         """Revalidate a bounded queued selection against the initiating operator."""
-        from micboard.models.base_managers import TenantOptimizedQuerySet
         from micboard.models.hardware.wireless_chassis import WirelessChassis
 
         bounded_ids = list(islice(chassis_ids, MAX_CHASSIS_REFRESH_BATCH + 1))
@@ -164,10 +163,11 @@ class ChassisRefreshService:
                 truncated=truncated,
             )
 
-        visible: QuerySet[WirelessChassis] = TenantOptimizedQuerySet(
+        visible: QuerySet[WirelessChassis] = visible_to(
             WirelessChassis,
+            user=actor,
             using=using,
-        ).for_user(user=actor)
+        )
         queryset = tenant_role_access.scope_manageable_queryset(
             visible.filter(pk__in=selected_ids),
             user=actor,

@@ -327,9 +327,11 @@ result = expensive_function(x)
 # GOOD: Cache result
 from functools import lru_cache
 
+
 @lru_cache(maxsize=128)
-def expensive_function(x):
-    ...
+def expensive_function(x): ...
+
+
 result = expensive_function(x)
 ```
 
@@ -359,12 +361,13 @@ fs.readFile('file.txt', (err, data) => {
 import cProfile
 import pstats
 
-def slow_function():
-    ...
 
-cProfile.run('slow_function()', 'profile.stats')
-p = pstats.Stats('profile.stats')
-p.sort_stats('cumulative').print_stats(10)
+def slow_function(): ...
+
+
+cProfile.run("slow_function()", "profile.stats")
+p = pstats.Stats("profile.stats")
+p.sort_stats("cumulative").print_stats(10)
 ```
 
 ### Example 7: Using Redis for Caching in Node.js

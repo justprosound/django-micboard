@@ -13,12 +13,6 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.common.base.plugin import RealtimeTransport, build_manufacturer_plugin
 from micboard.services.manufacturer.activation_service import ManufacturerActivationService
-from micboard.services.realtime.connection_service import (
-    mark_connecting,
-    mark_error,
-    mark_stopped,
-    received_message,
-)
 from micboard.services.realtime.subscription_lifecycle_service import (
     RealtimeSubscriptionLifecycleService,
 )
@@ -138,13 +132,20 @@ def _close_tracking(chassis: WirelessChassis, connection: Any) -> None:
     """
     from micboard.models.realtime.connection import RealTimeConnection
 
-    row = connection or RealTimeConnection.objects.filter(chassis=chassis).first()
-    if row is not None:
-        mark_stopped(row)
+    tracked = (
+        connection
+        if connection is not None
+        else (RealTimeConnection.objects.filter(chassis=chassis))
+    )
+    tracked.mark_stopped()
 
 
 def _track_connection(chassis: WirelessChassis, transport: RealtimeTransport) -> Any:
-    """Open connection tracking for one chassis in Django's synchronous context."""
+    """Open connection tracking for one chassis in Django's synchronous context.
+
+    Returns the single-row queryset the round uses to record its outcome, so every
+    transition goes through the one definition the admin also uses.
+    """
     from micboard.models.realtime.connection import RealTimeConnection
 
     connection, created = RealTimeConnection.objects.get_or_create(
@@ -154,8 +155,9 @@ def _track_connection(chassis: WirelessChassis, transport: RealtimeTransport) ->
     if not created and connection.connection_type != transport:
         connection.connection_type = transport
         connection.save(update_fields=["connection_type", "updated_at"])
-    mark_connecting(connection)
-    return connection
+    tracked = RealTimeConnection.objects.filter(pk=connection.pk)
+    tracked.mark_connecting()
+    return tracked
 
 
 async def _subscribe_chassis(
@@ -176,7 +178,7 @@ async def _subscribe_chassis(
 
     async def update_callback(data: dict[str, Any]) -> None:
         if connection is not None:
-            await sync_to_async(received_message, thread_sensitive=True)(connection)
+            await sync_to_async(connection.record_message, thread_sensitive=True)()
         await RealtimeSubscriptionLifecycleService.process_update(
             plugin=plugin,
             data=data,
@@ -199,7 +201,7 @@ async def _subscribe_chassis(
                 transport,
                 manufacturer_id,
             )
-            await sync_to_async(mark_stopped, thread_sensitive=True)(connection)
+            await sync_to_async(connection.mark_stopped, thread_sensitive=True)()
             closed = True
             return
         await plugin.subscribe_to_chassis(chassis, update_callback)
@@ -224,7 +226,7 @@ async def _subscribe_chassis(
         )
         if connection is not None:
             error_status = f"{transport} subscription failed: {type(exc).__name__}"[:160]
-            await sync_to_async(mark_error, thread_sensitive=True)(connection, error_status)
+            await sync_to_async(connection.mark_error, thread_sensitive=True)(error_status)
             closed = True
     finally:
         # A stream that returned on its own is finished, not still connected. A row already

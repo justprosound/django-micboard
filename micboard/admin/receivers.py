@@ -10,7 +10,6 @@ from typing import Any, ClassVar
 
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import render
 from django.urls import path
@@ -24,6 +23,7 @@ from micboard.services.hardware.chassis_admin_service import (
     ChassisAdminDTOMapper,
     ChassisAdminService,
 )
+from micboard.services.hardware.chassis_bulk_delete_service import ChassisBulkDeleteService
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
@@ -86,28 +86,12 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         obj.__dict__.update(persisted.__dict__)
 
     def delete_queryset(self, request: Any, queryset: Any) -> None:
-        """Register one post-commit discovery cleanup for bulk deletion."""
-        from micboard.model_lifecycle import suppress_chassis_delete_hooks
-        from micboard.services.core.hardware_post_save_hooks import HardwarePostSaveHooks
-
-        using = queryset.db
-        with transaction.atomic(using=using):
-            chassis_ids = list(queryset.values_list("pk", flat=True))
-            chassis_list = list(
-                WirelessChassis._default_manager.using(using)
-                .select_for_update()
-                .filter(pk__in=chassis_ids)
-                .order_by("pk")
-            )
-            HardwarePostSaveHooks.handle_chassis_bulk_delete(
-                chassis_list=chassis_list,
-                using=using,
-            )
-            deletion_queryset = WirelessChassis._default_manager.using(using).filter(
-                pk__in=chassis_ids
-            )
-            with suppress_chassis_delete_hooks():
-                super().delete_queryset(request, deletion_queryset)
+        """Delete the selection through the domain service that owns the sequence."""
+        ChassisBulkDeleteService.delete(
+            chassis_ids=list(queryset.values_list("pk", flat=True)),
+            requested_by=request.user,
+            using=queryset.db,
+        )
 
     def get_queryset(self, request: Any) -> Any:
         return (

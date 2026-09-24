@@ -17,6 +17,115 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   deployment cannot publish a login with a default password. A root `Dockerfile` and a `demo`
   extra (gunicorn, whitenoise, dj-database-url, psycopg) build the image; see
   [the deployment guide](docs/demo-deployment.md).
+- `micboard.services.shared.access_policy.visible_to(model, *, user, using=None)` — the one
+  predicate for "rows this user may see". It owns the dispatch between a model's own
+  tenant-aware manager and the shared cascade, which five modules had each written out
+  separately.
+
+### Changed
+
+- `ManufacturerPlugin.transform_transmitter_data` is now abstract. `DeviceUpdateService`
+  persists through whichever plugin it is handed and calls that method for raw wireless-unit
+  payloads — it uses the payload as-is when the transport already normalised it, and returns
+  early when the payload is not a mapping — so a plugin without one was unusable on those
+  paths. The contract now says so. Both shipped integrations already implement it.
+
+- `services/sync/polling_api.py` builds its plugin through `build_manufacturer_plugin`
+  instead of importing `ShurePlugin`, so no module outside `micboard/integrations/` constructs
+  a vendor plugin directly. That module still gates managed-device polling on
+  `ManufacturerAPIServer.Manufacturer.SHURE`, which is the only API-server protocol
+  implemented; ADR-004 clause 9 records it as a permitted exception alongside the API-server
+  connection surface and the admin connection checker.
+
+### Removed
+
+- **Breaking:** `MonitoringService.get_accessible_chargers` and
+  `MonitoringService.get_accessible_display_walls`, which were one-line forwarders to
+  `objects.for_user`. Call `visible_to(Charger, user=...)` or
+  `visible_to(DisplayWall, user=...)` instead.
+
+- **Breaking:** `micboard.services.monitoring.base_health_mixin` and its `HealthCheckMixin`.
+  `BaseHTTPClient` overrode the mixin's `check_health` and `is_healthy`, and its 56-line
+  `_parse_health_response` had no caller, so the transport inherited from a monitoring module to
+  reach one formatting helper. That helper is now
+  `micboard.services.common.base.client.standardize_health_response`, a module-level function
+  beside its two callers.
+
+- **Breaking:** `micboard.services.realtime.connection_service`. Its `mark_connected`,
+  `mark_connecting`, `mark_error`, `mark_stopped` and `received_message` are now
+  `RealTimeConnection.objects` queryset methods (`record_message` replaces `received_message`,
+  and `reset_errors` and `mark_disconnected` join them), so one definition covers a single
+  tracked row and a bulk admin selection alike. `connection_duration` and
+  `time_since_last_message` are now the `connected_duration` and `time_since_last_message`
+  properties on the model.
+
+- **Breaking:** `TenantOptimizedManager` and the seven manager subclasses that extended it
+  (`WirelessChassisManager`, `WirelessUnitManager`, `ChargerManager`, `DisplayWallManager`,
+  `RFChannelManager`, `PerformerManager`, `PerformerAssignmentManager`). Every model now exposes
+  its queryset directly with `as_manager()`, so the thirty-five one-line forwarders are gone and
+  the interface no longer has to be restated on two classes.
+
+- **Breaking:** the queryset helpers with no caller anywhere in the package or its host project:
+  `for_organization`, `for_campus`, `with_manufacturer`, `with_location`, `with_chassis` and
+  `recently_seen` on `TenantOptimizedQuerySet`, and `active`, `inactive`, `by_status`, `by_role`,
+  `by_manufacturer`, `with_channels`, `by_type`, `low_battery`, `by_location`, `with_inventory`,
+  `with_sections`, `by_wall`, `with_chargers`, `by_direction`, `receive_links`, `send_links`,
+  `with_wireless_unit`, `with_assignments`, `by_monitoring_group`, `with_performer_and_unit` and
+  `needing_alerts` on the model querysets. `for_user`, `for_site`, `for_memberships`,
+  `supports_membership_scope` and `PerformerAssignment.objects.active()` are the ones that had
+  readers, and they remain. Each deleted helper was a one-line `filter`, `select_related` or
+  `prefetch_related` a caller can write inline.
+
+- **Breaking:** the seven HTMX partial endpoints — `micboard:channel_card_partial`,
+  `micboard:charger_slot_partial`, `micboard:wall_section_partial`, `micboard:alert_row_partial`,
+  `micboard:assignment_row_partial`, `micboard:charger_grid_partial` and
+  `micboard:device_tiles_partial` — along with `micboard/views/partials.py` and the five templates
+  only it rendered. No template or script in this package ever requested them, and three
+  duplicated a live route (`ChargerGridView`, `assignment_rows`, `KioskContentView`). A host that
+  polled one of these URLs should move to the corresponding domain route.
+
+- `MonitoringService.get_accessible_channels` and `MonitoringService.get_accessible_charger_slots`,
+  which existed only to scope the two deleted channel and charger-slot fragments.
+
+### Fixed
+
+- `visible_to(model, user=..., using=alias)` read the caller's tenant boundary from the wrong
+  database. Answering the question in MSP mode takes two reads: `for_user` materialises the
+  active organization memberships as it builds the queryset, and the alias was applied only to
+  the finished queryset afterwards. A multi-database host therefore narrowed one database's
+  rows by another database's memberships. The database is now bound before the tenant boundary
+  is applied. Single-database deployments were unaffected.
+
+- **Hardening:** alert delivery authorized the recipient against the wireless unit's tenant
+  boundary, reached through `base_chassis`, while reading an alert authorizes against the alert
+  row's own boundary, reached through `channel__chassis`. The two disagree whenever a unit is
+  assigned to a channel on another chassis, which would attach one organization's device state
+  to another organization's channel — visible to that organization's members and invisible to
+  the recipient it was written for. `AlertFanoutService.recipient_has_alert_scope` (previously
+  `recipient_has_unit_scope`) now requires the recipient to hold both boundaries.
+
+  No shipped code creates that state: `DeviceUpdateService` is the only production writer of
+  `assigned_resource` and sets `base_chassis` to the same chassis in the same call, the two
+  admin form layers reject it, and the demo fixture is consistent. It is reachable only through
+  a host project's direct ORM writes, a hand-written fixture, a data migration, or the shell —
+  all plausible for a reusable app, none of them a live leak today. There is still no model
+  `clean` or database constraint preventing it, which is the root cause this only defends
+  against.
+
+- Bulk chassis deletion from the admin changelist registered its discovery reconciliation,
+  locked the selected rows, and suppressed the per-row delete hooks *before* running the
+  authorization check that could reject the request. Only the surrounding transaction's rollback
+  undid that work. `ChassisBulkDeleteService` now owns the sequence with authorization first, and
+  rejects a selection containing any row the caller may not delete rather than applying it in
+  part. The admin action is a three-line call, so `suppress_chassis_delete_hooks` no longer has a
+  presentation-layer caller (ADR-002 clause 4).
+
+- Marking a realtime connection connected from the admin changelist left a stale
+  `disconnected_at` and a non-zero `reconnect_attempts` behind. The action wrote five of the
+  seven fields the subscription runner writes, so the same state had two spellings and the
+  changelist produced a row that claimed to be connected and disconnected at once. Every
+  transition now has one definition on `RealTimeConnectionQuerySet`, reached by both the runner
+  and the admin.
 
 ## [2026.9.23.0] - 2026-09-23
 
@@ -53,6 +162,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - `poll_manufacturer_devices` evaluated post-poll alerts and logged `Polling task complete`
   even when the sync returned `success=False`, so a failed poll ran its success path against
   stale inventory. The task now reports the failure and returns without evaluating alerts.
+- `record_message()` resurrected a stopped realtime connection. Stopping a row from the admin
+  does not tear down a live subscription, so a late callback put it back to `connected` and
+  cleared `disconnected_at`. Error and disconnected rows are still recovered; a deliberate
+  stop is not.
+- Bulk chassis deletion authorized the selection before locking the rows, so a concurrent
+  location change could move a chassis out of the caller's tenant scope in between, and the
+  delete used the identifiers the caller supplied rather than the locked rows. Scope is now
+  re-checked while the locks are held, and only the locked primary keys are deleted.
 - A shipped integration whose own dependency was missing was reported as
   `Plugin not found`. `get_manufacturer_plugin` treated any `ModuleNotFoundError` during
   import as "this integration does not exist", including one raised inside the plugin module

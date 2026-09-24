@@ -32,6 +32,13 @@ class ChassisRefreshResult(PydanticBaseDTO):
     truncated: bool = False
 
 
+class ChassisBulkDeleteResult(PydanticBaseDTO):
+    """Summary of one authorized bulk chassis deletion."""
+
+    deleted_count: int
+    reconciled_manufacturer_ids: list[int] = Field(default_factory=list)
+
+
 class ChassisSaveContext(PydanticBaseDTO):
     """Derived state carried between chassis pre-save and post-save adapters."""
 

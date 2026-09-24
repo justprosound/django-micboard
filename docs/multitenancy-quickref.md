@@ -49,8 +49,12 @@ uv run --no-sync python manage.py migrate
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 
-chassis = WirelessChassis.objects.for_user(user=request.user).active()
-units = WirelessUnit.objects.for_user(user=request.user).active()
+chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
+units = WirelessUnit.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 ### Authenticated location queries
@@ -129,15 +133,14 @@ membership = OrganizationMembership.objects.create(
 ## 🔍 Tenant-Aware Managers
 
 ```python
-from micboard.models.base_managers import TenantOptimizedManager
+from micboard.models.base_managers import TenantOptimizedQuerySet
 
 class MyModel(models.Model):
-    objects = TenantOptimizedManager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
 # Usage
-qs = MyModel.objects.for_organization(organization=org)
-qs = MyModel.objects.for_campus(campus_id=campus.id)
 qs = MyModel.objects.for_user(user=request.user)
+qs = MyModel.objects.for_site(site_id=1)
 ```
 
 ## 🌐 Request Context (Views)
@@ -148,7 +151,9 @@ def my_view(request):
     org = request.organization  # Set by TenantMiddleware
     campus_id = request.campus_id
 
-    chassis = WirelessChassis.objects.for_user(user=request.user).active()
+    chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 ## 🔄 Organization Switching
@@ -230,7 +235,9 @@ docs/
 Request-facing queries require the authenticated user:
 
 ```python
-WirelessChassis.objects.for_user(user=request.user).active()
+WirelessChassis.objects.for_user(user=request.user).filter(
+    status__in=("online", "degraded", "provisioning"),
+)
 ```
 
 ## 🧪 Testing
@@ -243,7 +250,7 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 org = Organization.objects.create(name='Test Org', slug='test', site_id=1)
 
 # Test isolation
-receivers = WirelessChassis.objects.for_organization(organization=org)
+receivers = WirelessChassis.objects.for_user(user=member)
 assert all(r.location.building.organization_id == org.pk for r in receivers)
 ```
 

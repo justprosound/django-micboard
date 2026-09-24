@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import nullcontext
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -37,33 +36,21 @@ def _admin(admin_class: type, model: type) -> Any:
     return admin_class(model, AdminSite())
 
 
-def test_wireless_chassis_admin_delete_queryset_uses_locked_rows_and_one_bulk_hook() -> None:
+def test_wireless_chassis_admin_delete_queryset_delegates_to_the_domain_service() -> None:
+    """The changelist action carries the selection to the service that owns the sequence."""
     model_admin = _admin(receivers.WirelessChassisAdmin, WirelessChassis)
     request = _request()
     queryset = MagicMock(db="default")
     queryset.values_list.return_value = [2, 1]
-    locked = MagicMock()
-    locked.using.return_value.select_for_update.return_value.filter.return_value.order_by.return_value = [
-        "first",
-        "second",
-    ]
-    deletion_queryset = object()
-    locked.using.return_value.filter.return_value = deletion_queryset
-    with (
-        patch.object(receivers.WirelessChassis._meta, "default_manager", locked),
-        patch.object(receivers.transaction, "atomic", return_value=nullcontext()),
-        patch(
-            "micboard.model_lifecycle.suppress_chassis_delete_hooks",
-            return_value=nullcontext(),
-        ),
-        patch(
-            "micboard.services.core.hardware_post_save_hooks.HardwarePostSaveHooks.handle_chassis_bulk_delete"
-        ) as hook,
-        patch.object(MicboardModelAdmin, "delete_queryset") as delete,
-    ):
+
+    with patch.object(receivers.ChassisBulkDeleteService, "delete") as delete:
         model_admin.delete_queryset(request, queryset)
-    hook.assert_called_once_with(chassis_list=["first", "second"], using="default")
-    delete.assert_called_once_with(request, deletion_queryset)
+
+    delete.assert_called_once_with(
+        chassis_ids=[2, 1],
+        requested_by=request.user,
+        using="default",
+    )
 
 
 def test_wireless_chassis_admin_queryset_counts() -> None:

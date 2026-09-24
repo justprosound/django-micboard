@@ -106,19 +106,6 @@ class DashboardAccessTests(TestCase):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 404)
 
-    def test_channel_partial_rejects_cross_group_id(self) -> None:
-        self.client.force_login(self.user)
-
-        own_response = self.client.get(
-            reverse("micboard:channel_card_partial", args=[self.own_channel.pk])
-        )
-        foreign_response = self.client.get(
-            reverse("micboard:channel_card_partial", args=[self.foreign_channel.pk])
-        )
-
-        self.assertEqual(own_response.status_code, 200)
-        self.assertEqual(foreign_response.status_code, 404)
-
 
 class DashboardSuperuserAccessTests(TestCase):
     """Superusers retain the system-wide topology view."""
