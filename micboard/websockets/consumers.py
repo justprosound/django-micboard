@@ -21,6 +21,12 @@ from micboard.services.notification.realtime_routing_service import (
 )
 from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.utils.dependencies import HAS_CHANNELS
+from micboard.websockets.authorization import (
+    AuthorizationCache,
+    CommandBudget,
+    authorization_ttl_seconds,
+    command_budget,
+)
 
 if HAS_CHANNELS:
     from channels.generic.websocket import AsyncWebsocketConsumer
@@ -36,6 +42,7 @@ UNAUTHENTICATED_CLOSE_CODE = 4401
 UNAUTHORIZED_CLOSE_CODE = 4403
 MESSAGE_TOO_LARGE_CLOSE_CODE = 1009
 MAX_WEBSOCKET_COMMAND_BYTES = 4096
+COMMAND_BUDGET_EXHAUSTED_CLOSE_CODE = 4429
 
 
 class MicboardConsumer(AsyncWebsocketConsumer):
@@ -117,6 +124,7 @@ class MicboardConsumer(AsyncWebsocketConsumer):
         """Remove stale group memberships before closing a revoked connection."""
         group_names = getattr(self, "room_group_names", ())
         self.room_group_names = ()
+        self._authorization().invalidate()
         for group_name in group_names:
             await self.channel_layer.group_discard(group_name, self.channel_name)
         logger.warning(
@@ -126,8 +134,40 @@ class MicboardConsumer(AsyncWebsocketConsumer):
         )
         await self.close(code=code)
 
+    async def _resolve_current_groups(self) -> tuple[str, ...]:
+        """Re-read this connection's authorized routes from persisted state."""
+        user_id = getattr(self.scope.get("user"), "pk", None)
+        if user_id is None:
+            return ()
+        return await self._current_groups_for_user(user_id)
+
+    def _authorization(self) -> AuthorizationCache:
+        """Return this connection's authorization cache, opening one on first use."""
+        cache: AuthorizationCache | None = getattr(self, "_authorization_cache", None)
+        if cache is None:
+            cache = AuthorizationCache(
+                resolve=self._resolve_current_groups,
+                ttl_seconds=authorization_ttl_seconds(),
+            )
+            self._authorization_cache = cache
+        return cache
+
+    def _commands(self) -> CommandBudget:
+        """Return this connection's inbound command budget, opening one on first use."""
+        budget: CommandBudget | None = getattr(self, "_command_budget", None)
+        if budget is None:
+            budget = command_budget()
+            self._command_budget = budget
+        return budget
+
     async def _can_forward_event(self) -> bool:
-        """Fail closed when authentication or any joined route was revoked."""
+        """Fail closed when authentication or any joined route was revoked.
+
+        The authorized routes are reused for a bounded time to live rather than re-read
+        per frame, so a broadcast storm costs one query instead of one query per frame.
+        Revocation therefore takes effect within that time to live, which a deployment
+        sets through ``MICBOARD_WEBSOCKET_AUTHORIZATION_TTL_SECONDS``.
+        """
         user = self.scope.get("user")
         user_id = getattr(user, "pk", None)
         if user is None or not user.is_authenticated or user_id is None:
@@ -138,7 +178,7 @@ class MicboardConsumer(AsyncWebsocketConsumer):
             return False
 
         joined_groups = getattr(self, "room_group_names", ())
-        current_groups = await self._current_groups_for_user(user_id)
+        current_groups = await self._authorization().authorized_groups()
         if not joined_groups or not set(joined_groups).issubset(current_groups):
             await self._close_revoked_connection(
                 code=UNAUTHORIZED_CLOSE_CODE,
@@ -256,16 +296,22 @@ class MicboardConsumer(AsyncWebsocketConsumer):
             )
             return
 
-        if data.get("command") == "ping":
-            await self._send_authorized({"type": "pong"})
+        if data.get("command") != "ping":
+            return
+
+        if not self._commands().consume():
+            logger.warning(
+                "Closed WebSocket after exhausting its inbound command budget: channel=%s",
+                self.channel_name,
+            )
+            await self.close(code=COMMAND_BUDGET_EXHAUSTED_CLOSE_CODE)
+            return
+
+        await self._send_authorized({"type": "pong"})
 
     async def device_update(self, event: dict[str, Any]) -> None:
         """Send device update to WebSocket client."""
         await self._send_authorized({"type": "device_update", "data": event["data"]})
-
-    async def status_update(self, event: dict[str, Any]) -> None:
-        """Send status update to WebSocket client."""
-        await self._send_authorized({"type": "status", "message": event["message"]})
 
     async def _forward_event(self, event: dict[str, Any]) -> None:
         """Forward a typed Channels event without its internal dispatch key."""

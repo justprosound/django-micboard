@@ -30,6 +30,17 @@ INSTALLED_APPS = [
 | `POLL_INTERVAL` | Interval in seconds between device polls | `5` |
 | `CACHE_TIMEOUT` | Timeout in seconds for API response caching | `30` |
 | `TRANSMITTER_INACTIVITY_SECONDS` | Seconds before transmitter marked inactive | `10` |
+| `REFRESH_INTERVAL_ALERTS` | Seconds between alert table refreshes | `5` |
+| `REFRESH_INTERVAL_ASSIGNMENTS` | Seconds between assignment table refreshes | `5` |
+| `REFRESH_INTERVAL_CHARGERS` | Seconds between charger grid refreshes | `10` |
+| `REFRESH_INTERVAL_KIOSK_HEARTBEAT` | Seconds between kiosk heartbeat posts | `30` |
+
+Every live browser surface refreshes by short-polling over ordinary HTTP, so the refresh
+interval multiplied by the number of open tabs is the whole request volume Micboard puts
+through your reverse proxy. Each interval is clamped to between 2 and 3,600 seconds, the
+same bounds that govern a stored `DisplayWall.refresh_interval_seconds`. A kiosk wall keeps
+its own per-wall interval; `REFRESH_INTERVAL_KIOSK_HEARTBEAT` covers only the liveness post
+that tells Micboard the display is still showing content.
 
 Post-poll alert evaluation uses four top-level Django settings, not `MICBOARD_CONFIG` keys:
 
@@ -196,6 +207,34 @@ CHANNEL_LAYERS = {
 ```
 
 Make sure your project has an `asgi.py` file.
+
+Micboard reports both halves of this configuration through system checks. `micboard.W002`
+fires when Channels is installed but no `ASGI_APPLICATION` routes the WebSocket protocol, and
+`micboard.W003` fires when no `CHANNEL_LAYERS` backend is configured. Both failures are
+otherwise silent: a WSGI server never completes a handshake, and a missing channel layer
+discards every broadcast at debug level.
+
+### Bounding what one connection costs
+
+Two top-level Django settings bound the work a single WebSocket connection can cause:
+
+| Setting | Bounds | Purpose |
+|---------|--------|---------|
+| `MICBOARD_WEBSOCKET_AUTHORIZATION_TTL_SECONDS` | Default: 5; hard maximum: 300 | How long one authorization decision is reused before it is re-read |
+| `MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE` | Default: 60; hard maximum: 6,000 | Inbound commands one connection may send per minute |
+
+Micboard fails closed on every outbound frame: it checks that the connection is still
+authenticated and still authorized for every route it joined, and closes the connection if
+either has been revoked. Re-reading that decision from the database on *every* frame makes its
+cost unbounded, because a busy chassis broadcasts as fast as hardware changes.
+
+`MICBOARD_WEBSOCKET_AUTHORIZATION_TTL_SECONDS` therefore turns revocation latency into a number
+you choose. A revoked membership, permission, or account takes effect within that many seconds
+rather than on the very next frame. Set it to `0` to restore per-frame re-reading if your
+deployment needs immediate revocation and can afford one query per frame.
+
+`MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE` meters the keepalive ping, the only inbound command
+Micboard accepts. A connection that exceeds its allowance is closed with code `4429`.
 
 ## Caching
 

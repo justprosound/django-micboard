@@ -37,9 +37,10 @@ class MicboardConfig(AppConfig):
         # Register system checks
         from django.core.checks import Tags, register
 
-        from micboard.checks import check_micboard_configuration
+        from micboard.checks import check_micboard_configuration, check_realtime_delivery
 
         register(check_micboard_configuration, Tags.compatibility)
+        register(check_realtime_delivery, Tags.compatibility)
 
         # Advise about recommended middleware and context processors (do not modify settings)
         self._recommend_security_middleware()
@@ -168,6 +169,10 @@ class MicboardConfig(AppConfig):
             "POLL_INTERVAL",
             "CACHE_TIMEOUT",
             "TRANSMITTER_INACTIVITY_SECONDS",
+            "REFRESH_INTERVAL_ALERTS",
+            "REFRESH_INTERVAL_ASSIGNMENTS",
+            "REFRESH_INTERVAL_CHARGERS",
+            "REFRESH_INTERVAL_KIOSK_HEARTBEAT",
         ]
         for key in numeric_settings:
             value = config.get(key)

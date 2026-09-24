@@ -18,51 +18,134 @@ This module provides WebSocket consumers for broadcasting device updates to conn
 
 Bases: `AsyncWebsocketConsumer`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L41)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L48)
 
 WebSocket consumer for real-time device updates.
 
 #### `async connect() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L155)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L195)
 
 Handle WebSocket connection.
 
 #### `async disconnect(code: int) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L205)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L245)
 
 Handle WebSocket disconnection.
 
 #### `async receive(text_data: str | None = None, bytes_data: bytes | None = None) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L212)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L252)
 
 Handle incoming messages from client.
 
 #### `async device_update(event: dict[str, Any]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L262)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L312)
 
 Send device update to WebSocket client.
 
-#### `async status_update(event: dict[str, Any]) -> None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L266)
-
-Send status update to WebSocket client.
-
 #### `async api_health_update(event: dict[str, Any]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L275)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L321)
 
 Forward a manufacturer API health update.
 
 #### `async device_status_update(event: dict[str, Any]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L279)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L325)
 
 Forward a persisted hardware status update.
+
+## `micboard.websockets.authorization`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py)
+
+How long one WebSocket connection may act on an authorization decision.
+
+Micboard re-reads a connection's authorized routes from the database before forwarding an
+event, so a connection fails closed the moment a membership, a permission, or the account
+itself is revoked. Doing that once per frame makes the cost of the guarantee unbounded: a
+busy chassis broadcasts many frames per second, and the one inbound command a client may
+send takes the same path, so a client sets the pace of the server's database work.
+
+This module puts a declared number on both halves. An authorization decision is reused for
+a bounded time to live instead of re-read per frame, which turns revocation latency into a
+value a deployment chooses rather than an implicit "every frame". Inbound commands are
+metered separately, so no client can force re-reads faster than its own budget allows.
+
+Setting the time to live to zero restores per-frame re-reading for deployments that want
+revocation to take effect on the very next frame and can afford the queries.
+
+### `authorization_ttl_seconds() -> float`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py#L76)
+
+Return how long one authorization decision may be reused.
+
+**Returns:**
+
+- `float` — A time to live in seconds, clamped to the supported range. Zero means every
+- `float` — forwarded event re-reads authorization from the database.
+
+### `commands_per_minute() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py#L93)
+
+Return how many inbound commands one connection may spend per minute.
+
+**Returns:**
+
+- `int` — A whole number of commands, clamped to the supported range.
+
+### `AuthorizationCache`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py#L109)
+
+Reuse one connection's authorized routes for a bounded time to live.
+
+#### `async authorized_groups() -> tuple[str, ...]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py#L132)
+
+Return the connection's authorized routes, re-reading them only when stale.
+
+**Returns:**
+
+- `tuple[str, ...]` — Every route the connection is currently allowed to receive events on.
+
+#### `invalidate() -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py#L144)
+
+Discard the cached decision so the next read goes to the database.
+
+### `CommandBudget`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py#L150)
+
+Meter how many inbound commands one connection may spend per window.
+
+#### `consume() -> bool`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py#L173)
+
+Spend one command from the current window.
+
+**Returns:**
+
+- `bool` — ``True`` when the command is within budget, ``False`` when it is not.
+
+### `command_budget() -> CommandBudget`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/authorization.py#L194)
+
+Build one connection's command budget from host configuration.
+
+**Returns:**
+
+- `CommandBudget` — A budget metering the configured number of commands per minute.
 
 ## `micboard.websockets.routing`
 

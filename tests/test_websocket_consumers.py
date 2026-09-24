@@ -69,7 +69,11 @@ def test_consumer_adapters_disconnect_receive_and_forward(monkeypatch) -> None:
 
     for handler, event, expected_type in (
         (consumer.device_update, {"data": {"id": 1}}, "device_update"),
-        (consumer.status_update, {"message": "ready"}, "status"),
+        (
+            consumer.api_health_update,
+            {"type": "api_health_update", "manufacturer_id": 1},
+            "api_health_update",
+        ),
     ):
         asyncio.run(handler(event))
         assert json.loads(consumer.send.await_args.kwargs["text_data"])["type"] == expected_type

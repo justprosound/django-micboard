@@ -107,7 +107,11 @@ PAGES: tuple[Page, ...] = (
             "Authenticated Channels consumers that fan real-time device updates out to "
             "browsers. See [WebSocket API](../websocket.md) for the message contract."
         ),
-        modules=("micboard.websockets.consumers", "micboard.websockets.routing"),
+        modules=(
+            "micboard.websockets.consumers",
+            "micboard.websockets.authorization",
+            "micboard.websockets.routing",
+        ),
     ),
     Page(
         slug="exceptions",
