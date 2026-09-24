@@ -58,12 +58,18 @@ def visible_to(
     Models with a tenant-aware manager narrow visibility themselves, sometimes with a
     model-specific rule on top of the shared cascade; models on Django's default manager get
     the shared cascade directly. Callers ask the same question either way.
+
+    The database is bound before the tenant boundary is applied, not after. Answering this
+    in MSP mode takes two reads: `for_user` materialises the caller's active memberships as
+    it builds the queryset, so retargeting only the finished queryset would leave that
+    boundary read on whichever database the manager defaulted to.
     """
     database = using or router.db_for_read(model)
     manager = getattr(model, "objects", model._default_manager)
-    model_for_user = getattr(manager, "for_user", None)
-    if callable(model_for_user):
-        return model_for_user(user=user).using(database)  # type: ignore[no-any-return]
+    queryset = manager.using(database)
+    queryset_for_user = getattr(queryset, "for_user", None)
+    if callable(queryset_for_user):
+        return queryset_for_user(user=user)  # type: ignore[no-any-return]
     return TenantOptimizedQuerySet(model, using=database).for_user(user=user)
 
 

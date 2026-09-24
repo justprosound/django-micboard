@@ -89,6 +89,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- `visible_to(model, user=..., using=alias)` read the caller's tenant boundary from the wrong
+  database. Answering the question in MSP mode takes two reads: `for_user` materialises the
+  active organization memberships as it builds the queryset, and the alias was applied only to
+  the finished queryset afterwards. A multi-database host therefore narrowed one database's
+  rows by another database's memberships. The database is now bound before the tenant boundary
+  is applied. Single-database deployments were unaffected.
+
 - **Hardening:** alert delivery authorized the recipient against the wireless unit's tenant
   boundary, reached through `base_chassis`, while reading an alert authorizes against the alert
   row's own boundary, reached through `channel__chassis`. The two disagree whenever a unit is
