@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.9.24.0] - 2026-09-24
+
 ### Added
 
 - A read-only demonstration deployment. `micboard/fixtures/demo.json` holds the structural
