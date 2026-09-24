@@ -9,49 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [2026.9.24.2] - 2026-09-24
 
-- chore: release 2026.9.24.1 (#277) (d41cc3c)
-- refactor(ui): give browser poll cadence one owner outside the markup (#271) (701b05b)
-- chore: release 2026.9.24.0 (#276) (47601a3)
-- refactor: deepen the domain seams and correct the ADRs (#268) (cb301f3)
-- chore(deps): update python docker tag to v3.14 (#275) (cbdfd1d)
-- chore(deps): update github/codeql-action digest to 2892aa5 (#274) (61616a7)
-- chore(deps): update postgres docker digest to 86c951e (#270) (9770ce3)
-- feat(demo): add a read-only demonstration deployment (#269) (aeae07b)
-
-## [2026.9.24.1] - 2026-09-24
-
-- refactor(ui): give browser poll cadence one owner outside the markup (#271) (701b05b)
-- chore: release 2026.9.24.0 (#276) (47601a3)
-- refactor: deepen the domain seams and correct the ADRs (#268) (cb301f3)
-- chore(deps): update python docker tag to v3.14 (#275) (cbdfd1d)
-- chore(deps): update github/codeql-action digest to 2892aa5 (#274) (61616a7)
-- chore(deps): update postgres docker digest to 86c951e (#270) (9770ce3)
-- feat(demo): add a read-only demonstration deployment (#269) (aeae07b)
-
-## [2026.9.24.0] - 2026-09-24
-
 ### Added
-
-- A read-only demonstration deployment. `micboard/fixtures/demo.json` holds the structural
-  demo dataset (a Shure ULXD4Q receiver, its channels, four transmitters, a monitoring group,
-  and performer assignments), and the new `seed_demo_data` command loads it, writes telemetry
-  relative to the current time, and manages a `demo` staff account that holds only `view_`
-  permissions. The account is created only when `MICBOARD_DEMO_PASSWORD` is set, so a
-  deployment cannot publish a login with a default password. A root `Dockerfile` and a `demo`
-  extra (gunicorn, whitenoise, dj-database-url, psycopg) build the image; see
-  [the deployment guide](docs/demo-deployment.md).
-- `micboard.services.shared.access_policy.visible_to(model, *, user, using=None)` — the one
-  predicate for "rows this user may see". It owns the dispatch between a model's own
-  tenant-aware manager and the shared cascade, which five modules had each written out
-  separately.
-
-- `micboard.services.settings.browser_refresh_service` — the one module that decides how often
-  each live browser surface re-polls. Every browser update Micboard ships is delivered by
-  short-polling over ordinary HTTP, so the refresh interval multiplied by open tabs is the
-  whole request volume a deployment puts through its reverse proxy. Four new `MICBOARD_CONFIG`
-  keys (`REFRESH_INTERVAL_ALERTS`, `REFRESH_INTERVAL_ASSIGNMENTS`, `REFRESH_INTERVAL_CHARGERS`
-  and `REFRESH_INTERVAL_KIOSK_HEARTBEAT`) make that number reachable, each clamped to the 2 to
-  3,600 second bounds that already governed a stored `DisplayWall.refresh_interval_seconds`.
 
 - `micboard.websockets.authorization` — `AuthorizationCache` and `CommandBudget`, which put a
   declared number on what one WebSocket connection may cost. Two new Django settings configure
@@ -82,8 +40,93 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   the server's authorization work, and it was unthrottled. A connection that exceeds
   `MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE` is now closed with code `4429`.
 
+### Removed
+
+- **Breaking:** `MicboardConsumer.status_update`. Nothing in Micboard ever sent a
+  `status_update` event, and its name shadowed `device_status_update`, which does have a
+  producer — so a host wiring "status" was likely to pick the handler that would never fire.
+  Use `device_status_update` for persisted hardware transitions and `api_health_update` for
+  manufacturer API health.
+
+- **Breaking:** the entire `micboard/static/micboard/js/` tree (13 files). No template in this
+  package loaded any of it, and the endpoint its poll targeted (`/api/data/`) has no URL
+  pattern. It also expected `chart-update` and `data-update` messages that the consumer never
+  sends. It read as a working second front-end and described behaviour the package does not
+  have. A host project that vendored these files should keep its own copy.
+
+### Fixed
+
+- A non-finite value in either WebSocket bound was not handled.
+  `MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE` raised `OverflowError` on infinity, which would
+  fail every handshake. `MICBOARD_WEBSOCKET_AUTHORIZATION_TTL_SECONDS` was quieter and worse:
+  every comparison against NaN is false, so clamping collapsed it to `0` and silently
+  restored the unbounded per-frame queries the setting exists to bound. Both now fall back to
+  the shipped default.
+
+### Commits
+
+- chore: release 2026.9.24.1 (#277) (d41cc3c)
+- refactor(ui): give browser poll cadence one owner outside the markup (#271) (701b05b)
+- chore: release 2026.9.24.0 (#276) (47601a3)
+- refactor: deepen the domain seams and correct the ADRs (#268) (cb301f3)
+- chore(deps): update python docker tag to v3.14 (#275) (cbdfd1d)
+- chore(deps): update github/codeql-action digest to 2892aa5 (#274) (61616a7)
+- chore(deps): update postgres docker digest to 86c951e (#270) (9770ce3)
+- feat(demo): add a read-only demonstration deployment (#269) (aeae07b)
+
+## [2026.9.24.1] - 2026-09-24
+
+### Added
+
+- `micboard.services.settings.browser_refresh_service` — the one module that decides how often
+  each live browser surface re-polls. Every browser update Micboard ships is delivered by
+  short-polling over ordinary HTTP, so the refresh interval multiplied by open tabs is the
+  whole request volume a deployment puts through its reverse proxy. Four new `MICBOARD_CONFIG`
+  keys (`REFRESH_INTERVAL_ALERTS`, `REFRESH_INTERVAL_ASSIGNMENTS`, `REFRESH_INTERVAL_CHARGERS`
+  and `REFRESH_INTERVAL_KIOSK_HEARTBEAT`) make that number reachable, each clamped to the 2 to
+  3,600 second bounds that already governed a stored `DisplayWall.refresh_interval_seconds`.
+
+### Changed
+
 - The alert, assignment and charger pages read their poll interval from settings instead of
   declaring it in markup. Behaviour is unchanged at the shipped defaults (5s, 5s and 10s).
+
+### Fixed
+
+- A non-finite or fractional browser refresh interval in `MICBOARD_CONFIG` was not handled.
+  `int(float("inf"))` raises `OverflowError`, which failed the request rather than falling
+  back, and a fractional value was silently truncated — `0.5` became `0` and then clamped up
+  to the floor, so a typo produced the fastest poll the bounds allow. Both now fall back to
+  the shipped default. Numeric strings and already-whole floats are still used as written.
+
+### Commits
+
+- refactor(ui): give browser poll cadence one owner outside the markup (#271) (701b05b)
+- chore: release 2026.9.24.0 (#276) (47601a3)
+- refactor: deepen the domain seams and correct the ADRs (#268) (cb301f3)
+- chore(deps): update python docker tag to v3.14 (#275) (cbdfd1d)
+- chore(deps): update github/codeql-action digest to 2892aa5 (#274) (61616a7)
+- chore(deps): update postgres docker digest to 86c951e (#270) (9770ce3)
+- feat(demo): add a read-only demonstration deployment (#269) (aeae07b)
+
+## [2026.9.24.0] - 2026-09-24
+
+### Added
+
+- A read-only demonstration deployment. `micboard/fixtures/demo.json` holds the structural
+  demo dataset (a Shure ULXD4Q receiver, its channels, four transmitters, a monitoring group,
+  and performer assignments), and the new `seed_demo_data` command loads it, writes telemetry
+  relative to the current time, and manages a `demo` staff account that holds only `view_`
+  permissions. The account is created only when `MICBOARD_DEMO_PASSWORD` is set, so a
+  deployment cannot publish a login with a default password. A root `Dockerfile` and a `demo`
+  extra (gunicorn, whitenoise, dj-database-url, psycopg) build the image; see
+  [the deployment guide](docs/demo-deployment.md).
+- `micboard.services.shared.access_policy.visible_to(model, *, user, using=None)` — the one
+  predicate for "rows this user may see". It owns the dispatch between a model's own
+  tenant-aware manager and the shared cascade, which five modules had each written out
+  separately.
+
+### Changed
 
 - `ManufacturerPlugin.transform_transmitter_data` is now abstract. `DeviceUpdateService`
   persists through whichever plugin it is handed and calls that method for raw wireless-unit
@@ -99,18 +142,6 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   connection surface and the admin connection checker.
 
 ### Removed
-
-- **Breaking:** `MicboardConsumer.status_update`. Nothing in Micboard ever sent a
-  `status_update` event, and its name shadowed `device_status_update`, which does have a
-  producer — so a host wiring "status" was likely to pick the handler that would never fire.
-  Use `device_status_update` for persisted hardware transitions and `api_health_update` for
-  manufacturer API health.
-
-- **Breaking:** the entire `micboard/static/micboard/js/` tree (13 files). No template in this
-  package loaded any of it, and the endpoint its poll targeted (`/api/data/`) has no URL
-  pattern. It also expected `chart-update` and `data-update` messages that the consumer never
-  sends. It read as a working second front-end and described behaviour the package does not
-  have. A host project that vendored these files should keep its own copy.
 
 - **Breaking:** `MonitoringService.get_accessible_chargers` and
   `MonitoringService.get_accessible_display_walls`, which were one-line forwarders to
