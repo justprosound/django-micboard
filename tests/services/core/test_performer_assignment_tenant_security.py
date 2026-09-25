@@ -11,6 +11,7 @@ from django.test import override_settings
 import pytest
 
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
+from micboard.multitenancy.models import OrganizationMembership
 from micboard.services.core.performer_assignment import PerformerAssignmentService
 from micboard.services.core.performer_assignment_dtos import (
     CreatePerformerAssignment,
@@ -201,18 +202,25 @@ def test_group_scope_accepts_explicit_channel_access() -> None:
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
 def test_unit_mutation_fails_closed_without_multitenancy_app() -> None:
-    """MSP writes are unavailable when the membership model is not installed."""
+    """An operator's membership grants nothing once the membership model is not installed."""
+    organization = OrganizationFactory()
+    user = UserFactory()
+    OrganizationMembership.objects.create(user=user, organization=organization, role="operator")
+    unit = WirelessUnitFactory(
+        base_chassis__location=LocationFactory(
+            building=BuildingFactory(organization_id=organization.pk),
+        ),
+    )
+    PerformerAssignmentService.ensure_can_modify_unit(user=user, unit=unit)
+
     with (
         patch(
-            "micboard.services.core.performer_assignment.apps.is_installed",
+            "micboard.services.shared.tenant_principal.apps.is_installed",
             return_value=False,
         ),
-        pytest.raises(PermissionDenied, match="unavailable"),
+        pytest.raises(PermissionDenied, match="cannot modify"),
     ):
-        PerformerAssignmentService.ensure_can_modify_unit(
-            user=UserFactory(),
-            unit=WirelessUnitFactory(),
-        )
+        PerformerAssignmentService.ensure_can_modify_unit(user=user, unit=unit)
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True)

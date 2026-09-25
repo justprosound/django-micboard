@@ -6,11 +6,13 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.locations.structure import Building, Room
+from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.hardware.receiver_browse_dtos import ReceiverBrowseCriteria
 from micboard.services.hardware.receiver_browse_service import ReceiverBrowseService
-from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.services.shared.visibility import visible_to
 
 
 def _render_receiver_browse(
@@ -32,11 +34,11 @@ def _render_receiver_browse(
 def index(request: HttpRequest) -> HttpResponse:
     """Main dashboard view."""
     # Filter receivers based on user permissions
-    user_receivers = WirelessChassis.objects.for_user(user=request.user)
+    user_receivers = visible_to(WirelessChassis, user=request.user)
 
     context = {
         "device_count": user_receivers.count(),
-        "group_count": MonitoringService.get_user_monitoring_groups(request.user).count(),
+        "group_count": visible_to(MonitoringGroup, user=request.user).count(),
     }
     return render(request, "micboard/index.html", context)
 
@@ -72,7 +74,7 @@ def device_type_view(request: HttpRequest, device_type: str) -> HttpResponse:
 def single_building_view(request: HttpRequest, building_id: int) -> HttpResponse:
     """View to display receivers in a specific building."""
     building_obj = get_object_or_404(
-        MonitoringService.get_accessible_buildings(request.user),
+        visible_to(Building, user=request.user),
         pk=building_id,
     )
     return _render_receiver_browse(
@@ -90,7 +92,7 @@ def single_building_view(request: HttpRequest, building_id: int) -> HttpResponse
 def performer_view(request: HttpRequest, performer_id: int) -> HttpResponse:
     """Display online chassis assigned to a named performer."""
     performer = get_object_or_404(
-        Performer.objects.for_user(user=request.user),
+        visible_to(Performer, user=request.user),
         pk=performer_id,
     )
     return _render_receiver_browse(
@@ -108,7 +110,7 @@ def performer_view(request: HttpRequest, performer_id: int) -> HttpResponse:
 def room_view(request: HttpRequest, room_id: int) -> HttpResponse:
     """View to display receivers in a specific room."""
     room_obj = get_object_or_404(
-        MonitoringService.get_accessible_rooms(request.user).select_related("building"),
+        visible_to(Room, user=request.user).select_related("building"),
         pk=room_id,
     )
 
@@ -151,7 +153,7 @@ def priority_view(request: HttpRequest, priority: str) -> HttpResponse:
 @require_http_methods(["GET"])
 def all_buildings_view(request: HttpRequest) -> HttpResponse:
     """View to display all buildings."""
-    buildings = MonitoringService.get_accessible_buildings(request.user).order_by("name")
+    buildings = visible_to(Building, user=request.user).order_by("name")
     context = {
         "buildings": buildings,
     }
@@ -163,7 +165,7 @@ def all_buildings_view(request: HttpRequest) -> HttpResponse:
 def all_rooms_view(request: HttpRequest) -> HttpResponse:
     """View to display all rooms."""
     rooms = (
-        MonitoringService.get_accessible_rooms(request.user)
+        visible_to(Room, user=request.user)
         .select_related("building")
         .order_by("building__name", "name")
     )
@@ -178,14 +180,10 @@ def all_rooms_view(request: HttpRequest) -> HttpResponse:
 def rooms_in_building_view(request: HttpRequest, building_id: int) -> HttpResponse:
     """View to display all rooms within a specific building."""
     building_obj = get_object_or_404(
-        MonitoringService.get_accessible_buildings(request.user),
+        visible_to(Building, user=request.user),
         pk=building_id,
     )
-    rooms = (
-        MonitoringService.get_accessible_rooms(request.user)
-        .filter(building=building_obj)
-        .order_by("name")
-    )
+    rooms = visible_to(Room, user=request.user).filter(building=building_obj).order_by("name")
     context = {
         "building": building_obj,
         "rooms": rooms,

@@ -99,8 +99,9 @@ MICBOARD_SITE_ISOLATION = 'organization'
 **Scoping Queries:**
 
 ```python
+from micboard.services.shared.visibility import visible_to
 # Scope querysets explicitly to the authenticated user.
-devices = WirelessUnit.objects.for_user(user=request.user)
+devices = visible_to(WirelessUnit, user=request.user)
 ```
 
 ### 4. Scoped Settings

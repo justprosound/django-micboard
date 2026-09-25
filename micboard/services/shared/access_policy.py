@@ -4,15 +4,12 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from django.apps import apps
-from django.conf import settings as django_settings
-from django.db import models, router
-from django.db.models import Exists, F, OuterRef, Q
+from django.db import models
+from django.db.models import Exists, OuterRef
 
 from micboard.models.base_managers import TenantOptimizedQuerySet
 from micboard.services.settings.settings_service import settings as micboard_settings
-
-TENANT_ADMIN_ROLES = frozenset({"admin", "owner"})
+from micboard.services.shared.tenant_principal import ADMIN_ROLES, active_memberships
 
 # Explicit host-wide administration surfaces. These models do not carry a
 # tenant key, so only a platform superuser may mutate them in tenant-aware
@@ -47,36 +44,10 @@ def has_unrestricted_tenant_access(user: Any) -> bool:
     return bool(getattr(user, "is_superuser", False) and micboard_settings.allow_cross_org_view)
 
 
-def visible_to(
-    model: type[models.Model],
-    *,
-    user: Any,
-    using: str | None = None,
-) -> models.QuerySet[Any]:
-    """Return the rows of ``model`` that ``user`` may see.
-
-    Models with a tenant-aware manager narrow visibility themselves, sometimes with a
-    model-specific rule on top of the shared cascade; models on Django's default manager get
-    the shared cascade directly. Callers ask the same question either way.
-
-    The database is bound before the tenant boundary is applied, not after. Answering this
-    in MSP mode takes two reads: `for_user` materialises the caller's active memberships as
-    it builds the queryset, so retargeting only the finished queryset would leave that
-    boundary read on whichever database the manager defaulted to.
-    """
-    database = using or router.db_for_read(model)
-    manager = getattr(model, "objects", model._default_manager)
-    queryset = manager.using(database)
-    queryset_for_user = getattr(queryset, "for_user", None)
-    if callable(queryset_for_user):
-        return queryset_for_user(user=user)  # type: ignore[no-any-return]
-    return TenantOptimizedQuerySet(model, using=database).for_user(user=user)
-
-
 class TenantRoleAccessService:
     """Apply MSP membership roles without narrowing read-only visibility."""
 
-    management_roles = TENANT_ADMIN_ROLES
+    management_roles = ADMIN_ROLES
 
     @staticmethod
     def _tenant_mode_enabled() -> bool:
@@ -91,31 +62,17 @@ class TenantRoleAccessService:
         using: str | None = None,
     ) -> list[tuple[int, int | None]]:
         """Return active organization/campus scopes where ``user`` may administer."""
-        if not micboard_settings.msp_enabled or not apps.is_installed("micboard.multitenancy"):
+        if not micboard_settings.msp_enabled or getattr(user, "pk", None) is None:
             return []
-
-        from micboard.multitenancy.models import OrganizationMembership
-
         database = using or getattr(getattr(user, "_state", None), "db", None)
-        membership_manager = OrganizationMembership._default_manager
-        if database is not None:
-            membership_manager = membership_manager.db_manager(database)
-        memberships = membership_manager.filter(
-            Q(campus__isnull=True)
-            | Q(
-                campus__is_active=True,
-                campus__organization_id=F("organization_id"),
-            ),
-            user=user,
-            is_active=True,
-            organization__is_active=True,
-            role__in=cls.management_roles,
-        )
-        if micboard_settings.multi_site_mode:
-            memberships = memberships.filter(
-                organization__site_id=getattr(django_settings, "SITE_ID", 1)
+        return [
+            membership.scope
+            for membership in active_memberships(
+                user.pk,
+                using=database,
+                roles=cls.management_roles,
             )
-        return list(memberships.values_list("organization_id", "campus_id"))
+        ]
 
     @staticmethod
     def is_platform_global_model(model: type[models.Model]) -> bool:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, cast
+from typing import ClassVar
 
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -10,26 +10,6 @@ from django.db import models
 from micboard.models.base_managers import TenantOptimizedQuerySet
 
 User = get_user_model()
-
-
-class PerformerAssignmentQuerySet(TenantOptimizedQuerySet):
-    """Query helpers for performer assignments with tenant awareness."""
-
-    def for_user(self, *, user: Any) -> PerformerAssignmentQuerySet:
-        """Return assignments in the user's active monitoring groups."""
-        tenant_scope = cast(PerformerAssignmentQuerySet, super().for_user(user=user))
-        if not user.is_authenticated:
-            return tenant_scope
-        if user.is_superuser:
-            return tenant_scope
-        return tenant_scope.filter(
-            monitoring_group__users=user,
-            monitoring_group__is_active=True,
-        ).distinct()
-
-    def active(self) -> PerformerAssignmentQuerySet:
-        """Get all active assignments."""
-        return self.filter(is_active=True)
 
 
 class PerformerAssignment(models.Model):
@@ -121,7 +101,7 @@ class PerformerAssignment(models.Model):
         help_text="Last update timestamp",
     )
 
-    objects = PerformerAssignmentQuerySet.as_manager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Performer Assignment"

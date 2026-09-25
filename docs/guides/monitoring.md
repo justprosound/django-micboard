@@ -142,9 +142,10 @@ Read locations through the authenticated monitoring scope. Create, update, and a
 through the permission-checked Django admin:
 
 ```python
-from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.models.locations.structure import Location
+from micboard.services.shared.visibility import visible_to
 
-locations = MonitoringService.get_accessible_locations(request.user)
+locations = visible_to(Location, user=request.user).filter(is_active=True)
 ```
 
 ## Troubleshooting
