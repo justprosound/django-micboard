@@ -14,6 +14,7 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.realtime.connection import RealTimeConnection
 from micboard.services.common.base.plugin import RealtimeTransport
+from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.realtime.subscription_lifecycle_service import (
     RealtimeSubscriptionLifecycleService,
@@ -48,25 +49,29 @@ class EventPlugin:
         """Deliver one event through the production async callback."""
         await callback({"id": chassis.api_device_id, "name": "Callback update"})
 
-    def transform_device_data(self, data: dict[str, Any]) -> dict[str, Any] | None:
-        """Normalize one event into the polling helper's expected shape."""
-        return {
-            "api_device_id": self.chassis.api_device_id,
-            "ip": str(self.chassis.ip),
-            "type": self.chassis.model,
-            "name": data.get("name", self.chassis.name),
-            "firmware": self.chassis.firmware_version,
-        }
+    def normalize_device(self, data: dict[str, Any]) -> NormalizedChassis | None:
+        """Normalize one event for this chassis."""
+        return NormalizedChassis(
+            api_device_id=self.chassis.api_device_id,
+            ip=str(self.chassis.ip),
+            model=self.chassis.model,
+            name=data.get("name", self.chassis.name),
+            firmware_version=self.chassis.firmware_version,
+        )
 
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Return no channel updates for this chassis-focused regression."""
+        return []
+
+    def normalize_channels(self, api_channels: list[dict[str, Any]]) -> list[Any]:
+        """Return no channels for this chassis-focused regression."""
         return []
 
 
 class ConnectionOnlyPlugin(EventPlugin):
     """Deliver callbacks without invoking the separate persistence regression."""
 
-    def transform_device_data(self, data: dict[str, Any]) -> None:
+    def normalize_device(self, data: dict[str, Any]) -> None:
         """Skip device updates while connection tracking is under test."""
         return None
 

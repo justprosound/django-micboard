@@ -26,8 +26,8 @@ a manufacturer under `micboard/integrations/<vendor>/`.
 
 The plugin owns manufacturer protocol details. Domain services own persistence, deduplication,
 tenant scope, lifecycle transitions, and orchestration. Keep model writes and business decisions out
-of integration clients and transformers. The live plugin methods exchange dictionaries; new
-service-layer APIs built around them should use typed Pydantic v2 DTOs at the service boundary.
+of integration clients and normalizers. Raw vendor payloads enter as dictionaries and leave
+the plugin as the typed `NormalizedChassis` DTO, which is what every service reads.
 
 ## Plugin contract
 
@@ -45,7 +45,7 @@ The required methods are:
 | `get_device(device_id)` | Return one raw device mapping or `None`. |
 | `get_device_channels(device_id)` | Return raw channel mappings or an empty list. |
 | `get_client()` | Return the configured `BaseAPIClient` implementation. |
-| `transform_device_data(api_data)` | Normalize a raw device mapping or return `None` when unusable. |
+| `normalize_device(api_data)` | Return a `NormalizedChassis`, or `None` when the payload is unusable. |
 | `is_healthy()` | Return current client health. |
 | `check_health()` | Return the shared health-response mapping. |
 | `add_discovery_ips(ips)` | Add validated manual-discovery addresses; report success. |
@@ -53,10 +53,11 @@ The required methods are:
 | `remove_discovery_ips(ips)` | Remove validated manual-discovery addresses; report success. |
 | `realtime_transport` | `"sse"`, `"websocket"`, or `None` when the integration has no stream. |
 | `subscribe_to_chassis(chassis, callback)` | Open this integration's stream for one chassis. |
-| `transform_transmitter_data(api_data, channel_number)` | Normalize one wireless-unit payload. |
+| `normalize_channels(api_channels)` | Return a `NormalizedChannel` for each mapping from `get_device_channels()`. |
 
-Every member above is abstract. `DeviceUpdateService` persists through the plugin it is handed
-and calls `transform_transmitter_data` on it, so an integration cannot ship without one.
+Every member above is abstract. Every persistence path reads `normalize_device()`, and
+`DeviceUpdateService` calls `normalize_channels()` for devices whose payload embeds no channels,
+so an integration cannot ship without either.
 
 ## Create the integration
 
@@ -69,7 +70,7 @@ micboard/integrations/acme_audio/
 ├── discovery_client.py
 ├── exceptions.py
 ├── plugin.py
-├── transformers.py
+├── normalizer.py
 └── stream.py             # optional: SSE or manufacturer WebSocket transport
 ```
 
@@ -241,44 +242,34 @@ Do not perform local ownership checks here. Cross-manufacturer IP ownership belo
 
 ### 5. Normalize vendor payloads
 
-Transformers are pure protocol adapters: raw vendor mapping in, normalized mapping or `None` out.
-They must not query or write Django models.
+Normalization is a pure protocol adapter: raw vendor mapping in, `NormalizedChassis` or `None`
+out. It must not query or write Django models.
 
-`NormalizedHardware.from_api()` is the current persistence boundary. At minimum, a usable device
-needs a non-empty `id` (or `api_device_id`) and `ip`. Return stable values for these recommended
-keys when the vendor supplies them:
+`NormalizedChassis` (in `micboard.services.core.hardware`) is the one shape every persistence
+path reads, so vendor key names stop at the normalizer. It requires a non-empty
+`api_device_id`; polling and promotion also skip a device without an `ip`. Set `model` to the
+full model number the vendor reports (for example `ULXD4Q`). The chassis role is looked up from
+that model in the device specification catalogue, so an unrecognized model keeps its existing
+role. Each `NormalizedChannel` carries its channel `number` and, when a wireless unit is linked,
+a `NormalizedUnit` with its telemetry.
+
+If the vendor uses the same field spellings as the shipped integrations (`id`, `ipAddress`,
+`modelName`, `serialNumber`, `macAddress`, `firmwareVersion`, and `channels` entries shaped like
+`{"channel": 1, "tx": {...}}`), reuse the shared normalizer and supply only the vendor's device
+families:
 
 ```python
-from typing import Any
+from micboard.services.common.base.device_normalizer import VendorDeviceNormalizer
 
-
-class AcmeAudioDataTransformer:
-    @staticmethod
-    def transform_device_data(api_data: dict[str, Any]) -> dict[str, Any] | None:
-        device_id = api_data.get("deviceId")
-        ip_address = api_data.get("address")
-        if not isinstance(device_id, str) or not device_id:
-            return None
-        if not isinstance(ip_address, str) or not ip_address:
-            return None
-
-        return {
-            "id": device_id,
-            "ip": ip_address,
-            "name": str(api_data.get("name") or ""),
-            "model": str(api_data.get("model") or ""),
-            "device_type": str(api_data.get("deviceType") or ""),
-            "serial_number": str(api_data.get("serialNumber") or ""),
-            "mac_address": str(api_data.get("macAddress") or ""),
-            "firmware_version": str(api_data.get("firmwareVersion") or ""),
-            "channels": api_data.get("channels", []),
-        }
+ACME_AUDIO_NORMALIZER = VendorDeviceNormalizer(
+    manufacturer_code="acme_audio",
+    family_aliases={"ROADRUNNER": "roadrunner", "ROAD_RUNNER": "roadrunner"},
+    family_labels={"roadrunner": "Roadrunner Receiver"},
+)
 ```
 
-When channel polling is supported, `get_device_channels()` should return mappings shaped like
-`{"channel": 1, "tx": {...}}`. Add `transform_transmitter_data(tx_data, channel_num)` to the
-plugin and return the fields consumed by hardware polling, such as `slot`, `name`, `battery`,
-`battery_charge`, `runtime`, `audio_level`, `rf_level`, `frequency`, `antenna`, and `status`.
+A vendor with a different payload shape implements `normalize_device()` and
+`normalize_channels()` itself and builds the DTOs directly.
 
 Test missing IDs, missing addresses, unknown models, empty channel lists, malformed scalar types,
 and representative real payload fixtures. Avoid catching broad exceptions merely to manufacture
@@ -296,14 +287,15 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.common.base.plugin import ManufacturerPlugin, RealtimeTransport
 
 from .client import AcmeAudioSystemAPIClient
-from .transformers import AcmeAudioDataTransformer
+from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis
+
+from .normalizer import ACME_AUDIO_NORMALIZER
 
 
 class AcmeAudioPlugin(ManufacturerPlugin):
     def __init__(self, manufacturer: Any | None = None) -> None:
         super().__init__(manufacturer)
         self._client: AcmeAudioSystemAPIClient | None = None
-        self.transformer = AcmeAudioDataTransformer()
 
     @property
     def name(self) -> str:
@@ -327,8 +319,11 @@ class AcmeAudioPlugin(ManufacturerPlugin):
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         return self.get_client().devices.get_device_channels(device_id)
 
-    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
-        return self.transformer.transform_device_data(api_data)
+    def normalize_device(self, api_data: dict[str, Any]) -> NormalizedChassis | None:
+        return ACME_AUDIO_NORMALIZER.normalize_device(api_data)
+
+    def normalize_channels(self, api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]:
+        return ACME_AUDIO_NORMALIZER.normalize_channels(api_channels)
 
     def is_healthy(self) -> bool:
         return self.get_client().is_healthy()
@@ -531,7 +526,7 @@ just docs
 - [ ] Persistence, tenant scope, deduplication, and lifecycle behavior remain in services.
 - [ ] Any new task is a thin native-Huey wrapper registered by `MicboardConfig`.
 - [ ] Any new optional dependency is scoped to an existing/relevant extra and locked with `uv`.
-- [ ] Registry, transport, transformer, discovery, security, service, and streaming tests pass.
+- [ ] Registry, transport, normalizer, discovery, security, service, and streaming tests pass.
 - [ ] `get_manufacturer_plugin("<vendor>")` resolves the intended class.
 - [ ] An active `Manufacturer` row exists with the exact plugin code.
 - [ ] Developer docs and `CHANGELOG.md` describe the supported integration behavior.
