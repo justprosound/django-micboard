@@ -10,13 +10,14 @@ API is not shipped yet; see [HTTP endpoints](../api/endpoints.md) for current st
 Use the models' user-scoped managers instead of exposing an unscoped queryset:
 
 ```python
+from micboard.services.shared.visibility import visible_to
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 
-active_chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+active_chassis = visible_to(WirelessChassis, user=request.user).filter(
     status__in=("online", "degraded", "provisioning"),
 )
-active_units = WirelessUnit.objects.for_user(user=request.user).filter(
+active_units = visible_to(WirelessUnit, user=request.user).filter(
     status__in=("online", "degraded", "provisioning"),
 )
 ```

@@ -100,7 +100,7 @@ def test_charger_dashboard_maps_complete_and_partial_assignments() -> None:
     ]
     with (
         patch(
-            "micboard.services.chargers.dashboard_service.Charger.objects.for_user",
+            "micboard.services.chargers.dashboard_service.visible_to",
             return_value=charger_scope,
         ),
         patch(

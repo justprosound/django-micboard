@@ -15,7 +15,8 @@ from micboard.services.hardware.dtos import ChassisRefreshResult, WirelessChassi
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
-from micboard.services.shared.access_policy import tenant_role_access, visible_to
+from micboard.services.shared.access_policy import tenant_role_access
+from micboard.services.shared.visibility import visible_to
 from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:

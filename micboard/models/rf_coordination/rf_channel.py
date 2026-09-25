@@ -8,38 +8,11 @@ Each RF channel represents an RF communication path with direction awareness:
 
 from __future__ import annotations
 
-from typing import ClassVar, cast
+from typing import ClassVar
 
-from django.contrib.auth.models import User
 from django.db import models
-from django.db.models import Q
 
 from micboard.models.base_managers import TenantOptimizedQuerySet
-
-
-class RFChannelQuerySet(TenantOptimizedQuerySet):
-    """Enhanced queryset for RFChannel model with tenant and direction filtering."""
-
-    def for_user(self, *, user: User) -> RFChannelQuerySet:
-        """Filter RF channels accessible to user via monitoring groups."""
-        tenant_scope = cast(RFChannelQuerySet, super().for_user(user=user))
-        if not user.is_authenticated:
-            return tenant_scope
-        if user.is_superuser:
-            return tenant_scope
-
-        user_locations = user.monitoring_groups.filter(is_active=True).values_list(
-            "monitoringgrouplocation__location", flat=True
-        )
-        user_all_room_buildings = user.monitoring_groups.filter(
-            is_active=True, monitoringgrouplocation__include_all_rooms=True
-        ).values_list("monitoringgrouplocation__location__building", flat=True)
-
-        q_objects = Q(chassis__location__in=user_locations)
-        if user_all_room_buildings:
-            q_objects |= Q(chassis__location__building__in=user_all_room_buildings)
-
-        return tenant_scope.filter(q_objects).distinct()
 
 
 class RFChannel(models.Model):
@@ -166,7 +139,7 @@ class RFChannel(models.Model):
         help_text="Currently active IEM receiver on this channel (SEND direction)",
     )
 
-    objects = RFChannelQuerySet.as_manager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
     class Meta:
         verbose_name = "RF Channel"

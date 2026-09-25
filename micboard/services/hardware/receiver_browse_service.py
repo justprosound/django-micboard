@@ -16,6 +16,7 @@ from micboard.services.hardware.receiver_browse_dtos import (
     ReceiverBrowseItem,
     ReceiverBrowsePage,
 )
+from micboard.services.shared.visibility import visible_to
 
 
 class ReceiverBrowseDTOMapper:
@@ -54,7 +55,7 @@ class ReceiverBrowseService:
         query_params: QueryDict,
     ) -> ReceiverBrowsePage:
         """Return one bounded page of visible online chassis."""
-        queryset: QuerySet[WirelessChassis] = WirelessChassis.objects.for_user(user=user).filter(
+        queryset: QuerySet[WirelessChassis] = visible_to(WirelessChassis, user=user).filter(
             is_online=True
         )
         if criteria.role:
@@ -64,10 +65,9 @@ class ReceiverBrowseService:
         if criteria.room_id is not None:
             queryset = queryset.filter(location__room_id=criteria.room_id)
         if criteria.priority or criteria.performer_id is not None:
-            visible_assignments = (
-                PerformerAssignment.objects.for_user(user=user)
-                .active()
-                .filter(wireless_unit__base_chassis_id=OuterRef("pk"))
+            visible_assignments = visible_to(PerformerAssignment, user=user).filter(
+                is_active=True,
+                wireless_unit__base_chassis_id=OuterRef("pk"),
             )
             if criteria.priority:
                 visible_assignments = visible_assignments.filter(priority=criteria.priority)

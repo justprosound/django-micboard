@@ -16,6 +16,7 @@ from micboard.services.chargers.dashboard_dtos import (
     ChargerDashboardSnapshot,
 )
 from micboard.services.core.performer_assignment import PerformerAssignmentService
+from micboard.services.shared.visibility import visible_to
 
 
 class ChargerDashboardService:
@@ -30,7 +31,7 @@ class ChargerDashboardService:
         chargers = cast(
             list[Charger],
             list(
-                Charger.objects.for_user(user=user)
+                visible_to(Charger, user=user)
                 .filter(is_active=True)
                 .order_by("order", "name", "pk")[: MAX_DASHBOARD_CHARGERS + 1]
                 .prefetch_related(
