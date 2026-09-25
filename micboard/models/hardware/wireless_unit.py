@@ -12,33 +12,11 @@ Links to WirelessChassis base unit and RFChannel for RF path tracking.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, cast
+from typing import ClassVar
 
 from django.db import models
 
 from micboard.models.base_managers import TenantOptimizedQuerySet
-
-
-class WirelessUnitQuerySet(TenantOptimizedQuerySet):
-    """Enhanced queryset for WirelessUnit model with tenant filtering."""
-
-    def for_user(self, *, user: Any) -> WirelessUnitQuerySet:
-        """Return units reachable through the user's monitoring-group scope."""
-        tenant_scope = cast(WirelessUnitQuerySet, super().for_user(user=user))
-        if not user.is_authenticated:
-            return tenant_scope
-        if user.is_superuser:
-            return tenant_scope
-
-        groups = user.monitoring_groups.filter(is_active=True)
-        all_room_buildings = groups.filter(
-            monitoringgrouplocation__include_all_rooms=True
-        ).values_list("monitoringgrouplocation__location__building_id", flat=True)
-        return tenant_scope.filter(
-            models.Q(base_chassis__location__monitoring_groups__in=groups)
-            | models.Q(base_chassis__location__building_id__in=all_room_buildings)
-            | models.Q(assigned_resource__monitoring_groups__in=groups)
-        ).distinct()
 
 
 class WirelessUnit(models.Model):
@@ -259,7 +237,7 @@ class WirelessUnit(models.Model):
         help_text="Last update timestamp",
     )
 
-    objects = WirelessUnitQuerySet.as_manager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Wireless Unit (Field Device)"

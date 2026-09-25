@@ -18,7 +18,7 @@ The root `micboard.models` and `micboard.services` packages do not re-export dom
 
 ## Create a performer
 
-Performer CRUD is available through the tenant-scoped Django admin. Application workflows should use `Performer.objects.for_user(user=request.user)` for reads and `PerformerAssignmentService` for every device binding; there is no unscoped performer facade.
+Performer CRUD is available through the tenant-scoped Django admin. Application workflows should use `visible_to(Performer, user=request.user)` for reads and `PerformerAssignmentService` for every device binding; there is no unscoped performer facade.
 
 ## Create an assignment
 
@@ -48,17 +48,18 @@ In MSP mode, the user must have an active `operator`, `admin`, or `owner` member
 ## Read scoped assignments
 
 ```python
+from micboard.services.shared.visibility import visible_to
 assignments = (
-    PerformerAssignment.objects.for_user(user=request.user)
+    visible_to(PerformerAssignment, user=request.user)
     .filter(is_active=True)
-    .with_performer_and_unit()
+    .select_related("performer", "wireless_unit", "monitoring_group")
 )
 
-performers = Performer.objects.for_user(user=request.user).filter(is_active=True)
-units = WirelessUnit.objects.for_user(user=request.user)
+performers = visible_to(Performer, user=request.user).filter(is_active=True)
+units = visible_to(WirelessUnit, user=request.user)
 ```
 
-Use `for_user()` at request and task boundaries. In single-tenant mode, an unassigned performer is visible so an operator can create its first assignment. In MSP mode, a performer without a tenant-scoped assignment fails closed.
+Use `visible_to()` at request and task boundaries. In single-tenant mode, an unassigned performer is visible so an operator can create its first assignment. In MSP mode, a performer without a tenant-scoped assignment fails closed.
 
 ## Update or remove an assignment
 

@@ -22,10 +22,14 @@ from tests.view_test_helpers import request, view
 
 def test_assignment_form_context_covers_defaults_existing_values_and_error() -> None:
     with (
-        patch.object(assignments.Performer.objects, "for_user", return_value="performers"),
-        patch.object(assignments.WirelessUnit.objects, "for_user", return_value="units"),
         patch.object(
-            assignments.MonitoringService, "get_user_monitoring_groups", return_value="groups"
+            assignments,
+            "visible_to",
+            side_effect=lambda model, user: {
+                assignments.Performer: "performers",
+                assignments.WirelessUnit: "units",
+                assignments.MonitoringGroup: "groups",
+            }[model],
         ),
     ):
         default = assignments._assignment_form_context(user="user")
@@ -197,7 +201,7 @@ def _assignment() -> Any:
 def test_update_assignment_get_renders_existing_assignment() -> None:
     assignment = _assignment()
     with (
-        patch.object(assignments.PerformerAssignment.objects, "for_user", return_value="visible"),
+        patch.object(assignments, "visible_to", return_value="visible"),
         patch.object(assignments, "get_object_or_404", return_value=assignment),
         patch.object(assignments, "_assignment_form_context", return_value={}) as context,
         patch.object(assignments, "render", return_value=HttpResponse()),
@@ -219,7 +223,7 @@ def test_update_assignment_delegates_post_values() -> None:
         },
     )
     with (
-        patch.object(assignments.PerformerAssignment.objects, "for_user", return_value="visible"),
+        patch.object(assignments, "visible_to", return_value="visible"),
         patch.object(assignments, "get_object_or_404", return_value=assignment),
         patch.object(assignments.PerformerAssignmentService, "update_assignment") as update,
         patch.object(assignments, "redirect", return_value=HttpResponse(status=302)),
@@ -254,7 +258,7 @@ def test_update_assignment_delegates_post_values() -> None:
 def test_update_assignment_maps_service_errors(error: Exception, status: int) -> None:
     assignment = _assignment()
     with (
-        patch.object(assignments.PerformerAssignment.objects, "for_user", return_value="visible"),
+        patch.object(assignments, "visible_to", return_value="visible"),
         patch.object(assignments, "get_object_or_404", return_value=assignment),
         patch.object(
             assignments.PerformerAssignmentService, "update_assignment", side_effect=error
@@ -286,7 +290,7 @@ def test_assignment_forms_reject_unknown_priority_before_service_call() -> None:
     create_request.POST["priority"] = "urgent"
     assignment = _assignment()
     with (
-        patch.object(assignments.PerformerAssignment.objects, "for_user", return_value="visible"),
+        patch.object(assignments, "visible_to", return_value="visible"),
         patch.object(assignments, "get_object_or_404", return_value=assignment),
         patch.object(assignments.PerformerAssignmentService, "create_assignment") as create,
         patch.object(assignments.PerformerAssignmentService, "update_assignment") as update,
@@ -307,7 +311,7 @@ def test_assignment_forms_reject_unknown_priority_before_service_call() -> None:
 def test_delete_assignment_checks_visibility_before_service_call() -> None:
     assignment_request = request("post")
     with (
-        patch.object(assignments.PerformerAssignment.objects, "for_user", return_value="visible"),
+        patch.object(assignments, "visible_to", return_value="visible"),
         patch.object(assignments, "get_object_or_404") as get_object,
         patch.object(assignments.PerformerAssignmentService, "delete_assignment") as delete,
         patch.object(assignments, "redirect", return_value=HttpResponse(status=302)),

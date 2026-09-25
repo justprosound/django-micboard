@@ -19,7 +19,7 @@ from micboard.services.kiosk.dtos import (
     KioskHealthChargerMetadata,
     KioskSlotHealthSnapshot,
 )
-from micboard.services.shared.access_policy import visible_to
+from micboard.services.shared.visibility import visible_to
 
 
 class KioskHealthService:

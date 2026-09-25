@@ -46,13 +46,14 @@ uv run --no-sync python manage.py migrate
 ### Authenticated hardware queries
 
 ```python
+from micboard.services.shared.visibility import visible_to
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 
-chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+chassis = visible_to(WirelessChassis, user=request.user).filter(
     status__in=("online", "degraded", "provisioning"),
 )
-units = WirelessUnit.objects.for_user(user=request.user).filter(
+units = visible_to(WirelessUnit, user=request.user).filter(
     status__in=("online", "degraded", "provisioning"),
 )
 ```
@@ -60,9 +61,10 @@ units = WirelessUnit.objects.for_user(user=request.user).filter(
 ### Authenticated location queries
 
 ```python
-from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.models.locations.structure import Location
+from micboard.services.shared.visibility import visible_to
 
-locations = MonitoringService.get_accessible_locations(request.user)
+locations = visible_to(Location, user=request.user).filter(is_active=True)
 ```
 
 ### ManufacturerSyncService
@@ -133,25 +135,27 @@ membership = OrganizationMembership.objects.create(
 ## 🔍 Tenant-Aware Managers
 
 ```python
+from micboard.services.shared.visibility import visible_to
 from micboard.models.base_managers import TenantOptimizedQuerySet
 
 class MyModel(models.Model):
     objects = TenantOptimizedQuerySet.as_manager()
 
 # Usage
-qs = MyModel.objects.for_user(user=request.user)
+qs = visible_to(MyModel, user=request.user)
 qs = MyModel.objects.for_site(site_id=1)
 ```
 
 ## 🌐 Request Context (Views)
 
 ```python
+from micboard.services.shared.visibility import visible_to
 def my_view(request):
     # Access current organization
     org = request.organization  # Set by TenantMiddleware
     campus_id = request.campus_id
 
-    chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+    chassis = visible_to(WirelessChassis, user=request.user).filter(
     status__in=("online", "degraded", "provisioning"),
 )
 ```
@@ -235,7 +239,8 @@ docs/
 Request-facing queries require the authenticated user:
 
 ```python
-WirelessChassis.objects.for_user(user=request.user).filter(
+from micboard.services.shared.visibility import visible_to
+visible_to(WirelessChassis, user=request.user).filter(
     status__in=("online", "degraded", "provisioning"),
 )
 ```
@@ -243,6 +248,7 @@ WirelessChassis.objects.for_user(user=request.user).filter(
 ## 🧪 Testing
 
 ```python
+from micboard.services.shared.visibility import visible_to
 from micboard.multitenancy.models import Organization
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
@@ -250,7 +256,7 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 org = Organization.objects.create(name='Test Org', slug='test', site_id=1)
 
 # Test isolation
-receivers = WirelessChassis.objects.for_user(user=member)
+receivers = visible_to(WirelessChassis, user=member)
 assert all(r.location.building.organization_id == org.pk for r in receivers)
 ```
 

@@ -323,9 +323,10 @@ The bundled `MicboardConsumer` handles authenticated WebSocket updates. Use the 
 manager when a view needs an initial snapshot:
 
 ```python
+from micboard.services.shared.visibility import visible_to
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+chassis = visible_to(WirelessChassis, user=request.user).filter(
     status__in=("online", "degraded", "provisioning"),
 )
 snapshot = list(chassis.values("id", "name", "status"))
