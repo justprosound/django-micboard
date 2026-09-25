@@ -257,7 +257,7 @@ per-manufacturer health logs; public request rendering never performs manufactur
 2. For each configured manufacturer:
    a. Load manufacturer plugin
    b. Call plugin.get_devices()
-   c. Transform data using plugin.transform_device_data()
+   c. Normalize each device with plugin.normalize_device() into a NormalizedChassis
    d. Update Django models with manufacturer relationships
 3. Cache manufacturer-filtered data
 4. Broadcast updates to WebSocket clients

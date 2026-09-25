@@ -16,6 +16,7 @@ from micboard.integrations.sennheiser.plugin import SennheiserPlugin
 from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.integrations.shure.exceptions import ShureAPIError
 from micboard.integrations.shure.plugin import ShurePlugin
+from micboard.services.core.hardware import NormalizedChannel
 from micboard.services.settings.settings_service import settings as app_settings
 from tests.vendor_test_helpers import disable_rate_limit_waits
 
@@ -25,7 +26,7 @@ def _disable_rate_limit_waits(monkeypatch) -> None:
     disable_rate_limit_waits(monkeypatch)
 
 
-def test_shure_plugin_delegates_to_lazy_client_and_transformer(monkeypatch) -> None:
+def test_shure_plugin_delegates_to_lazy_client_and_normalizer(monkeypatch) -> None:
     client = SimpleNamespace(
         devices=SimpleNamespace(
             get_devices=Mock(return_value=[{"id": "one"}]),
@@ -44,10 +45,6 @@ def test_shure_plugin_delegates_to_lazy_client_and_transformer(monkeypatch) -> N
     factory = Mock(return_value=client)
     monkeypatch.setattr("micboard.integrations.shure.plugin.ShureSystemAPIClient", factory)
     plugin = ShurePlugin(SimpleNamespace(code="shure"))
-    plugin.transformer = SimpleNamespace(
-        transform_device_data=Mock(return_value={"id": "normalized"}),
-        transform_transmitter_data=Mock(return_value={"slot": 1}),
-    )
 
     assert plugin.name == "Shure"
     assert plugin.code == "shure"
@@ -57,8 +54,8 @@ def test_shure_plugin_delegates_to_lazy_client_and_transformer(monkeypatch) -> N
     assert plugin.get_devices() == [{"id": "one"}]
     assert plugin.get_device("one") == {"id": "one"}
     assert plugin.get_device_channels("one") == []
-    assert plugin.transform_device_data({}) == {"id": "normalized"}
-    assert plugin.transform_transmitter_data({}, 1) == {"slot": 1}
+    assert plugin.normalize_device({"id": "one", "modelName": "ULXD4Q"}).model == "ULXD4Q"
+    assert plugin.normalize_channels([{"channel": 1}]) == [NormalizedChannel(number=1)]
     assert plugin.is_healthy()
     assert plugin.check_health() == {"status": "healthy"}
     assert plugin.add_discovery_ips(["192.0.2.1"])
@@ -66,7 +63,7 @@ def test_shure_plugin_delegates_to_lazy_client_and_transformer(monkeypatch) -> N
     assert plugin.remove_discovery_ips(["192.0.2.1"])
 
 
-def test_sennheiser_plugin_delegates_to_client_transformer_and_sse(monkeypatch) -> None:
+def test_sennheiser_plugin_delegates_to_client_normalizer_and_sse(monkeypatch) -> None:
     client = SimpleNamespace(
         devices=SimpleNamespace(
             get_devices=Mock(return_value=[]),
@@ -87,18 +84,16 @@ def test_sennheiser_plugin_delegates_to_client_transformer_and_sse(monkeypatch) 
         Mock(return_value=client),
     )
     plugin = SennheiserPlugin(SimpleNamespace(code="sennheiser"))
-    plugin.transformer = SimpleNamespace(
-        transform_device_data=Mock(return_value={"id": "normalized"}),
-        transform_transmitter_data=Mock(return_value={"slot": 2}),
-    )
     assert plugin.name == "Sennheiser"
     assert plugin.code == "sennheiser"
     assert plugin.get_client() is client
     assert plugin.get_devices() == []
     assert plugin.get_device("one") is None
     assert plugin.get_device_channels("one") == []
-    assert plugin.transform_device_data({}) == {"id": "normalized"}
-    assert plugin.transform_transmitter_data({}, 2) == {"slot": 2}
+    assert plugin.normalize_device({"id": "one", "type": "EW-D"}).name == (
+        "Evolution Wireless Digital"
+    )
+    assert plugin.normalize_channels([{"channel": 2}]) == [NormalizedChannel(number=2)]
     assert plugin.is_healthy()
     assert plugin.check_health() == {"status": "healthy"}
     assert plugin.add_discovery_ips([])

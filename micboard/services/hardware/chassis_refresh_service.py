@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from django.db.models import QuerySet
 
     from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.services.core.hardware import NormalizedChassis
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +42,13 @@ class ChassisRefreshService:
         if not device_data:
             return False
 
-        transformed_data: dict[str, Any] | None = plugin.transform_device_data(device_data)
-        if not transformed_data:
+        device = plugin.normalize_device(device_data)
+        if device is None:
             return False
 
         return cls._apply_refresh(
             chassis_id=chassis.pk,
-            transformed_data=transformed_data,
+            device=device,
             using=chassis._state.db or DEFAULT_DB_ALIAS,
         )
 
@@ -55,7 +56,7 @@ class ChassisRefreshService:
     def _apply_refresh(
         *,
         chassis_id: int,
-        transformed_data: dict[str, Any],
+        device: NormalizedChassis,
         using: str,
     ) -> bool:
         """Persist fetched details and lifecycle changes in one short transaction."""
@@ -70,10 +71,10 @@ class ChassisRefreshService:
             )
 
             update_values: dict[str, Any] = {"last_seen": timezone.now()}
-            if name := transformed_data.get("name"):
-                update_values["name"] = str(name)
-            if firmware := transformed_data.get("firmware"):
-                update_values["firmware_version"] = str(firmware)
+            if device.name:
+                update_values["name"] = device.name
+            if device.firmware_version:
+                update_values["firmware_version"] = device.firmware_version
             WirelessChassisPersistenceService.update(
                 chassis=chassis,
                 write=WirelessChassisWrite(**update_values),
@@ -92,7 +93,7 @@ class ChassisRefreshService:
                     "provisioning",
                     reason="Selected chassis refreshed from manufacturer API",
                 )
-            lifecycle.mark_online(chassis, health_data=transformed_data)
+            lifecycle.mark_online(chassis, health_data=device.model_dump(exclude={"channels"}))
         return True
 
     @classmethod

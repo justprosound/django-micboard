@@ -12,6 +12,7 @@ from django.utils import timezone
 import pytest
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.hardware.chassis_refresh_service import (
     MAX_CHASSIS_REFRESH_BATCH,
     ChassisRefreshService,
@@ -38,13 +39,17 @@ class _Plugin:
             return None
         return {"id": device_id}
 
-    def transform_device_data(self, device_data: dict[str, str]) -> dict[str, str]:
-        return {"name": f"Refreshed {device_data['id']}", "firmware": "9.8.7"}
+    def normalize_device(self, device_data: dict[str, str]) -> NormalizedChassis | None:
+        return NormalizedChassis(
+            api_device_id=device_data["id"],
+            name=f"Refreshed {device_data['id']}",
+            firmware_version="9.8.7",
+        )
 
 
-class _EmptyTransformPlugin(_Plugin):
-    def transform_device_data(self, device_data: dict[str, str]) -> dict[str, str]:
-        return {}
+class _UnnormalizablePlugin(_Plugin):
+    def normalize_device(self, device_data: dict[str, str]) -> NormalizedChassis | None:
+        return None
 
 
 class _SelectiveFailurePlugin(_Plugin):
@@ -57,8 +62,8 @@ class _SelectiveFailurePlugin(_Plugin):
 
 
 class _NameOnlyPlugin(_Plugin):
-    def transform_device_data(self, device_data: dict[str, str]) -> dict[str, str]:
-        return {"name": "Name-only refresh"}
+    def normalize_device(self, device_data: dict[str, str]) -> NormalizedChassis | None:
+        return NormalizedChassis(api_device_id=device_data["id"], name="Name-only refresh")
 
 
 def test_refresh_persists_details_and_online_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,7 +138,7 @@ def test_refresh_reports_missing_device_without_mutation(monkeypatch: pytest.Mon
     assert chassis.status == "offline"
 
 
-def test_refresh_reports_untransformable_device_without_mutation(
+def test_refresh_reports_unnormalizable_device_without_mutation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A plugin that cannot normalize its response cannot partially update a row."""
@@ -141,7 +146,7 @@ def test_refresh_reports_untransformable_device_without_mutation(
     original_name = chassis.name
     monkeypatch.setattr(
         "micboard.services.common.base.plugin.get_manufacturer_plugin",
-        lambda _code: _EmptyTransformPlugin,
+        lambda _code: _UnnormalizablePlugin,
     )
 
     result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))

@@ -11,8 +11,10 @@ from micboard.services.common.base.plugin import ManufacturerPlugin, RealtimeTra
 if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
     from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis
 
 from .client import SennheiserSystemAPIClient
+from .normalizer import SENNHEISER_NORMALIZER
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +31,9 @@ class SennheiserPlugin(ManufacturerPlugin):
         return "sennheiser"
 
     def __init__(self, manufacturer: Manufacturer | None) -> None:
-        """Initialize Sennheiser plugin and prepare client/transformer."""
+        """Initialize Sennheiser plugin and its client."""
         super().__init__(manufacturer)
         self.client: SennheiserSystemAPIClient = SennheiserSystemAPIClient()
-        from .transformers import SennheiserDataTransformer
-
-        self.transformer = SennheiserDataTransformer()
 
     def get_devices(self) -> list[dict[str, Any]]:
         """Get list of all devices from Sennheiser SSCv2 API."""
@@ -52,15 +51,13 @@ class SennheiserPlugin(ManufacturerPlugin):
         """Get channel data for a device."""
         return self.client.devices.get_device_channels(device_id)
 
-    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
-        """Transform Sennheiser SSCv2 API data to micboard format."""
-        return self.transformer.transform_device_data(api_data)
+    def normalize_device(self, api_data: dict[str, Any]) -> NormalizedChassis | None:
+        """Normalize one Sennheiser SSCv2 device payload."""
+        return SENNHEISER_NORMALIZER.normalize_device(api_data)
 
-    def transform_transmitter_data(
-        self, tx_data: dict[str, Any], channel_num: int
-    ) -> dict[str, Any] | None:
-        """Transform transmitter data from Sennheiser format to micboard format."""
-        return self.transformer.transform_transmitter_data(tx_data, channel_num)
+    def normalize_channels(self, api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]:
+        """Normalize a Sennheiser SSCv2 channel list."""
+        return SENNHEISER_NORMALIZER.normalize_channels(api_channels)
 
     @property
     def realtime_transport(self) -> RealtimeTransport:

@@ -338,7 +338,7 @@ def test_realtime_logs_exclude_vendor_and_device_sentinels(monkeypatch, caplog) 
     plugin = _plugin(
         manufacturer=SimpleNamespace(pk=41, code=manufacturer_code, name=manufacturer_name),
         subscribe_to_chassis=AsyncMock(side_effect=RuntimeError(transport_secret)),
-        transform_device_data=Mock(return_value=None),
+        normalize_device=Mock(return_value=None),
     )
     chassis = SimpleNamespace(pk=42, name=chassis_name, api_device_id=device_id)
     monkeypatch.setattr(runner, "sync_to_async", direct_sync_adapter)

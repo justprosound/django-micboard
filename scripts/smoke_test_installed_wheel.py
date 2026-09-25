@@ -63,7 +63,7 @@ def main() -> int:
     import micboard
     import micboard.integrations.shure.client
     import micboard.integrations.shure.exceptions
-    import micboard.integrations.shure.transformers
+    import micboard.integrations.shure.normalizer
     import micboard.management.commands.poll_devices
     import micboard.models.hardware.wireless_chassis
     import micboard.services.sync.discovery_service

@@ -58,8 +58,8 @@ Additional metrics captured:
 ```plaintext
 Shure API Response
     ↓
-ShureDataTransformer.transform_transmitter_data()
-    ↓ Extracts: batteryHealth, batteryCycles, batteryTemperatureC
+VendorDeviceNormalizer.normalize_channels() (services/common/base/device_normalizer.py)
+    ↓ Extracts: batteryHealth, batteryCycles, batteryTemperatureC into NormalizedUnit
     ↓
 _update_channel_and_transmitter() (polling_tasks.py)
     ↓ Persists to database
@@ -148,8 +148,7 @@ Type: Lithium-Ion
 |------|---------|
 | **micboard/models/hardware/wireless_unit.py** | + 5 new battery health fields<br>+ BATTERY_HEALTH_CHOICES constant<br>+ Enhanced get_battery_health() method<br>+ Added get_battery_health_display_icon() |
 | **micboard/tasks/polling_tasks.py** | + Persist battery_health, battery_cycles, battery_temperature_c<br>+ Updated WirelessUnit.update_or_create() defaults |
-| **micboard/integrations/shure/transformers.py** | + Extract batteryHealth, batteryCycles, batteryTemperatureC<br>+ Return battery health data in transform_transmitter_data() |
-| **micboard/integrations/sennheiser/transformers.py** | + Extract battery health data from Sennheiser API<br>+ Return in transform_transmitter_data() |
+| **micboard/services/common/base/device_normalizer.py** | + Extract batteryHealth, batteryCycles, batteryTemperatureC for both shipped integrations<br>+ Return them on `NormalizedUnit` |
 | **micboard/admin/channels.py** | + battery_health_display column<br>+ battery_health_detail_display readonly field<br>+ "Battery Status" fieldset<br>+ Color-coded health indicators |
 | **micboard/migrations/0007_add_battery_health_tracking.py** | + Migration to add 5 new fields |
 

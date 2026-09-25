@@ -33,8 +33,8 @@ class PreferredPlugin(ManufacturerPlugin):
     async def subscribe_to_chassis(self, chassis, callback):
         return None
 
-    def transform_transmitter_data(self, api_data, channel_number):
-        return None
+    def normalize_channels(self, api_channels):
+        return []
 
     def get_device_channels(self, device_id):
         return []
@@ -42,8 +42,8 @@ class PreferredPlugin(ManufacturerPlugin):
     def get_client(self):
         return Mock()
 
-    def transform_device_data(self, api_data):
-        return api_data
+    def normalize_device(self, api_data):
+        return None
 
     def get_device(self, device_id):
         return None
@@ -197,7 +197,8 @@ def test_plugin_loader_reports_missing_module_and_subclass(monkeypatch) -> None:
         (BasePlugin, "get_devices", ()),
         (ManufacturerPlugin, "get_device_channels", ("id",)),
         (ManufacturerPlugin, "get_client", ()),
-        (ManufacturerPlugin, "transform_device_data", ({},)),
+        (ManufacturerPlugin, "normalize_device", ({},)),
+        (ManufacturerPlugin, "normalize_channels", ([],)),
         (ManufacturerPlugin, "get_device", ("id",)),
         (ManufacturerPlugin, "is_healthy", ()),
         (ManufacturerPlugin, "check_health", ()),

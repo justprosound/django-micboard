@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from micboard.models.discovery.manufacturer import Manufacturer
-    from micboard.services.core.hardware import NormalizedHardware
+    from micboard.services.core.hardware import NormalizedChassis
 
 IdentityKey = TypeVar("IdentityKey", bound=Hashable)
 MAX_IDENTITY_QUERY_VALUES = 500
@@ -36,7 +36,7 @@ class DeviceIdentityIndex:
     @classmethod
     def build(
         cls,
-        payloads: Iterable[NormalizedHardware],
+        payloads: Iterable[NormalizedChassis],
         *,
         manufacturer: Manufacturer,
     ) -> DeviceIdentityIndex:

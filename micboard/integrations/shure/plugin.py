@@ -14,9 +14,10 @@ from micboard.services.common.base.utils import build_device_https_url
 if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
     from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis
 
 from .client import ShureSystemAPIClient
-from .transformers import ShureDataTransformer
+from .normalizer import SHURE_NORMALIZER
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +34,8 @@ class ShurePlugin(ManufacturerPlugin):
         return "shure"
 
     def __init__(self, manufacturer: Manufacturer | None) -> None:
-        """Initialize Shure plugin and its transformer and lazy client."""
+        """Initialize Shure plugin and its lazy client."""
         super().__init__(manufacturer)
-        self.transformer = ShureDataTransformer()
         self._client = None  # type: ShureSystemAPIClient | None
 
     def get_client(self) -> ShureSystemAPIClient:
@@ -56,15 +56,13 @@ class ShurePlugin(ManufacturerPlugin):
         """Get channel data for a device."""
         return self.get_client().devices.get_device_channels(device_id)
 
-    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
-        """Transform Shure API data to micboard format."""
-        return self.transformer.transform_device_data(api_data)
+    def normalize_device(self, api_data: dict[str, Any]) -> NormalizedChassis | None:
+        """Normalize one Shure System API device payload."""
+        return SHURE_NORMALIZER.normalize_device(api_data)
 
-    def transform_transmitter_data(
-        self, tx_data: dict[str, Any], channel_num: int
-    ) -> dict[str, Any] | None:
-        """Transform transmitter data from Shure format to micboard format."""
-        return self.transformer.transform_transmitter_data(tx_data, channel_num)
+    def normalize_channels(self, api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]:
+        """Normalize a Shure System API channel list."""
+        return SHURE_NORMALIZER.normalize_channels(api_channels)
 
     @property
     def realtime_transport(self) -> RealtimeTransport:

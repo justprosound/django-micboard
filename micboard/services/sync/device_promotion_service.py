@@ -107,40 +107,49 @@ class DevicePromotionService:
         self, discovered: Any, plugin: Any, device_data: Any
     ) -> tuple[bool, str, WirelessChassis | None]:
         from micboard.services.deduplication.check import check_device
-        from micboard.services.manufacturer.sync import ManufacturerSyncService
+        from micboard.services.deduplication.tracking import log_device_movement
 
-        transformed = plugin.transform_device_data(device_data)
-        if not transformed:
-            return (False, "Failed to transform device data", None)
+        device = plugin.normalize_device(device_data)
+        if device is None or not device.ip:
+            return (False, "Failed to normalize device data", None)
 
         dedup_result = check_device(
-            serial_number=transformed.get("serial_number"),
-            mac_address=transformed.get("mac_address"),
-            ip=transformed.get("ip"),
-            api_device_id=transformed.get("api_device_id"),
+            serial_number=device.serial_number,
+            mac_address=device.mac_address,
+            ip=device.ip,
+            api_device_id=device.api_device_id,
             manufacturer=discovered.manufacturer,
         )
 
         if dedup_result.is_conflict:
             return (False, f"Device conflict: {dedup_result.conflict_type}", None)
 
-        if dedup_result.is_duplicate and dedup_result.existing_device:
-            chassis = dedup_result.existing_device
-            normalized = ManufacturerSyncService._normalize_devices([device_data], plugin)
-            if not normalized:
-                return (False, "Failed to normalize duplicate device data", None)
+        chassis = dedup_result.existing_device
+        if dedup_result.is_moved and chassis is not None:
+            old_ip = str(chassis.ip) if chassis.ip else None
             WirelessChassisPersistenceService.update_from_normalized(
                 chassis=chassis,
-                payload=normalized[0],
+                payload=device,
+                set_ip=True,
+            )
+            log_device_movement(
+                device=chassis,
+                old_ip=old_ip,
+                new_ip=device.ip,
+                detected_by="promotion",
+                reason="Promotion matched an existing chassis at a new address",
             )
             return (True, "Updated existing chassis", chassis)
 
-        normalized = ManufacturerSyncService._normalize_devices([device_data], plugin)
-        if normalized:
-            chassis = WirelessChassisPersistenceService.create_from_normalized(
-                payload=normalized[0],
-                manufacturer=discovered.manufacturer,
+        if dedup_result.is_duplicate and chassis is not None:
+            WirelessChassisPersistenceService.update_from_normalized(
+                chassis=chassis,
+                payload=device,
             )
-            return (True, "Created new managed chassis", chassis)
+            return (True, "Updated existing chassis", chassis)
 
-        return (False, "Failed to normalize device data", None)
+        chassis = WirelessChassisPersistenceService.create_from_normalized(
+            payload=device,
+            manufacturer=discovered.manufacturer,
+        )
+        return (True, "Created new managed chassis", chassis)

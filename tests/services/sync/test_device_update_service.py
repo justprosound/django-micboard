@@ -7,10 +7,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from micboard.integrations.sennheiser.transformers import SennheiserDataTransformer
-from micboard.integrations.shure.transformers import ShureDataTransformer
+from micboard.integrations.sennheiser.normalizer import SENNHEISER_NORMALIZER
+from micboard.integrations.shure.normalizer import SHURE_NORMALIZER
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis, NormalizedUnit
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
@@ -22,7 +23,7 @@ def test_realtime_update_does_not_reconcile_missing_chassis() -> None:
     """One realtime event cannot mark sibling chassis offline."""
     manufacturer = MagicMock()
     plugin = MagicMock()
-    plugin.transform_device_data.return_value = {"api_device_id": "device-1"}
+    plugin.normalize_device.return_value = NormalizedChassis(api_device_id="device-1")
     plugin.get_device_channels.return_value = []
 
     with (
@@ -48,7 +49,7 @@ def test_authoritative_snapshot_reconciles_only_missing_chassis() -> None:
     """Full snapshots pass their persisted chassis identifiers to reconciliation."""
     manufacturer = MagicMock()
     plugin = MagicMock()
-    plugin.transform_device_data.return_value = {"api_device_id": "device-2"}
+    plugin.normalize_device.return_value = NormalizedChassis(api_device_id="device-2")
     plugin.get_device_channels.return_value = []
 
     with (
@@ -74,11 +75,11 @@ def test_authoritative_snapshot_reconciles_only_missing_chassis() -> None:
     )
 
 
-def test_transform_failure_redacts_raw_device_identifier_and_exception() -> None:
-    """A transform failure cannot disclose raw payload identifiers or exception details."""
+def test_normalization_failure_redacts_raw_device_identifier_and_exception() -> None:
+    """A normalization failure cannot disclose raw payload identifiers or exception details."""
     plugin = MagicMock()
     secret = "malformed-payload-secret"
-    plugin.transform_device_data.side_effect = ValueError(secret)
+    plugin.normalize_device.side_effect = ValueError(secret)
 
     with patch("micboard.services.sync.device_update_service.logger") as logger:
         updated = DeviceUpdateService.update_models_from_api_data(
@@ -98,18 +99,19 @@ def test_transform_failure_redacts_raw_device_identifier_and_exception() -> None
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    ("transformer", "device_id"),
+    ("normalizer", "device_id"),
     [
-        (ShureDataTransformer, "shure-device"),
-        (SennheiserDataTransformer, "sennheiser-device"),
+        (SHURE_NORMALIZER, "shure-device"),
+        (SENNHEISER_NORMALIZER, "sennheiser-device"),
     ],
 )
-def test_shipped_transformers_create_online_chassis(transformer, device_id: str) -> None:
+def test_shipped_normalizers_create_online_chassis(normalizer, device_id: str) -> None:
     """Built-in normalized payloads persist responding devices as online."""
     manufacturer = ManufacturerFactory()
     plugin = MagicMock()
-    plugin.transform_device_data.side_effect = transformer.transform_device_data
+    plugin.normalize_device.side_effect = normalizer.normalize_device
     plugin.get_device_channels.return_value = []
+    plugin.normalize_channels.return_value = []
 
     updated = DeviceUpdateService.update_models_from_api_data(
         api_data=[{"id": device_id, "ip": "192.0.2.81", "modelName": "Receiver"}],
@@ -136,10 +138,10 @@ def test_existing_discovered_chassis_reaches_online_through_valid_transitions() 
         status="discovered",
     )
     plugin = MagicMock()
-    plugin.transform_device_data.return_value = {
-        "api_device_id": chassis.api_device_id,
-        "ip": str(chassis.ip),
-    }
+    plugin.normalize_device.return_value = NormalizedChassis(
+        api_device_id=chassis.api_device_id,
+        ip=str(chassis.ip),
+    )
     plugin.get_device_channels.return_value = []
 
     updated = DeviceUpdateService.update_models_from_api_data(
@@ -157,8 +159,8 @@ def test_existing_discovered_chassis_reaches_online_through_valid_transitions() 
 def test_incomplete_authoritative_snapshot_never_marks_devices_offline() -> None:
     manufacturer = MagicMock(code="vendor")
     plugin = MagicMock()
-    plugin.transform_device_data.side_effect = [
-        {"api_device_id": "device-1"},
+    plugin.normalize_device.side_effect = [
+        NormalizedChassis(api_device_id="device-1"),
         ValueError("malformed payload"),
     ]
     plugin.get_device_channels.return_value = []
@@ -183,14 +185,14 @@ def test_incomplete_authoritative_snapshot_never_marks_devices_offline() -> None
     mark_offline.assert_not_called()
 
 
-def test_empty_and_identifierless_transforms_are_contained() -> None:
-    """Invalid normalized records cannot escape into chassis persistence."""
+def test_unnormalizable_payloads_are_contained() -> None:
+    """A payload the integration cannot normalize never reaches chassis persistence."""
     plugin = MagicMock()
-    plugin.transform_device_data.side_effect = [None, {"api_device_id": "  "}]
+    plugin.normalize_device.return_value = None
 
     assert (
         DeviceUpdateService.update_models_from_api_data(
-            api_data=[{"id": "empty"}, {"api_device_id": "missing-id"}],
+            api_data=[{"id": "empty"}],
             manufacturer=MagicMock(code="vendor"),
             plugin=plugin,
         )
@@ -199,40 +201,24 @@ def test_empty_and_identifierless_transforms_are_contained() -> None:
 
 
 @pytest.mark.django_db
-def test_embedded_normalized_channels_persist_null_safe_telemetry() -> None:
-    """Embedded snapshots are not transformed twice and nullable strings stay valid."""
+def test_embedded_channels_persist_unit_telemetry_without_a_second_fetch() -> None:
+    """Embedded channels are persisted as normalized, and unreported readings use defaults."""
     manufacturer = ManufacturerFactory()
     plugin = MagicMock()
-    plugin.transform_device_data.return_value = {
-        "api_device_id": "embedded-device",
-        "ip": "192.0.2.91",
-        "channels": [
-            {
-                "channel": 1,
-                "tx": {
-                    "slot": 4,
-                    "battery": None,
-                    "battery_type": None,
-                    "runtime": None,
-                    "battery_health": None,
-                    "audio_level": None,
-                    "rf_level": None,
-                    "frequency": None,
-                    "antenna": None,
-                    "tx_offset": None,
-                    "quality": None,
-                    "status": None,
-                    "name": None,
-                },
-            }
+    plugin.normalize_device.return_value = NormalizedChassis(
+        api_device_id="embedded-device",
+        ip="192.0.2.91",
+        channels=[
+            NormalizedChannel(number=1, unit=NormalizedUnit(slot=4)),
+            NormalizedChannel(number=2, unit=None),
         ],
-    }
+    )
 
     with patch(
         "micboard.services.sync.device_update_service.alert_manager.check_wireless_unit_alerts"
     ) as alerts:
         updated = DeviceUpdateService.update_models_from_api_data(
-            api_data=[{"id": "embedded-device", "channels": [{}]}],
+            api_data=[{"id": "embedded-device"}],
             manufacturer=manufacturer,
             plugin=plugin,
         )
@@ -248,35 +234,29 @@ def test_embedded_normalized_channels_persist_null_safe_telemetry() -> None:
     assert unit.tx_offset == 255
     assert unit.quality == 255
     plugin.get_device_channels.assert_not_called()
-    plugin.transform_transmitter_data.assert_not_called()
+    plugin.normalize_channels.assert_not_called()
     alerts.assert_called_once_with(unit)
 
 
 @pytest.mark.django_db
-def test_separate_channel_endpoint_uses_vendor_transmitter_transform() -> None:
+def test_device_without_embedded_channels_uses_the_channel_endpoint() -> None:
     """Snapshots without embedded channels retain the established detail endpoint."""
     manufacturer = ManufacturerFactory()
     plugin = MagicMock()
-    plugin.transform_device_data.return_value = {
-        "api_device_id": "detail-device",
-        "ip": "192.0.2.92",
-        "channels": [],
-    }
-    plugin.get_device_channels.return_value = [
-        {"channel": 2},
-        {"channel": 3, "tx": {"raw": True}},
-    ]
-    plugin.transform_transmitter_data.return_value = {
-        "battery": 100,
-        "name": "Detail transmitter",
-    }
+    plugin.normalize_device.return_value = NormalizedChassis(
+        api_device_id="detail-device",
+        ip="192.0.2.92",
+    )
+    raw_channels = [{"channel": 2}, {"channel": 3, "tx": {"deviceName": "Detail transmitter"}}]
+    plugin.get_device_channels.return_value = raw_channels
+    plugin.normalize_channels.side_effect = SHURE_NORMALIZER.normalize_channels
 
     with patch(
         "micboard.services.sync.device_update_service.alert_manager.check_wireless_unit_alerts"
     ):
         assert (
             DeviceUpdateService.update_models_from_api_data(
-                api_data=[{"id": "detail-device", "channels": []}],
+                api_data=[{"id": "detail-device"}],
                 manufacturer=manufacturer,
                 plugin=plugin,
             )
@@ -287,7 +267,7 @@ def test_separate_channel_endpoint_uses_vendor_transmitter_transform() -> None:
     assert unit.assigned_resource.channel_number == 3
     assert unit.name == "Detail transmitter"
     plugin.get_device_channels.assert_called_once_with("detail-device")
-    plugin.transform_transmitter_data.assert_called_once_with({"raw": True}, 3)
+    plugin.normalize_channels.assert_called_once_with(raw_channels)
 
 
 @pytest.mark.parametrize(
@@ -355,7 +335,7 @@ def test_derived_unit_slot_resolves_collisions_deterministically() -> None:
     with patch.object(WirelessUnit.objects, "filter", side_effect=[assigned, occupied, occupied]):
         slot = DeviceUpdateService._assign_unit_slot(
             channel=channel,
-            transformed_unit={},
+            api_slot=None,
             api_device_id="stable-device",
             channel_number=7,
         )

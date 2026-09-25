@@ -228,6 +228,7 @@ For example, `micboard/integrations/acme/plugin.py` can contain:
 from typing import Any
 
 from micboard.services.common.base.plugin import ManufacturerPlugin
+from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis
 
 
 class AcmePlugin(ManufacturerPlugin):
@@ -251,8 +252,11 @@ class AcmePlugin(ManufacturerPlugin):
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         return []
 
-    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
-        return dict(api_data)
+    def normalize_device(self, api_data: dict[str, Any]) -> NormalizedChassis | None:
+        return NormalizedChassis(api_device_id=str(api_data["id"]), ip=str(api_data["ip"]))
+
+    def normalize_channels(self, api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]:
+        return []
 
     def is_healthy(self) -> bool:
         return True

@@ -10,27 +10,53 @@ The typed service layer is the supported write path. Services own business logic
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py)
 
-Manufacturer-neutral normalization for hardware payloads.
+Manufacturer-neutral shape of one polled or streamed chassis.
 
-### `NormalizedHardware`
+Every integration's normalizer returns a `NormalizedChassis`, and every persistence path
+reads it. Vendor key names stop at the normalizer, so callers read fields rather than
+guessing which spelling a payload used.
+
+### `UNKNOWN_BYTE_LEVEL`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L17)
+
+Vendor sentinel for a battery, quality, or offset reading the device did not report.
+
+### `NormalizedUnit`
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L13)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L21)
 
-Normalized hardware payload independent of manufacturer key names.
+Telemetry for the wireless unit linked to one RF channel.
+
+### `NormalizedChannel`
+
+Bases: `PydanticBaseDTO`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L42)
+
+One RF channel reported by a chassis, with its linked unit if any.
+
+### `NormalizedChassis`
+
+Bases: `PydanticBaseDTO`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L49)
+
+One chassis as reported by its manufacturer, independent of vendor key names.
+
+`model` is the full model number the vendor reported (for example ``ULXD4Q``), or empty
+when the payload names none; persistence never overwrites a known model with an empty one.
+`role` is set only when the device specification recognizes that model, and persistence keeps
+the existing role otherwise.
+`channels` is empty when the payload embedded no channel list.
 
 #### `canonicalize_mac(value: Any) -> str`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L31)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L75)
 
 Canonicalize hardware identity on creation and assignment.
-
-#### `from_api(data: dict[str, Any]) -> NormalizedHardware | None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L37)
-
-Best-effort normalization for heterogeneous vendor payloads.
 
 ## `micboard.services.core.hardware_lifecycle`
 
@@ -768,13 +794,13 @@ Base DTO with standard configuration for all service layer DTOs.
 
 ### `clear_plugin_cache() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L22)
 
 Forget resolved plugin classes, so a test starts from a cold cache.
 
 ### `build_manufacturer_plugin(manufacturer: Manufacturer) -> ManufacturerPlugin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L26)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L27)
 
 Return a plugin bound to ``manufacturer``.
 
@@ -784,7 +810,7 @@ and others do not.
 
 ### `get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L37)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L38)
 
 Return the plugin class for a manufacturer code, resolving it at most once.
 
@@ -796,13 +822,13 @@ locate a concrete ``ManufacturerPlugin`` subclass. Prefers
 
 Bases: `ABC`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L90)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L91)
 
 Base interface for all manufacturer plugins.
 
 #### `get_devices() -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L109)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L110)
 
 Retrieve a list of all devices associated with or discovered by this plugin.
 
@@ -810,13 +836,13 @@ Retrieve a list of all devices associated with or discovered by this plugin.
 
 Bases: `BasePlugin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L115)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L116)
 
 Extended plugin interface specifically for manufacturer hardware integrations.
 
 #### `async subscribe_to_chassis(chassis: WirelessChassis, callback: Callable[[dict[str, Any]], Awaitable[None]]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L128)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L129)
 
 Open this integration's stream for one chassis and await its updates.
 
@@ -825,30 +851,32 @@ runner owns leasing, inventory selection, connection tracking, and persistence.
 
 #### `get_device_channels(device_id: str) -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L141)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L142)
 
 Retrieve all channels associated with a specific device identifier.
 
 #### `get_client() -> BaseAPIClient`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L146)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L147)
 
 Get an instance of the configured API client for this manufacturer.
 
-#### `transform_device_data(api_data: dict[str, Any]) -> dict[str, Any] | None`
+#### `normalize_device(api_data: dict[str, Any]) -> NormalizedChassis | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L151)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L152)
 
-Transform raw API device data into the standardized application format.
+Normalize one raw device payload, or return None when it is unusable.
 
-#### `transform_transmitter_data(api_data: dict[str, Any], channel_number: int) -> dict[str, Any] | None`
+Every persistence path reads the result, so vendor key names must not escape it.
+Channels are included when the payload embeds them.
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L156)
+#### `normalize_channels(api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]`
 
-Normalize one raw wireless-unit payload for a channel.
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L161)
 
-`DeviceUpdateService` requires this of every plugin it persists through, so it is
-part of the contract rather than an optional addition.
+Normalize the channel list returned by `get_device_channels`.
+
+Persistence uses this for devices whose payload embeds no channels.
 
 #### `get_device(device_id: str) -> dict[str, Any] | None`
 
@@ -885,6 +913,52 @@ Retrieve the list of currently configured discovery IP addresses.
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L194)
 
 Remove a list of IP addresses from the plugin's discovery targets.
+
+## `micboard.services.common.base.device_normalizer`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py)
+
+Turn vendor device payloads into `NormalizedChassis`.
+
+The shipped integrations report devices with the same field spellings and differ only in
+their device families, so one normalizer serves both. Each integration supplies its
+vocabulary: which raw type strings name which family, and what to call a family when the
+payload carries no model name.
+
+### `VendorDeviceNormalizer`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L55)
+
+Normalize one integration's device and channel payloads.
+
+**Attributes:**
+
+- `manufacturer_code` (`str`) — Code the device specification catalogue files models under.
+- `family_aliases` (`Mapping[str, str]`) — Raw ``type`` values, upper-cased with ``-`` and spaces replaced by ``_``, mapped to a family key.
+- `family_labels` (`Mapping[str, str]`) — Family key mapped to the name used when a payload has neither a device name nor a model name.
+
+#### `normalize_device(api_data: Mapping[str, Any]) -> NormalizedChassis | None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L71)
+
+Normalize one device payload, or return None when it is unusable.
+
+A payload is unusable when it has no identifier or its values cannot take the
+normalized shape. The payload is never logged, because it carries addresses and
+serial numbers.
+
+#### `normalize_channels(api_channels: Iterable[Mapping[str, Any]]) -> list[NormalizedChannel]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L112)
+
+Normalize the channel list a device embeds or a channel endpoint returns.
+
+Every channel is kept. A channel whose linked unit is absent or unusable carries
+``unit=None``.
+
+**Raises:**
+
+- `(TypeError, ValueError)` — A channel entry is not a mapping or has no usable number.
 
 ## `micboard.services.common.base.client`
 

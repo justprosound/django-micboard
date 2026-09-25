@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
     from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.multitenancy.models import Organization
-    from micboard.services.core.hardware import NormalizedHardware
+    from micboard.services.core.hardware import NormalizedChassis
 
 
 class WirelessChassisPersistenceService:
@@ -263,7 +263,7 @@ class WirelessChassisPersistenceService:
         cls,
         *,
         manufacturer: Manufacturer,
-        payload: NormalizedHardware,
+        payload: NormalizedChassis,
         initial_status: str | None = None,
     ) -> WirelessChassis:
         """Create a complete chassis from manufacturer-normalized inventory."""
@@ -274,7 +274,7 @@ class WirelessChassisPersistenceService:
             ip=payload.ip,
             name=payload.name,
             model=payload.model,
-            role=cls.role_for_device_type(payload.device_type),
+            role=payload.role or "receiver",
             firmware_version=payload.firmware_version,
             hosted_firmware_version=payload.hosted_firmware_version,
             description=payload.description,
@@ -296,7 +296,7 @@ class WirelessChassisPersistenceService:
         cls,
         *,
         chassis: WirelessChassis,
-        payload: NormalizedHardware,
+        payload: NormalizedChassis,
         set_ip: bool = False,
     ) -> WirelessChassis:
         """Refresh normalized metadata without erasing useful values with blanks."""
@@ -306,11 +306,7 @@ class WirelessChassisPersistenceService:
         values.update(
             name=payload.name or chassis.name,
             model=payload.model or chassis.model,
-            role=(
-                cls.role_for_device_type(payload.device_type)
-                if payload.device_type
-                else chassis.role
-            ),
+            role=payload.role or chassis.role,
             firmware_version=payload.firmware_version or chassis.firmware_version,
             hosted_firmware_version=(
                 payload.hosted_firmware_version or chassis.hosted_firmware_version
@@ -327,13 +323,3 @@ class WirelessChassisPersistenceService:
         if incoming_mac and incoming_mac == existing_mac and chassis.mac_address != incoming_mac:
             values["mac_address"] = incoming_mac
         return cls.update(chassis=chassis, write=WirelessChassisWrite(**values))
-
-    @staticmethod
-    def role_for_device_type(device_type: object) -> str:
-        """Map manufacturer type text to a supported chassis role."""
-        normalized = device_type.lower() if isinstance(device_type, str) else ""
-        if "transmitter" in normalized:
-            return "transmitter"
-        if "transceiver" in normalized:
-            return "transceiver"
-        return "receiver"

@@ -84,29 +84,21 @@ class RealtimeSubscriptionLifecycleService:
         data: dict[str, Any],
         transport: RealtimeTransport,
     ) -> None:
-        """Transform, persist, and broadcast one transport-neutral realtime update."""
+        """Normalize, persist, and broadcast one transport-neutral realtime update."""
         manufacturer: Any = getattr(plugin, "manufacturer", None)
         manufacturer_id = getattr(manufacturer, "pk", None)
         transport_label = _TRANSPORT_LABELS[transport]
         try:
-            transformed_data = plugin.transform_device_data(data)
-            if not transformed_data:
+            device = plugin.normalize_device(data)
+            if device is None:
                 logger.debug(
-                    "Could not transform %s data for manufacturer ID %s",
+                    "Could not normalize %s data for manufacturer ID %s",
                     transport_label,
                     manufacturer_id,
                 )
                 return
 
-            api_device_id = transformed_data.get("api_device_id")
-            if not api_device_id:
-                logger.warning(
-                    "Transformed %s update omitted its device identifier for manufacturer ID %s",
-                    transport_label,
-                    manufacturer_id,
-                )
-                return
-
+            api_device_id = device.api_device_id
             updated_count = await sync_to_async(
                 DeviceUpdateService.update_models_from_api_data,
                 thread_sensitive=True,
