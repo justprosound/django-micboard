@@ -24,37 +24,37 @@ WebSocket consumer for real-time device updates.
 
 #### `async connect() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L195)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L177)
 
 Handle WebSocket connection.
 
 #### `async disconnect(code: int) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L245)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L227)
 
 Handle WebSocket disconnection.
 
 #### `async receive(text_data: str | None = None, bytes_data: bytes | None = None) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L252)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L234)
 
 Handle incoming messages from client.
 
 #### `async device_update(event: dict[str, Any]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L312)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L294)
 
 Send device update to WebSocket client.
 
 #### `async api_health_update(event: dict[str, Any]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L321)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L303)
 
 Forward a manufacturer API health update.
 
 #### `async device_status_update(event: dict[str, Any]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L325)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/websockets/consumers.py#L307)
 
 Forward a persisted hardware status update.
 

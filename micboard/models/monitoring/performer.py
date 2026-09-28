@@ -2,39 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar
 
 from django.db import models
 from django.db.models import QuerySet
 
 from micboard.models.base_managers import TenantOptimizedQuerySet
-from micboard.settings.deployment_controls import deployment_controls
-
-
-class PerformerQuerySet(TenantOptimizedQuerySet):
-    """Query helpers for performers with tenant awareness."""
-
-    def for_user(self, *, user: Any) -> PerformerQuerySet:
-        """Return performers managed by one of the user's active monitoring groups.
-
-        In single-tenant mode, unassigned performers remain available so an
-        operator can create their first assignment. MSP mode cannot safely
-        expose a tenantless performer, so it only returns performers already
-        linked through a tenant-scoped assignment.
-        """
-        tenant_scope = cast(PerformerQuerySet, super().for_user(user=user))
-        if not user.is_authenticated:
-            return tenant_scope
-        if user.is_superuser:
-            return tenant_scope
-
-        from micboard.models.monitoring.performer_assignment import PerformerAssignment
-
-        visible_assignments = PerformerAssignment.objects.for_user(user=user)
-        visibility = models.Q(assignments__in=visible_assignments)
-        if not deployment_controls.msp_enabled:
-            visibility |= models.Q(assignments__isnull=True)
-        return tenant_scope.filter(visibility).distinct()
 
 
 class Performer(models.Model):
@@ -101,7 +74,7 @@ class Performer(models.Model):
         help_text="Last update timestamp",
     )
 
-    objects = PerformerQuerySet.as_manager()
+    objects = TenantOptimizedQuerySet.as_manager()
 
     class Meta:
         verbose_name = "Performer"

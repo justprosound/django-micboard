@@ -20,7 +20,7 @@ from micboard.services.hardware.wireless_unit_service import get_battery_percent
 from micboard.services.monitoring.alert_delivery_service import AlertDeliveryService
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.monitoring.alert_fanout_service import AlertFanoutService
-from micboard.services.shared.access_policy import visible_to
+from micboard.services.shared.visibility import visible_to
 
 logger = logging.getLogger(__name__)
 

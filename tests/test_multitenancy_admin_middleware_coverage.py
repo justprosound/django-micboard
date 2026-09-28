@@ -178,7 +178,7 @@ def test_tenant_membership_and_subdomain_missing_rows_return_none() -> None:
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
-def test_current_tenant_resolution_falls_through_and_campus_handles_no_restriction() -> None:
+def test_current_tenant_resolution_falls_through_to_the_subdomain() -> None:
     request = _tenant_request(
         user=SimpleNamespace(is_authenticated=True, is_superuser=False),
         organization=SimpleNamespace(pk=3),
@@ -190,17 +190,6 @@ def test_current_tenant_resolution_falls_through_and_campus_handles_no_restricti
         patch("micboard.multitenancy.middleware._get_org_from_subdomain", return_value="subdomain"),
     ):
         assert get_current_organization(request) == "subdomain"
-
-    membership = MagicMock(campus_id=None)
-    membership_filter = MagicMock()
-    membership_filter.first.return_value = membership
-    with patch(
-        "micboard.multitenancy.models.OrganizationMembership._default_manager.filter",
-        return_value=membership_filter,
-    ):
-        assert get_current_campus(request) is None
-    request.session = {"current_campus_id": 8}
-    assert get_current_campus(request) == 8
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True)
@@ -226,19 +215,6 @@ def test_current_organization_returns_first_available_authenticated_source(sourc
         ),
     ):
         assert get_current_organization(_tenant_request()) == values[source]
-
-
-@override_settings(MICBOARD_MSP_ENABLED=True)
-def test_current_campus_handles_missing_session_user_and_organization() -> None:
-    no_session = SimpleNamespace(user=SimpleNamespace(is_authenticated=False, is_superuser=False))
-    assert get_current_campus(no_session) is None
-    unauthenticated = _tenant_request(organization=object())
-    assert get_current_campus(unauthenticated) is None
-    no_organization = _tenant_request(
-        user=SimpleNamespace(is_authenticated=True, is_superuser=False),
-        organization=None,
-    )
-    assert get_current_campus(no_organization) is None
 
 
 def test_tenant_middleware_attaches_lazy_values_and_returns_downstream_response() -> None:

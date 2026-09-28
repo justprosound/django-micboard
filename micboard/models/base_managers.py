@@ -9,12 +9,11 @@ Base classes for all models to support:
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Protocol, TypeVar
+from typing import Protocol, TypeVar
 
-from django.apps import apps
 from django.conf import settings as django_settings
 from django.db import models
-from django.db.models import F, Q
+from django.db.models import Q
 
 from micboard.settings.deployment_controls import deployment_controls
 
@@ -104,49 +103,75 @@ _RELATIONSHIP_SITE_LOOKUPS: tuple[tuple[str, str], ...] = (
 )
 
 
-class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
-    """Base QuerySet with tenant filtering and optimization methods.
+def tenant_lookups(model: type[models.Model]) -> tuple[str, str | None] | None:
+    """Return the organization and campus lookups that reach ``model``'s tenant owner.
 
-    Provides the canonical tenant filters and common ORM optimizations.
+    Returns None when the model has no reviewed ownership path; callers must fail closed.
     """
+    model_label = getattr(getattr(model, "_meta", None), "label_lower", "")
+    explicit_lookups = _EXPLICIT_TENANT_LOOKUPS.get(model_label)
+    if explicit_lookups is not None:
+        return explicit_lookups
+    if hasattr(model, "organization_id"):
+        campus_lookup = "campus_id" if hasattr(model, "campus_id") else None
+        return "organization_id", campus_lookup
+    for attribute, lookups in _RELATIONSHIP_TENANT_LOOKUPS:
+        if hasattr(model, attribute):
+            return lookups
+    return None
 
-    def _tenant_lookups(self) -> tuple[str, str | None] | None:
-        """Return organization and campus lookups for the queryset model."""
-        model_label = getattr(getattr(self.model, "_meta", None), "label_lower", "")
-        explicit_lookups = _EXPLICIT_TENANT_LOOKUPS.get(model_label)
-        if explicit_lookups is not None:
-            return explicit_lookups
-        if hasattr(self.model, "organization_id"):
-            campus_lookup = "campus_id" if hasattr(self.model, "campus_id") else None
-            return "organization_id", campus_lookup
-        for attribute, lookups in _RELATIONSHIP_TENANT_LOOKUPS:
-            if hasattr(self.model, attribute):
-                return lookups
+
+def site_lookup(model: type[models.Model]) -> str | None:
+    """Return the lookup that reaches ``model``'s Django Site, or None when it has none."""
+    if hasattr(model, "site_id"):
+        return "site_id"
+    model_label = getattr(getattr(model, "_meta", None), "label_lower", "")
+    explicit_lookup = _EXPLICIT_SITE_LOOKUPS.get(model_label)
+    if explicit_lookup is not None:
+        return explicit_lookup
+    for attribute, lookup in _RELATIONSHIP_SITE_LOOKUPS:
+        if hasattr(model, attribute):
+            return lookup
+    return None
+
+
+def membership_filter(
+    model: type[models.Model],
+    memberships: Sequence[tuple[int, int | None]],
+) -> Q | None:
+    """Return a filter matching rows owned by any of the given memberships.
+
+    Returns None when nothing can match: the model has no ownership path, no memberships were
+    given, or every membership is campus-limited and the model has no campus to check.
+    """
+    lookups = tenant_lookups(model)
+    if lookups is None:
         return None
+    organization_lookup, campus_lookup = lookups
+
+    tenant_filter: Q | None = None
+    for organization_id, campus_id in memberships:
+        scope = Q(**{organization_lookup: organization_id})
+        if campus_id is not None:
+            if campus_lookup is None:
+                if organization_lookup != "pk":
+                    continue
+            else:
+                scope &= Q(**{campus_lookup: campus_id})
+        tenant_filter = scope if tenant_filter is None else tenant_filter | scope
+    return tenant_filter
+
+
+class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
+    """Base QuerySet with the canonical tenant and site filters.
+
+    Deciding which rows a user may see is not this queryset's job; ask
+    `micboard.services.shared.visibility.visible_to`.
+    """
 
     def supports_membership_scope(self) -> bool:
         """Return whether this model has an explicit tenant ownership path."""
-        return self._tenant_lookups() is not None
-
-    def _campus_lookup(self) -> str | None:
-        """Return the campus lookup for the queryset model, when available."""
-        if hasattr(self.model, "campus_id"):
-            return "campus_id"
-        lookups = TenantOptimizedQuerySet._tenant_lookups(self)
-        return lookups[1] if lookups is not None else None
-
-    def _site_lookup(self) -> str | None:
-        """Return the Django Site lookup for the queryset model."""
-        model_label = getattr(getattr(self.model, "_meta", None), "label_lower", "")
-        if hasattr(self.model, "site_id"):
-            return "site_id"
-        explicit_lookup = _EXPLICIT_SITE_LOOKUPS.get(model_label)
-        if explicit_lookup is not None:
-            return explicit_lookup
-        for attribute, lookup in _RELATIONSHIP_SITE_LOOKUPS:
-            if hasattr(self.model, attribute):
-                return lookup
-        return None
+        return tenant_lookups(self.model) is not None
 
     def for_site(self, *, site_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]:
         """Filter by Django Site (multi-site mode)."""
@@ -155,85 +180,17 @@ class TenantOptimizedQuerySet(models.QuerySet[_ModelT]):
 
         site_id = site_id or getattr(django_settings, "SITE_ID", 1)
 
-        site_lookup = TenantOptimizedQuerySet._site_lookup(self)
-        if site_lookup is None:
+        lookup = site_lookup(self.model)
+        if lookup is None:
             return self.none()
-        return self.filter(**{site_lookup: site_id}).distinct()
+        return self.filter(**{lookup: site_id}).distinct()
 
     def for_memberships(
         self,
         memberships: Sequence[tuple[int, int | None]],
     ) -> TenantOptimizedQuerySet[_ModelT]:
         """Filter through explicit organization/campus membership identifiers."""
-        tenant_filter: Q | None = None
-        lookups = TenantOptimizedQuerySet._tenant_lookups(self)
-        if lookups is None:
-            return self.none()
-        organization_lookup, campus_lookup = lookups
-
-        for organization_id, campus_id in memberships:
-            scope = Q(**{organization_lookup: organization_id})
-            if campus_id is not None:
-                if campus_lookup is None:
-                    if organization_lookup != "pk":
-                        continue
-                else:
-                    scope &= Q(**{campus_lookup: campus_id})
-
-            tenant_filter = scope if tenant_filter is None else tenant_filter | scope
-
+        tenant_filter = membership_filter(self.model, memberships)
         if tenant_filter is None:
             return self.none()
         return self.filter(tenant_filter).distinct()
-
-    def for_user(self, *, user: Any) -> TenantOptimizedQuerySet[_ModelT]:
-        """Filter based on user permissions and tenant context.
-
-        Respects MSP, multi-site, and single-site modes.
-        """
-        if not getattr(user, "is_authenticated", True):
-            return self.none()
-
-        multi_site_enabled = deployment_controls.multi_site_mode
-        if user.is_superuser and deployment_controls.allow_cross_org_view:
-            return self.for_site() if multi_site_enabled else self
-
-        if deployment_controls.msp_enabled:
-            if not apps.is_installed("micboard.multitenancy"):
-                return self.none()
-
-            memberships = list(
-                user.org_memberships.filter(
-                    Q(campus__isnull=True)
-                    | Q(
-                        campus__is_active=True,
-                        campus__organization_id=F("organization_id"),
-                    ),
-                    is_active=True,
-                    organization__is_active=True,
-                ).values_list("organization_id", "campus_id")
-            )
-
-            if not memberships:
-                return self.none()
-
-            queryset = self.for_memberships(memberships)
-            if multi_site_enabled:
-                return queryset.for_site()
-            return queryset
-
-        if multi_site_enabled:
-            return self.for_site()
-
-        # Single-site: use monitoring group filtering if available
-        if hasattr(self.model, "location") and hasattr(user, "monitoring_groups"):
-            groups = user.monitoring_groups.filter(is_active=True)
-            all_room_buildings = groups.filter(
-                monitoringgrouplocation__include_all_rooms=True
-            ).values_list("monitoringgrouplocation__location__building_id", flat=True)
-            return self.filter(
-                Q(location__monitoring_groups__in=groups)
-                | Q(location__building_id__in=all_room_buildings)
-            ).distinct()
-
-        return self

@@ -25,9 +25,8 @@ from micboard.services.kiosk.dtos import (
     RFChannelSnapshot,
     WallSectionSnapshot,
 )
-from micboard.services.monitoring.monitoring_access import MonitoringService
 from micboard.services.settings.browser_refresh_service import bounded_refresh_interval
-from micboard.services.shared.access_policy import visible_to
+from micboard.services.shared.visibility import visible_to
 
 
 class KioskService:
@@ -81,7 +80,7 @@ class KioskService:
         if not device_serials:
             return units_by_serial
         units = (
-            WirelessUnit.objects.for_user(user=user)
+            visible_to(WirelessUnit, user=user)
             .filter(serial_number__in=device_serials)
             .select_related("assigned_resource")
         )
@@ -265,7 +264,7 @@ class KioskService:
     @classmethod
     def get_section_snapshot(cls, section_id: int, *, user: Any) -> WallSectionSnapshot | None:
         """Return one visible active section through the same bulk projection."""
-        sections = MonitoringService.get_accessible_wall_sections(user).filter(is_active=True)
+        sections = visible_to(WallSection, user=user).filter(is_active=True)
         visible_chargers = cls._visible_chargers(user=user)[: MAX_KIOSK_CHARGERS_PER_SECTION + 1]
         sections = sections.prefetch_related(
             Prefetch(

@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `micboard.services.shared.visibility`: `visible_to(model, user=...)` answers "which rows of
+  this model may this user see" for every model from one set of declarations. Alongside it,
+  `restrict_to_tenant_boundary(queryset, user=...)` gives the admin the tenant boundary alone,
+  and `reaches(group, obj)` says whether a monitoring group covers a row.
+- `micboard.services.shared.tenant_principal`: `TenantPrincipal.resolve(user)` and
+  `active_memberships(user_id)`, the one place an active membership is defined, plus the role
+  sets `ADMIN_ROLES` and `MODIFY_ROLES`.
+
 ### Changed
 
 - Coverage is measured on one leg of the test matrix rather than all six. Python 3.13 and
@@ -24,6 +34,26 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   including `auto-release.yml`, `mutation-testing.yml`, `recover-github-release.yml` and
   `scorecard.yml`, none of which are files in this repository.
 
+- **Breaking:** visibility now follows one documented rule, the tenant boundary intersected with
+  monitoring reach, for every model. See "Who sees what" in `docs/multitenancy.md`. Behaviour
+  changes for existing deployments:
+  - **MSP administrators and owners** see their whole organization or campus. Previously they
+    saw every chassis but only the units, channels, buildings, and rooms their monitoring groups
+    reached.
+  - **MSP viewers and operators** are narrowed to their monitoring reach for every model. This
+    includes chassis, which were previously narrowed by tenant alone.
+  - **Single-site superusers** see every row regardless of `MICBOARD_ALLOW_CROSS_ORG_VIEW`,
+    which guards organizations and so has nothing to do in single-site mode.
+  - **Multi-site users** who are not superusers are narrowed to their monitoring reach inside
+    the current site, as in single-site mode.
+  - **The Django admin** applies only the tenant and site boundary, so staff read their whole
+    tenant and membership roles gate mutation.
+- **Breaking:** `visible_to` moved from `micboard.services.shared.access_policy` to
+  `micboard.services.shared.visibility`, and now returns a plain filter on the model's default
+  manager.
+- **Breaking:** `TENANT_ADMIN_ROLES` is now `micboard.services.shared.tenant_principal.ADMIN_ROLES`.
+  `PerformerAssignmentService.MODIFY_ROLES` is now `tenant_principal.MODIFY_ROLES`.
+
 ### Removed
 
 - The mutation testing job, the `mutmut` development dependency, and its `[tool.mutmut]`
@@ -35,7 +65,29 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   a passing result from a tool that never executed is worse than no job. Dropping the
   dependency also removes `textual`, `setproctitle` and `pyyaml-ft` from the lock file.
 
+- `TenantOptimizedQuerySet.for_user` and the `for_user` overrides on `RFChannel`,
+  `WirelessUnit`, `Performer`, and `PerformerAssignment`: use `visible_to(Model, user=...)`.
+  The now-empty `RFChannelQuerySet`, `WirelessUnitQuerySet`, `PerformerQuerySet`, and
+  `PerformerAssignmentQuerySet` are gone too, as is `PerformerAssignmentQuerySet.active()`;
+  filter on `is_active=True`.
+- `micboard.services.monitoring.monitoring_access.MonitoringService`. Use
+  `visible_to(MonitoringGroup | Location | Building | Room | WallSection, user=...)`.
+
 ### Fixed
+
+- The monitoring-group API returned every group, including inactive ones, to any superuser. That
+  included a superuser limited to its own organization by `MICBOARD_ALLOW_CROSS_ORG_VIEW=False`.
+  It now returns what `visible_to(MonitoringGroup)` allows: active groups the user belongs to,
+  or every active group for an unrestricted user.
+- A unit reached through a monitoring group's RF channel was visible while that channel was not.
+  Channels now honour channel membership.
+- The dashboard listed chassis in buildings that answered with a 404, because chassis and
+  buildings were scoped by different rules.
+- The tenant middleware accepted a session organization for any superuser, and a profile's
+  default organization without checking membership. It also trusted a campus id stored in the
+  session, and fell back to memberships whose organization or campus was inactive. Each
+  selection is now honoured only while an active membership, or unrestricted access, covers it.
+- Assignment changes accepted an operator membership whose campus was inactive.
 
 - The release publishing workflow serialised every version into one concurrency lane, so a
   stacked release could be discarded without publishing. A single global group holds only one
