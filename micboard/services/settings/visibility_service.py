@@ -6,11 +6,11 @@ from typing import Any, cast
 
 from django.apps import apps
 from django.conf import settings as django_settings
-from django.db.models import F, Q
+from django.db.models import Q
 
 from micboard.services.settings.dtos import SettingsVisibilityScope
 from micboard.services.settings.settings_service import settings as micboard_settings
-from micboard.services.shared.access_policy import TENANT_ADMIN_ROLES
+from micboard.services.shared.tenant_principal import ADMIN_ROLES, active_memberships
 from micboard.settings.scope_policy import (
     resolve_scope,
 )
@@ -34,7 +34,7 @@ class SettingsVisibilityService:
 
     def for_management_user(self, *, user: Any) -> SettingsVisibilityScope:
         """Resolve setting scopes where ``user`` has an administering role."""
-        return self._for_user(user=user, roles=TENANT_ADMIN_ROLES)
+        return self._for_user(user=user, roles=ADMIN_ROLES)
 
     def _for_user(
         self,
@@ -63,7 +63,7 @@ class SettingsVisibilityService:
                 manufacturer_ids=frozenset(),
             )
 
-        from micboard.multitenancy.models import Organization, OrganizationMembership
+        from micboard.multitenancy.models import Organization
 
         site_id = getattr(django_settings, "SITE_ID", 1)
         if user.is_superuser and cross_org_view:
@@ -81,21 +81,7 @@ class SettingsVisibilityService:
                 manufacturer_ids=frozenset(),
             )
 
-        memberships_queryset = OrganizationMembership._default_manager.filter(
-            Q(campus__isnull=True)
-            | Q(
-                campus__is_active=True,
-                campus__organization_id=F("organization_id"),
-            ),
-            user=user,
-            is_active=True,
-            organization__is_active=True,
-        )
-        if roles is not None:
-            memberships_queryset = memberships_queryset.filter(role__in=roles)
-        if multi_site_mode:
-            memberships_queryset = memberships_queryset.filter(organization__site_id=site_id)
-        memberships = list(memberships_queryset.values_list("organization_id", "campus_id"))
+        memberships = [m.scope for m in active_memberships(user.pk, roles=roles)]
         # A campus-limited membership must not grant organization-wide setting
         # access.  Organization settings affect sibling campuses, so only an
         # explicitly organization-wide membership can manage them.

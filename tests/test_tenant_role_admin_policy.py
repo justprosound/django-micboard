@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Permission, User
@@ -20,8 +20,9 @@ from micboard.admin.receivers import WirelessChassisAdmin
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.monitoring.performer import Performer
-from micboard.multitenancy.models import Organization, OrganizationMembership
+from micboard.multitenancy.models import Organization
 from micboard.services.shared.access_policy import TenantRoleAccessService
+from micboard.services.shared.tenant_principal import ADMIN_ROLES, Membership
 from tests.factories.base import UserFactory
 from tests.factories.hardware import WirelessChassisFactory
 from tests.factories.locations import BuildingFactory, LocationFactory
@@ -302,21 +303,16 @@ def test_shared_performer_requires_every_assignment_tenant_to_be_writable() -> N
 def test_management_memberships_use_the_authorized_queryset_database() -> None:
     """Role checks cannot drift from a queued object's database alias."""
     user = UserFactory()
-    filtered = MagicMock()
-    filtered.filter.return_value = filtered
-    filtered.values_list.return_value = [(8, None)]
-    database_manager = MagicMock()
-    database_manager.filter.return_value = filtered
+    membership = Membership(organization_id=8, campus_id=None, role="admin")
 
-    with patch.object(
-        OrganizationMembership._default_manager,
-        "db_manager",
-        return_value=database_manager,
-    ) as db_manager:
+    with patch(
+        "micboard.services.shared.access_policy.active_memberships",
+        return_value=(membership,),
+    ) as resolve:
         memberships = TenantRoleAccessService.management_memberships(
             user=user,
             using="replica",
         )
 
-    db_manager.assert_called_once_with("replica")
+    resolve.assert_called_once_with(user.pk, using="replica", roles=ADMIN_ROLES)
     assert memberships == [(8, None)]

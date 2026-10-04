@@ -132,55 +132,55 @@ Handles assignment lifecycle, state transitions, and lookup helpers.
 
 ### `PerformerAssignmentService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L33)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L32)
 
 Business logic for performer-to-device assignments.
 
 #### `get_visible_assignments(user: Any) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L39)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L37)
 
 Return user-scoped assignments with all row relations eager loaded.
 
 #### `get_visible_assignment_rows(user: Any, page: int | str | None = 1) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L57)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L55)
 
 Return one bounded live-refresh slice without a count query.
 
 #### `get_preferred_active_assignments_for_units(user: Any, unit_ids: Collection[int]) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L115)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L113)
 
 Return at most one deterministic active assignment for each requested unit.
 
 #### `get_preferred_active_assignments_for_serials(user: Any, serial_numbers: Collection[str]) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L130)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L128)
 
 Return at most one deterministic active assignment for each requested serial.
 
 #### `ensure_group_can_manage_unit(group: MonitoringGroup, unit: WirelessUnit) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L145)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L143)
 
 Require the selected group to cover the unit in tenant-aware deployments.
 
 #### `ensure_can_modify_unit(user: Any, unit: WirelessUnit) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L173)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L156)
 
 Require an MSP role that permits assignment changes for the unit.
 
 #### `create_assignment(command: CreatePerformerAssignment, user: Any) -> PerformerAssignment`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L237)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L205)
 
 Create an assignment after validating every object against user scope.
 
 #### `update_assignment(command: UpdatePerformerAssignment, user: Any) -> PerformerAssignment`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L294)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L262)
 
 Update fields on an existing assignment and return the instance.
 
@@ -188,13 +188,13 @@ Raises PerformerAssignment.DoesNotExist if the assignment is missing.
 
 #### `delete_assignment(assignment_id: int, user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L323)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L291)
 
 Permanently delete an assignment. Returns True if deleted, False if not found.
 
 #### `deactivate_assignment(assignment_id: int, user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L342)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L310)
 
 Deactivate an existing assignment.
 
@@ -685,66 +685,219 @@ Shared policy for tenant-wide read and mutation access decisions.
 
 ### `has_unrestricted_tenant_access(user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L45)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L42)
 
 Return whether ``user`` may bypass organization membership boundaries.
 
-### `visible_to(model: type[models.Model], user: Any, using: str | None = None) -> models.QuerySet[Any]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L50)
-
-Return the rows of ``model`` that ``user`` may see.
-
-Models with a tenant-aware manager narrow visibility themselves, sometimes with a
-model-specific rule on top of the shared cascade; models on Django's default manager get
-the shared cascade directly. Callers ask the same question either way.
-
-The database is bound before the tenant boundary is applied, not after. Answering this
-in MSP mode takes two reads: `for_user` materialises the caller's active memberships as
-it builds the queryset, so retargeting only the finished queryset would leave that
-boundary read on whichever database the manager defaulted to.
-
 ### `TenantRoleAccessService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L76)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L47)
 
 Apply MSP membership roles without narrowing read-only visibility.
 
 #### `management_memberships(user: Any, using: str | None = None) -> list[tuple[int, int | None]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L86)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L57)
 
 Return active organization/campus scopes where ``user`` may administer.
 
 #### `is_platform_global_model(model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L120)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L77)
 
 Return whether ``model`` is a reviewed host-wide admin surface.
 
 #### `scope_manageable_queryset(queryset: models.QuerySet[Any], user: Any) -> models.QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L155)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L112)
 
 Intersect ``queryset`` with scopes where ``user`` has an admin role.
 
 #### `can_add_model(user: Any, model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L196)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L153)
 
 Authorize adds only where a new row can carry exclusive tenant ownership.
 
 #### `can_manage_model(user: Any, model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L212)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L169)
 
 Authorize adding or bulk-mutating rows of one tenant-owned model.
 
 #### `can_manage_object(user: Any, obj: models.Model) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L227)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L184)
 
 Authorize mutation only when the object's exact tenant role permits it.
+
+## `micboard.services.shared.visibility`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py)
+
+Answer "which rows of this model may this user see", in one place.
+
+Visibility is two rules intersected:
+
+- **Tenant boundary.** Which organization, campus, or site owns the row. Models declare how
+  to reach their owner in `micboard.models.base_managers`; a model with no ownership path is
+  invisible to restricted users in MSP mode.
+- **Monitoring reach.** Which rows the user's active monitoring groups cover, through the
+  locations, channels, or assignments assigned to those groups. Models reach groups through
+  the paths declared in `_REACH` below, or through their ``location`` relation by convention.
+  A model with neither is not narrowed by monitoring groups.
+
+How the two combine depends on the deployment and the user:
+
+========================  =========================================================
+Single-site               Superusers see every row. Everyone else sees monitoring reach.
+Multi-site, no MSP        As single-site, inside the current site.
+MSP                       Superusers with cross-organization view see every tenant.
+                          Otherwise each membership contributes its tenant: the whole
+                          tenant for administrators, owners, and superusers, and only
+                          monitoring reach inside it for viewers and operators. In
+                          multi-site mode, everything stays inside the current site.
+========================  =========================================================
+
+Anonymous and inactive accounts see nothing.
+
+### `visibility_filter(model: type[models.Model], user: Any, using: str | None = None, monitoring_reach: bool = True) -> Q | None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L222)
+
+Return the filter selecting the rows of ``model`` that ``user`` may see.
+
+With ``monitoring_reach=False`` only the tenant and site boundary applies, as if every
+membership saw its whole tenant. An empty ``Q()`` means every row; None means no row.
+
+### `visible_to(model: type[models.Model], user: Any, using: str | None = None) -> QuerySet[Any]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L271)
+
+Return the rows of ``model`` that ``user`` may see on operator surfaces.
+
+The result is a plain filter on the model's default manager, so callers can keep
+chaining, locking, or updating it. The tenant boundary is resolved on the database being
+asked about, not whichever database the manager defaults to.
+
+### `restrict_to_tenant_boundary(queryset: QuerySet[Any], user: Any) -> QuerySet[Any]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L287)
+
+Narrow ``queryset`` to rows inside the user's tenant and site boundary.
+
+Monitoring groups do not narrow this. The Django admin uses it: staff read their whole
+tenant there, and mutation is gated separately by membership role. The queryset comes
+back unchanged when no boundary applies.
+
+### `reaches(group: Any, obj: models.Model) -> bool`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L304)
+
+Return whether one monitoring group covers ``obj`` through the declared reach paths.
+
+Returns True for a model that monitoring groups do not narrow.
+
+## `micboard.services.shared.tenant_principal`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py)
+
+Resolve who a user is, tenant-wise, once.
+
+Every access decision starts from the same facts: the deployment mode, whether the user is a
+superuser, and which organization or campus memberships are genuinely active. An active
+membership is one whose own row, organization, and (when it names one) campus are active, and
+whose campus belongs to its organization. In multi-site mode it must also belong to the
+current site. `active_memberships` is the only place that query is written.
+
+### `ADMIN_ROLES: Final[frozenset[str]]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L21)
+
+Roles that administer their tenant and see all of it.
+
+### `MODIFY_ROLES: Final[frozenset[str]]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L24)
+
+Roles that may change device assignments.
+
+### `Membership`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L30)
+
+One active organization membership, optionally limited to a campus.
+
+#### `covers(organization_id: int, campus_id: int | None) -> bool`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L43)
+
+Return whether this membership reaches a row owned by that organization and campus.
+
+### `deployment_mode() -> DeploymentMode`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L50)
+
+Return the tenant boundary the deployment enforces.
+
+### `current_site_id() -> int`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L59)
+
+Return the Django Site this process serves.
+
+### `active_memberships(user_id: int, using: str | None = None, roles: frozenset[str] | None = None) -> tuple[Membership, ...]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L64)
+
+Return the user's active memberships, newest first, optionally limited to some roles.
+
+Returns an empty tuple when the multitenancy app is not installed or the user account is
+inactive, so a revoked account holds no tenant.
+
+### `TenantPrincipal`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L103)
+
+The tenant facts every access decision about one user starts from.
+
+**Attributes:**
+
+- `authenticated` (`bool`) — False for anonymous and inactive accounts, which see nothing.
+- `superuser` (`bool`) — Whether the account is a platform superuser.
+- `mode` (`DeploymentMode`) — The deployment's tenant boundary.
+- `unrestricted` (`bool`) — Whether the user crosses every organization boundary. The site boundary still applies.
+- `site_id` (`int | None`) — The Django Site every row must belong to in multi-site mode, else None.
+- `memberships` (`tuple[Membership, ...]`) — Active memberships; resolved only in MSP mode for restricted users.
+
+#### `resolve(user: Any, using: str | None = None) -> TenantPrincipal`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L124)
+
+Resolve ``user`` with at most one membership query.
+
+#### `sees_whole_tenant(membership: Membership) -> bool`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L166)
+
+Return whether this membership shows its whole tenant rather than group reach.
+
+Administrators administer their tenant, so they see all of it. A superuser without
+cross-organization view is limited to the tenants it belongs to, but not further
+narrowed by monitoring groups. Viewers and operators see only what their monitoring
+groups reach.
+
+#### `scopes(roles: frozenset[str] | None = None) -> list[tuple[int, int | None]]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L176)
+
+Return membership scopes, optionally limited to some roles.
+
+#### `has_role_for(roles: frozenset[str], organization_id: int, campus_id: int | None) -> bool`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L180)
+
+Return whether a membership with one of ``roles`` covers that tenant.
 
 ## `micboard.services.shared.base_dto`
 

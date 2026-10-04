@@ -97,9 +97,13 @@ def test_simple_dashboard_pages_build_expected_contexts() -> None:
     receivers = MagicMock()
     groups = MagicMock()
     with (
-        patch.object(dashboard.WirelessChassis.objects, "for_user", return_value=receivers),
         patch.object(
-            dashboard.MonitoringService, "get_user_monitoring_groups", return_value=groups
+            dashboard,
+            "visible_to",
+            side_effect=lambda model, user: {
+                dashboard.WirelessChassis: receivers,
+                dashboard.MonitoringGroup: groups,
+            }[model],
         ),
         patch.object(dashboard, "render", return_value=HttpResponse()) as render,
     ):
@@ -148,7 +152,7 @@ def test_performer_view_uses_visible_performer_identity() -> None:
     dashboard_request = request(path="/?manufacturer=vendor")
     performer = SimpleNamespace(pk=7, name="Alice")
     with (
-        patch.object(dashboard.Performer.objects, "for_user", return_value=MagicMock()),
+        patch.object(dashboard, "visible_to", return_value=MagicMock()),
         patch.object(dashboard, "get_object_or_404", return_value=performer),
         patch.object(
             dashboard.ReceiverBrowseService,
@@ -185,9 +189,13 @@ def test_building_room_and_listing_views_use_stable_ids() -> None:
 
     with (
         patch.object(
-            dashboard.MonitoringService, "get_accessible_buildings", return_value=buildings
+            dashboard,
+            "visible_to",
+            side_effect=lambda model, user: {
+                dashboard.Building: buildings,
+                dashboard.Room: rooms,
+            }[model],
         ),
-        patch.object(dashboard.MonitoringService, "get_accessible_rooms", return_value=rooms),
         patch.object(dashboard, "get_object_or_404", side_effect=[building, room, building]),
         patch.object(dashboard.ReceiverBrowseService, "get_page", return_value=MagicMock()),
         patch.object(dashboard, "render", return_value=HttpResponse()) as render,

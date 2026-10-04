@@ -160,18 +160,20 @@ def test_admin_scope_allows_reviewed_platform_global_superuser() -> None:
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_MULTI_SITE_MODE=True)
-def test_admin_scope_intersects_the_shared_visibility_predicate() -> None:
-    """The changelist narrows to the same rows every other read path would see."""
+def test_admin_scope_applies_the_shared_tenant_boundary() -> None:
+    """The changelist narrows to the tenant boundary every read path shares."""
     queryset = _queryset()
-    visible = MagicMock()
+    narrowed = MagicMock()
     user = _request().user
 
-    with patch("micboard.admin.mixins.visible_to", return_value=visible) as predicate:
+    with patch(
+        "micboard.admin.mixins.restrict_to_tenant_boundary",
+        return_value=narrowed,
+    ) as boundary:
         result = MicboardModelAdmin._scope_queryset_for_user(queryset, user=user)
 
-    predicate.assert_called_once_with(queryset.model, user=user, using="default")
-    assert result is queryset.filter.return_value
-    queryset.filter.assert_called_once_with(pk__in=visible.values.return_value)
+    boundary.assert_called_once_with(queryset, user=user)
+    assert result is narrowed
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_MULTI_SITE_MODE=True)

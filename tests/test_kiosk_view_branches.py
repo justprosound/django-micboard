@@ -18,6 +18,7 @@ from micboard.services.kiosk.dtos import (
     KioskChargerSnapshot,
     WallSectionSnapshot,
 )
+from micboard.views import kiosk
 from micboard.views.kiosk import (
     DisplayWallDetailView,
     DisplayWallListView,
@@ -99,10 +100,9 @@ def test_kiosk_list_detail_and_section_views_scope_querysets_and_context() -> No
     section_view.kwargs = {"wall_id": 9}
     with (
         patch(
-            "micboard.views.kiosk.MonitoringService.get_accessible_wall_sections",
-            return_value=sections,
+            "micboard.views.kiosk.visible_to",
+            side_effect=lambda model, user: sections if model is kiosk.WallSection else queryset,
         ),
-        patch("micboard.views.kiosk.visible_to", return_value=queryset),
         patch("micboard.views.kiosk.get_object_or_404", return_value="wall"),
         patch.object(ListView, "get_context_data", return_value={"sections": []}),
     ):

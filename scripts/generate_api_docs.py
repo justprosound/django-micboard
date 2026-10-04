@@ -83,6 +83,8 @@ PAGES: tuple[Page, ...] = (
             "micboard.services.settings.registry",
             "micboard.services.settings.dtos",
             "micboard.services.shared.access_policy",
+            "micboard.services.shared.visibility",
+            "micboard.services.shared.tenant_principal",
             "micboard.services.shared.base_dto",
             "micboard.services.common.base.plugin",
             "micboard.services.common.base.client",

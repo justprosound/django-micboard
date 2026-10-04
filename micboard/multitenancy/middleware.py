@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, cast
 from django.utils.functional import SimpleLazyObject
 
 from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.tenant_principal import TenantPrincipal
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -21,8 +22,25 @@ if TYPE_CHECKING:
     from micboard.multitenancy.models import Organization
 
 
+def _principal(request: HttpRequest) -> TenantPrincipal:
+    """Resolve the request user's tenant facts once per request."""
+    cached = getattr(request, "_micboard_tenant_principal", None)
+    if cached is None:
+        cached = TenantPrincipal.resolve(request.user)
+        request._micboard_tenant_principal = cached  # type: ignore[attr-defined]
+    return cast(TenantPrincipal, cached)
+
+
+def _may_enter(request: HttpRequest, organization_id: int) -> bool:
+    """Return whether the request user holds an active membership in the organization."""
+    principal = _principal(request)
+    return principal.unrestricted or any(
+        membership.organization_id == organization_id for membership in principal.memberships
+    )
+
+
 def _get_org_from_session(request: HttpRequest) -> Any:
-    from micboard.multitenancy.models import Organization, OrganizationMembership
+    from micboard.multitenancy.models import Organization
 
     if not hasattr(request, "session"):
         return None
@@ -32,49 +50,38 @@ def _get_org_from_session(request: HttpRequest) -> Any:
 
     try:
         org = Organization._default_manager.get(pk=org_id, is_active=True)
-        # Verify user still has access
-        if request.user.is_authenticated:
-            if (
-                request.user.is_superuser
-                or OrganizationMembership._default_manager.filter(
-                    user=request.user, organization=org, is_active=True
-                ).exists()
-            ):
-                return org
-            # User lost access, clear session
-            del request.session["current_organization_id"]
     except Organization.DoesNotExist:
-        # Organization deleted, clear session
         with suppress(Exception):
             del request.session["current_organization_id"]
+        return None
+    if _may_enter(request, org.pk):
+        return org
+    # The user lost access; forget the selection.
+    with suppress(Exception):
+        del request.session["current_organization_id"]
     return None
 
 
 def _get_org_from_user_profile(request: HttpRequest) -> Any:
     if not request.user.is_authenticated:
         return None
-    if hasattr(request.user, "profile") and hasattr(request.user.profile, "default_organization"):
-        org = request.user.profile.default_organization
-        if org and getattr(org, "is_active", False):
-            return org
+    profile = getattr(request.user, "profile", None)
+    org = getattr(profile, "default_organization", None)
+    if org is not None and getattr(org, "is_active", False) and _may_enter(request, org.pk):
+        return org
     return None
 
 
 def _get_org_from_membership(request: HttpRequest) -> Any:
     if not request.user.is_authenticated:
         return None
-    from micboard.multitenancy.models import OrganizationMembership
+    memberships = _principal(request).memberships
+    if not memberships:
+        return None
 
-    membership = (
-        OrganizationMembership._default_manager.filter(user=request.user, is_active=True)
-        .select_related("organization")
-        .order_by("-created_at")
-        .first()
-    )
+    from micboard.multitenancy.models import Organization
 
-    if membership and getattr(membership.organization, "is_active", False):
-        return membership.organization
-    return None
+    return Organization._default_manager.filter(pk=memberships[0].organization_id).first()
 
 
 def _get_org_from_subdomain(request: HttpRequest) -> Any:
@@ -129,9 +136,10 @@ def get_current_organization(request: HttpRequest) -> Organization | None:
 def get_current_campus(request: HttpRequest) -> int | None:
     """Detect current campus for request (if any).
 
-    Checks:
-    1. Session (user switched campus)
-    2. User's membership campus restriction
+    A campus selected in the session is honoured only while the user may still enter it:
+    through a membership limited to that campus, an organization-wide membership in the
+    campus's organization, or unrestricted access. Otherwise the campus a membership in the
+    current organization is limited to applies.
 
     Args:
         request: HTTP request
@@ -139,29 +147,35 @@ def get_current_campus(request: HttpRequest) -> int | None:
     Returns:
         Campus ID or None
     """
-    if not micboard_settings.msp_enabled:
+    if not micboard_settings.msp_enabled or not request.user.is_authenticated:
         return None
 
-    from micboard.multitenancy.models import OrganizationMembership
+    from micboard.multitenancy.models import Campus
 
-    # Check session
+    principal = _principal(request)
     if hasattr(request, "session"):
         campus_id = request.session.get("current_campus_id")
         if campus_id:
-            return cast(int, campus_id)
+            campus = Campus._default_manager.filter(pk=campus_id, is_active=True).first()
+            if campus is not None and (
+                principal.unrestricted
+                or any(
+                    membership.covers(
+                        organization_id=campus.organization_id,
+                        campus_id=campus.pk,
+                    )
+                    for membership in principal.memberships
+                )
+            ):
+                return int(campus.pk)
+            with suppress(Exception):
+                del request.session["current_campus_id"]
 
-    # Check user's membership campus restriction
-    if request.user.is_authenticated and hasattr(request, "organization"):
-        tenant_request: Any = request
-        org = tenant_request.organization
-        if org:
-            membership = OrganizationMembership._default_manager.filter(
-                user=request.user, organization=org, is_active=True
-            ).first()
-
-            if membership and membership.campus_id:
+    org = getattr(request, "organization", None)
+    if org:
+        for membership in principal.memberships:
+            if membership.organization_id == org.pk and membership.campus_id is not None:
                 return membership.campus_id
-
     return None
 
 

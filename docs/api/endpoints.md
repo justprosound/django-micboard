@@ -26,16 +26,17 @@ than hard-coding paths.
 Host-project views can build their own API using user-scoped model managers:
 
 ```python
+from micboard.services.shared.visibility import visible_to
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 
-chassis = WirelessChassis.objects.for_user(user=request.user).filter(
+chassis = visible_to(WirelessChassis, user=request.user).filter(
     status__in=("online", "degraded", "provisioning"),
 )
 payload = list(chassis.values("id", "name", "status"))
 ```
 
 Apply authentication, authorization, pagination, throttling, and serialization in the host
-project. Keep the authenticated `for_user()` scope on every request-facing queryset.
+project. Keep the authenticated `visible_to()` scope on every request-facing queryset.
 
 ## WebSocket API
 
