@@ -86,7 +86,7 @@ class DevicePromotionService:
 
         try:
             plugin = build_manufacturer_plugin(discovered.manufacturer)
-        except (ImportError, ValueError):
+        except ImportError, ValueError:
             return None, None
 
         try:

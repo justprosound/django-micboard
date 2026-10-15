@@ -332,7 +332,7 @@ class BaseHTTPClient(BaseAPIClient):
         else:
             try:
                 retry_backoff = float(self.retry_backoff)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 retry_backoff = 0.0
             if not math.isfinite(retry_backoff) or retry_backoff <= 0:
                 return

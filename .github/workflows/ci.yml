@@ -80,7 +80,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - "3.13"  # renovate: datasource=endoflife-date depName=python
           - "3.14"  # renovate: datasource=endoflife-date depName=python
         django-version:
           - "5.2"  # Supported Django LTS floor
@@ -88,14 +87,12 @@ jobs:
           - "6.1"  # Latest stable
         include:
           # One leg measures and enforces coverage; the rest only prove the suite passes.
-          # This was measured, not assumed: Python 3.13 and 3.14 against Django 5.2 and 6.1
-          # each reported 98.3097% over the same 296 files with an identical set of missed
-          # lines, because `micboard/` contains no `django.VERSION` or `sys.version_info`
-          # branch and `tests/` contains no version-gated skip. The premise therefore holds
-          # only while that stays true: adding a version-conditional branch means coverage
-          # can diverge per leg, and this `include` has to grow to cover the new corner.
-          # Keep this combination inside the matrix above. The coverage leg runs on the
-          # project's primary Python (3.14); 3.13 stays in the matrix as a supported floor.
+          # This was measured, not assumed: Django 5.2 and 6.1 each reported 98.3097% over
+          # the same 296 files with an identical set of missed lines, because `micboard/`
+          # contains no `django.VERSION` branch and `tests/` contains no version-gated skip.
+          # The premise holds only while that stays true: adding a version-conditional branch
+          # means coverage can diverge per leg, and this `include` has to grow to cover the
+          # new corner. Keep this combination inside the matrix above.
           - python-version: "3.14"
             django-version: "6.1"
             coverage: true

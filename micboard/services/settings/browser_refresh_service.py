@@ -56,7 +56,7 @@ def bounded_refresh_interval(value: Any, *, default: int) -> int:
     """
     try:
         seconds = int(value)
-    except (TypeError, ValueError, OverflowError):
+    except TypeError, ValueError, OverflowError:
         # `int()` rejects `None` and unparseable strings, and raises `OverflowError` on
         # infinity rather than returning anything usable.
         seconds = default

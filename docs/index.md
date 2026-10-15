@@ -7,7 +7,7 @@ Django Micboard is a Django application for real-time monitoring and management 
 
 **Version**: 26.01.27.0 (CalVer: `YY.MM.0D.MICRO`)
 **License**: AGPL-3.0-or-later
-**Python**: 3.13+
+**Python**: 3.14+
 **Django**: 5.2 through 6.0
 
 ## Features
@@ -75,7 +75,7 @@ uv run --no-sync python manage.py poll_devices
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.14+
 - Django 5.2 through 6.0
 - Django Channels (for WebSocket support)
 - Redis (recommended for production)

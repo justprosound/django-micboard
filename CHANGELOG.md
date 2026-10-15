@@ -9,10 +9,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
-- Python 3.14 is the primary development and CI version: the shared `setup-uv-python` action
-  default, the coverage leg, the CodeQL job, mypy's `python_version`, and the documented
-  Docker example. Python 3.13 remains supported (`requires-python = ">=3.13"`, still in the
-  test matrix), so Ruff's `target-version` stays at `py313`.
+- **Breaking:** django-micboard now requires Python 3.14 (`requires-python = ">=3.14"`).
+  Python 3.13 is dropped from the classifiers and the test matrix, and the code uses
+  3.14-only syntax (PEP 758 unparenthesised `except` clauses, from Ruff's `py314` target).
+  3.14 is also the version for the shared `setup-uv-python` action default, the coverage
+  leg, CodeQL, mypy, the prek hook interpreter and the documented Docker example. Projects
+  on 3.13 should stay on the previous release.
 - Coverage is measured on one leg of the test matrix rather than all six. Python 3.13 and
   3.14 against Django 5.2 and 6.1 each report 98.3097% over the same 296 files with an
   identical set of missed lines, because the package contains no version-conditional branch

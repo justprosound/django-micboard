@@ -50,7 +50,7 @@ class PerformerAssignmentService:
         """Return a positive page number without evaluating a paginator."""
         try:
             page_number = int(page or 1)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 1
         return max(page_number, 1)
 

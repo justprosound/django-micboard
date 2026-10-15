@@ -153,7 +153,7 @@ class DeviceSnapshotBroadcastService:
             if value is None:
                 return DeviceBroadcastCursor()
             return DeviceBroadcastCursor.model_validate(value)
-        except (ValidationError, TypeError, ValueError):
+        except ValidationError, TypeError, ValueError:
             return DeviceBroadcastCursor()
         except Exception as exc:
             logger.exception(

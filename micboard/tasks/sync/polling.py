@@ -37,7 +37,7 @@ def poll_api_server_device(
             "chassis_id": chassis.pk,
             "devices_updated": updated,
         }
-    except (ManufacturerAPIServer.DoesNotExist, WirelessChassis.DoesNotExist):
+    except ManufacturerAPIServer.DoesNotExist, WirelessChassis.DoesNotExist:
         logger.warning(
             "API server %s or managed chassis %s was not found for polling",
             api_server_id,

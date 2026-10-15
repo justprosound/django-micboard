@@ -10,7 +10,7 @@ django-micboard is a community-driven, pre-production Django reusable app for mo
 - **License**: AGPL-3.0-or-later
 - **Status**: Beta (pre-production)
 - **Maintainer**: Single developer (please allow time for issue/PR responses)
-- **Python**: 3.13+
+- **Python**: 3.14+
 - **Django**: 5.2 through 6.1
 
 ## Features

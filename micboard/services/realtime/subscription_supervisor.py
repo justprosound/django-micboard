@@ -302,7 +302,7 @@ class RealtimeSubscriptionSupervisor:
             if cached_value is None:
                 return SubscriptionSelectionCursor()
             return SubscriptionSelectionCursor.model_validate(cached_value)
-        except (ValidationError, TypeError, ValueError):
+        except ValidationError, TypeError, ValueError:
             return SubscriptionSelectionCursor()
         except Exception as exc:
             logger.exception(
@@ -336,7 +336,7 @@ def _bounded_positive_setting(name: str, *, default: int, hard_limit: int) -> in
         return default
     try:
         parsed_value = int(raw_value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return min(max(parsed_value, 1), hard_limit)
 
@@ -353,7 +353,7 @@ def _bounded_positive_float_setting(
         return default
     try:
         parsed_value = float(raw_value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     if not math.isfinite(parsed_value):
         return default
