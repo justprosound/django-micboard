@@ -338,6 +338,8 @@ directory = "htmlcov"
 # ==== Ruff ====
 [tool.ruff]
 line-length = 100
+# Keep at the lowest supported Python (requires-python), not the 3.14 primary:
+# py314 would let ruff rewrite code into 3.14-only syntax (PEP 758) and break 3.13 users.
 target-version = "py313"
 extend-exclude = [
     "migrations",
@@ -413,7 +415,7 @@ constraint-dependencies = [
 
 [tool.mypy]
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
-python_version = "3.13"
+python_version = "3.14"
 exclude = ["^build/", "^dist/", "^tests/"]
 strict = true
 disallow_any_generics = false

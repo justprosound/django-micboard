@@ -9,6 +9,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- Python 3.14 is the primary development and CI version: the shared `setup-uv-python` action
+  default, the coverage leg, the CodeQL job, mypy's `python_version`, and the documented
+  Docker example. Python 3.13 remains supported (`requires-python = ">=3.13"`, still in the
+  test matrix), so Ruff's `target-version` stays at `py313`.
 - Coverage is measured on one leg of the test matrix rather than all six. Python 3.13 and
   3.14 against Django 5.2 and 6.1 each report 98.3097% over the same 296 files with an
   identical set of missed lines, because the package contains no version-conditional branch

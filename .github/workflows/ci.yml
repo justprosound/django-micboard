@@ -94,8 +94,9 @@ jobs:
           # branch and `tests/` contains no version-gated skip. The premise therefore holds
           # only while that stays true: adding a version-conditional branch means coverage
           # can diverge per leg, and this `include` has to grow to cover the new corner.
-          # Keep this combination inside the matrix above.
-          - python-version: "3.13"
+          # Keep this combination inside the matrix above. The coverage leg runs on the
+          # project's primary Python (3.14); 3.13 stays in the matrix as a supported floor.
+          - python-version: "3.14"
             django-version: "6.1"
             coverage: true
 
@@ -213,7 +214,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.14
 
       - name: Install dependencies
         run: uv sync --locked --all-extras

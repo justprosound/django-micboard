@@ -492,7 +492,7 @@ another, and prefer sticky sessions only if your client cannot tolerate reconnec
 
 **Dockerfile:**
 ```dockerfile
-FROM python:3.13-slim-trixie
+FROM python:3.14-slim-trixie
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
 
