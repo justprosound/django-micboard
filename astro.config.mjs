@@ -113,6 +113,10 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "adr" } }],
         },
         {
+          label: "Research",
+          items: [{ autogenerate: { directory: "research" } }],
+        },
+        {
           label: "Product Requirements",
           items: [{ autogenerate: { directory: "prd" } }],
         },
