@@ -171,15 +171,15 @@ jobs:
       - name: Set up uv and Python
         uses: ./.github/actions/setup-uv-python
         with:
-          # uv audit and bandit scan source only; no dep install needed
+          # uv audit and bandit scan source only; no project install needed
           enable-cache: "false"
 
       - name: Audit locked dependencies
         run: uv audit --locked --preview-features audit-command
 
       - name: Run Bandit security check
-        # bandit scans source AST — no package install required
-        run: uvx bandit -r micboard -ll
+        # Locked in the security group so Renovate tracks the version CI runs
+        run: uv run --locked --only-group security bandit -r micboard -ll
 
   codeql:
     runs-on: ubuntu-latest

@@ -11,6 +11,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- CI's Bandit scan and the release workflow's PEP 740 signing now run the locked versions from
+  the `security` and `release` dependency groups. They ran through `uvx`, which installs the
+  latest release on every run, so the `pypi-attestations==0.0.30` pin that Renovate maintained
+  in the `release` group was never the version that signed a release.
 - **Breaking:** django-micboard now requires Python 3.14 (`requires-python = ">=3.14"`).
   Python 3.13 is dropped from the classifiers and the test matrix, and the code uses
   3.14-only syntax (PEP 758 unparenthesised `except` clauses, from Ruff's `py314` target).
@@ -34,6 +38,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Removed
 
+- `.clusterfuzzlite/`. No workflow ever ran it, and its uv 0.5.10 install was a version Renovate
+  could not see.
 - The mutation testing job, the `mutmut` development dependency, and its `[tool.mutmut]`
   configuration. The job had never mutated anything: `mutmut run` aborts during import with
   `TypeError: can only concatenate list (not "str") to list`, raised by a deprecated

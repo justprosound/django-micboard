@@ -442,6 +442,9 @@ skip_changelog = true
 release = [
     "pypi-attestations==0.0.30",
 ]
+security = [
+    "bandit>=1.7",
+]
 fuzz = [
     "atheris>=2.3.0",
 ]
