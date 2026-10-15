@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.15.0] - 2026-10-15
+
 ### Changed
 
 - **Breaking:** django-micboard now requires Python 3.14 (`requires-python = ">=3.14"`).
