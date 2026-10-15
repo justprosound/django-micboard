@@ -87,6 +87,6 @@ def _bounded_positive_setting(name: str, *, default: int, hard_limit: int) -> in
         return default
     try:
         parsed_value = int(raw_value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return min(max(parsed_value, 1), hard_limit)

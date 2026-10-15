@@ -98,7 +98,7 @@ def _build_cidr_iterators(
     for cidr in cidrs:
         try:
             network = ipaddress.ip_network(cidr, strict=False)
-        except (ValueError, ipaddress.AddressValueError, ipaddress.NetmaskValueError):
+        except ValueError, ipaddress.AddressValueError, ipaddress.NetmaskValueError:
             sources_complete = False
             continue
         iterators.append((cidr, (str(host) for host in network.hosts())))

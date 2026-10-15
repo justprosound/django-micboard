@@ -6,7 +6,7 @@ This guide covers the supported repository workflow. Architecture decisions live
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.14+
 - Django 5.2 through 6.0
 - `uv` for dependency and environment management
 - Git

@@ -24,7 +24,7 @@ def expand_cidrs(cidrs: list[str], max_hosts: int = 1024) -> Iterator[str]:
     for cidr in cidrs:
         try:
             net = ipaddress.ip_network(cidr, strict=False)
-        except (ValueError, ipaddress.AddressValueError, ipaddress.NetmaskValueError):
+        except ValueError, ipaddress.AddressValueError, ipaddress.NetmaskValueError:
             # Invalid CIDR notation - skip silently as this is expected during user input
             continue
         # Iterate lazily so a large user-supplied network cannot exhaust memory.
@@ -51,7 +51,7 @@ def resolve_fqdns(fqdns: list[str]) -> tuple[dict[str, list[str]], bool]:
             infos = socket.getaddrinfo(fqdn, None)
             ips = sorted({str(info[4][0]) for info in infos})
             result[fqdn] = ips
-        except (socket.gaierror, OSError):
+        except socket.gaierror, OSError:
             # Preserve the failed key while telling reconciliation not to remove stale addresses.
             result[fqdn] = []
             complete = False

@@ -74,7 +74,7 @@ def _bounded_positive_int_setting(name: str, *, default: int, hard_limit: int) -
         return default
     try:
         parsed_value = int(raw_value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     if parsed_value <= 0:
         return default
@@ -93,7 +93,7 @@ def _bounded_positive_float_setting(
         return default
     try:
         parsed_value = float(raw_value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     if not math.isfinite(parsed_value) or parsed_value <= 0:
         return default

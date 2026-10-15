@@ -142,7 +142,7 @@ class SettingDefinition(models.Model):
                 scope_mismatch = True
             try:
                 self.parse_value(override.value)
-            except (AttributeError, TypeError, ValueError):
+            except AttributeError, TypeError, ValueError:
                 invalid_value = True
 
         if scope_mismatch:

@@ -168,7 +168,7 @@ class SettingsService:
         """Return the global device limit, if set."""
         try:
             return int(self.get("global_device_limit", None))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
 
     @property
@@ -176,7 +176,7 @@ class SettingsService:
         """Return the device limit warning threshold."""
         try:
             return float(self.get("device_limit_warning_threshold", 0.9))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 0.9
 
     @property
@@ -184,7 +184,7 @@ class SettingsService:
         """Return the activity log retention period in days."""
         try:
             return int(self.get("activity_log_retention_days", 90))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 90
 
     @property
@@ -192,7 +192,7 @@ class SettingsService:
         """Return the service sync log retention period in days."""
         try:
             return int(self.get("service_sync_log_retention_days", 30))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 30
 
     @property
@@ -200,7 +200,7 @@ class SettingsService:
         """Return the API health log retention period in days."""
         try:
             return int(self.get("api_health_log_retention_days", 7))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 7
 
     @property

@@ -202,6 +202,7 @@ class PollAlertService:
 
     @staticmethod
     def _scan_limit() -> int:
+        """Return how many units one alert poll may scan, clamped to the package hard ceiling."""
         raw_limit = micboard_settings.get(
             "MICBOARD_POLL_ALERT_MAX_UNITS",
             DEFAULT_POLL_ALERT_MAX_UNITS,
@@ -210,6 +211,6 @@ class PollAlertService:
             return DEFAULT_POLL_ALERT_MAX_UNITS
         try:
             parsed_limit = int(raw_limit)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return DEFAULT_POLL_ALERT_MAX_UNITS
         return min(max(parsed_limit, 1), HARD_POLL_ALERT_MAX_UNITS)

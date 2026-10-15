@@ -49,7 +49,7 @@ class ChargerPollingCacheAdapter:
             value = None
         try:
             return ChargerPollingCursor.model_validate(value)
-        except (TypeError, ValidationError):
+        except TypeError, ValidationError:
             return ChargerPollingCursor(next_offset=0, inventory_size=0, stations=[])
 
     @classmethod

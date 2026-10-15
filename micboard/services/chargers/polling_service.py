@@ -321,13 +321,14 @@ class ChargerPollingService:
 
     @staticmethod
     def _bounded_integer(value: object, *, minimum: int, maximum: int) -> int:
+        """Return value as an int clamped to [minimum, maximum], or minimum when it is not numeric."""
         if isinstance(value, bool):
             return minimum
         if not isinstance(value, int | float | str):
             return minimum
         try:
             parsed = int(value)
-        except (TypeError, ValueError, OverflowError):
+        except TypeError, ValueError, OverflowError:
             return minimum
         return min(max(parsed, minimum), maximum)
 
@@ -341,11 +342,12 @@ class ChargerPollingService:
 
 
 def _bounded_setting(name: str, default: int, hard_limit: int) -> int:
+    """Read an integer setting clamped to [1, hard_limit], falling back to default when unparseable."""
     raw_value = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:
         parsed = int(raw_value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return min(max(parsed, 1), hard_limit)

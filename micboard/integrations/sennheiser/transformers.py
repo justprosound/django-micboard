@@ -229,5 +229,5 @@ class SennheiserDataTransformer:
             hours = int(minutes) // 60
             mins = int(minutes) % 60
             return f"{hours:02d}:{mins:02d}"
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return ""

@@ -22,7 +22,7 @@ def _bounded_setting(name: str, *, default: int, hard_limit: int) -> int:
         return default
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return min(max(parsed, 1), hard_limit)
 

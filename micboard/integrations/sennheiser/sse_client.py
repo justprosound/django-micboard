@@ -210,5 +210,5 @@ async def _dispatch_sse_event(
     try:
         data = json.loads(event_data)
         await callback(data)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    except json.JSONDecodeError, UnicodeDecodeError:
         logger.debug("Invalid JSON in SSE event data")

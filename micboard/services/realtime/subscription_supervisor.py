@@ -296,13 +296,14 @@ class RealtimeSubscriptionSupervisor:
 
     @staticmethod
     def _read_selection_cursor(cursor_key: str) -> SubscriptionSelectionCursor:
+        """Return the cached subscription selection cursor, or a fresh cursor if unreadable."""
         cache_alias = micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default")
         try:
             cached_value = caches[cache_alias].get(cursor_key)
             if cached_value is None:
                 return SubscriptionSelectionCursor()
             return SubscriptionSelectionCursor.model_validate(cached_value)
-        except (ValidationError, TypeError, ValueError):
+        except ValidationError, TypeError, ValueError:
             return SubscriptionSelectionCursor()
         except Exception as exc:
             logger.exception(
@@ -331,12 +332,13 @@ class RealtimeSubscriptionSupervisor:
 
 
 def _bounded_positive_setting(name: str, *, default: int, hard_limit: int) -> int:
+    """Read an integer setting clamped to [1, hard_limit], falling back to default when unparseable."""
     raw_value = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:
         parsed_value = int(raw_value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return min(max(parsed_value, 1), hard_limit)
 
@@ -348,12 +350,13 @@ def _bounded_positive_float_setting(
     hard_limit: float,
     minimum: float = 1.0,
 ) -> float:
+    """Read a finite float setting clamped to [minimum, hard_limit], else return default."""
     raw_value: Any = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
     try:
         parsed_value = float(raw_value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     if not math.isfinite(parsed_value):
         return default

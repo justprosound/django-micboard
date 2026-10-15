@@ -7,7 +7,7 @@ name = "django-micboard"
 version = "2026.9.24.2"
 description = "Real-time multi-manufacturer wireless microphone monitoring for Django"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [
@@ -35,7 +35,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Communications",
     "Topic :: Internet :: WWW/HTTP",
@@ -338,7 +337,7 @@ directory = "htmlcov"
 # ==== Ruff ====
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py314"
 extend-exclude = [
     "migrations",
     "example_project/",
@@ -413,7 +412,7 @@ constraint-dependencies = [
 
 [tool.mypy]
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
-python_version = "3.13"
+python_version = "3.14"
 exclude = ["^build/", "^dist/", "^tests/"]
 strict = true
 disallow_any_generics = false

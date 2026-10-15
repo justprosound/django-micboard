@@ -6,7 +6,7 @@ inputs:
   python-version:
     description: Python version understood by uv.
     required: false
-    default: "3.13"
+    default: "3.14"
   enable-cache:
     description: Whether setup-uv should restore and save its dependency cache.
     required: false

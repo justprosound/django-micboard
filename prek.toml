@@ -4,6 +4,9 @@
 
 exclude = '(^|/)(docs|node_modules|\.venv|build|dist)/|^\.coverage$'
 
+# Hooks parse this repository's code, which uses 3.14-only syntax (PEP 758).
+default_language_version = { python = "python3.14" }
+
 [[repos]]
 repo = "builtin"
 hooks = [

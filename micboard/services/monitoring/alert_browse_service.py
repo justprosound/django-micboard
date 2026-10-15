@@ -77,7 +77,7 @@ class AlertBrowseService:
         """Return a positive page number without running a count query."""
         try:
             page_number = int(page or 1)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 1
         return max(page_number, 1)
 

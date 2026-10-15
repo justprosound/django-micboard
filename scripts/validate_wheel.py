@@ -79,9 +79,9 @@ def validate_wheel(wheel_path: Path, project_root: Path) -> list[str]:
     if metadata is None:
         errors.append("expected exactly one .dist-info/METADATA file")
     else:
-        if metadata.get("Requires-Python") != ">=3.13":
+        if metadata.get("Requires-Python") != ">=3.14":
             errors.append(
-                f"Requires-Python is {metadata.get('Requires-Python')!r}; expected '>=3.13'"
+                f"Requires-Python is {metadata.get('Requires-Python')!r}; expected '>=3.14'"
             )
         if metadata.get("License-Expression") != "AGPL-3.0-or-later":
             errors.append(

@@ -394,3 +394,21 @@ class SettingsPresentationServiceTests(TestCase):
                 manufacturer_id=None,
             )
         )
+
+
+class SettingsServiceNumericFallbackTests(TestCase):
+    """Numeric settings fall back to their documented defaults when unparseable."""
+
+    def test_unparseable_values_use_documented_defaults(self) -> None:
+        """Values that are not numbers resolve to each property's default."""
+        with patch.object(settings, "get", return_value="not-a-number"):
+            self.assertIsNone(settings.global_device_limit)
+            self.assertEqual(settings.device_limit_warning_threshold, 0.9)
+            self.assertEqual(settings.activity_log_retention_days, 90)
+            self.assertEqual(settings.service_sync_log_retention_days, 30)
+            self.assertEqual(settings.api_health_log_retention_days, 7)
+
+    def test_unset_device_limit_is_none(self) -> None:
+        """An unset global device limit means no limit rather than an error."""
+        with patch.object(settings, "get", return_value=None):
+            self.assertIsNone(settings.global_device_limit)

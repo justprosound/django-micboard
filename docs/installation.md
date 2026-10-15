@@ -9,7 +9,7 @@ Complete installation instructions for django-micboard.
 
 ### Minimum Requirements
 
-- **Python**: 3.13 or higher
+- **Python**: 3.14 or higher
 - **Django**: 5.2 through 6.0
 - **Database**: PostgreSQL for production; SQLite for local development and tests
 - **Memory**: 512MB RAM minimum
@@ -17,7 +17,7 @@ Complete installation instructions for django-micboard.
 
 ### Recommended Setup
 
-- **Python**: 3.13+
+- **Python**: 3.14+
 - **Database**: PostgreSQL 13+
 - **Redis**: 6.0+ (for native Huey and WebSocket support)
 - **Memory**: 1GB+ RAM
@@ -492,7 +492,7 @@ another, and prefer sticky sessions only if your client cannot tolerate reconnec
 
 **Dockerfile:**
 ```dockerfile
-FROM python:3.13-slim-trixie
+FROM python:3.14-slim-trixie
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
 
