@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.15.1] - 2026-10-15
+
 ### Changed
 
 - CI fuzzes the hardware DTO validators for 60 seconds on every run and uploads any crashing
