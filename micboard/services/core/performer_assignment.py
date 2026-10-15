@@ -9,23 +9,22 @@ import logging
 from collections.abc import Collection
 from typing import Any, cast
 
-from django.apps import apps
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Case, F, IntegerField, Q, QuerySet, Value, When, Window
+from django.db.models import Case, F, IntegerField, QuerySet, Value, When, Window
 from django.db.models.functions import RowNumber
 
 from micboard.models.hardware.wireless_unit import WirelessUnit
-from micboard.models.monitoring.group import MonitoringGroup, MonitoringGroupLocation
+from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.core.performer_assignment_dtos import (
     CreatePerformerAssignment,
     UpdatePerformerAssignment,
 )
-from micboard.services.monitoring.monitoring_access import MonitoringService
 from micboard.services.settings.settings_service import settings as micboard_settings
-from micboard.services.shared.access_policy import has_unrestricted_tenant_access
+from micboard.services.shared.tenant_principal import MODIFY_ROLES, TenantPrincipal
+from micboard.services.shared.visibility import reaches, visible_to
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +32,12 @@ logger = logging.getLogger(__name__)
 class PerformerAssignmentService:
     """Business logic for performer-to-device assignments."""
 
-    MODIFY_ROLES = frozenset({"operator", "admin", "owner"})
     PAGE_SIZE = 50
 
     @staticmethod
     def get_visible_assignments(*, user: Any) -> QuerySet[PerformerAssignment]:
         """Return user-scoped assignments with all row relations eager loaded."""
-        return PerformerAssignment.objects.for_user(user=user).select_related(
+        return visible_to(PerformerAssignment, user=user).select_related(
             "performer",
             "wireless_unit",
             "monitoring_group",
@@ -93,7 +91,7 @@ class PerformerAssignmentService:
         return cast(
             QuerySet[PerformerAssignment],
             (
-                PerformerAssignment.objects.for_user(user=user)
+                visible_to(PerformerAssignment, user=user)
                 .filter(is_active=True, **filters)
                 .annotate(
                     _preferred_rank=Window(
@@ -148,24 +146,9 @@ class PerformerAssignmentService:
         if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
             return
 
-        location = unit.base_chassis.location
-        if location is None:
+        if unit.base_chassis.location is None:
             raise PermissionDenied("The wireless unit is not assigned to a managed location")
-
-        location_access = MonitoringGroupLocation.objects.filter(
-            monitoring_group=group,
-        ).filter(
-            Q(location_id=location.pk)
-            | Q(
-                include_all_rooms=True,
-                location__building_id=location.building_id,
-            )
-        )
-        channel_access = (
-            unit.assigned_resource_id is not None
-            and group.channels.filter(pk=unit.assigned_resource_id).exists()
-        )
-        if not location_access.exists() and not channel_access:
+        if not reaches(group, unit):
             raise PermissionDenied(
                 "The monitoring group does not manage the wireless unit's tenant scope"
             )
@@ -173,12 +156,9 @@ class PerformerAssignmentService:
     @staticmethod
     def ensure_can_modify_unit(*, user: Any, unit: WirelessUnit) -> None:
         """Require an MSP role that permits assignment changes for the unit."""
-        if not micboard_settings.msp_enabled:
+        principal = TenantPrincipal.resolve(user)
+        if principal.mode != "msp" or principal.unrestricted:
             return
-        if has_unrestricted_tenant_access(user):
-            return
-        if not apps.is_installed("micboard.multitenancy"):
-            raise PermissionDenied("Multi-tenant assignment access is unavailable")
 
         location = unit.base_chassis.location
         if location is None:
@@ -186,23 +166,11 @@ class PerformerAssignmentService:
         organization_id = location.building.organization_id
         if organization_id is None:
             raise PermissionDenied("The wireless unit is not assigned to an organization")
-
-        from micboard.multitenancy.models import OrganizationMembership
-
-        building = location.building
-        campus_scope = (
-            Q(campus_id__isnull=True)
-            if building.campus_id is None
-            else Q(campus_id__isnull=True) | Q(campus_id=building.campus_id)
-        )
-        can_modify = OrganizationMembership._default_manager.filter(
-            user=user,
+        if not principal.has_role_for(
+            MODIFY_ROLES,
             organization_id=organization_id,
-            organization__is_active=True,
-            is_active=True,
-            role__in=PerformerAssignmentService.MODIFY_ROLES,
-        ).filter(campus_scope)
-        if not can_modify.exists():
+            campus_id=location.building.campus_id,
+        ):
             raise PermissionDenied("This membership cannot modify device assignments")
 
     @staticmethod
@@ -225,7 +193,7 @@ class PerformerAssignmentService:
         """Lock and return one user-visible assignment with its authorization graph."""
         return cast(
             PerformerAssignment,
-            PerformerAssignment.objects.for_user(user=user)
+            visible_to(PerformerAssignment, user=user)
             .select_related(
                 "monitoring_group",
                 "wireless_unit__base_chassis__location__building",
@@ -243,12 +211,12 @@ class PerformerAssignmentService:
         """Create an assignment after validating every object against user scope."""
         with transaction.atomic():
             try:
-                monitoring_group = MonitoringService.get_user_monitoring_groups(user).get(
+                monitoring_group = visible_to(MonitoringGroup, user=user).get(
                     pk=command.group_id,
                 )
-                performer = Performer.objects.for_user(user=user).get(pk=command.performer_id)
+                performer = visible_to(Performer, user=user).get(pk=command.performer_id)
                 wireless_unit = (
-                    WirelessUnit.objects.for_user(user=user)
+                    visible_to(WirelessUnit, user=user)
                     .select_related("base_chassis__location__building")
                     .get(pk=command.unit_id)
                 )

@@ -14,6 +14,7 @@ from django.views.generic import ListView
 
 from micboard.forms.assignments import CreateAssignmentForm, UpdateAssignmentForm
 from micboard.models.hardware.wireless_unit import WirelessUnit
+from micboard.models.monitoring.group import MonitoringGroup
 from micboard.models.monitoring.performer import Performer
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.core.performer_assignment import PerformerAssignmentService
@@ -21,8 +22,8 @@ from micboard.services.core.performer_assignment_dtos import (
     CreatePerformerAssignment,
     UpdatePerformerAssignment,
 )
-from micboard.services.monitoring.monitoring_access import MonitoringService
 from micboard.services.settings.browser_refresh_service import browser_refresh_cadence
+from micboard.services.shared.visibility import visible_to
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -48,9 +49,9 @@ def _assignment_form_context(
     context: dict[str, Any] = {
         "assignment": assignment,
         "form": form,
-        "performers": Performer.objects.for_user(user=user),
-        "wireless_units": WirelessUnit.objects.for_user(user=user),
-        "monitoring_groups": MonitoringService.get_user_monitoring_groups(user),
+        "performers": visible_to(Performer, user=user),
+        "wireless_units": visible_to(WirelessUnit, user=user),
+        "monitoring_groups": visible_to(MonitoringGroup, user=user),
         "priority_choices": PerformerAssignment.PRIORITY_CHOICES,
         "selected_priority": assignment.priority if assignment else "normal",
         "alert_options": [
@@ -181,7 +182,7 @@ def create_assignment(request: HttpRequest) -> HttpResponse:
 def update_assignment(request: HttpRequest, pk: int) -> HttpResponse:
     """Update an existing assignment (delegates to PerformerAssignmentService)."""
     assignment = get_object_or_404(
-        PerformerAssignment.objects.for_user(user=request.user),
+        visible_to(PerformerAssignment, user=request.user),
         pk=pk,
     )
 
@@ -259,7 +260,7 @@ def update_assignment(request: HttpRequest, pk: int) -> HttpResponse:
 def delete_assignment(request: HttpRequest, pk: int) -> HttpResponse:
     """Delete an assignment (delegates to PerformerAssignmentService)."""
     get_object_or_404(
-        PerformerAssignment.objects.for_user(user=request.user),
+        visible_to(PerformerAssignment, user=request.user),
         pk=pk,
     )
 

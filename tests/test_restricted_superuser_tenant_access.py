@@ -19,7 +19,7 @@ from micboard.multitenancy.models import Organization, OrganizationMembership
 from micboard.services.core.performer_assignment import PerformerAssignmentService
 from micboard.services.core.performer_assignment_dtos import CreatePerformerAssignment
 from micboard.services.monitoring.alerts import acknowledge_alert, get_alerts_for_user
-from micboard.services.monitoring.monitoring_access import MonitoringService
+from micboard.services.shared.visibility import visible_to
 
 
 @override_settings(
@@ -270,7 +270,7 @@ class MultiSiteMonitoringGroupIsolationTests(TestCase):
 
     def test_group_queries_and_form_are_limited_to_the_active_site(self) -> None:
         with self.settings(SITE_ID=self.current_site.pk):
-            groups = MonitoringService.get_user_monitoring_groups(self.user)
+            groups = visible_to(MonitoringGroup, user=self.user)
             response = self.client.get(reverse("micboard:create_assignment"))
 
         self.assertEqual(set(groups.values_list("pk", flat=True)), {self.current_group.pk})

@@ -11,6 +11,7 @@ from micboard.serializers.v1.hardware import (
     WirelessChassisSerializer,
     WirelessUnitSerializer,
 )
+from micboard.services.shared.visibility import visible_to
 
 
 class WirelessChassisViewSet(ReadOnlyModelViewSet):
@@ -23,7 +24,7 @@ class WirelessChassisViewSet(ReadOnlyModelViewSet):
         user = self.request.user
         if not user.is_authenticated:
             return WirelessChassis.objects.none()
-        return WirelessChassis.objects.for_user(user=user)
+        return visible_to(WirelessChassis, user=user)
 
 
 class WirelessUnitViewSet(ReadOnlyModelViewSet):
@@ -36,7 +37,7 @@ class WirelessUnitViewSet(ReadOnlyModelViewSet):
         user = self.request.user
         if not user.is_authenticated:
             return WirelessUnit.objects.none()
-        return WirelessUnit.objects.for_user(user=user)
+        return visible_to(WirelessUnit, user=user)
 
 
 class RFChannelViewSet(ReadOnlyModelViewSet):
@@ -49,4 +50,4 @@ class RFChannelViewSet(ReadOnlyModelViewSet):
         user = self.request.user
         if not user.is_authenticated:
             return RFChannel.objects.none()
-        return RFChannel.objects.for_user(user=user)
+        return visible_to(RFChannel, user=user)

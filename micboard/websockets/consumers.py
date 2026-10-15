@@ -10,7 +10,6 @@ import logging
 from typing import Any
 
 from django.conf import settings
-from django.db.models import F, Q
 
 from micboard.services.notification.realtime_routing_service import (
     GLOBAL_UPDATES_GROUP,
@@ -20,6 +19,7 @@ from micboard.services.notification.realtime_routing_service import (
     site_updates_group,
 )
 from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.tenant_principal import active_memberships
 from micboard.utils.dependencies import HAS_CHANNELS
 from micboard.websockets.authorization import (
     AuthorizationCache,
@@ -53,33 +53,15 @@ class MicboardConsumer(AsyncWebsocketConsumer):
     @staticmethod
     def _membership_group_names(user_id: int) -> tuple[str, ...]:
         """Resolve active, internally consistent tenant memberships to groups."""
-        from micboard.multitenancy.models import OrganizationMembership
-
-        memberships = (
-            OrganizationMembership._default_manager.filter(
-                user_id=user_id,
-                user__is_active=True,
-                is_active=True,
-                organization__is_active=True,
-            )
-            .filter(
-                Q(campus__isnull=True)
-                | Q(
-                    campus__is_active=True,
-                    campus__organization_id=F("organization_id"),
-                )
-            )
-            .values_list("organization_id", "campus_id")
-            .order_by("organization_id", "campus_id")
+        scopes = sorted(
+            {membership.scope for membership in active_memberships(user_id)},
+            key=lambda scope: (scope[0], scope[1] is not None, scope[1] or 0),
         )
-        if micboard_settings.multi_site_mode:
-            memberships = memberships.filter(organization__site_id=settings.SITE_ID)
-
         return tuple(
             campus_updates_group(organization_id, campus_id)
             if campus_id is not None
             else organization_updates_group(organization_id)
-            for organization_id, campus_id in memberships
+            for organization_id, campus_id in scopes
         )
 
     async def _active_groups_for_user(self, user_id: int) -> tuple[str, ...]:

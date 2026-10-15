@@ -179,25 +179,11 @@ with awareness of device type:
 Tracks battery levels, RF quality, link quality, and device state.
 Links to WirelessChassis base unit and RFChannel for RF path tracking.
 
-### `WirelessUnitQuerySet`
-
-Bases: `TenantOptimizedQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L22)
-
-Enhanced queryset for WirelessUnit model with tenant filtering.
-
-#### `for_user(user: Any) -> WirelessUnitQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L25)
-
-Return units reachable through the user's monitoring-group scope.
-
 ### `WirelessUnit`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L44)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L22)
 
 Field-side wireless audio device (bodypack, handheld, IEM receiver, etc.).
 
@@ -268,30 +254,11 @@ Intermediary model for MonitoringGroup and Location, specifying access scope.
 
 Performer model for device users assigned to wireless units.
 
-### `PerformerQuerySet`
-
-Bases: `TenantOptimizedQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L14)
-
-Query helpers for performers with tenant awareness.
-
-#### `for_user(user: Any) -> PerformerQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L17)
-
-Return performers managed by one of the user's active monitoring groups.
-
-In single-tenant mode, unassigned performers remain available so an
-operator can create their first assignment. MSP mode cannot safely
-expose a tenantless performer, so it only returns performers already
-linked through a tenant-scoped assignment.
-
 ### `Performer`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L40)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L13)
 
 Represents a performer/talent with assigned wireless devices.
 
@@ -301,13 +268,13 @@ monitor and manage the devices.
 
 #### `get_assigned_units() -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L119)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L92)
 
 Get all wireless units assigned to this performer.
 
 #### `get_monitoring_groups() -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L128)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L101)
 
 Get all monitoring groups that manage this performer.
 
@@ -317,31 +284,11 @@ Get all monitoring groups that manage this performer.
 
 Performer assignment model linking performers to wireless units.
 
-### `PerformerAssignmentQuerySet`
-
-Bases: `TenantOptimizedQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L15)
-
-Query helpers for performer assignments with tenant awareness.
-
-#### `for_user(user: Any) -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L18)
-
-Return assignments in the user's active monitoring groups.
-
-#### `active() -> PerformerAssignmentQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L30)
-
-Get all active assignments.
-
 ### `PerformerAssignment`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L35)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L15)
 
 Assignment of a performer to a wireless unit.
 
@@ -765,25 +712,11 @@ RFChannel model for directional RF communication channels on a wireless chassis.
 > - send: Chassis sends to field devices (IEM systems)
 > - bidirectional: Both directions (hybrid systems like Sennheiser Spectera)
 
-### `RFChannelQuerySet`
-
-Bases: `TenantOptimizedQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L20)
-
-Enhanced queryset for RFChannel model with tenant and direction filtering.
-
-#### `for_user(user: User) -> RFChannelQuerySet`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L23)
-
-Filter RF channels accessible to user via monitoring groups.
-
 ### `RFChannel`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L45)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L18)
 
 Represents a directional RF communication channel on a wireless chassis.
 
@@ -1117,45 +1050,61 @@ Base classes for all models to support:
 
 Bases: `Protocol`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L24)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L23)
 
 Structural tenant identifier accepted by queryset filters.
+
+### `tenant_lookups(model: type[models.Model]) -> tuple[str, str | None] | None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L106)
+
+Return the organization and campus lookups that reach ``model``'s tenant owner.
+
+Returns None when the model has no reviewed ownership path; callers must fail closed.
+
+### `site_lookup(model: type[models.Model]) -> str | None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L124)
+
+Return the lookup that reaches ``model``'s Django Site, or None when it has none.
+
+### `membership_filter(model: type[models.Model], memberships: Sequence[tuple[int, int | None]]) -> Q | None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L138)
+
+Return a filter matching rows owned by any of the given memberships.
+
+Returns None when nothing can match: the model has no ownership path, no memberships were
+given, or every membership is campus-limited and the model has no campus to check.
 
 ### `TenantOptimizedQuerySet`
 
 Bases: `models.QuerySet[_ModelT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L107)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L165)
 
-Base QuerySet with tenant filtering and optimization methods.
+Base QuerySet with the canonical tenant and site filters.
 
-Provides the canonical tenant filters and common ORM optimizations.
+Deciding which rows a user may see is not this queryset's job; ask
+`micboard.services.shared.visibility.visible_to`.
 
 #### `supports_membership_scope() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L127)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L172)
 
 Return whether this model has an explicit tenant ownership path.
 
 #### `for_site(site_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L151)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L176)
 
 Filter by Django Site (multi-site mode).
 
 #### `for_memberships(memberships: Sequence[tuple[int, int | None]]) -> TenantOptimizedQuerySet[_ModelT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L163)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L188)
 
 Filter through explicit organization/campus membership identifiers.
-
-#### `for_user(user: Any) -> TenantOptimizedQuerySet[_ModelT]`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L189)
-
-Filter based on user permissions and tenant context.
-
-Respects MSP, multi-site, and single-site modes.
 
 ## `micboard.models.mixins`
 

@@ -7,7 +7,8 @@ from django.core.exceptions import PermissionDenied
 from django.db import router
 
 from micboard.services.settings.settings_service import settings as micboard_settings
-from micboard.services.shared.access_policy import tenant_role_access, visible_to
+from micboard.services.shared.access_policy import tenant_role_access
+from micboard.services.shared.visibility import restrict_to_tenant_boundary
 from micboard.utils.dependencies import (
     HAS_IMPORT_EXPORT,
     HAS_RANGE_FILTER,
@@ -157,29 +158,19 @@ class MicboardModelAdmin(EnhancedAdminMixin, BaseImportExportAdmin, BaseHistoryA
 
     @staticmethod
     def _scope_queryset_for_user(queryset: Any, *, user: Any) -> Any:
-        """Intersect a queryset with the user's active tenant memberships.
+        """Intersect a queryset with the user's tenant and site boundary.
 
-        Models with a tenant-aware manager remain the source of truth. Standard
-        managers use the same tenant lookup contract; models without a safe
-        tenant path fail closed while MSP mode is enabled.
+        Single-site admin is staff-only and has no tenant boundary, so it is not narrowed.
+        Superusers keep the reviewed host-wide catalogues. Every other row must sit inside
+        the boundary, which fails closed for models without a tenant path in MSP mode.
+        Monitoring groups do not narrow the admin; membership roles gate mutation.
         """
-        msp_enabled = micboard_settings.msp_enabled
-        multi_site_enabled = micboard_settings.multi_site_mode
-        if not (msp_enabled or multi_site_enabled):
+        if not (micboard_settings.msp_enabled or micboard_settings.multi_site_mode):
             return queryset
-        if (
-            msp_enabled
-            and not multi_site_enabled
-            and user.is_superuser
-            and micboard_settings.allow_cross_org_view
-        ):
-            return queryset
-
         if user.is_superuser and tenant_role_access.is_platform_global_model(queryset.model):
             return queryset
 
-        visible_queryset = visible_to(queryset.model, user=user, using=queryset.db)
-        return queryset.filter(pk__in=visible_queryset.values("pk"))
+        return restrict_to_tenant_boundary(queryset, user=user)
 
     def get_queryset(self, request: Any) -> Any:
         """Return only objects visible through the request user's tenant scope."""

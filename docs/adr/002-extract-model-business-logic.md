@@ -3,7 +3,7 @@ title: "ADR-002: Extract Business Logic from Models to Services"
 ---
 **Status:** Implemented
 **Date:** 2026-05-20
-**Updated:** 2026-07-14
+**Updated:** 2026-09-25
 **Deciders:** (to be assigned)
 
 ## Context
@@ -22,7 +22,7 @@ Affected models and their embedded logic:
 
 Additionally, several models use `post_save` signals that duplicate logic already present in service-layer methods in `services/core/hardware_lifecycle.py` (381L) and `services/core/hardware.py` (534L). A developer modifying `WirelessChassis.save()` must understand the full chain: model → django-lifecycle hook → signal → service, which is implicit and untestable in isolation.
 
-This violates the single-responsibility principle. Models should define data structure, constraints, and query scope — not orchestrate side effects. Embedding business logic in models makes it:
+This violates the single-responsibility principle. Models should define data structure, constraints, and how their rows are owned — not orchestrate side effects. Embedding business logic in models makes it:
 - Impossible to test business rules without DB setup.
 - Difficult to reuse logic outside model lifecycle (e.g., in bulk operations).
 - Hard to reason about side-effect chains (save triggers signal triggers service).
@@ -59,6 +59,24 @@ This violates the single-responsibility principle. Models should define data str
    `WirelessChassisWrite` DTO to
    `services/hardware/wireless_chassis_persistence_service.py`. Lifecycle transition methods remain
    responsible for status policy, but callers no longer create or upsert chassis rows themselves.
+
+7. **Models declare ownership; one module decides visibility.** A model states how its rows
+   reach their tenant owner (the ownership lookups in `models/base_managers.py`) and, where
+   monitoring groups apply, how they reach a group (`_REACH` in
+   `services/shared/visibility.py`, or a `location` relation by convention). Models do not
+   decide who may see them. `visible_to(model, user=...)` combines those declarations with the
+   caller's resolved `TenantPrincipal` for every model, and `restrict_to_tenant_boundary` gives
+   the admin the boundary alone.
+
+**Correction (2026-09-25):** the context above said models should define their query scope,
+and four of them did, each with its own `for_user` override on top of a shared cascade in the
+base queryset. The overrides drifted: a unit reachable through a monitoring group's channel was
+visible while that channel was not; in MSP mode chassis were narrowed by tenant alone while
+their units, buildings, and rooms were also narrowed by monitoring groups, so the dashboard
+listed chassis in buildings that answered with a 404; a single-site superuser without
+cross-organization view saw every unit but only the chassis in its groups; and the monitoring
+group API returned every group, active or not, to any superuser. Clause 7 replaces "query
+scope" with ownership declarations that one module applies.
 
 ## Consequences
 

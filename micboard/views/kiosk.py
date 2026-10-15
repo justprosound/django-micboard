@@ -16,9 +16,8 @@ from micboard.models.hardware.display_wall import DisplayWall, WallSection
 from micboard.services.kiosk.dtos import DisplayWallSnapshot
 from micboard.services.kiosk.health_service import KioskHealthService
 from micboard.services.kiosk.services import KioskService
-from micboard.services.monitoring.monitoring_access import MonitoringService
 from micboard.services.settings.browser_refresh_service import browser_refresh_cadence
-from micboard.services.shared.access_policy import visible_to
+from micboard.services.shared.visibility import visible_to
 
 
 @method_decorator(login_required, name="dispatch")
@@ -106,7 +105,7 @@ class WallSectionListView(ListView):
         """Get sections for specified wall."""
         wall_id = self.kwargs.get("wall_id")
         return (
-            MonitoringService.get_accessible_wall_sections(self.request.user)
+            visible_to(WallSection, user=self.request.user)
             .filter(
                 wall_id=wall_id,
                 is_active=True,

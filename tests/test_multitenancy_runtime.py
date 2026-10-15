@@ -7,12 +7,13 @@ from typing import Any, cast
 from unittest.mock import MagicMock, Mock, patch
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Q
 from django.test import override_settings
 
 import pytest
 
 from micboard.models.base_managers import TenantOptimizedQuerySet
+from micboard.models.base_managers import site_lookup as base_site_lookup
+from micboard.models.base_managers import tenant_lookups as base_tenant_lookups
 from micboard.models.discovery.discovery_queue import DeviceMovementLog
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.charger import ChargerSlot
@@ -27,10 +28,8 @@ from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.multitenancy.middleware import (
     TenantMiddleware,
-    _get_org_from_membership,
     _get_org_from_session,
     _get_org_from_subdomain,
-    _get_org_from_user_profile,
     get_current_campus,
     get_current_organization,
 )
@@ -40,9 +39,7 @@ from micboard.services.core.performer_assignment_dtos import (
     CreatePerformerAssignment,
     UpdatePerformerAssignment,
 )
-from micboard.services.monitoring.monitoring_access import MonitoringService
-
-_for_user = cast(Any, TenantOptimizedQuerySet.for_user)
+from micboard.services.shared.visibility import visible_to
 
 
 def _queryset_with_model(**attributes: object) -> Any:
@@ -141,87 +138,10 @@ def test_nested_tenant_models_use_explicit_reviewed_ownership_paths(
     """Nested operational records must remain usable without widening tenant scope."""
     queryset = TenantOptimizedQuerySet(model, using="default")
 
-    assert queryset._tenant_lookups() == tenant_lookups
-    assert queryset._site_lookup() == site_lookup
+    assert base_tenant_lookups(model) == tenant_lookups
+    assert base_site_lookup(model) == site_lookup
     assert "SELECT" in str(queryset.for_site(site_id=1).query)
     assert "SELECT" in str(queryset.for_memberships([(1, 2)]).query)
-
-
-@override_settings(MICBOARD_MSP_ENABLED=True)
-def test_msp_user_filter_denies_users_without_memberships() -> None:
-    """Verify that msp user filter denies users without memberships."""
-    queryset = _queryset_with_model(organization_id=None)
-    queryset.none.return_value = "none"
-    memberships = MagicMock()
-    memberships.filter.return_value.values_list.return_value = []
-    user = SimpleNamespace(is_superuser=False, org_memberships=memberships)
-    assert _for_user(queryset, user=user) == "none"
-
-
-@override_settings(MICBOARD_MSP_ENABLED=True)
-def test_msp_user_filter_applies_every_membership() -> None:
-    """Verify that msp user filter applies every membership."""
-    queryset = _queryset_with_model(organization_id=None)
-    queryset.for_memberships.return_value = queryset
-    membership_rows = [(2, None), (3, 5)]
-    memberships = MagicMock()
-    memberships.filter.return_value.values_list.return_value = membership_rows
-    user = SimpleNamespace(is_superuser=False, org_memberships=memberships)
-    assert _for_user(queryset, user=user) is queryset
-    queryset.for_memberships.assert_called_once_with(membership_rows)
-
-
-@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=True)
-def test_multisite_user_filter_delegates_to_site_filter() -> None:
-    """Verify that multisite user filter delegates to site filter."""
-    queryset = _queryset_with_model()
-    user = SimpleNamespace(is_superuser=False)
-    assert _for_user(queryset, user=user) is queryset.for_site.return_value
-
-
-@override_settings(
-    MICBOARD_MSP_ENABLED=False,
-    MICBOARD_MULTI_SITE_MODE=True,
-    MICBOARD_ALLOW_CROSS_ORG_VIEW=True,
-)
-def test_multisite_superuser_remains_site_scoped() -> None:
-    """Verify that multisite superuser remains site scoped."""
-    queryset = _queryset_with_model()
-    user = SimpleNamespace(is_superuser=True)
-
-    assert _for_user(queryset, user=user) is queryset.for_site.return_value
-
-
-@override_settings(
-    MICBOARD_MSP_ENABLED=False,
-    MICBOARD_MULTI_SITE_MODE=False,
-    MICBOARD_ALLOW_CROSS_ORG_VIEW=True,
-)
-def test_superuser_and_original_user_filters_are_preserved() -> None:
-    """Verify that superuser and original user filters are preserved."""
-    queryset = _queryset_with_model()
-    assert _for_user(queryset, user=SimpleNamespace(is_superuser=True)) is queryset
-
-
-@override_settings(MICBOARD_MSP_ENABLED=False, MICBOARD_MULTI_SITE_MODE=False)
-def test_monitoring_group_fallback_is_scoped() -> None:
-    """Verify that monitoring group fallback is scoped."""
-    queryset = SimpleNamespace(
-        model=type("LocatedModel", (), {"location": object()}),
-        filter=Mock(),
-    )
-    groups = MagicMock()
-    active_groups = groups.filter.return_value
-    buildings = active_groups.filter.return_value.values_list.return_value
-    user = SimpleNamespace(
-        is_superuser=False,
-        monitoring_groups=groups,
-    )
-
-    assert _for_user(queryset, user=user) is queryset.filter.return_value.distinct.return_value
-    queryset.filter.assert_called_once_with(
-        Q(location__monitoring_groups__in=active_groups) | Q(location__building_id__in=buildings)
-    )
 
 
 def _request(**kwargs: Any) -> Any:
@@ -235,29 +155,6 @@ def _request(**kwargs: Any) -> Any:
     return SimpleNamespace(**defaults)
 
 
-@patch.object(Organization._default_manager, "get")
-def test_session_organization_accepts_superuser_and_clears_denied_access(
-    mock_get: MagicMock,
-) -> None:
-    """Verify that session organization accepts superuser and clears denied access."""
-    organization = SimpleNamespace(pk=4, is_active=True)
-    mock_get.return_value = organization
-    super_request = _request(
-        session={"current_organization_id": 4},
-        user=SimpleNamespace(is_authenticated=True, is_superuser=True),
-    )
-    assert _get_org_from_session(super_request) is organization
-
-    denied_request = _request(
-        session={"current_organization_id": 4},
-        user=SimpleNamespace(is_authenticated=True, is_superuser=False),
-    )
-    with patch.object(OrganizationMembership._default_manager, "filter") as membership_filter:
-        membership_filter.return_value.exists.return_value = False
-        assert _get_org_from_session(denied_request) is None
-    assert "current_organization_id" not in denied_request.session
-
-
 @patch.object(Organization._default_manager, "get", side_effect=Organization.DoesNotExist)
 def test_session_organization_clears_deleted_organization(_mock_get: MagicMock) -> None:
     """Verify that session organization clears deleted organization."""
@@ -265,28 +162,6 @@ def test_session_organization_clears_deleted_organization(_mock_get: MagicMock) 
     assert _get_org_from_session(request) is None
     assert request.session == {}
     assert _get_org_from_session(cast(Any, SimpleNamespace(user=request.user))) is None
-
-
-def test_profile_organization_requires_authenticated_active_profile() -> None:
-    """Verify that profile organization requires authenticated active profile."""
-    active = SimpleNamespace(is_active=True)
-    user = SimpleNamespace(
-        is_authenticated=True,
-        profile=SimpleNamespace(default_organization=active),
-    )
-    assert _get_org_from_user_profile(_request(user=user)) is active
-    assert _get_org_from_user_profile(_request()) is None
-
-
-@patch.object(OrganizationMembership._default_manager, "filter")
-def test_membership_organization_returns_only_active_organization(mock_filter: MagicMock) -> None:
-    """Verify that membership organization returns only active organization."""
-    active = SimpleNamespace(is_active=True)
-    chain = mock_filter.return_value.select_related.return_value.order_by.return_value
-    chain.first.return_value = SimpleNamespace(organization=active)
-    user = SimpleNamespace(is_authenticated=True)
-    assert _get_org_from_membership(_request(user=user)) is active
-    assert _get_org_from_membership(_request()) is None
 
 
 @override_settings(MICBOARD_SUBDOMAIN_ROUTING=True, MICBOARD_ROOT_DOMAIN="example.test")
@@ -334,21 +209,6 @@ def test_tenant_resolution_is_disabled_by_default() -> None:
     assert get_current_campus(request) is None
 
 
-@override_settings(MICBOARD_MSP_ENABLED=True)
-@patch.object(OrganizationMembership._default_manager, "filter")
-def test_current_campus_prefers_session_then_membership(mock_filter: MagicMock) -> None:
-    """Verify that current campus prefers session then membership."""
-    request = _request(session={"current_campus_id": 6})
-    assert get_current_campus(request) == 6
-
-    request = _request(
-        user=SimpleNamespace(is_authenticated=True),
-        organization=object(),
-    )
-    mock_filter.return_value.first.return_value = SimpleNamespace(campus_id=8)
-    assert get_current_campus(request) == 8
-
-
 @patch("micboard.multitenancy.middleware.get_current_campus", return_value=7)
 @patch("micboard.multitenancy.middleware.get_current_organization", return_value="org")
 def test_tenant_middleware_attaches_lazy_context(
@@ -382,13 +242,13 @@ def test_real_manager_unions_organizations_and_honors_campus_scope(django_user_m
     OrganizationMembership.objects.create(
         user=user,
         organization=first_org,
-        role="operator",
+        role="admin",
     )
     OrganizationMembership.objects.create(
         user=user,
         organization=second_org,
         campus=allowed_campus,
-        role="operator",
+        role="admin",
     )
 
     manufacturer = Manufacturer.objects.create(name="Tenant hardware", code="tenant-hardware")
@@ -418,7 +278,7 @@ def test_real_manager_unions_organizations_and_honors_campus_scope(django_user_m
     allowed = create_chassis("Allowed", second_org.pk, allowed_campus.pk)
     denied = create_chassis("Denied", second_org.pk, denied_campus.pk)
 
-    visible_ids = set(WirelessChassis.objects.for_user(user=user).values_list("pk", flat=True))
+    visible_ids = set(visible_to(WirelessChassis, user=user).values_list("pk", flat=True))
     assert visible_ids == {first.pk, allowed.pk}
     assert denied.pk not in visible_ids
 
@@ -461,20 +321,23 @@ def test_real_manager_rejects_revoked_and_inconsistent_memberships(django_user_m
         slug="foreign-campus",
     )
 
-    OrganizationMembership.objects.create(user=user, organization=broad_org)
+    OrganizationMembership.objects.create(user=user, organization=broad_org, role="admin")
     OrganizationMembership.objects.create(
         user=user,
+        role="admin",
         organization=scoped_org,
         campus=scoped_campus,
     )
-    OrganizationMembership.objects.create(user=user, organization=inactive_org)
+    OrganizationMembership.objects.create(user=user, organization=inactive_org, role="admin")
     OrganizationMembership.objects.create(
         user=user,
+        role="admin",
         organization=inactive_campus_org,
         campus=inactive_campus,
     )
     OrganizationMembership.objects.create(
         user=user,
+        role="admin",
         organization=inconsistent_org,
         campus=foreign_campus,
     )
@@ -511,7 +374,7 @@ def test_real_manager_rejects_revoked_and_inconsistent_memberships(django_user_m
     create_chassis("Inactive campus", inactive_campus_org, inactive_campus)
     create_chassis("Inconsistent", inconsistent_org)
 
-    visible_ids = set(WirelessChassis.objects.for_user(user=user).values_list("pk", flat=True))
+    visible_ids = set(visible_to(WirelessChassis, user=user).values_list("pk", flat=True))
     assert visible_ids == {broad.pk, scoped.pk}
 
 
@@ -564,11 +427,8 @@ def test_tenant_resolver_scopes_organization_and_campus_models(django_user_model
         campus=allowed_campus,
     )
 
-    organization_scope = TenantOptimizedQuerySet(
-        Organization,
-        using="default",
-    ).for_user(user=user)
-    campus_scope = TenantOptimizedQuerySet(Campus, using="default").for_user(user=user)
+    organization_scope = visible_to(Organization, user=user, using="default")
+    campus_scope = visible_to(Campus, user=user, using="default")
 
     assert set(organization_scope) == {organization_wide, campus_limited}
     assert set(campus_scope) == {whole_org_campus, allowed_campus}
@@ -623,23 +483,15 @@ def test_specialized_managers_compose_monitoring_and_tenant_scope(django_user_mo
         monitoring_group=group,
     )
 
-    assert set(WirelessUnit.objects.for_user(user=user)) == {allowed_unit}
-    assert set(RFChannel.objects.for_user(user=user)) == set(
-        allowed_unit.base_chassis.rf_channels.all()
-    )
-    assert (
-        not RFChannel.objects.for_user(user=user).filter(chassis=denied_unit.base_chassis).exists()
-    )
-    assert set(PerformerAssignment.objects.for_user(user=user)) == {allowed_assignment}
-    assert set(Performer.objects.for_user(user=user)) == {allowed_performer}
-    assert denied_assignment not in PerformerAssignment.objects.for_user(user=user)
-    assert unassigned_performer not in Performer.objects.for_user(user=user)
-    assert set(MonitoringService.get_accessible_locations(user)) == {
-        allowed_unit.base_chassis.location
-    }
-    assert set(MonitoringService.get_accessible_buildings(user)) == {
-        allowed_unit.base_chassis.location.building
-    }
+    assert set(visible_to(WirelessUnit, user=user)) == {allowed_unit}
+    assert set(visible_to(RFChannel, user=user)) == set(allowed_unit.base_chassis.rf_channels.all())
+    assert not visible_to(RFChannel, user=user).filter(chassis=denied_unit.base_chassis).exists()
+    assert set(visible_to(PerformerAssignment, user=user)) == {allowed_assignment}
+    assert set(visible_to(Performer, user=user)) == {allowed_performer}
+    assert denied_assignment not in visible_to(PerformerAssignment, user=user)
+    assert unassigned_performer not in visible_to(Performer, user=user)
+    assert set(visible_to(Location, user=user)) == {allowed_unit.base_chassis.location}
+    assert set(visible_to(Building, user=user)) == {allowed_unit.base_chassis.location.building}
 
 
 @pytest.mark.django_db
