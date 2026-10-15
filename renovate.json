@@ -103,8 +103,7 @@
       "matchManagers": [
         "pip_requirements",
         "pip_setup",
-        "pep621",
-        "pyproject"
+        "pep621"
       ],
       "matchUpdateTypes": [
         "patch",

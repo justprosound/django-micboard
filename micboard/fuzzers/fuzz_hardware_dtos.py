@@ -2,11 +2,9 @@
 import sys
 
 import atheris
+from pydantic import ValidationError
 
-with atheris.instrument_imports():
-    from pydantic import ValidationError
-
-    from micboard.services.hardware.dtos import WirelessChassisWrite
+from micboard.services.hardware.dtos import WirelessChassisWrite
 
 
 def TestOneInput(data: bytes) -> None:  # noqa: N802
@@ -40,5 +38,8 @@ def TestOneInput(data: bytes) -> None:  # noqa: N802
 
 
 if __name__ == "__main__":
+    # instrument_imports() collects no coverage on Python 3.14 (cov: 2, flat corpus),
+    # so instrument everything already imported instead.
+    atheris.instrument_all()
     atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()

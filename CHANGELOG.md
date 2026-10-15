@@ -7,6 +7,23 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- CI fuzzes the hardware DTO validators for 60 seconds on every run and uploads any crashing
+  input. The fuzzer now calls `atheris.instrument_all()`: under Python 3.14
+  `instrument_imports()` collected no coverage (`cov: 2` with a flat corpus), so it was never
+  exploring anything. With the change it reaches 57 edges.
+- Renovate's Python grouping rule no longer lists `pyproject`, which is not a Renovate manager.
+- CI's Bandit scan and the release workflow's PEP 740 signing now run the locked versions from
+  the `security` and `release` dependency groups. They ran through `uvx`, which installs the
+  latest release on every run, so the `pypi-attestations==0.0.30` pin that Renovate maintained
+  in the `release` group was never the version that signed a release.
+
+### Removed
+
+- `.clusterfuzzlite/`. No workflow ever ran it, and its uv 0.5.10 install was a version Renovate
+  could not see. The fuzzer it would have built now runs as a CI job instead.
+
 ## [2026.10.15.0] - 2026-10-15
 
 ### Changed

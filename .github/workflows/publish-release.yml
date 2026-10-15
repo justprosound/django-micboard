@@ -201,6 +201,7 @@ jobs:
         with:
           ref: ${{ needs.validate-release.outputs.sha }}
           persist-credentials: false
+          # Cone mode also checks out root files, so pyproject.toml and uv.lock are present
           sparse-checkout: .github/actions
 
       - name: Set up uv and Python
@@ -219,7 +220,7 @@ jobs:
 
       - name: Create TestPyPI publish attestations
         run: |
-          uvx pypi-attestations sign dist/*.whl dist/*.tar.gz
+          uv run --locked --only-group release pypi-attestations sign dist/*.whl dist/*.tar.gz
           test "$(find dist -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
 
       - name: Check if version already exists on TestPyPI
@@ -318,6 +319,7 @@ jobs:
         with:
           ref: ${{ needs.validate-release.outputs.sha }}
           persist-credentials: false
+          # Cone mode also checks out root files, so pyproject.toml and uv.lock are present
           sparse-checkout: .github/actions
 
       - name: Set up uv and Python
@@ -336,7 +338,7 @@ jobs:
 
       - name: Create PyPI publish attestations
         run: |
-          uvx pypi-attestations sign dist/*.whl dist/*.tar.gz
+          uv run --locked --only-group release pypi-attestations sign dist/*.whl dist/*.tar.gz
           test "$(find dist -maxdepth 1 -name '*.publish.attestation' | wc -l)" -eq 2
 
       - name: Publish to PyPI
