@@ -181,6 +181,34 @@ jobs:
         # Locked in the security group so Renovate tracks the version CI runs
         run: uv run --locked --only-group security bandit -r micboard -ll
 
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up uv and Python
+        uses: ./.github/actions/setup-uv-python
+
+      - name: Fuzz hardware DTO validation
+        # libFuzzer does not create the artifact directory itself
+        run: |
+          mkdir -p fuzz-artifacts
+          uv run --locked --group fuzz python micboard/fuzzers/fuzz_hardware_dtos.py \
+            -max_total_time=60 -artifact_prefix=fuzz-artifacts/
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: fuzz-artifacts
+          path: fuzz-artifacts/
+          if-no-files-found: ignore
+
   codeql:
     runs-on: ubuntu-latest
     timeout-minutes: 30

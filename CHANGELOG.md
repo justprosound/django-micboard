@@ -11,6 +11,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- CI fuzzes the hardware DTO validators for 60 seconds on every run and uploads any crashing
+  input. The fuzzer now calls `atheris.instrument_all()`: under Python 3.14
+  `instrument_imports()` collected no coverage (`cov: 2` with a flat corpus), so it was never
+  exploring anything. With the change it reaches 57 edges.
+- Renovate's Python grouping rule no longer lists `pyproject`, which is not a Renovate manager.
 - CI's Bandit scan and the release workflow's PEP 740 signing now run the locked versions from
   the `security` and `release` dependency groups. They ran through `uvx`, which installs the
   latest release on every run, so the `pypi-attestations==0.0.30` pin that Renovate maintained
@@ -39,7 +44,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 ### Removed
 
 - `.clusterfuzzlite/`. No workflow ever ran it, and its uv 0.5.10 install was a version Renovate
-  could not see.
+  could not see. The fuzzer it would have built now runs as a CI job instead.
 - The mutation testing job, the `mutmut` development dependency, and its `[tool.mutmut]`
   configuration. The job had never mutated anything: `mutmut run` aborts during import with
   `TypeError: can only concatenate list (not "str") to list`, raised by a deprecated
