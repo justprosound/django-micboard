@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.15.2] - 2026-10-15
+
 ### Added
 
 - `micboard.services.shared.visibility`: `visible_to(model, user=...)` answers "which rows of
