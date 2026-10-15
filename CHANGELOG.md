@@ -62,6 +62,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- The documentation build resolves `postcss-selector-parser` 7.1.6 through an npm override,
+  clearing GHSA advisory "Quadratic complexity in flat selector parsing" (Dependabot alert 39).
+  `@expressive-code/core` still requires `postcss-nested@^6`, which pins the vulnerable 6.x line.
+  Remove the override once it moves to `postcss-nested@^7`.
 - The release publishing workflow serialised every version into one concurrency lane, so a
   stacked release could be discarded without publishing. A single global group holds only one
   pending run: with `2026.9.24.0` waiting on the publishing environment approval and
