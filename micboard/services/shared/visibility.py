@@ -35,7 +35,7 @@ from django.db import models, router
 from django.db.models import Q, QuerySet
 
 from micboard.models.base_managers import membership_filter, site_lookup
-from micboard.services.shared.tenant_principal import TenantPrincipal
+from micboard.services.shared.tenant_principal import ADMIN_ROLES, TenantPrincipal
 
 
 @dataclass(frozen=True)
@@ -195,28 +195,59 @@ def _tenant_filter(
     return combined
 
 
-def _monitoring_group_filter(*, user: Any, principal: TenantPrincipal, using: str) -> Q | None:
-    """Return the monitoring groups a user may see.
-
-    Groups are not owned by a tenant; they reach into tenants through their locations,
-    channels, and assignments. Unrestricted users see every active group. Everyone else sees
-    the active groups they belong to. Where a tenant or site boundary applies, a group is
-    visible only while it reaches a building the user can see.
-    """
-    condition = (
-        Q(is_active=True) if principal.unrestricted else Q(is_active=True, users__pk=user.pk)
-    )
-    if principal.mode == "single":
-        return condition
-
-    from micboard.models.locations.structure import Building
-
-    buildings = visible_to(Building, user=user, using=using).values("pk")
-    return condition & (
+def _groups_reaching(buildings: QuerySet[Any]) -> Q:
+    """Return the groups whose locations, channels, or assignments reach ``buildings``."""
+    return (
         Q(locations__building_id__in=buildings)
         | Q(channels__chassis__location__building_id__in=buildings)
         | Q(performer_assignments__wireless_unit__base_chassis__location__building_id__in=buildings)
     )
+
+
+def _monitoring_group_filter(
+    *,
+    user: Any,
+    principal: TenantPrincipal,
+    using: str,
+    monitoring_reach: bool,
+) -> Q | None:
+    """Return the monitoring groups a user may see.
+
+    Groups are not owned by a tenant; they reach into tenants through their locations,
+    channels, and assignments. Unrestricted users see every active group. Everyone else sees
+    the active groups they belong to, plus, in MSP mode, every active group reaching a tenant
+    they administer. Where a tenant or site boundary applies, a group is visible only while it
+    reaches a building the user can see. With ``monitoring_reach=False`` membership does not
+    narrow the result: every active group inside the boundary is visible.
+
+    A superuser without cross-organization view stays membership-scoped here even though it
+    sees its whole tenant elsewhere: the monitoring-group API must not list a tenant's groups
+    to a superuser that only views it.
+    """
+    from micboard.models.locations.structure import Building
+
+    active = Q(is_active=True)
+    if principal.unrestricted or not monitoring_reach:
+        if principal.mode == "single":
+            return active
+        boundary = visibility_filter(Building, user=user, using=using, monitoring_reach=False)
+        if boundary is None:
+            return None
+        return active & _groups_reaching(_apply(Building, boundary, using).values("pk"))
+
+    member = active & Q(users__pk=user.pk)
+    if principal.mode == "single":
+        return member
+
+    visible_buildings = visible_to(Building, user=user, using=using).values("pk")
+    condition = member & _groups_reaching(visible_buildings)
+    administered = [m.scope for m in principal.memberships if m.role in ADMIN_ROLES]
+    tenant = membership_filter(Building, administered)
+    site = _site_filter(Building, principal)
+    if tenant is not None and site is not None:
+        administered_buildings = _apply(Building, tenant & site, using).values("pk")
+        condition |= active & _groups_reaching(administered_buildings)
+    return condition
 
 
 def visibility_filter(
@@ -236,7 +267,9 @@ def visibility_filter(
     if not principal.authenticated:
         return None
     if model._meta.label_lower == "micboard.monitoringgroup":
-        return _monitoring_group_filter(user=user, principal=principal, using=database)
+        return _monitoring_group_filter(
+            user=user, principal=principal, using=database, monitoring_reach=monitoring_reach
+        )
 
     site = _site_filter(model, principal)
     if site is None:
@@ -277,8 +310,9 @@ def visible_to(
     """Return the rows of ``model`` that ``user`` may see on operator surfaces.
 
     The result is a plain filter on the model's default manager, so callers can keep
-    chaining, locking, or updating it. The tenant boundary is resolved on the database being
-    asked about, not whichever database the manager defaults to.
+    chaining or locking it. Visibility does not authorize mutation: check the user's
+    membership role before updating or deleting rows from it. The tenant boundary is resolved
+    on the database being asked about, not whichever database the manager defaults to.
     """
     database = using or router.db_for_read(model)
     return _apply(model, visibility_filter(model, user=user, using=database), database)

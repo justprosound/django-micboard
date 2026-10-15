@@ -763,7 +763,7 @@ Anonymous and inactive accounts see nothing.
 
 ### `visibility_filter(model: type[models.Model], user: Any, using: str | None = None, monitoring_reach: bool = True) -> Q | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L222)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L253)
 
 Return the filter selecting the rows of ``model`` that ``user`` may see.
 
@@ -772,17 +772,18 @@ membership saw its whole tenant. An empty ``Q()`` means every row; None means no
 
 ### `visible_to(model: type[models.Model], user: Any, using: str | None = None) -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L271)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L304)
 
 Return the rows of ``model`` that ``user`` may see on operator surfaces.
 
 The result is a plain filter on the model's default manager, so callers can keep
-chaining, locking, or updating it. The tenant boundary is resolved on the database being
-asked about, not whichever database the manager defaults to.
+chaining or locking it. Visibility does not authorize mutation: check the user's
+membership role before updating or deleting rows from it. The tenant boundary is resolved
+on the database being asked about, not whichever database the manager defaults to.
 
 ### `restrict_to_tenant_boundary(queryset: QuerySet[Any], user: Any) -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L287)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L321)
 
 Narrow ``queryset`` to rows inside the user's tenant and site boundary.
 
@@ -792,7 +793,7 @@ back unchanged when no boundary applies.
 
 ### `reaches(group: Any, obj: models.Model) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L304)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L338)
 
 Return whether one monitoring group covers ``obj`` through the declared reach paths.
 

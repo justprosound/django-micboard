@@ -180,8 +180,9 @@ chassis = visible_to(WirelessChassis, user=request.user).filter(
 locations = visible_to(Location, user=request.user).filter(is_active=True)
 ```
 
-The result is an ordinary queryset, so it can be filtered, locked, or updated further. Do not
-replace the authenticated user with optional tenant identifiers.
+The result is an ordinary queryset, so it can be filtered or locked further. Seeing a row does
+not authorize changing it: check the user's membership role before calling `update()` or
+`delete()` on it. Do not replace the authenticated user with optional tenant identifiers.
 
 ### Who sees what
 
@@ -204,6 +205,12 @@ another sees all of the first and only their monitoring reach in the second. Mon
 never widen a tenant: a group that covers another organization's location grants nothing there.
 Anonymous and inactive accounts see nothing, and in MSP mode so does a user with no active
 membership.
+
+Monitoring groups themselves have no tenant. A user sees the active groups they belong to and,
+in MSP mode, every active group that reaches a building in an organization or campus they
+administer. Either way a group is listed only while it reaches a building the user can see. A
+superuser without cross-organization view sees only the groups it belongs to: it views a
+tenant, and listing that tenant's groups to it would be a leak, not a convenience.
 
 A model with no reviewed tenant ownership path is invisible to restricted users in MSP mode. A
 model that monitoring groups cannot reach (a manufacturer, for example) is narrowed only by

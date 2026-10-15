@@ -141,7 +141,8 @@ from micboard.models.base_managers import TenantOptimizedQuerySet
 class MyModel(models.Model):
     objects = TenantOptimizedQuerySet.as_manager()
 
-# Usage
+# Usage. In MSP mode MyModel needs a reviewed ownership path, such as organization_id or a
+# supported tenant relationship; without one, restricted users see no rows.
 qs = visible_to(MyModel, user=request.user)
 qs = MyModel.objects.for_site(site_id=1)
 ```
