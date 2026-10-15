@@ -296,6 +296,7 @@ class RealtimeSubscriptionSupervisor:
 
     @staticmethod
     def _read_selection_cursor(cursor_key: str) -> SubscriptionSelectionCursor:
+        """Return the cached subscription selection cursor, or a fresh cursor if unreadable."""
         cache_alias = micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default")
         try:
             cached_value = caches[cache_alias].get(cursor_key)
@@ -331,6 +332,7 @@ class RealtimeSubscriptionSupervisor:
 
 
 def _bounded_positive_setting(name: str, *, default: int, hard_limit: int) -> int:
+    """Read an integer setting clamped to [1, hard_limit], falling back to default when unparseable."""
     raw_value = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default
@@ -348,6 +350,7 @@ def _bounded_positive_float_setting(
     hard_limit: float,
     minimum: float = 1.0,
 ) -> float:
+    """Read a finite float setting clamped to [minimum, hard_limit], else return default."""
     raw_value: Any = micboard_settings.get(name, default)
     if isinstance(raw_value, bool):
         return default

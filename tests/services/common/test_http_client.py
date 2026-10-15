@@ -437,3 +437,17 @@ def test_an_invented_health_status_becomes_unknown(caplog: pytest.LogCaptureFixt
 
     assert response["status"] == "unknown"
     assert "Invalid health status" in caplog.text
+
+
+@pytest.mark.parametrize("backoff", ["fast", None, object()])
+def test_retry_with_unparseable_backoff_does_not_sleep(
+    transport_client, monkeypatch, backoff
+) -> None:
+    """A retry_backoff that is not a number disables the backoff sleep instead of raising."""
+    sleep = Mock()
+    monkeypatch.setattr(client_module.time, "sleep", sleep)
+    transport_client.retry_backoff = backoff
+
+    transport_client._sleep_before_retry(1)
+
+    sleep.assert_not_called()

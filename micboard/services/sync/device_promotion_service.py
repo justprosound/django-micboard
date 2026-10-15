@@ -82,6 +82,7 @@ class DevicePromotionService:
         ).first()
 
     def _get_plugin_and_device_data_for_promotion(self, discovered: Any) -> Any:
+        """Return (plugin, vendor device dict) matching the discovered IP; None for what is unavailable."""
         from micboard.services.common.base.plugin import build_manufacturer_plugin
 
         try:

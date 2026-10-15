@@ -50,3 +50,15 @@ def test_malformed_or_nonpositive_network_settings_use_safe_defaults() -> None:
     assert http_limits.max_response_bytes == DEFAULT_HTTP_MAX_RESPONSE_BYTES
     assert sse_limits.max_line_bytes == DEFAULT_SSE_MAX_LINE_BYTES
     assert sse_limits.max_event_bytes == DEFAULT_SSE_MAX_EVENT_BYTES
+
+
+@override_settings(
+    MICBOARD_HTTP_MAX_RETRY_DELAY_SECONDS="not-a-number",
+    MICBOARD_HTTP_MAX_RESPONSE_BYTES=["not", "a", "number"],
+)
+def test_unparseable_network_settings_fall_back_to_package_defaults() -> None:
+    """A value that cannot be read as a number (ValueError or TypeError) uses the default."""
+    limits = HTTPClientLimits.from_settings()
+
+    assert limits.max_retry_delay_seconds == DEFAULT_HTTP_MAX_RETRY_DELAY_SECONDS
+    assert limits.max_response_bytes == DEFAULT_HTTP_MAX_RESPONSE_BYTES

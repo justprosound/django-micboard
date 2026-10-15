@@ -148,6 +148,7 @@ class DeviceSnapshotBroadcastService:
 
     @classmethod
     def _read_cursor(cls, manufacturer_id: int, *, namespace: str) -> DeviceBroadcastCursor:
+        """Return the cached broadcast cursor for a manufacturer, or a fresh cursor if unreadable."""
         try:
             value = cache.get(cls._cursor_key(manufacturer_id, namespace=namespace))
             if value is None:
