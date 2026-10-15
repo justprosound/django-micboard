@@ -7,6 +7,9 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+    # The default activity types plus `ready_for_review`, so marking a draft ready runs the
+    # jobs that drafts skip.
+    types: [opened, synchronize, reopened, ready_for_review]
   # The test matrix installs Django at `~=X.0`, so it resolves the newest patch release
   # rather than a pinned one. A weekly run is the only thing that catches an upstream
   # Django patch breaking this library between merges.
@@ -17,14 +20,28 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes the older run. Every other run (`main`, `develop`,
+# the schedule, dispatches) gets a group of its own, so none is cancelled or replaced while it
+# waits: a shared group keeps only one pending run, and `queue: max` cannot be combined with
+# cancelling pull-request runs. The Pages deployment serialises on its own job-level group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Job gates:
+# - The weekly schedule runs only in this repository, not in forks that enable Actions.
+# - Draft pull requests skip the test matrix, CodeQL, the documentation build, and the demo
+#   image. `CI required` fails on a draft so a skipped job is never read as a pass; marking
+#   the pull request ready for review starts the full run.
+# Timeouts come from run history: the slowest of the last 40 successful runs of any job here
+# took 2.5 minutes, so 10 minutes stops a hung job early without cutting off a slow runner.
 
 jobs:
   lint:
+    if: github.event_name != 'schedule' || github.repository == 'justprosound/django-micboard'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
@@ -49,8 +66,9 @@ jobs:
           --check --dry-run --settings=tests.settings
 
   package:
+    if: github.event_name != 'schedule' || github.repository == 'justprosound/django-micboard'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
@@ -74,8 +92,9 @@ jobs:
 
   test:
     needs: lint
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -161,8 +180,9 @@ jobs:
 
 
   security:
+    if: github.event_name != 'schedule' || github.repository == 'justprosound/django-micboard'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
@@ -182,6 +202,7 @@ jobs:
         run: uv run --locked --only-group security bandit -r micboard -ll
 
   fuzz:
+    if: github.event_name != 'schedule' || github.repository == 'justprosound/django-micboard'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -210,8 +231,11 @@ jobs:
           if-no-files-found: ignore
 
   codeql:
+    if: >-
+      github.event.pull_request.draft != true
+      && (github.event_name != 'schedule' || github.repository == 'justprosound/django-micboard')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: read
       security-events: write
@@ -253,8 +277,11 @@ jobs:
     name: Build Documentation
     # Documentation validation shares CI concurrency so a newer push cancels
     # every check for the superseded commit together.
+    if: >-
+      github.event.pull_request.draft != true
+      && (github.event_name != 'schedule' || github.repository == 'justprosound/django-micboard')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       # Full history is required so the site can show a per-page "last updated"
       # date sourced from git.
@@ -325,8 +352,11 @@ jobs:
 
   demo-image:
     name: Build Demo Image
+    if: >-
+      github.event.pull_request.draft != true
+      && (github.event_name != 'schedule' || github.repository == 'justprosound/django-micboard')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336  # 17
@@ -419,8 +449,11 @@ jobs:
   scorecard:
     name: Scorecard supply-chain security
     # Scorecard grades a repository, not a change: on a pull request it would score the
-    # merge ref and upload SARIF for a branch nobody ships.
-    if: github.event.repository.default_branch == github.ref_name
+    # merge ref and upload SARIF for a branch nobody ships. A fork cannot publish results
+    # for this repository, so it never runs there.
+    if: >-
+      github.event.repository.default_branch == github.ref_name
+      && github.repository == 'justprosound/django-micboard'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -454,12 +487,13 @@ jobs:
 
   required:
     name: CI required
-    if: ${{ always() }}
+    if: ${{ always() && (github.event_name != 'schedule' || github.repository == 'justprosound/django-micboard') }}
     needs:
       - lint
       - package
       - test
       - security
+      - fuzz
       - codeql
       - build-docs
       - demo-image
@@ -471,8 +505,14 @@ jobs:
     steps:
       - name: Verify required jobs
         env:
+          IS_DRAFT: ${{ github.event.pull_request.draft == true }}
           REQUIRED_JOB_RESULTS: ${{ toJSON(needs) }}
         run: |
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "::error title=Draft pull request::Drafts skip the test matrix, CodeQL, the documentation build and the demo image. Mark the pull request ready for review to run them."
+            exit 1
+          fi
+
           if jq -e 'to_entries | all(.value.result == "success" or (.key == "dependency-review" and .value.result == "skipped") or (.key == "scorecard" and .value.result == "skipped"))' <<<"$REQUIRED_JOB_RESULTS" > /dev/null; then
             echo "All required CI jobs succeeded."
             exit 0
