@@ -24,6 +24,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - `.clusterfuzzlite/`. No workflow ever ran it, and its uv 0.5.10 install was a version Renovate
   could not see. The fuzzer it would have built now runs as a CI job instead.
 
+### Fixed
+
+- The documentation build resolves `postcss-selector-parser` 7.1.6 through an npm override,
+  clearing GHSA advisory "Quadratic complexity in flat selector parsing" (Dependabot alert 39).
+  `@expressive-code/core` still requires `postcss-nested@^6`, which pins the vulnerable 6.x line.
+  Remove the override once it moves to `postcss-nested@^7`.
+
 ## [2026.10.15.0] - 2026-10-15
 
 ### Changed
