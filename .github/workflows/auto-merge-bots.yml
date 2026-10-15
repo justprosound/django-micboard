@@ -13,6 +13,12 @@ permissions:
   contents: write
   pull-requests: write
 
+# Enabling auto-merge is idempotent, so a newer event for the same pull request supersedes
+# an older run that has not finished.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   enable-automerge:
     if: >-

@@ -21,6 +21,20 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Changed
 
+- Draft pull requests run lint, packaging, the security scan, the fuzzer and dependency review,
+  and skip the test matrix, CodeQL, the documentation build and the demo image. `CI required`
+  fails on a draft rather than reading the skipped jobs as a pass, and marking the pull request
+  ready for review (`ready_for_review`) starts the full run.
+- A newer push to a pull request still cancels the older CI run. Runs on `main`, `develop`, the
+  schedule and dispatched release branches each get their own concurrency group, so no run is
+  cancelled or replaced while it waits and every merged commit keeps a complete result.
+  Previously a push to `main` cancelled the run of the commit before it. Auto-merge runs for
+  the same bot pull request share a concurrency group.
+- The weekly CI schedule and Scorecard run only in `justprosound/django-micboard`, not in forks.
+- CI job timeouts drop to 10 minutes from 15–30. The slowest of the last 40 successful runs of
+  any CI job took 2.5 minutes.
+- A crash found by the `fuzz` job now fails `CI required`, so it blocks the merge. Before, the
+  job's result was not part of the aggregate check.
 - **Breaking:** visibility now follows one documented rule, the tenant boundary intersected with
   monitoring reach, for every model. See "Who sees what" in `docs/multitenancy.md`. Behaviour
   changes for existing deployments:

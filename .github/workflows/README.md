@@ -5,7 +5,7 @@ responsibility; shared policy is enforced by branch protection rules and code re
 
 | Workflow | Responsibility | Trigger |
 | --- | --- | --- |
-| `ci.yml` | Lint, type check, migration drift, wheel packaging, Python/Django compatibility, 95% coverage, documentation build and deploy, demo image deployment path, dependency review, locked-dependency audit, Bandit, CodeQL, OpenSSF Scorecard, and one stable aggregate check | Push or pull request on `main`/`develop`, weekly schedule, or manual dispatch |
+| `ci.yml` | Lint, type check, migration drift, wheel packaging, Python/Django compatibility, 95% coverage, documentation build and deploy, demo image deployment path, dependency review, locked-dependency audit, Bandit, a 60-second fuzz run, CodeQL, OpenSSF Scorecard, and one stable aggregate check | Push or pull request on `main`/`develop` (draft pull requests run only the fast jobs), weekly schedule in this repository only, or manual dispatch |
 | `prepare-release.yml` | Compute the next CalVer, open the metadata pull request, observe its required runs, merge it, and dispatch publication | Push to `main` touching package or release metadata, or manual dispatch |
 | `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from `prepare-release.yml` on `main` |
 | `auto-merge-bots.yml` | Enable GitHub native auto-merge for Renovate and Dependabot pull requests so they land once CI passes | Pull-request activity from either bot |
