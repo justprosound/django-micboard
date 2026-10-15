@@ -204,6 +204,25 @@ def _groups_reaching(buildings: QuerySet[Any]) -> Q:
     )
 
 
+def _groups_contained_in(buildings: QuerySet[Any], *, using: str) -> Q:
+    """Return the active groups that reach ``buildings`` and no building outside them.
+
+    A group spanning tenants carries the other tenant's locations, channels, and members, so
+    seeing one side of it must not be enough to list it.
+    """
+    from micboard.models.locations.structure import Building
+    from micboard.models.monitoring.group import MonitoringGroup
+
+    inside = buildings.values("pk")
+    outside = Building._base_manager.db_manager(using).exclude(pk__in=inside).values("pk")
+    spanning = (
+        MonitoringGroup._base_manager.db_manager(using)
+        .filter(_groups_reaching(outside))
+        .values("pk")
+    )
+    return Q(is_active=True) & _groups_reaching(inside) & ~Q(pk__in=spanning)
+
+
 def _monitoring_group_filter(
     *,
     user: Any,
@@ -215,10 +234,13 @@ def _monitoring_group_filter(
 
     Groups are not owned by a tenant; they reach into tenants through their locations,
     channels, and assignments. Unrestricted users see every active group. Everyone else sees
-    the active groups they belong to, plus, in MSP mode, every active group reaching a tenant
-    they administer. Where a tenant or site boundary applies, a group is visible only while it
-    reaches a building the user can see. With ``monitoring_reach=False`` membership does not
-    narrow the result: every active group inside the boundary is visible.
+    the active groups they belong to, and where a tenant or site boundary applies, only while
+    the group reaches a building the user can see.
+
+    Membership is waived for groups that stay entirely inside buildings the user may see
+    without it: in MSP mode, the organizations and campuses the user administers; with
+    ``monitoring_reach=False``, the whole tenant and site boundary. A group that also reaches
+    outside those buildings stays visible to its members only.
 
     A superuser without cross-organization view stays membership-scoped here even though it
     sees its whole tenant elsewhere: the monitoring-group API must not list a tenant's groups
@@ -227,13 +249,19 @@ def _monitoring_group_filter(
     from micboard.models.locations.structure import Building
 
     active = Q(is_active=True)
-    if principal.unrestricted or not monitoring_reach:
+    if principal.unrestricted:
+        if principal.mode == "single":
+            return active
+        visible_buildings = visible_to(Building, user=user, using=using).values("pk")
+        return active & _groups_reaching(visible_buildings)
+
+    if not monitoring_reach:
         if principal.mode == "single":
             return active
         boundary = visibility_filter(Building, user=user, using=using, monitoring_reach=False)
         if boundary is None:
             return None
-        return active & _groups_reaching(_apply(Building, boundary, using).values("pk"))
+        return _groups_contained_in(_apply(Building, boundary, using), using=using)
 
     member = active & Q(users__pk=user.pk)
     if principal.mode == "single":
@@ -245,8 +273,8 @@ def _monitoring_group_filter(
     tenant = membership_filter(Building, administered)
     site = _site_filter(Building, principal)
     if tenant is not None and site is not None:
-        administered_buildings = _apply(Building, tenant & site, using).values("pk")
-        condition |= active & _groups_reaching(administered_buildings)
+        administered_buildings = _apply(Building, tenant & site, using)
+        condition |= _groups_contained_in(administered_buildings, using=using)
     return condition
 
 

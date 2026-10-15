@@ -763,7 +763,7 @@ Anonymous and inactive accounts see nothing.
 
 ### `visibility_filter(model: type[models.Model], user: Any, using: str | None = None, monitoring_reach: bool = True) -> Q | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L253)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L281)
 
 Return the filter selecting the rows of ``model`` that ``user`` may see.
 
@@ -772,7 +772,7 @@ membership saw its whole tenant. An empty ``Q()`` means every row; None means no
 
 ### `visible_to(model: type[models.Model], user: Any, using: str | None = None) -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L304)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L332)
 
 Return the rows of ``model`` that ``user`` may see on operator surfaces.
 
@@ -783,7 +783,7 @@ on the database being asked about, not whichever database the manager defaults t
 
 ### `restrict_to_tenant_boundary(queryset: QuerySet[Any], user: Any) -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L321)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L349)
 
 Narrow ``queryset`` to rows inside the user's tenant and site boundary.
 
@@ -793,7 +793,7 @@ back unchanged when no boundary applies.
 
 ### `reaches(group: Any, obj: models.Model) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L338)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L366)
 
 Return whether one monitoring group covers ``obj`` through the declared reach paths.
 

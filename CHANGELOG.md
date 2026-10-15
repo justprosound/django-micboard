@@ -54,9 +54,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - The monitoring-group API returned every group, including inactive ones, to any superuser. That
   included a superuser limited to its own organization by `MICBOARD_ALLOW_CROSS_ORG_VIEW=False`.
   It now returns what `visible_to(MonitoringGroup)` allows: active groups the user belongs to,
-  plus every active group reaching a tenant the user administers in MSP mode, or every active
-  group for an unrestricted user. The Django admin lists every active group inside the user's
-  tenant boundary, whether or not the user belongs to it; in MSP mode it previously listed none.
+  plus, in MSP mode, every active group that stays inside a tenant the user administers, or
+  every active group for an unrestricted user. The Django admin lists every active group that
+  stays inside the user's tenant boundary, whether or not the user belongs to it; in MSP mode it
+  previously listed none. A group that also reaches another tenant is listed only to its
+  members.
 - A unit reached through a monitoring group's RF channel was visible while that channel was not.
   Channels now honour channel membership.
 - The dashboard listed chassis in buildings that answered with a 404, because chassis and

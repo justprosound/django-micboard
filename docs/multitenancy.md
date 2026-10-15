@@ -206,11 +206,13 @@ never widen a tenant: a group that covers another organization's location grants
 Anonymous and inactive accounts see nothing, and in MSP mode so does a user with no active
 membership.
 
-Monitoring groups themselves have no tenant. A user sees the active groups they belong to and,
-in MSP mode, every active group that reaches a building in an organization or campus they
-administer. Either way a group is listed only while it reaches a building the user can see. A
-superuser without cross-organization view sees only the groups it belongs to: it views a
-tenant, and listing that tenant's groups to it would be a leak, not a convenience.
+Monitoring groups themselves have no tenant. A user sees the active groups they belong to,
+while the group reaches a building the user can see. In MSP mode an `admin` or `owner` also
+sees every active group that stays entirely inside the organizations and campuses they
+administer, and the Django admin lists every active group that stays inside the user's tenant
+boundary. A group that reaches into another tenant is listed only to its members, because
+listing it would expose that tenant's locations, channels, and members. A superuser without
+cross-organization view sees only the groups it belongs to.
 
 A model with no reviewed tenant ownership path is invisible to restricted users in MSP mode. A
 model that monitoring groups cannot reach (a manufacturer, for example) is narrowed only by

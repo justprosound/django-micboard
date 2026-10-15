@@ -208,22 +208,30 @@ def test_restricted_superuser_sees_only_monitoring_groups_it_belongs_to(
     assert _pks(MonitoringGroup, inventory.restricted_superuser) == set()
 
 
-def _groups_outside_home(inventory: Inventory) -> None:
-    """Add a group reaching only the foreign tenant and a retired group reaching home."""
+def _home_only_group(inventory: Inventory) -> MonitoringGroup:
+    """Add a group reaching only home, plus a foreign-only group and a retired home group.
+
+    The fixture's own group also reaches the foreign tenant, so it must stay hidden from
+    anyone who sees home only through administration or the boundary: listing it would
+    expose the foreign tenant's locations, channels, and members.
+    """
+    home_only = MonitoringGroup.objects.create(name="Home crew")
+    home_only.locations.add(inventory.grouped_location)
     foreign_wing = Location.objects.create(building=inventory.foreign_building, name="Wing")
     MonitoringGroup.objects.create(name="Foreign crew").locations.add(foreign_wing)
     retired = MonitoringGroup.objects.create(name="Retired", is_active=False)
     retired.locations.add(inventory.grouped_location)
+    return home_only
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
 def test_msp_administrator_sees_active_groups_reaching_its_tenant_without_membership(
     inventory: Inventory,
 ) -> None:
-    """Administrators see their whole tenant, so group membership does not narrow them."""
-    _groups_outside_home(inventory)
+    """Administrators see the groups that stay inside their tenant without joining them."""
+    home_only = _home_only_group(inventory)
 
-    assert _pks(MonitoringGroup, inventory.admin) == {inventory.group.pk}
+    assert _pks(MonitoringGroup, inventory.admin) == {home_only.pk}
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
@@ -231,13 +239,26 @@ def test_tenant_boundary_lists_groups_reaching_the_tenant_without_membership(
     inventory: Inventory,
 ) -> None:
     """The admin applies the tenant boundary alone, so staff see groups they are not in."""
-    _groups_outside_home(inventory)
+    home_only = _home_only_group(inventory)
 
     boundary = restrict_to_tenant_boundary(
         MonitoringGroup.objects.all(), user=inventory.restricted_superuser
     )
 
-    assert set(boundary.values_list("pk", flat=True)) == {inventory.group.pk}
+    assert set(boundary.values_list("pk", flat=True)) == {home_only.pk}
+
+
+@override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
+def test_a_group_spanning_tenants_stays_visible_to_its_members_only(
+    inventory: Inventory,
+) -> None:
+    """A member sees a group reaching another tenant; administering one side does not."""
+    inventory.group.users.add(inventory.admin)
+
+    assert inventory.group.pk in _pks(MonitoringGroup, inventory.viewer)
+    assert inventory.group.pk in _pks(MonitoringGroup, inventory.admin)
+    inventory.group.users.remove(inventory.admin)
+    assert inventory.group.pk not in _pks(MonitoringGroup, inventory.admin)
 
 
 @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=True)
