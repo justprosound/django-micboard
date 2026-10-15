@@ -66,7 +66,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - The tenant middleware accepted a session organization for any superuser, and a profile's
   default organization without checking membership. It also trusted a campus id stored in the
   session, and fell back to memberships whose organization or campus was inactive. Each
-  selection is now honoured only while an active membership, or unrestricted access, covers it.
+  selection is now honoured only while an active membership, or unrestricted access, covers it,
+  and a session campus only while it belongs to the current organization.
 - Assignment changes accepted an operator membership whose campus was inactive.
 
 ## [2026.10.15.1] - 2026-10-15

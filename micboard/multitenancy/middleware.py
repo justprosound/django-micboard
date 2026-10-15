@@ -136,10 +136,11 @@ def get_current_organization(request: HttpRequest) -> Organization | None:
 def get_current_campus(request: HttpRequest) -> int | None:
     """Detect current campus for request (if any).
 
-    A campus selected in the session is honoured only while the user may still enter it:
-    through a membership limited to that campus, an organization-wide membership in the
-    campus's organization, or unrestricted access. Otherwise the campus a membership in the
-    current organization is limited to applies.
+    A campus selected in the session is honoured only while it belongs to the current
+    organization, when one is selected, and the user may still enter it: through a membership
+    limited to that campus, an organization-wide membership in the campus's organization, or
+    unrestricted access. Otherwise the campus a membership in the current organization is
+    limited to applies.
 
     Args:
         request: HTTP request
@@ -153,25 +154,29 @@ def get_current_campus(request: HttpRequest) -> int | None:
     from micboard.multitenancy.models import Campus
 
     principal = _principal(request)
+    org = getattr(request, "organization", None)
     if hasattr(request, "session"):
         campus_id = request.session.get("current_campus_id")
         if campus_id:
             campus = Campus._default_manager.filter(pk=campus_id, is_active=True).first()
-            if campus is not None and (
-                principal.unrestricted
-                or any(
-                    membership.covers(
-                        organization_id=campus.organization_id,
-                        campus_id=campus.pk,
+            if (
+                campus is not None
+                and (not org or campus.organization_id == org.pk)
+                and (
+                    principal.unrestricted
+                    or any(
+                        membership.covers(
+                            organization_id=campus.organization_id,
+                            campus_id=campus.pk,
+                        )
+                        for membership in principal.memberships
                     )
-                    for membership in principal.memberships
                 )
             ):
                 return int(campus.pk)
             with suppress(Exception):
                 del request.session["current_campus_id"]
 
-    org = getattr(request, "organization", None)
     if org:
         for membership in principal.memberships:
             if membership.organization_id == org.pk and membership.campus_id is not None:

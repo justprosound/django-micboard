@@ -127,6 +127,23 @@ def test_session_campus_is_honoured_only_while_a_membership_covers_it(
     assert "current_campus_id" not in request.session
 
 
+def test_session_campus_must_belong_to_the_current_organization(
+    tenants: SimpleNamespace,
+) -> None:
+    """Belonging to both organizations does not pair one's campus with the other's scope."""
+    user = _member("member", tenants.home)
+    OrganizationMembership.objects.create(user=user, organization=tenants.foreign)
+
+    request = _request(user, current_campus_id=tenants.foreign_campus.pk)
+    request.organization = tenants.home
+    assert get_current_campus(request) is None
+    assert "current_campus_id" not in request.session
+
+    request = _request(user, current_campus_id=tenants.home_campus.pk)
+    request.organization = tenants.home
+    assert get_current_campus(request) == tenants.home_campus.pk
+
+
 def test_campus_limited_membership_supplies_the_current_campus(tenants: SimpleNamespace) -> None:
     user = _member("member", tenants.home, campus=tenants.home_campus)
     request = _request(user)
