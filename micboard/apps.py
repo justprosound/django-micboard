@@ -125,8 +125,8 @@ class MicboardConfig(AppConfig):
             missing_processors = list(dict.fromkeys(missing_processors))
             logger.info(
                 "Micboard recommends adding the following context processors to your "
-                "TEMPLATES[0]['OPTIONS']['context_processors']:\n"
-                + "\n".join(f"    '{p}'," for p in missing_processors)
+                "TEMPLATES[0]['OPTIONS']['context_processors']:\n%s",
+                "\n".join(f"    '{p}'," for p in missing_processors),
             )
 
     def _recommend_security_middleware(self) -> None:
@@ -149,7 +149,8 @@ class MicboardConfig(AppConfig):
         if missing:
             logger.info(
                 "Micboard recommends adding the following middleware to your project "
-                "settings.MIDDLEWARE:\n" + "\n".join(f"    {m}" for m in missing)
+                "settings.MIDDLEWARE:\n%s",
+                "\n".join(f"    {m}" for m in missing),
             )
 
     def _validate_configuration(self, config: dict[str, Any]) -> None:

@@ -76,7 +76,9 @@ class EmailService:
             sent = email.send()
             if sent:
                 logger.info(
-                    f"Alert notification sent to {len(recipients)} recipients for alert {alert.id}"
+                    "Alert notification sent to %d recipients for alert %s",
+                    len(recipients),
+                    alert.id,
                 )
                 return True
             else:
