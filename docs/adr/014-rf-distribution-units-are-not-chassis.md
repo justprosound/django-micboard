@@ -34,6 +34,9 @@ attenuation, and supply and thermal state.
    firmware, temperature, supply health, and a list of normalized alarm codes. On each port: RF
    level in dBm, gain in dB (negative for attenuation), and an alarm. A field a vendor does not
    report stays null.
+7. **Amended 2026-10-16 ([#374](https://github.com/justprosound/django-micboard/issues/374)):**
+   readings are stored as the vendor's raw value plus its unit. dBm or dB are derived only where
+   the plugin documents the conversion, and are marked as derived (ADR-019).
 
 ## Consequences
 

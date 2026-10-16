@@ -69,3 +69,63 @@ _Avoid_: Cassette, snapshot, recording (for the committed file)
 **Hand-written Fixture**:
 Test data written from vendor documentation rather than recorded from a device.
 _Avoid_: Mock, fake (as the general term)
+
+### Deployment and tenancy
+
+**Cell**:
+One micboard deployment pinned to a jurisdiction, with its own database and storage.
+_Avoid_: Region (reserved for the tenancy level), instance
+
+**Portal**:
+A Django Site: a hostname with its own branding through which users reach micboard.
+_Avoid_: Site (ambiguous), tenant
+
+**Provider Organization**:
+An organization that manages other organizations as an MSP.
+_Avoid_: Reseller, parent tenant
+
+**Customer Organization**:
+An organization whose equipment is monitored, optionally under a provider.
+_Avoid_: Client, sub-tenant
+
+**Region**:
+An optional, nestable grouping of campuses within a customer organization.
+_Avoid_: Zone, area
+
+**Campus**:
+A physical site with its own buildings and networks; Edge Listeners attach to a campus.
+_Avoid_: Site, venue (as the general term)
+
+**Edge Listener**:
+A micboard process deployed on a campus that observes isolated RF and media segments and sends
+normalized state to central over one outbound link.
+_Avoid_: Agent, satellite, probe, collector (as the general term)
+
+**Segment Collector**:
+The part of an Edge Listener that observes exactly one isolated network segment from its own
+network namespace.
+_Avoid_: Sniffer, bridge
+
+### Events and performers
+
+**Performer**:
+A person who wears or uses wireless equipment during an event.
+_Avoid_: Talent, user
+
+**Event**:
+A scheduled occasion at a location, with a time window and a crew, during which assignments
+apply.
+_Avoid_: Show, gig, booking
+
+**Assignment**:
+The link between a performer and a wireless unit for a half-open time window.
+_Avoid_: Mapping, allocation
+
+**Handoff**:
+Moving a wireless unit from one performer to another by closing one assignment window and opening
+the next.
+_Avoid_: Swap (reserved for replacing a pack), reassignment
+
+**Meter Freshness**:
+How recently a channel produced a meter sample, tracked separately from connection liveness.
+_Avoid_: Online, connected

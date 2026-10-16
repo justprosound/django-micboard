@@ -29,7 +29,7 @@ The current behaviour has gaps that get worse as vendors are added:
 2. **Spread polls.** Each target's poll time gets a random offset, so targets don't all poll at
    the same moment.
 3. **An authentication failure stops polling** until an operator saves new credentials.
-4. **Online state** has one definition: a target is online if it was seen within a timeout
+4. **Online state** has one definition (refined 2026-10-16, [#374](https://github.com/justprosound/django-micboard/issues/374): **liveness**, meaning any traffic, is separate from **meter freshness**, meaning the age of the last meter sample per channel; a live connection with stale meters is its own state): a target is online if it was seen within a timeout
    derived from its `PluginTraits`, and any traffic counts as seen. Only online/offline
    transitions are logged and broadcast.
 5. **Unchanged state is not re-broadcast.** If a target's new DTO equals the previous one,

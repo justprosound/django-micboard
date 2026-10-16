@@ -18,6 +18,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - ADR-016: connection health, backoff, and redaction borrowed from open-source integration
   hubs: DB-backed backoff with jitter, a stop on authentication failure, one definition of online,
   write-only credentials, status categories, and an allowlist scrubber for diagnostics.
+- ADR-017 to ADR-024 record the country-scale design: Edge Listeners and their link to central,
+  edge network isolation, the telemetry pipeline and live fan-out, the alerting model, tenancy
+  and role bindings, per-organization SSO, performers and time-bounded assignments, and public
+  contract versioning. ADR-014 and ADR-016 are amended, and `CONTEXT.md` gains deployment,
+  tenancy, Event, and performer terms.
 
 ## [2026.10.15.2] - 2026-10-15
 
