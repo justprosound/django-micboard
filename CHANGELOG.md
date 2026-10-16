@@ -15,6 +15,9 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 - ADR-014: RF Distribution Units are their own model, not a fourth chassis RF role.
 - ADR-015: plugins declare capabilities as protocols and traits, and reach a vendor either
   directly or through a Device Manager. It supersedes ADR-004's Shure-only polling gate.
+- ADR-016: connection health, backoff, and redaction borrowed from open-source integration
+  hubs: DB-backed backoff with jitter, a stop on authentication failure, one definition of online,
+  write-only credentials, status categories, and an allowlist scrubber for diagnostics.
 
 ## [2026.10.15.2] - 2026-10-15
 
