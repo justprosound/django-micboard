@@ -117,6 +117,10 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "prd" } }],
         },
         {
+          label: "Research",
+          items: [{ autogenerate: { directory: "research" } }],
+        },
+        {
           label: "SRED 2026",
           items: [{ autogenerate: { directory: "sred/2026" } }],
         },
