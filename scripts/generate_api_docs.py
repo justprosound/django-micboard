@@ -87,6 +87,7 @@ PAGES: tuple[Page, ...] = (
             "micboard.services.shared.tenant_principal",
             "micboard.services.shared.base_dto",
             "micboard.services.common.base.plugin",
+            "micboard.services.common.base.device_normalizer",
             "micboard.services.common.base.client",
             "micboard.services.common.base.resilience",
             "micboard.services.common.base.rate_limiter",

@@ -14,7 +14,7 @@ from django.core.management import call_command
 
 import pytest
 
-from micboard.services.core.hardware import NormalizedHardware
+from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.manufacturer.sync import ManufacturerSyncService
 from micboard.services.sync.polling_dtos import ManufacturerSyncResult
 from tests.factories.discovery import ManufacturerFactory
@@ -94,7 +94,7 @@ def test_a_poll_records_its_created_count_in_the_audit_row(
     assert row.details["created_count"] == 2
 
 
-def _payload(**overrides: object) -> NormalizedHardware:
+def _payload(**overrides: object) -> NormalizedChassis:
     """Build one normalized vendor payload."""
     values: dict[str, object] = {
         "api_device_id": "device-1",
@@ -103,7 +103,7 @@ def _payload(**overrides: object) -> NormalizedHardware:
         "mac_address": "00:11:22:33:44:55",
         "name": "Receiver",
         "model": "RX-1",
-        "device_type": "receiver",
+        "role": "receiver",
         "firmware_version": "1.0",
         "hosted_firmware_version": "1.1",
         "description": "Rack receiver",
@@ -113,7 +113,7 @@ def _payload(**overrides: object) -> NormalizedHardware:
         "interface_id": "eth0",
     }
     values.update(overrides)
-    return NormalizedHardware(**values)  # type: ignore[arg-type]
+    return NormalizedChassis(**values)  # type: ignore[arg-type]
 
 
 def test_a_failed_poll_is_reported_as_an_error_not_a_success(
