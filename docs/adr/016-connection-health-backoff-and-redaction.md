@@ -49,6 +49,12 @@ The current behaviour has gaps that get worse as vendors are added:
     `todo` and captured fixtures exist, and the tier test enforces both.
 11. **An operator's "refresh now" is debounced** per target, so repeated requests queue one
     poll.
+12. **Write exceptions are named, never inferred.** The read-only policy is default-deny. A plugin
+    may list an exact write it needs, with a test that the guard admits that write and nothing
+    near it. The only exception so far is Shure's `SET <channel> METER_RATE <digits>`, which
+    turns on metering. A session that sent it always sends `METER_RATE 0` on clean shutdown,
+    and QLX-D never gets it, because its firmware locks up if a metering client disappears.
+    A value being null never makes a message a read: Sennheiser triggers `identify` with one.
 
 ## Consequences
 
