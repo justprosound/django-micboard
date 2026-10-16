@@ -7,6 +7,13 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `CONTEXT.md`, the project glossary, starting with the hardware vocabulary: wireless chassis,
+  wireless unit, and the new RF Distribution Unit (combiner or splitter) with its distribution
+  ports.
+- ADR-014: RF Distribution Units are their own model, not a fourth chassis RF role.
+
 ## [2026.10.15.2] - 2026-10-15
 
 ### Added
