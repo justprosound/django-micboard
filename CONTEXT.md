@@ -43,6 +43,11 @@ _Avoid_: Active (an active splitter can still be unmanaged)
 
 ### Vendor support
 
+**Device Manager**:
+Vendor software or hardware that sits between micboard and a vendor's devices and serves their
+state on their behalf, such as Shure System API or Wisycom Manager.
+_Avoid_: API server, gateway, controller
+
 **Verified Vendor**:
 A vendor whose integration is tested against captured fixtures recorded from real hardware.
 _Avoid_: Supported, certified

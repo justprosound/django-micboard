@@ -13,6 +13,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   wireless unit, and the new RF Distribution Unit (combiner or splitter) with its distribution
   ports, plus the verified and unverified vendor tiers and the two kinds of fixture behind them.
 - ADR-014: RF Distribution Units are their own model, not a fourth chassis RF role.
+- ADR-015: plugins declare capabilities as protocols and traits, and reach a vendor either
+  directly or through a Device Manager. It supersedes ADR-004's Shure-only polling gate.
 
 ## [2026.10.15.2] - 2026-10-15
 
