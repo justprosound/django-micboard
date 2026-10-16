@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import Mock
 
 import pytest
@@ -23,7 +23,7 @@ def _metric(*, success: bool = True) -> ServiceMetric:
         service_name="Inventory",
         method_name="refresh",
         duration_ms=10.0,
-        timestamp=datetime(2026, 1, 1),
+        timestamp=datetime(2026, 1, 1, tzinfo=UTC),
         success=success,
         error_message="" if success else "failed",
         metadata={"site": 1},
@@ -62,7 +62,7 @@ def test_record_metric_appends_trims_and_survives_cache_failure(monkeypatch, cap
     stored = cache_set.call_args.args[1]
     assert len(stored) == 100
     assert stored[-1]["duration_ms"] == 10.0
-    assert stored[-1]["timestamp"] == "2026-01-01T00:00:00"
+    assert stored[-1]["timestamp"] == "2026-01-01T00:00:00+00:00"
 
     cache_get.side_effect = RuntimeError("cache down")
     with caplog.at_level(logging.ERROR):

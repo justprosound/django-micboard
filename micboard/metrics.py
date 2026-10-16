@@ -10,7 +10,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import wraps
 from typing import Any, cast
 
@@ -174,7 +174,7 @@ def track_service_metrics(func: Callable) -> Callable:
                 service_name=service_name,
                 method_name=method_name,
                 duration_ms=duration_ms,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 success=success,
                 error_message=error_message,
             )
@@ -184,7 +184,7 @@ def track_service_metrics(func: Callable) -> Callable:
             # Log slow operations
             if duration_ms > 1000:  # > 1 second
                 logger.warning(
-                    f"SLOW SERVICE CALL: {service_name}.{method_name} took {duration_ms:.2f}ms"
+                    "SLOW SERVICE CALL: %s.%s took %.2fms", service_name, method_name, duration_ms
                 )
 
     return wrapper

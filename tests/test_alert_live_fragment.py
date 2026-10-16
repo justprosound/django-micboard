@@ -114,7 +114,7 @@ class AlertLiveFragmentTests(TestCase):
             response = self.client.get(
                 reverse("micboard:alert_rows"),
                 {"status": "all", "type": "signal_loss", "page": 1},
-                HTTP_HX_REQUEST="true",
+                headers={"hx-request": "true"},
             )
 
         self.assertEqual(response.status_code, 200)
