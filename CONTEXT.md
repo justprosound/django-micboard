@@ -48,6 +48,11 @@ Vendor software or hardware that sits between micboard and a vendor's devices an
 state on their behalf, such as Shure System API or Wisycom Manager.
 _Avoid_: API server, gateway, controller
 
+**Inventory-only**:
+A manufacturer with no integration, whose devices are recorded by hand and never polled; they
+appear in inventory and RF topology but are shown as not monitored.
+_Avoid_: Unsupported, manual vendor, passive vendor
+
 **Verified Vendor**:
 A vendor whose integration is tested against captured fixtures recorded from real hardware.
 _Avoid_: Supported, certified
