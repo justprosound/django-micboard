@@ -129,3 +129,42 @@ _Avoid_: Swap (reserved for replacing a pack), reassignment
 **Meter Freshness**:
 How recently a channel produced a meter sample, tracked separately from connection liveness.
 _Avoid_: Online, connected
+
+### Media networks
+
+**Media Endpoint**:
+A device on a Dante, AES67, or ST 2110 network that sends or receives media flows.
+_Avoid_: Node (ambiguous with NMOS nodes), device (as the general term)
+
+**Media Flow**:
+One announced stream of audio or video from a sender, identified by its SDP or NMOS
+description.
+_Avoid_: Stream (as the general term), channel
+
+**Flow Leg**:
+One receiver's subscription to a media flow.
+_Avoid_: Route, patch
+
+**PTP Domain**:
+A set of devices sharing one Precision Time Protocol clock hierarchy.
+_Avoid_: Clock group, sync domain
+
+**Grandmaster**:
+The clock a PTP domain currently follows as its time reference.
+_Avoid_: Master clock, leader
+
+**Dante Domain**:
+A Dante network area defined by Dante's own management, as distinct from a PTP domain.
+_Avoid_: Dante network (as the general term)
+
+**Flow Probe**:
+An opt-in observer that joins an audio flow to measure packet loss, never a video flow.
+_Avoid_: Sniffer, tap
+
+**Probe Clock**:
+An opt-in PTP follower run by micboard to measure clock offset.
+_Avoid_: Slave clock, reference clock
+
+**Expected Flow**:
+A media flow an operator declares must be present, whose absence raises an alert.
+_Avoid_: Required stream

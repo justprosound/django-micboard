@@ -23,6 +23,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
   and role bindings, per-organization SSO, performers and time-bounded assignments, and public
   contract versioning. ADR-014 and ADR-016 are amended, and `CONTEXT.md` gains deployment,
   tenancy, Event, and performer terms.
+- ADR-025: passive observation of Dante, AES67, and ST 2110 media networks from inside isolated
+  segments, with the media terms added to `CONTEXT.md`.
 
 ## [2026.10.15.2] - 2026-10-15
 
