@@ -40,3 +40,22 @@ _Avoid_: Channel (reserved for RF channels on a chassis)
 An RF Distribution Unit that exposes a network interface micboard can read; an unmanaged unit
 is tracked for inventory and topology only.
 _Avoid_: Active (an active splitter can still be unmanaged)
+
+### Vendor support
+
+**Verified Vendor**:
+A vendor whose integration is tested against captured fixtures recorded from real hardware.
+_Avoid_: Supported, certified
+
+**Unverified Vendor**:
+A vendor whose integration is built from published documentation and hand-written fixtures,
+with no capture from real hardware yet.
+_Avoid_: Experimental, beta
+
+**Captured Fixture**:
+A scrubbed recording of real device traffic for one scenario, committed as test data.
+_Avoid_: Cassette, snapshot, recording (for the committed file)
+
+**Hand-written Fixture**:
+Test data written from vendor documentation rather than recorded from a device.
+_Avoid_: Mock, fake (as the general term)
