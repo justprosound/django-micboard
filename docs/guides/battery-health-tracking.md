@@ -152,7 +152,7 @@ Type: Lithium-Ion
 | **micboard/admin/channels.py** | + battery_health_display column<br>+ battery_health_detail_display readonly field<br>+ "Battery Status" fieldset<br>+ Color-coded health indicators |
 | **micboard/migrations/0007_add_battery_health_tracking.py** | + Migration to add 5 new fields |
 
-### Transformer Changes
+### Normalizer Changes
 
 **Before** (Shure):
 ```python
@@ -163,18 +163,14 @@ extra = {
 }
 ```
 
-**After** (Shure):
+**After** (both integrations, in `VendorDeviceNormalizer`):
 ```python
-battery_health = tx_data.get("batteryHealth", "")
-battery_cycles = tx_data.get("batteryCycles")
-battery_temperature_c = tx_data.get("batteryTemperatureC")
-
-return {
-    "battery_health": battery_health,        # Now persisted!
-    "battery_cycles": battery_cycles,
-    "battery_temperature_c": battery_temperature_c,
+return NormalizedUnit(
     # ...
-}
+    battery_health=_text(_first(unit_data, "battery_health", "batteryHealth")),
+    battery_cycles=_first(unit_data, "battery_cycles", "batteryCycles"),
+    battery_temperature_c=_first(unit_data, "battery_temperature_c", "batteryTemperatureC"),
+)
 ```
 
 ## Future Enhancements

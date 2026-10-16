@@ -45,7 +45,7 @@ def _format_runtime(minutes: Any) -> str:
     """Format a battery runtime in minutes as ``HH:MM``, or empty when unusable."""
     try:
         total = int(minutes)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return ""
     if total < 0:
         return ""

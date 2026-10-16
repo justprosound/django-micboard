@@ -486,8 +486,9 @@ Build coverage at each boundary without contacting real hardware:
    to prove credentials and private handshake values are absent.
 5. **Discovery:** test invalid addresses, empty inputs, deduplication/replace semantics, remote read
    failures, and unsuccessful mutations.
-6. **Transformers:** use representative vendor fixtures plus missing/unknown/malformed payloads;
-   assert stable normalized IDs and addresses.
+6. **Normalizer:** use representative vendor fixtures plus missing/unknown/malformed payloads;
+   assert `normalize_device()` and `normalize_channels()` return stable normalized IDs and
+   addresses.
 7. **Service integration:** mock only the transport, then exercise `ManufacturerSyncService` and
    `DiscoveryService` with the DB to cover deduplication, ownership, persistence, and failure
    containment.
@@ -520,7 +521,8 @@ just docs
 - [ ] API and stream URLs require TLS with certificate verification enabled.
 - [ ] Authentication fails closed; secrets never appear in source, exceptions, or logs.
 - [ ] Device and channel response shapes are validated at the integration boundary.
-- [ ] Transformer returns stable normalized identity/address fields and performs no DB work.
+- [ ] The normalizer returns a `NormalizedChassis` with stable identity/address fields and performs
+      no DB work.
 - [ ] Discovery methods validate addresses and honor vendor merge/replace semantics.
 - [ ] REST, SSE, or WebSocket behavior follows the matching async/sync caller contract.
 - [ ] Persistence, tenant scope, deduplication, and lifecycle behavior remain in services.
