@@ -45,6 +45,46 @@ function withoutKnownFalsePositives(violations: Violations): Violations {
     .filter((violation) => violation.nodes.length > 0);
 }
 
+const searchButton = 'button[data-open-modal=""]';
+
+/** Builds the minimal violation shape the filter reads, so the cases below stay readable. */
+function violation(id: string, targets: string[]): Violations[number] {
+  return {
+    id,
+    nodes: targets.map((target) => ({ target: [target] })),
+  } as unknown as Violations[number];
+}
+
+test.describe("known false positive filter", () => {
+  /** The allowed rule on the search button is the only thing the filter may drop. */
+  test("drops the allowed rule on the search button", () => {
+    expect(
+      withoutKnownFalsePositives([violation("label-content-name-mismatch", [searchButton])]),
+    ).toEqual([]);
+  });
+
+  /** The same rule must still fail on any other element. */
+  test("keeps the allowed rule on other targets", () => {
+    const other = violation("label-content-name-mismatch", ["a.site-title"]);
+    expect(withoutKnownFalsePositives([other])).toEqual([other]);
+  });
+
+  /** Every other rule must still fail on the search button. */
+  test("keeps other rules on the search button", () => {
+    const other = violation("color-contrast", [searchButton]);
+    expect(withoutKnownFalsePositives([other])).toEqual([other]);
+  });
+
+  /** A violation that also covers other nodes keeps those nodes and still fails. */
+  test("keeps the other nodes of a mixed violation", () => {
+    expect(
+      withoutKnownFalsePositives([
+        violation("label-content-name-mismatch", [searchButton, "a.site-title"]),
+      ]),
+    ).toEqual([violation("label-content-name-mismatch", ["a.site-title"])]);
+  });
+});
+
 for (const path of pages) {
   for (const theme of ["light", "dark"] as const) {
     test(`${path} has no WCAG 2.1 AA violations in the ${theme} theme`, async ({ page }) => {
