@@ -16,6 +16,35 @@ async function waitForCodeBlockEnhancement(page: Page): Promise<void> {
   );
 }
 
+/**
+ * Starlight's header search button is named "Search" by `aria-label` and shows a `Ctrl K` shortcut
+ * hint, which it also exposes through `aria-keyshortcuts`. Since 4.14, axe counts that hint as part
+ * of the visible label and reports `label-content-name-mismatch`. Under WCAG 2.5.3 the hint is
+ * symbolic text, not the label, so Starlight declined to change the markup
+ * (https://github.com/withastro/starlight/issues/4260). This allowance covers that rule on that
+ * one button only; every other rule still runs on it.
+ */
+const knownFalsePositives = [
+  { rule: "label-content-name-mismatch", target: 'button[data-open-modal=""]' },
+];
+
+type Violations = Awaited<ReturnType<AxeBuilder["analyze"]>>["violations"];
+
+function withoutKnownFalsePositives(violations: Violations): Violations {
+  return violations
+    .map((violation) => ({
+      ...violation,
+      nodes: violation.nodes.filter(
+        (node) =>
+          !knownFalsePositives.some(
+            ({ rule, target }) =>
+              violation.id === rule && node.target.length === 1 && node.target[0] === target,
+          ),
+      ),
+    }))
+    .filter((violation) => violation.nodes.length > 0);
+}
+
 for (const path of pages) {
   for (const theme of ["light", "dark"] as const) {
     test(`${path} has no WCAG 2.1 AA violations in the ${theme} theme`, async ({ page }) => {
@@ -30,7 +59,7 @@ for (const path of pages) {
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
         .analyze();
 
-      expect(results.violations).toEqual([]);
+      expect(withoutKnownFalsePositives(results.violations)).toEqual([]);
     });
   }
 }
