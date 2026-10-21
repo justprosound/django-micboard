@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.21.1] - 2026-10-21
+
 ### Fixed
 
 - Apply Renovate's security update priority through a package rule instead of the unsupported vulnerability-alert setting.
