@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- Update locked certifi to 2026.10.19 and Pillow to 13.0.0 to resolve dependency audit findings.
+
 ## [2026.10.20.0] - 2026-10-20
 
 - chore(deps): update dependency bump-my-version to v1.6.1 (#397) (42db305)
