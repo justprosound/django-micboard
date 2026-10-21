@@ -1,0 +1,18 @@
+---
+import Search from "@astrojs/starlight/components/Search.astro";
+---
+
+<Search {...Astro.props} />
+
+<script>
+  const button = document.querySelector("site-search button[data-open-modal]");
+  const label = button?.getAttribute("aria-label");
+  const shortcut = button?.querySelector("kbd");
+  if (button && label && shortcut) {
+    shortcut.before(" ");
+    shortcut.querySelectorAll("kbd").forEach((key, index) => {
+      if (index > 0) key.before(" ");
+    });
+    button.setAttribute("aria-label", `${label} ${shortcut.textContent?.trim()}`);
+  }
+</script>
