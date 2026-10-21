@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Include the documentation search button's visible keyboard shortcut in its accessible name.
+
 ## [2026.10.20.0] - 2026-10-20
 
 - chore(deps): update dependency bump-my-version to v1.6.1 (#397) (42db305)
