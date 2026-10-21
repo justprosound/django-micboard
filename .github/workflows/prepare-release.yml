@@ -52,7 +52,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv and Python
-        uses: ./.github/actions/setup-uv-python
+        uses: $/.github/actions/setup-uv-python
         with:
           enable-cache: "false"
 
@@ -131,7 +131,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv and Python
-        uses: ./.github/actions/setup-uv-python
+        uses: $/.github/actions/setup-uv-python
         with:
           enable-cache: "false"
 
@@ -205,19 +205,26 @@ jobs:
 
       - name: Set release PR outputs
         id: release-pr
+        env:
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+          PR_HEAD_SHA: ${{ steps.cpr.outputs.pull-request-head-sha }}
+          PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          if [ -z "${{ steps.cpr.outputs.pull-request-number }}" ]; then
+          if [ -z "$PR_NUMBER" ]; then
             echo "Pull request was not created."
             exit 1
           fi
-          if [ -z "${{ steps.cpr.outputs.pull-request-head-sha }}" ]; then
+          if [ -z "$PR_HEAD_SHA" ]; then
             echo "GitHub did not return the pull request head SHA"
             exit 1
           fi
-          echo "branch=release/v${{ needs.prepare-release.outputs.version }}" >> "$GITHUB_OUTPUT"
-          echo "number=${{ steps.cpr.outputs.pull-request-number }}" >> "$GITHUB_OUTPUT"
-          echo "sha=${{ steps.cpr.outputs.pull-request-head-sha }}" >> "$GITHUB_OUTPUT"
-          echo "url=${{ steps.cpr.outputs.pull-request-url }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "branch=release/v${RELEASE_VERSION}"
+            echo "number=${PR_NUMBER}"
+            echo "sha=${PR_HEAD_SHA}"
+            echo "url=${PR_URL}"
+          } >> "$GITHUB_OUTPUT"
 
   validate-release-pr:
     needs: open-release-pr
