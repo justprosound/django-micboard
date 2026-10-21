@@ -9,6 +9,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ### Fixed
 
+- Apply Renovate's security update priority through a package rule instead of the unsupported vulnerability-alert setting.
 - Include the documentation search button's visible keyboard shortcut in its accessible name.
 
 ## [2026.10.21.0] - 2026-10-21

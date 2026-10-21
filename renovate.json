@@ -44,10 +44,16 @@
     "automerge": true,
     "automergeType": "pr",
     "automergeStrategy": "squash",
-    "minimumReleaseAge": "0 days",
-    "prPriority": 10
+    "minimumReleaseAge": "0 days"
   },
   "packageRules": [
+    {
+      "description": "Prioritize updates that fix a known vulnerability",
+      "matchJsonata": [
+        "$exists(vulnerabilityFixVersion)"
+      ],
+      "prPriority": 10
+    },
     {
       "description": "Auto-merge digest-only pinning updates after CI passes",
       "matchUpdateTypes": [
