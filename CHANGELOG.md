@@ -11,6 +11,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 - Apply Renovate's security update priority through a package rule instead of the unsupported vulnerability-alert setting.
 
+### Security
+
+- Update locked Pillow to 13.0.0 to resolve dependency audit findings.
+
 ## [2026.10.20.0] - 2026-10-20
 
 - chore(deps): update dependency bump-my-version to v1.6.1 (#397) (42db305)
