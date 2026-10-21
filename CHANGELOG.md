@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Apply Renovate's security update priority through a package rule instead of the unsupported vulnerability-alert setting.
+
 ## [2026.10.20.0] - 2026-10-20
 
 - chore(deps): update dependency bump-my-version to v1.6.1 (#397) (42db305)
