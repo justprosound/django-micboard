@@ -250,7 +250,7 @@ jobs:
           persist-credentials: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee  # v4
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
@@ -269,7 +269,7 @@ jobs:
         run: uv sync --locked --all-extras
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee  # v4
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
         with:
           category: "/language:python"
 
@@ -359,7 +359,7 @@ jobs:
     timeout-minutes: 10
     services:
       postgres:
-        image: postgres@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336  # 17
+        image: postgres@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32  # 17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: micboard_demo
@@ -481,7 +481,7 @@ jobs:
           retention-days: 5
 
       - name: Upload to code-scanning
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee  # v4
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4
         with:
           sarif_file: results.sarif
 
