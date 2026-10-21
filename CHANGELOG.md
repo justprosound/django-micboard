@@ -7,6 +7,10 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Include the documentation search button's visible keyboard shortcut in its accessible name.
+
 ## [2026.10.21.0] - 2026-10-21
 
 ### Security
