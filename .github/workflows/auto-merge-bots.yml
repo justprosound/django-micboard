@@ -3,7 +3,11 @@ name: Auto-merge Bot PRs
 run-name: "Auto-merge bot PR · #${{ github.event.pull_request.number }}"
 
 on:
-  pull_request_target:
+  # pull_request_target, because Dependabot pull requests get a read-only token under
+  # pull_request and could not enable auto-merge. Safe here: the job never checks out or runs
+  # the pull request's code, it only calls the API for a pull request a bot opened from this
+  # repository.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types:
       - opened
       - synchronize
@@ -21,11 +25,13 @@ concurrency:
 
 jobs:
   enable-automerge:
+    # The pull request's author, not github.actor: anyone who pushes to a bot's pull request
+    # becomes the actor, and the author can't be changed after the pull request opens. Fork
+    # pull requests never qualify.
     if: >-
-      github.event.pull_request.user.login == 'renovate[bot]' ||
-      github.event.pull_request.user.login == 'dependabot[bot]' ||
-      github.actor == 'renovate[bot]' ||
-      github.actor == 'dependabot[bot]'
+      (github.event.pull_request.user.login == 'renovate[bot]' ||
+       github.event.pull_request.user.login == 'dependabot[bot]') &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
