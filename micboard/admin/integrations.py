@@ -120,7 +120,7 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
         return obj.enabled
 
     @admin.action(permissions=["change"], description="🔍 Test connection to API servers")
-    def test_connection(self, request: Any, queryset: QuerySet) -> None:
+    def test_connection(self, request: Any, queryset: QuerySet[ManufacturerAPIServer]) -> None:
         """Queue a bounded connection test without performing vendor I/O in the request."""
         server_ids = list(
             queryset.order_by("pk").values_list("pk", flat=True)[
@@ -166,13 +166,13 @@ class ManufacturerAPIServerAdmin(MicboardModelAdmin):
         return False
 
     @admin.action(permissions=["change"], description="✓ Enable selected servers")
-    def enable_servers(self, request: Any, queryset: QuerySet) -> None:
+    def enable_servers(self, request: Any, queryset: QuerySet[ManufacturerAPIServer]) -> None:
         """Enable selected servers."""
         count = queryset.update(enabled=True)
         self.message_user(request, f"{count} server(s) enabled", messages.SUCCESS)
 
     @admin.action(permissions=["change"], description="✗ Disable selected servers")
-    def disable_servers(self, request: Any, queryset: QuerySet) -> None:
+    def disable_servers(self, request: Any, queryset: QuerySet[ManufacturerAPIServer]) -> None:
         """Disable selected servers."""
         count = queryset.update(enabled=False)
         self.message_user(request, f"{count} server(s) disabled", messages.WARNING)
@@ -254,13 +254,13 @@ class AccessoryAdmin(MicboardModelAdmin):
         return obj.get_condition_display()
 
     @admin.action(permissions=["change"], description="✓ Mark as available")
-    def mark_available(self, request: Any, queryset: QuerySet) -> None:
+    def mark_available(self, request: Any, queryset: QuerySet[Accessory]) -> None:
         """Mark accessories as available."""
         count = queryset.update(is_available=True)
         self.message_user(request, f"{count} accessory(ies) marked as available", messages.SUCCESS)
 
     @admin.action(permissions=["change"], description="✗ Mark as unavailable")
-    def mark_unavailable(self, request: Any, queryset: QuerySet) -> None:
+    def mark_unavailable(self, request: Any, queryset: QuerySet[Accessory]) -> None:
         """Mark accessories as unavailable."""
         count = queryset.update(is_available=False)
         self.message_user(
@@ -268,7 +268,7 @@ class AccessoryAdmin(MicboardModelAdmin):
         )
 
     @admin.action(permissions=["change"], description="⚠️ Mark as needs repair")
-    def mark_needs_repair(self, request: Any, queryset: QuerySet) -> None:
+    def mark_needs_repair(self, request: Any, queryset: QuerySet[Accessory]) -> None:
         """Mark accessories as needing repair."""
         count = queryset.update(condition="needs_repair", is_available=False)
         self.message_user(
@@ -276,7 +276,7 @@ class AccessoryAdmin(MicboardModelAdmin):
         )
 
     @admin.action(permissions=["change"], description="📅 Update checkout dates")
-    def update_checkout_status(self, request: Any, queryset: QuerySet) -> None:
+    def update_checkout_status(self, request: Any, queryset: QuerySet[Accessory]) -> None:
         """Update checkout/checkin timestamps."""
         # This would open a form to bulk update dates
         self.message_user(request, "Use individual edit to update checkout dates", messages.INFO)

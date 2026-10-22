@@ -1,8 +1,13 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rest_framework import serializers
 
 from micboard.models.discovery.registry import DiscoveredDevice
+
+if TYPE_CHECKING:
+    _DiscoveredDeviceSerializer = serializers.ModelSerializer[DiscoveredDevice]
+else:
+    _DiscoveredDeviceSerializer = serializers.ModelSerializer
 
 
 def redact_sensitive_keys(data: Any) -> Any:
@@ -24,7 +29,7 @@ def redact_sensitive_keys(data: Any) -> Any:
     return data
 
 
-class DiscoveredDeviceSerializer(serializers.ModelSerializer):
+class DiscoveredDeviceSerializer(_DiscoveredDeviceSerializer):
     class Meta:
         model = DiscoveredDevice
         fields = "__all__"

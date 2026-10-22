@@ -139,7 +139,7 @@ class MetricsCollector:
         }
 
 
-def track_service_metrics(func: Callable) -> Callable:
+def track_service_metrics[**P, R](func: Callable[P, R]) -> Callable[P, R]:
     """Decorator to track service method metrics.
 
     Example:
@@ -151,7 +151,7 @@ def track_service_metrics(func: Callable) -> Callable:
     """
 
     @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         start_time = time.time()
         service_name = func.__qualname__.split(".")[0]
         method_name = func.__name__

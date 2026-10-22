@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -20,6 +20,13 @@ from micboard.services.settings.visibility_service import settings_visibility
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    _BulkSettingConfigFormView = FormView[BulkSettingConfigForm]
+    _ManufacturerSettingsFormView = FormView[ManufacturerSettingsForm]
+else:
+    _BulkSettingConfigFormView = FormView
+    _ManufacturerSettingsFormView = FormView
 
 
 @staff_member_required
@@ -47,7 +54,9 @@ class SettingsManagementPermissionMixin(PermissionRequiredMixin):
         return settings_visibility.has_manageable_scope(scope)
 
 
-class BulkSettingConfigView(LoginRequiredMixin, SettingsManagementPermissionMixin, FormView):
+class BulkSettingConfigView(
+    LoginRequiredMixin, SettingsManagementPermissionMixin, _BulkSettingConfigFormView
+):
     """Bulk configure settings for a specific scope."""
 
     permission_required = ("micboard.add_setting", "micboard.change_setting")
@@ -96,7 +105,9 @@ class BulkSettingConfigView(LoginRequiredMixin, SettingsManagementPermissionMixi
         return context
 
 
-class ManufacturerSettingsView(LoginRequiredMixin, SettingsManagementPermissionMixin, FormView):
+class ManufacturerSettingsView(
+    LoginRequiredMixin, SettingsManagementPermissionMixin, _ManufacturerSettingsFormView
+):
     """Quick configuration view for manufacturer-specific settings."""
 
     management_scope_attribute = "manufacturer_ids"

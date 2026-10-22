@@ -6,10 +6,15 @@ Performers (talent/device users) are represented by the Performer model.
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from django.contrib.auth import get_user_model
 from django.db import models
+
+if TYPE_CHECKING:
+    from micboard.models.hardware.wireless_unit import WirelessUnit
+    from micboard.models.monitoring.group import MonitoringGroup
+    from micboard.models.monitoring.performer import Performer
 
 User = get_user_model()
 
@@ -80,11 +85,11 @@ class UserProfile(models.Model):
     def __str__(self) -> str:
         return f"{self.user.get_full_name() or self.user.username} ({self.get_user_type_display()})"
 
-    def get_monitoring_groups(self) -> models.QuerySet:
+    def get_monitoring_groups(self) -> models.QuerySet[MonitoringGroup]:
         """Get all monitoring groups this user is a member of."""
         return self.user.monitoring_groups.filter(is_active=True)
 
-    def get_accessible_performers(self) -> models.QuerySet:
+    def get_accessible_performers(self) -> models.QuerySet[Performer]:
         """Get all performers accessible through user's monitoring groups."""
         from micboard.models.monitoring.performer import Performer
         from micboard.models.monitoring.performer_assignment import PerformerAssignment
@@ -95,7 +100,7 @@ class UserProfile(models.Model):
 
         return Performer.objects.filter(id__in=performer_ids, is_active=True)
 
-    def get_accessible_devices(self) -> models.QuerySet:
+    def get_accessible_devices(self) -> models.QuerySet[WirelessUnit]:
         """Get all wireless units accessible through user's monitoring groups."""
         from micboard.models.hardware.wireless_unit import WirelessUnit
         from micboard.models.monitoring.performer_assignment import PerformerAssignment

@@ -1,11 +1,18 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rest_framework import serializers
 
 from micboard.models.settings.registry import Setting, SettingDefinition
 
+if TYPE_CHECKING:
+    _SettingDefinitionSerializer = serializers.ModelSerializer[SettingDefinition]
+    _SettingSerializer = serializers.ModelSerializer[Setting]
+else:
+    _SettingDefinitionSerializer = serializers.ModelSerializer
+    _SettingSerializer = serializers.ModelSerializer
 
-class SettingDefinitionSerializer(serializers.ModelSerializer):
+
+class SettingDefinitionSerializer(_SettingDefinitionSerializer):
     class Meta:
         model = SettingDefinition
         fields = "__all__"
@@ -21,7 +28,7 @@ class SettingDefinitionSerializer(serializers.ModelSerializer):
         return ret
 
 
-class SettingSerializer(serializers.ModelSerializer):
+class SettingSerializer(_SettingSerializer):
     class Meta:
         model = Setting
         fields = "__all__"

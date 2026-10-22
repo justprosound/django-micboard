@@ -103,7 +103,7 @@ class SettingDefinitionAdmin(MicboardModelAdmin):
         self,
         request: Any,
         obj: SettingDefinition,
-        form: ModelForm,
+        form: ModelForm[SettingDefinition],
         change: bool,
     ) -> None:
         """Persist definition metadata and invalidate every derived cache entry."""
@@ -312,7 +312,9 @@ class SettingAdmin(MicboardModelAdmin):
                 type(exc).__name__,
             )
 
-    def save_model(self, request: Any, obj: Setting, form: ModelForm, change: bool) -> None:
+    def save_model(
+        self, request: Any, obj: Setting, form: ModelForm[Setting], change: bool
+    ) -> None:
         """Enforce scope permissions, persist the setting value, and invalidate cache entries."""
         previous_key = None
         if change and obj.pk:
