@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.22.0] - 2026-10-22
+
 ### Changed
 
 - **Breaking:** manufacturer plugins now return one typed shape. `ManufacturerPlugin` replaces
