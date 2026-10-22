@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin
 from django.forms.models import BaseInlineFormSet
@@ -11,8 +11,17 @@ from micboard.admin.mixins import TenantScopedAdminInlineMixin
 from micboard.models.integrations import Accessory
 from micboard.models.rf_coordination.rf_channel import RFChannel
 
+if TYPE_CHECKING:
+    _RFChannelInlineFormSet = BaseInlineFormSet[RFChannel, Any]
+    _RFChannelStackedInline = admin.StackedInline[RFChannel, Any]
+    _AccessoryTabularInline = admin.TabularInline[Accessory, Any]
+else:
+    _RFChannelInlineFormSet = BaseInlineFormSet
+    _RFChannelStackedInline = admin.StackedInline
+    _AccessoryTabularInline = admin.TabularInline
 
-class RFChannelInlineFormSet(BaseInlineFormSet):
+
+class RFChannelInlineFormSet(_RFChannelInlineFormSet):
     """Keep active-unit assignments on the inline's own chassis."""
 
     unit_fields = ("active_wireless_unit", "active_iem_receiver")
@@ -44,7 +53,7 @@ class RFChannelInlineFormSet(BaseInlineFormSet):
                     )
 
 
-class RFChannelInline(TenantScopedAdminInlineMixin, admin.StackedInline):
+class RFChannelInline(TenantScopedAdminInlineMixin, _RFChannelStackedInline):
     """Tenant-scoped RF channel editor embedded in chassis admin."""
 
     model = RFChannel
@@ -52,7 +61,7 @@ class RFChannelInline(TenantScopedAdminInlineMixin, admin.StackedInline):
     formset = RFChannelInlineFormSet
 
 
-class AccessoryInline(TenantScopedAdminInlineMixin, admin.TabularInline):
+class AccessoryInline(TenantScopedAdminInlineMixin, _AccessoryTabularInline):
     """Accessory editor embedded in chassis admin."""
 
     model = Accessory

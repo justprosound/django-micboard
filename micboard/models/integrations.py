@@ -79,7 +79,7 @@ class ManufacturerAPIServer(models.Model):
         if self.shared_key and len(self.shared_key.strip()) < 10:
             raise ValidationError({"shared_key": "API key must be at least 10 characters"})
 
-    def to_config_dict(self) -> dict:
+    def to_config_dict(self) -> dict[str, str | bool]:
         """Convert to configuration dict format for API client initialization."""
         return {
             "manufacturer": self.manufacturer,

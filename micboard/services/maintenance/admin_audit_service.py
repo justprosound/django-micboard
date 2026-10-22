@@ -6,7 +6,7 @@ import logging
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.contrib import admin
@@ -29,8 +29,12 @@ from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
-Registry = Mapping[type[models.Model], ModelAdmin]
-RegistryEntry = tuple[type[models.Model], ModelAdmin]
+if TYPE_CHECKING:
+    Registry = Mapping[type[models.Model], ModelAdmin[Any]]
+    RegistryEntry = tuple[type[models.Model], ModelAdmin[Any]]
+else:
+    Registry = Mapping[type[models.Model], ModelAdmin]
+    RegistryEntry = tuple[type[models.Model], ModelAdmin]
 
 
 class AdminAuditService:
