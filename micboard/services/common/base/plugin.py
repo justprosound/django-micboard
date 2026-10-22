@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
     from micboard.models.discovery.manufacturer import Manufacturer
     from micboard.models.hardware.wireless_chassis import WirelessChassis
+    from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis
 
     from .client import BaseAPIClient
 
@@ -149,20 +150,19 @@ class ManufacturerPlugin(BasePlugin):
         raise NotImplementedError()
 
     @abstractmethod
-    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
-        """Transform raw API device data into the standardized application format."""
+    def normalize_device(self, api_data: dict[str, Any]) -> NormalizedChassis | None:
+        """Normalize one raw device payload, or return None when it is unusable.
+
+        Every persistence path reads the result, so vendor key names must not escape it.
+        Channels are included when the payload embeds them.
+        """
         raise NotImplementedError()
 
     @abstractmethod
-    def transform_transmitter_data(
-        self,
-        api_data: dict[str, Any],
-        channel_number: int,
-    ) -> dict[str, Any] | None:
-        """Normalize one raw wireless-unit payload for a channel.
+    def normalize_channels(self, api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]:
+        """Normalize the channel list returned by `get_device_channels`.
 
-        `DeviceUpdateService` requires this of every plugin it persists through, so it is
-        part of the contract rather than an optional addition.
+        Persistence uses this for devices whose payload embeds no channels.
         """
         raise NotImplementedError()
 

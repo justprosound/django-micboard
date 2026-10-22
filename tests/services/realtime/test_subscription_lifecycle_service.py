@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.realtime import subscription_lifecycle_service as lifecycle_service
 from micboard.services.realtime.subscription_lifecycle_service import (
     RealtimeSubscriptionLifecycleService,
@@ -88,18 +89,17 @@ def test_select_chassis_delegates_unscoped_fairness(monkeypatch) -> None:
 
 @pytest.mark.parametrize("transport", ["sse", "websocket"])
 @pytest.mark.parametrize(
-    ("transformed", "updated_count", "expect_update", "expect_broadcast"),
+    ("normalized", "updated_count", "expect_update", "expect_broadcast"),
     [
         (None, 0, False, False),
-        ({"name": "missing identifier"}, 0, False, False),
-        ({"api_device_id": "one"}, 0, True, False),
-        ({"api_device_id": "one"}, 1, True, True),
+        (NormalizedChassis(api_device_id="one"), 0, True, False),
+        (NormalizedChassis(api_device_id="one"), 1, True, True),
     ],
 )
 def test_process_update_branches(
     monkeypatch,
     transport: RealtimeTransport,
-    transformed,
+    normalized,
     updated_count,
     expect_update,
     expect_broadcast,
@@ -107,7 +107,7 @@ def test_process_update_branches(
     manufacturer = SimpleNamespace(pk=9)
     plugin = SimpleNamespace(
         manufacturer=manufacturer,
-        transform_device_data=Mock(return_value=transformed),
+        normalize_device=Mock(return_value=normalized),
     )
     update = Mock(return_value=updated_count)
     broadcast = AsyncMock()
@@ -147,7 +147,7 @@ def test_process_update_branches(
         )
 
 
-@pytest.mark.parametrize("failure_stage", ["transform", "persist", "broadcast"])
+@pytest.mark.parametrize("failure_stage", ["normalize", "persist", "broadcast"])
 def test_process_update_contains_and_redacts_failures(
     monkeypatch,
     caplog,
@@ -157,12 +157,12 @@ def test_process_update_contains_and_redacts_failures(
     manufacturer = SimpleNamespace(pk=10)
     plugin = SimpleNamespace(
         manufacturer=manufacturer,
-        transform_device_data=Mock(return_value={"api_device_id": "one"}),
+        normalize_device=Mock(return_value=NormalizedChassis(api_device_id="one")),
     )
     update = Mock(return_value=1)
     broadcast = AsyncMock()
-    if failure_stage == "transform":
-        plugin.transform_device_data.side_effect = RuntimeError(secret)
+    if failure_stage == "normalize":
+        plugin.normalize_device.side_effect = RuntimeError(secret)
     elif failure_stage == "persist":
         update.side_effect = RuntimeError(secret)
     else:
