@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from micboard.services.core.hardware import NormalizedHardware
+from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.manufacturer.sync import ManufacturerSyncService
 from micboard.services.sync.discovery_trigger_service import (
     coalesce_discovery_scheduling,
@@ -15,16 +15,16 @@ from micboard.services.sync.discovery_trigger_service import (
 from tests.factories.discovery import ManufacturerFactory
 
 
-def _payload(number: int) -> NormalizedHardware:
+def _payload(number: int) -> NormalizedChassis:
     """Build one unique bounded inventory payload."""
-    return NormalizedHardware(
+    return NormalizedChassis(
         api_device_id=f"device-{number}",
         ip=f"198.51.100.{number + 1}",
         serial_number=f"serial-{number}",
         mac_address=f"02:00:00:00:00:{number:02x}",
         name=f"Receiver {number}",
         model="RX-1",
-        device_type="receiver",
+        role="receiver",
         firmware_version="",
         hosted_firmware_version="",
         description="",

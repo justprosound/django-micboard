@@ -33,7 +33,7 @@ from micboard.utils.mac_address import canonicalize_mac_address
 if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
     from micboard.models.hardware.wireless_chassis import WirelessChassis
-    from micboard.services.core.hardware import NormalizedHardware
+    from micboard.services.core.hardware import NormalizedChassis
     from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def _transition_responding_chassis_online(
 def _persist_moved_chassis(
     *,
     chassis: WirelessChassis,
-    payload: NormalizedHardware,
+    payload: NormalizedChassis,
     manufacturer: Manufacturer,
     identity_index: DeviceIdentityIndex | None,
 ) -> None:
@@ -418,18 +418,11 @@ class ManufacturerSyncService:
     @staticmethod
     def _normalize_devices(
         api_devices: Iterable[dict[str, Any]], plugin: Any
-    ) -> list[NormalizedHardware]:
-        """Normalize and validate raw API device payloads."""
-        from micboard.services.core.hardware import NormalizedHardware
-
-        normalized: list[NormalizedHardware] = []
+    ) -> list[NormalizedChassis]:
+        """Normalize raw API device payloads, keeping only devices with an address."""
+        normalized: list[NormalizedChassis] = []
         for raw in api_devices:
-            transformed = plugin.transform_device_data(raw)
-            if not transformed:
-                continue
-
-            payload = NormalizedHardware.from_api(transformed)
-            if not payload:
-                continue
-            normalized.append(payload)
+            payload = plugin.normalize_device(raw)
+            if payload is not None and payload.ip:
+                normalized.append(payload)
         return normalized

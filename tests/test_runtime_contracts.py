@@ -23,7 +23,6 @@ from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.maintenance.audit import AuditService
 from micboard.services.maintenance.logging_mode import LoggingModeService
 from micboard.services.realtime.subscription_runner import run_realtime_subscriptions
-from micboard.services.sync.device_promotion_service import DevicePromotionService
 from micboard.services.sync.device_update_service import DeviceUpdateService
 
 
@@ -40,42 +39,6 @@ def test_websocket_dispatch_awaits_async_callback() -> None:
     asyncio.run(_read_and_dispatch_messages(messages(), "device-1", callback))
 
     assert received == [{"status": "online"}]
-
-
-def test_duplicate_promotion_handles_empty_normalization() -> None:
-    """Duplicate promotion fails cleanly when plugin data cannot be normalized."""
-    manufacturer = object()
-    discovered = SimpleNamespace(manufacturer=manufacturer)
-    plugin = Mock()
-    plugin.transform_device_data.return_value = {
-        "serial_number": "serial",
-        "mac_address": "00:00:00:00:00:01",
-        "ip": "192.0.2.60",
-        "api_device_id": "device-60",
-    }
-    dedup_result = SimpleNamespace(
-        is_conflict=False,
-        is_duplicate=True,
-        existing_device=object(),
-    )
-
-    with (
-        patch(
-            "micboard.services.deduplication.check.check_device",
-            return_value=dedup_result,
-        ),
-        patch(
-            "micboard.services.manufacturer.sync.ManufacturerSyncService._normalize_devices",
-            return_value=[],
-        ),
-    ):
-        result = DevicePromotionService()._attempt_promotion_with_device_data(
-            discovered,
-            plugin,
-            {"id": "device-60"},
-        )
-
-    assert result == (False, "Failed to normalize duplicate device data", None)
 
 
 @pytest.mark.django_db

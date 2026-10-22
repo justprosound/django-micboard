@@ -41,7 +41,7 @@ Do not put real credentials in source control.
 - `micboard.integrations.shure.client.ShureSystemAPIClient`
 - `micboard.integrations.shure.device_client.ShureDeviceClient`
 - `micboard.integrations.shure.discovery_client.ShureDiscoveryClient`
-- `micboard.integrations.shure.transformers.ShureDataTransformer`
+- `micboard.integrations.shure.normalizer.SHURE_NORMALIZER`: Shure device families for the shared normalizer
 - `micboard.integrations.shure.websocket`: System API WebSocket subscription transport
 
 ### Sennheiser
@@ -49,7 +49,7 @@ Do not put real credentials in source control.
 - `micboard.integrations.sennheiser.client.SennheiserSystemAPIClient`
 - `micboard.integrations.sennheiser.device_client.SennheiserDeviceClient`
 - `micboard.integrations.sennheiser.discovery_client.SennheiserDiscoveryClient`
-- `micboard.integrations.sennheiser.transformers.SennheiserDataTransformer`
+- `micboard.integrations.sennheiser.normalizer.SENNHEISER_NORMALIZER`: Sennheiser device families for the shared normalizer
 - `micboard.integrations.sennheiser.sse_client`: SSCv2 server-sent-event transport
 
 ## Sennheiser Sound Control Protocol
