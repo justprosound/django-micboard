@@ -12,16 +12,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import wraps
-from typing import Any, ParamSpec, TypeVar, cast
+from typing import Any, cast
 
 from django.core.cache import cache
 
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
-
-P = ParamSpec("P")
-R = TypeVar("R")
 
 
 @dataclass
@@ -142,7 +139,7 @@ class MetricsCollector:
         }
 
 
-def track_service_metrics(func: Callable[P, R]) -> Callable[P, R]:
+def track_service_metrics[**P, R](func: Callable[P, R]) -> Callable[P, R]:
     """Decorator to track service method metrics.
 
     Example:
@@ -154,7 +151,7 @@ def track_service_metrics(func: Callable[P, R]) -> Callable[P, R]:
     """
 
     @wraps(func)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         start_time = time.time()
         service_name = func.__qualname__.split(".")[0]
         method_name = func.__name__
