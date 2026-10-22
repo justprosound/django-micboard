@@ -6,7 +6,7 @@ responsibility; shared policy is enforced by branch protection rules and code re
 | Workflow | Responsibility | Trigger |
 | --- | --- | --- |
 | `ci.yml` | Lint, type check, migration drift, wheel packaging, Python/Django compatibility, 95% coverage, documentation build and deploy, demo image deployment path, dependency review, locked-dependency audit, Bandit, a 60-second fuzz run, CodeQL, OpenSSF Scorecard, and one stable aggregate check | Push or pull request on `main`/`develop` (draft pull requests run only the fast jobs), weekly schedule in this repository only, or manual dispatch |
-| `prepare-release.yml` | Compute the next CalVer, open the metadata pull request, observe its required runs, merge it, and dispatch publication | Push to `main` touching package or release metadata, or manual dispatch |
+| `prepare-release.yml` | Compute the next CalVer, assemble legacy notes and per-PR fragments, open the metadata pull request, observe its required runs, merge it, and dispatch publication | Push to `main` touching package or release metadata, or manual dispatch |
 | `publish-release.yml` | Build the exact merge once, generate and attest its SBOM, promote through TestPyPI, publish with PEP 740 attestations, and create the GitHub release | Dispatch from `prepare-release.yml` on `main` |
 | `auto-merge-bots.yml` | Enable GitHub native auto-merge for Renovate and Dependabot pull requests so they land once CI passes | Pull-request activity from either bot |
 
@@ -38,9 +38,10 @@ The release lifecycle is **prepare -> validate -> merge -> attest -> publish**:
    backfills and controlled retries.
 2. `prepare-release.yml` derives the next UTC CalVer when its optional override is blank. The first
    daily release uses `YY.MM.DD`; additional same-day releases increment `.1`, `.2`, and so on. It
-   validates the resolved version, moves deterministic `[Unreleased]` notes into a versioned
-   changelog section, asks GitHub to create a verified bot-signed metadata commit, and opens a
-   release pull request.
+   validates the resolved version, combines legacy `[Unreleased]` notes with numerically ordered
+   per-PR fragments, promotes them into a versioned changelog section, removes the promoted
+   fragments, asks GitHub to create a verified bot-signed metadata commit, and opens a release pull
+   request.
 3. A token limited to Actions dispatches `ci.yml` for the exact release head, finds that workflow
    run by head SHA and dispatch time, and waits for its `CI required` aggregate to succeed.
 4. A separate repository-write token requests the protected pull-request merge.

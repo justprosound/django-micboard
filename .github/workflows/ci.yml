@@ -54,6 +54,20 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-extras
 
+      - name: Validate this pull request's changelog fragment
+        if: >-
+          github.event_name == 'pull_request'
+          && !startsWith(github.head_ref, 'release/')
+          && github.event.pull_request.user.login != 'renovate[bot]'
+          && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          uv run --no-sync python scripts/changelog_fragments.py validate \
+            --base "$BASE_SHA" \
+            --pull-request-number "$PULL_REQUEST_NUMBER"
+
       - name: Run prek
         run: uv run --no-sync prek run --all-files --show-diff-on-failure
 
