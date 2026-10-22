@@ -137,7 +137,7 @@ This document distills all key architectural, workflow, and style rules for code
     micboard/admin/<domain>/admin.py
     micboard/api/<domain>/views.py
     ```
-- No files should exceed ~300–400 lines. Split by responsibility (see copilot-instructions.md for split patterns).
+- No files should exceed ~300–400 lines. Split by responsibility (see `.github/copilot-instructions.md` for split patterns).
 - **Services** own business logic (use DTOs, orchestrate high-level behavior).
 - **Tasks** (async/Huey) wrap service logic for background execution only. Celery and django-q2 are **LEGACY**.
 - **Admin** and **Serializers** are thin and never contain business logic.
@@ -168,12 +168,14 @@ This document distills all key architectural, workflow, and style rules for code
 
 ## 4. Logging, Error Handling, and Anti-Patterns
 
-- Always use `logging.exception` in `except` blocks. F-strings are preferred for readability. Example:
+- Always use `logging.exception` in `except` blocks. Pass values as logger arguments
+  (`%s` placeholders), not f-strings, so formatting is deferred until a record is emitted.
+  Example:
     ```python
     try:
         ...
-    except Exception as exc:
-        logger.exception(f"Operation failed for item {item_id}")
+    except Exception:
+        logger.exception("Operation failed for item %s", item_id)
     ```
 - Never use bare `except:` blocks; always specify exceptions or catch `Exception`.
 - Do not embed business logic into admin, tasks, or serializers—use services.
@@ -228,7 +230,7 @@ This document distills all key architectural, workflow, and style rules for code
 - `CONTRIBUTING.md`, `README.md` — contributor/dev workflow and policy
 - `pyproject.toml` — all linter, type-checker, and test config
 - `CHANGELOG.md`, `docs/` — history, architecture, and detailed APIs
-- For full architecture, see `micboard/ARCHITECTURE.md`
+- For full architecture, see `docs/architecture.md`
 
 ---
 

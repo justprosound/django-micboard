@@ -38,6 +38,7 @@ export default defineConfig({
       },
       favicon: "/favicon.png",
       customCss: ["./src/styles/micboard.css"],
+      components: { Search: "./src/components/Search.astro" },
       editLink: { baseUrl: `${repository}/edit/main/` },
       lastUpdated: true,
       routeMiddleware: "./src/routeData.ts",
