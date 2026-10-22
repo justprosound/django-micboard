@@ -25,7 +25,7 @@ attenuation, and supply and thermal state.
    input or output).
 3. A distribution port may link to the `WirelessChassis` it feeds or is fed by, with a free-text
    label for the antenna side. No Antenna model is introduced.
-4. A capability flag marks **managed** units. Unmanaged (passive) units are inventory and
+4. A capability flag marks **managed** units. Unmanaged units are inventory and
    topology only and are never polled.
 5. Ownership runs through `location`, building, and organization, like `Charger` and
    `WirelessChassis`, so `visible_to` scopes it without a special case. Ports inherit their
