@@ -126,12 +126,14 @@ Architecture & Future-Proofing Notes:
       vendors or models, ask: Is this receiving, transmitting, or both? Does each channel
       have a single direction or multiple? If patterns don't fit, it's a signal to
       revisit the architecture rather than patch with new roles.
+      Combiners and splitters are the first such case: they are RF Distribution Units,
+      a separate model, not a chassis role (docs/adr/014-rf-distribution-units-are-not-chassis.md).
 
 ### `WirelessChassis`
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L54)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L56)
 
 BASE STATION/RACK UNIT for wireless audio systems (receiver/transmitter/transceiver).
 
@@ -148,19 +150,19 @@ RFChannel represents RF communication channels/slots on this chassis.
 
 #### `save(*args: Any, **kwargs: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L310)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L312)
 
 Keep the IP-ownership check and row write in one transaction.
 
 #### `delete(*args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L317)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L319)
 
 Keep delete receivers and the row deletion in one transaction.
 
 #### `get_expected_channel_count() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L324)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L326)
 
 Get expected number of channels based on device model.
 

@@ -40,6 +40,8 @@ Architecture & Future-Proofing Notes:
       vendors or models, ask: Is this receiving, transmitting, or both? Does each channel
       have a single direction or multiple? If patterns don't fit, it's a signal to
       revisit the architecture rather than patch with new roles.
+      Combiners and splitters are the first such case: they are RF Distribution Units,
+      a separate model, not a chassis role (docs/adr/014-rf-distribution-units-are-not-chassis.md).
 """
 
 from __future__ import annotations
