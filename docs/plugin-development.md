@@ -531,4 +531,5 @@ just docs
 - [ ] Registry, transport, normalizer, discovery, security, service, and streaming tests pass.
 - [ ] `get_manufacturer_plugin("<vendor>")` resolves the intended class.
 - [ ] An active `Manufacturer` row exists with the exact plugin code.
-- [ ] Developer docs and `CHANGELOG.md` describe the supported integration behavior.
+- [ ] Developer docs and the pull-request changelog fragment describe the supported integration
+  behavior.

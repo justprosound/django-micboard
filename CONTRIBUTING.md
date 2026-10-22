@@ -246,7 +246,7 @@ changes must follow the controlled migration process above.
 
 5. **Update documentation**:
    - Add/update docstrings in code
-   - Update CHANGELOG.md under `[Unreleased]`
+   - Add `changelog.d/pr-<number>.md` with the pull request's release note
    - Update README.md if user-facing
    - Add type hints throughout
    - Run `just docs-api` when a documented module's docstrings change, and `just docs-verify`
@@ -327,7 +327,21 @@ Include:
 
 Maintainers follow this process:
 
-1. Collect changes in `CHANGELOG.md` under `[Unreleased]`
+1. Add one file named `changelog.d/pr-<number>.md` per pull request; do not edit
+   `CHANGELOG.md` directly for new changes. Use one or more supported category headings:
+   `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, `Docs`, or `Tests`.
+   Put each note in a Markdown bullet under its heading. For example:
+
+   ```markdown
+   ### Changed
+
+   - The API now preserves the caller's requested ordering.
+   ```
+
+   CI checks that the fragment matches the pull request number and validates its format. The
+   release workflow groups fragments deterministically, promotes them into `CHANGELOG.md`, and
+   removes them in the release pull request. Existing `[Unreleased]` notes are included during
+   the transition. Run `just changelog-check` or `uv run --no-sync prek run --all-files` locally.
 2. Merge a `feat` or `fix` Conventional Commit to let automation start the **Prepare Release PR**
    workflow; dispatch it manually only for a backfill or controlled retry
 3. Let the workflow open a release pull request and dispatch the exact `CI required` workflow run (which includes documentation validation)

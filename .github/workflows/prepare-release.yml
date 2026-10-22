@@ -10,6 +10,7 @@ on:
       - "micboard/**"
       - "pyproject.toml"
       - "CHANGELOG.md"
+      - "changelog.d/**"
       - "scripts/**"
   workflow_dispatch:
     inputs:
@@ -29,8 +30,8 @@ jobs:
   prepare-release:
     # Skip commit types that cannot change the distributed package: `docs:` only
     # touches `docs/`, which MANIFEST.in prunes from the wheel, and `ci:` only touches
-    # workflows. Both still land their CHANGELOG entry, which the next real release
-    # promotes. A manual workflow_dispatch has no head_commit and is never skipped.
+    # workflows. Both still land their changelog fragment, which the next package
+    # release promotes. A manual workflow_dispatch has no head_commit and is never skipped.
     if: >-
       github.ref == 'refs/heads/main'
       && !contains(github.event.head_commit.message, '[skip ci]')
@@ -88,12 +89,11 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
+          uv run --locked --no-sync python scripts/changelog_fragments.py collect \
+            --changelog CHANGELOG.md \
+            --fragment-dir changelog.d \
+            > "$RUNNER_TEMP/unreleased-changelog.md"
           DELIMITER="release-changelog-$(git rev-parse HEAD)"
-          awk '
-            /^## \[Unreleased\]/ { in_unreleased = 1; next }
-            in_unreleased && /^## \[/ { exit }
-            in_unreleased { print }
-          ' CHANGELOG.md > "$RUNNER_TEMP/unreleased-changelog.md"
 
           {
             echo "content<<$DELIMITER"
@@ -163,6 +163,8 @@ jobs:
               --date "$(date -u +%Y-%m-%d)" \
               --notes-file "$RUNNER_TEMP/release-changelog.md" \
               CHANGELOG.md
+            uv run --no-project python scripts/changelog_fragments.py clear \
+              --fragment-dir changelog.d
           fi
           uv lock
 
@@ -172,7 +174,7 @@ jobs:
           while IFS= read -r -d '' entry; do
             path="${entry:3}"
             case "$path" in
-              CHANGELOG.md|pyproject.toml|uv.lock) ;;
+              CHANGELOG.md|changelog.d/*.md|pyproject.toml|uv.lock) ;;
               *) UNEXPECTED+=("$path") ;;
             esac
           done < <(git status --porcelain=v1 -z --untracked-files=all)
@@ -200,6 +202,7 @@ jobs:
           sign-commits: true
           add-paths: |
             CHANGELOG.md
+            changelog.d/
             pyproject.toml
             uv.lock
 

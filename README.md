@@ -328,7 +328,8 @@ uv run --no-sync prek run --all-files
 
 ## Release Notes
 
-- Update CHANGELOG.md under [Unreleased] with notable changes.
+- Add a release-note fragment at `changelog.d/pr-<number>.md`; CI validates it, and release
+  preparation assembles fragments into `CHANGELOG.md`.
 - A merged `feat` or `fix` Conventional Commit automatically starts the **Prepare Release PR**
   workflow. Run it manually from `main` only for backfills or controlled retries.
 - Release metadata reaches `main` through a protected pull request and required checks.

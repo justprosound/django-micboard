@@ -232,10 +232,10 @@ Now you may edit/create docs and meta files.
      - PR/branch guidance.
      - Very clear migrations rule: **never edit existing migrations; new migrations only via controlled process.**
 
-4. **`CHANGELOG.md`**
-   - If missing, create:
-     - `## Unreleased`
-     - `## vX.Y.Z - YYYY-MM-DD` with `Added/Changed/Fixed/Deprecated` sections (allow placeholders).
+4. **Changelog**
+   - Keep `CHANGELOG.md` as published release history.
+   - Add one `changelog.d/pr-<number>.md` fragment per pull request, using supported category
+     headings and Markdown bullets. Release automation assembles fragments into versioned notes.
 
 5. **Ruff & pre-commit configs**
    - Add/update `[tool.ruff]` in `pyproject.toml` or `ruff.toml`:

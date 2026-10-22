@@ -198,7 +198,7 @@ This document distills all key architectural, workflow, and style rules for code
 
 - Always add/update:
     - Docstrings and type hints for all public functions/classes
-    - CHANGELOG.md (under `[Unreleased]` section)
+    - One `changelog.d/pr-<number>.md` fragment per pull request
     - README.md if user-facing changes
 - PRs are committed by feature branch with a conventional commit style (e.g., `feat:`, `fix:`, etc.). See CONTRIBUTING.md for format.
 - All code must pass CI checks before merge: Ruff, mypy, pytest, Bandit, and prek.
@@ -229,6 +229,7 @@ This document distills all key architectural, workflow, and style rules for code
 - `CONTRIBUTING.md`, `README.md` — contributor/dev workflow and policy
 - `pyproject.toml` — all linter, type-checker, and test config
 - `CHANGELOG.md`, `docs/` — history, architecture, and detailed APIs
+- `changelog.d/` — per-pull-request release-note fragments, assembled by release automation
 - For full architecture, see `docs/architecture.md`
 
 ---
