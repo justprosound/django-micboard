@@ -7,6 +7,11 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Mypy now rejects unparameterized generics; missing-import allowances are limited to
+  third-party modules that do not provide typing metadata or maintained stubs.
+
 ## [2026.10.22.1] - 2026-10-22
 
 ### Changed
@@ -22,9 +27,6 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 ## [2026.10.22.0] - 2026-10-22
 
 ### Changed
-
-- Mypy now rejects unparameterized generics; missing-import allowances are limited to
-  third-party modules that do not provide typing metadata or maintained stubs.
 
 - **Breaking:** manufacturer plugins now return one typed shape. `ManufacturerPlugin` replaces
   `transform_device_data(api_data) -> dict | None` with
