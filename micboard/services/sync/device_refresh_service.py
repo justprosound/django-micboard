@@ -2,11 +2,11 @@
 
 import logging
 from collections.abc import Iterable
-from contextlib import suppress
 from typing import Any
 
 from micboard.models.discovery.registry import DiscoveredDevice
 from micboard.services.common.base.plugin import ManufacturerPlugin, build_manufacturer_plugin
+from micboard.services.core.hardware import NormalizedChassis
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -63,13 +63,13 @@ class DeviceRefreshService:
 
             self._enrich_device_with_channels(plugin, discovered, device_data)
 
-            transformed = self._transform_device(plugin, device_data, discovered)
-            if not transformed:
+            device = self._normalize_device(plugin, device_data, discovered)
+            if device is None:
                 discovered.metadata = device_data
                 discovered.save()
                 return False
 
-            self._apply_transformed_to_discovered(discovered, transformed, device_data)
+            self._apply_normalized_to_discovered(discovered, device, device_data)
             discovered.save()
             return True
 
@@ -131,51 +131,33 @@ class DeviceRefreshService:
                     exc_info=sanitized_exception_info(exc),
                 )
 
-    def _transform_device(
+    def _normalize_device(
         self,
         plugin: ManufacturerPlugin,
         device_data: dict[str, Any],
         discovered: DiscoveredDevice,
-    ) -> dict[str, Any] | None:
-        """Transform raw device_data using manufacturer's plugin transformer."""
+    ) -> NormalizedChassis | None:
+        """Normalize raw device_data using the manufacturer's plugin."""
         try:
-            return plugin.transform_device_data(device_data)
+            return plugin.normalize_device(device_data)
         except Exception as exc:
             logger.exception(
-                "Error transforming discovered device %s",
+                "Error normalizing discovered device %s",
                 discovered.pk,
                 exc_info=sanitized_exception_info(exc),
             )
         return None
 
-    def _apply_transformed_to_discovered(
+    def _apply_normalized_to_discovered(
         self,
         discovered: DiscoveredDevice,
-        transformed: dict[str, Any],
+        device: NormalizedChassis,
         device_data: dict[str, Any],
     ) -> None:
-        """Apply transformed/normalized device data onto the DiscoveredDevice model instance."""
+        """Apply the normalized chassis onto the DiscoveredDevice model instance."""
         discovered.metadata = device_data
-
-        model = transformed.get("model")
-        if model:
-            discovered.model = model
-
-        api_id = transformed.get("api_device_id")
-        if api_id:
-            discovered.api_device_id = api_id
-
-        ch = transformed.get("channels")
-        if ch is not None:
-            with suppress(ValueError, TypeError):
-                discovered.channels = int(ch)
-
-        status_val = transformed.get("status")
-        if isinstance(status_val, str):
-            ts = status_val.lower()
-            if ts in ("online", "ready", "up"):
-                discovered.status = discovered.STATUS_READY
-            elif ts in ("offline", "down"):
-                discovered.status = discovered.STATUS_OFFLINE
-            elif ts in ("error", "fault"):
-                discovered.status = discovered.STATUS_ERROR
+        discovered.api_device_id = device.api_device_id
+        if device.model:
+            discovered.model = device.model
+        if device.channels:
+            discovered.channels = len(device.channels)

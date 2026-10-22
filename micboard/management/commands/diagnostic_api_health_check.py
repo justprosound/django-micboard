@@ -36,7 +36,7 @@ class HealthChecker:
             self.error = f"Client initialization failed ({type(exc).__name__}); details redacted."
 
     def check_connectivity(self) -> Any:
-        logger.info("1. Connectivity Check\n" + "-" * 70)
+        logger.info("1. Connectivity Check\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Failed to initialize client: %s", self.error)
             return {"status": "failed", "error": self.error}
@@ -61,7 +61,7 @@ class HealthChecker:
             }
 
     def check_devices(self) -> Any:
-        logger.info("\n2. WirelessChassis Discovery Check\n" + "-" * 70)
+        logger.info("\n2. WirelessChassis Discovery Check\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
             return {}
@@ -89,7 +89,7 @@ class HealthChecker:
             return {}
 
     def check_discovery_ips(self) -> Any:
-        logger.info("\n3. Discovery IP Configuration Check\n" + "-" * 70)
+        logger.info("\n3. Discovery IP Configuration Check\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
             return {}
@@ -115,7 +115,7 @@ class HealthChecker:
             return {}
 
     def check_api_endpoints(self) -> Any:
-        logger.info("\n4. API Endpoints Check\n" + "-" * 70)
+        logger.info("\n4. API Endpoints Check\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
             return {}
@@ -141,7 +141,7 @@ class HealthChecker:
         return results
 
     def check_client_config(self) -> Any:
-        logger.info("\n5. Client Configuration\n" + "-" * 70)
+        logger.info("\n5. Client Configuration\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
             return {}
@@ -159,7 +159,7 @@ class HealthChecker:
         }
 
     def print_summary(self, full: bool = False) -> Any:
-        logger.info("\n" + "=" * 70)
+        logger.info("\n%s", "=" * 70)
         logger.info("HEALTH CHECK SUMMARY")
         logger.info("=" * 70)
         connectivity = self.check_connectivity()
@@ -167,7 +167,7 @@ class HealthChecker:
         ips = self.check_discovery_ips()
         self.check_api_endpoints()
         self.check_client_config()
-        logger.info("\n" + "=" * 70)
+        logger.info("\n%s", "=" * 70)
         all_good = (
             connectivity.get("status") == "healthy"
             and devices.get("device_count", 0) > 0

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from io import StringIO
 from unittest.mock import MagicMock, Mock
 
@@ -17,7 +17,7 @@ def test_efis_command_skips_fresh_data(monkeypatch) -> None:
     monkeypatch.setattr(
         efis_command.EFISImportService,
         "get_last_import_date",
-        Mock(return_value=datetime(2026, 1, 1)),
+        Mock(return_value=datetime(2026, 1, 1, tzinfo=UTC)),
     )
     output = StringIO()
     command = efis_command.Command(stdout=output)
@@ -51,7 +51,7 @@ def test_efis_command_reports_import_result(monkeypatch, success: bool) -> None:
 
 
 def test_efis_command_reports_previous_import(monkeypatch) -> None:
-    previous = datetime(2026, 1, 1)
+    previous = datetime(2026, 1, 1, tzinfo=UTC)
     monkeypatch.setattr(efis_command.time, "time", Mock(side_effect=[1.0, 2.0]))
     monkeypatch.setattr(
         efis_command.EFISImportService, "get_last_import_date", Mock(return_value=previous)

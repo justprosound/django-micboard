@@ -305,9 +305,7 @@ class PerformerAssignmentAccessTests(TestCase):
     def test_assignment_page_and_live_rows_keep_scope_and_page_state(self) -> None:
         page_response = self.client.get(reverse("micboard:assignments"))
         rows_response = self.client.get(
-            reverse("micboard:assignment_rows"),
-            {"page": 1},
-            HTTP_HX_REQUEST="true",
+            reverse("micboard:assignment_rows"), {"page": 1}, headers={"hx-request": "true"}
         )
 
         self.assertContains(

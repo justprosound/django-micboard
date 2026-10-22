@@ -11,6 +11,73 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 - Verify the documentation search button includes its visible keyboard shortcut in its
   accessible name and opens with keyboard focus. Accessibility checks retain every axe rule.
+## [2026.10.22.1] - 2026-10-22
+
+### Changed
+
+- Ruff now enforces lazy logging arguments (`G`, `LOG`) and timezone-aware datetimes (`DTZ`).
+  The 17 log calls that built their message with `+` or an f-string pass `%s` arguments instead,
+  and metrics and circuit-breaker timestamps are UTC. `AGENTS.md` and the Copilot instructions
+  now say lazy arguments, replacing the f-string guidance that contradicted the root agent
+  instructions.
+- A `django-upgrade` prek hook (target Django 5.2) keeps deprecated Django idioms out. Its first
+  run rewrote two test-client calls from `HTTP_HX_REQUEST=` to `headers=`.
+
+## [2026.10.22.0] - 2026-10-22
+
+### Changed
+
+- **Breaking:** manufacturer plugins now return one typed shape. `ManufacturerPlugin` replaces
+  `transform_device_data(api_data) -> dict | None` with
+  `normalize_device(api_data) -> NormalizedChassis | None`, and replaces
+  `transform_transmitter_data(tx_data, channel_number)` with
+  `normalize_channels(api_channels) -> list[NormalizedChannel]`. `NormalizedChassis`,
+  `NormalizedChannel`, and `NormalizedUnit` live in `micboard.services.core.hardware`. Every
+  persistence path reads their fields, so no service guesses vendor key names any more.
+
+- The two shipped vendor transformers were the same code apart from their device-family tables.
+  They are replaced by one shared `VendorDeviceNormalizer`
+  (`micboard.services.common.base.device_normalizer`), and each integration now supplies only its
+  vocabulary: `micboard.integrations.shure.normalizer.SHURE_NORMALIZER` and
+  `micboard.integrations.sennheiser.normalizer.SENNHEISER_NORMALIZER`.
+
+- A channel whose wireless unit is absent or unreadable is now kept, with `unit=None`, instead
+  of being dropped from the normalized device. Refreshing a staged device therefore records the
+  number of channels the device reported.
+
+### Removed
+
+- `micboard.integrations.shure.transformers.ShureDataTransformer` and
+  `micboard.integrations.sennheiser.transformers.SennheiserDataTransformer`: use the
+  integration's normalizer.
+- `NormalizedHardware` and `NormalizedHardware.from_api()`: use `NormalizedChassis` from the
+  plugin's `normalize_device()`.
+- `WirelessChassisPersistenceService.role_for_device_type()`: the role now comes from the device
+  specification catalogue for the chassis model.
+- Normalized-payload keys that nothing read (`hostname`, `band`, `location`, `info`, and the
+  per-unit `extra`, `mute`, `power`, `name_raw`, and antenna readings).
+- The status mapping in the staged-device refresh. It read a device-level `status` key that no
+  shipped normalizer ever produced, so it never ran.
+
+### Fixed
+
+- Polling wrote every chassis with an empty model and the default `receiver` role. The poll path
+  read `model` and `device_type` from the transformed payload, which the transformers never
+  emitted, so the vendor's model name (for example `ULXD4Q`) was discarded. Polled chassis now
+  store the full model, and a model the device specification lists as a transmitter or
+  transceiver gets that role.
+
+- Realtime updates overwrote a chassis model with the family key (`ulxd`), so the poll and
+  realtime paths wrote different models for the same chassis. Both now write the vendor's model,
+  and an event that names no model leaves the stored model unchanged. A device that reports no
+  model name is named after its family (for example `ULX-D`) instead of being given that label
+  as its model number.
+
+- Promoting a discovered device never deduplicated by serial number: it read `serial_number`
+  where the transformers emitted `serial`. A device whose serial matched an existing chassis at a
+  new address was also created as a second chassis, because promotion ignored the "moved"
+  deduplication outcome. Promotion now updates that chassis, records its new address, and logs
+  the movement.
 
 ## [2026.10.21.2] - 2026-10-21
 

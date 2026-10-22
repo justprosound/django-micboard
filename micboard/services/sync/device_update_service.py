@@ -13,6 +13,7 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.rf_coordination.rf_channel import RFChannel
+from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis, NormalizedUnit
 from micboard.services.hardware.dtos import WirelessChassisWrite
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
@@ -24,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 class DeviceUpdatePlugin(Protocol):
-    """Manufacturer transformation operations required by device persistence."""
+    """Manufacturer operations required by device persistence."""
 
-    def transform_device_data(self, api_data: dict[str, Any]) -> dict[str, Any] | None:
+    def normalize_device(self, api_data: dict[str, Any]) -> NormalizedChassis | None:
         """Normalize one raw device payload."""
         raise NotImplementedError
 
@@ -34,12 +35,8 @@ class DeviceUpdatePlugin(Protocol):
         """Return raw channel payloads for one device."""
         raise NotImplementedError
 
-    def transform_transmitter_data(
-        self,
-        api_data: dict[str, Any],
-        channel_number: int,
-    ) -> dict[str, Any] | None:
-        """Normalize one raw wireless-unit payload."""
+    def normalize_channels(self, api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]:
+        """Normalize a raw channel list."""
         raise NotImplementedError
 
 
@@ -67,22 +64,22 @@ class DeviceUpdateService:
 
         for device_index, device_data in enumerate(api_data, start=1):
             try:
-                transformed_data = plugin.transform_device_data(device_data)
-                if not transformed_data:
+                device = plugin.normalize_device(device_data)
+                if device is None:
                     snapshot_failed = True
                     continue
 
-                raw_device_id = transformed_data.get("api_device_id") or transformed_data.get("id")
-                api_device_id = str(raw_device_id).strip() if raw_device_id is not None else ""
-                if not api_device_id:
-                    raise ValueError("Transformed device data is missing its identifier")
-                defaults = WirelessChassisWrite(
-                    ip=transformed_data.get("ip", ""),
-                    model=transformed_data.get("type", "unknown"),
-                    name=transformed_data.get("name", ""),
-                    firmware_version=transformed_data.get("firmware", ""),
-                    last_seen=timezone.now(),
-                )
+                api_device_id = device.api_device_id
+                write_values: dict[str, Any] = {
+                    "ip": device.ip,
+                    "name": device.name,
+                    "firmware_version": device.firmware_version,
+                    "last_seen": timezone.now(),
+                }
+                # Realtime events often omit the model; an empty one must not erase a known model.
+                if device.model:
+                    write_values["model"] = device.model
+                defaults = WirelessChassisWrite(**write_values)
                 chassis, created = WirelessChassisPersistenceService.upsert(
                     manufacturer=manufacturer,
                     api_device_id=api_device_id,
@@ -98,22 +95,17 @@ class DeviceUpdateService:
                     raise ValueError("Persisted wireless chassis is missing its primary key")
                 active_chassis_ids.append(chassis.pk)
 
-                embedded_channels = transformed_data.get("channels")
-                if isinstance(embedded_channels, list) and embedded_channels:
-                    channel_data_items = embedded_channels
-                    transmitter_is_normalized = True
-                else:
-                    channel_data_items = plugin.get_device_channels(api_device_id)
-                    transmitter_is_normalized = False
-
-                for channel_data in channel_data_items:
-                    cls._update_channel_and_unit(
-                        chassis=chassis,
-                        channel_data=channel_data,
-                        plugin=plugin,
-                        api_device_id=api_device_id,
-                        transmitter_is_normalized=transmitter_is_normalized,
-                    )
+                channels = device.channels or plugin.normalize_channels(
+                    plugin.get_device_channels(api_device_id)
+                )
+                for channel in channels:
+                    if channel.unit is not None:
+                        cls._update_channel_and_unit(
+                            chassis=chassis,
+                            channel_number=channel.number,
+                            unit_data=channel.unit,
+                            api_device_id=api_device_id,
+                        )
                 updated_count += 1
             except Exception as exc:
                 snapshot_failed = True
@@ -176,25 +168,11 @@ class DeviceUpdateService:
         cls,
         *,
         chassis: WirelessChassis,
-        channel_data: dict[str, Any],
-        plugin: DeviceUpdatePlugin,
+        channel_number: int,
+        unit_data: NormalizedUnit,
         api_device_id: str,
-        transmitter_is_normalized: bool = False,
     ) -> None:
         """Update one RF channel and its attached wireless unit."""
-        channel_number = int(channel_data.get("channel", 0))
-        raw_unit = channel_data.get("tx")
-        if not isinstance(raw_unit, dict):
-            return
-
-        transformed_unit = (
-            raw_unit
-            if transmitter_is_normalized
-            else plugin.transform_transmitter_data(raw_unit, channel_number)
-        )
-        if not transformed_unit:
-            return
-
         channel, created = RFChannel.objects.update_or_create(
             chassis=chassis,
             channel_number=channel_number,
@@ -208,7 +186,7 @@ class DeviceUpdateService:
 
         slot = cls._assign_unit_slot(
             channel=channel,
-            transformed_unit=transformed_unit,
+            api_slot=unit_data.slot,
             api_device_id=api_device_id,
             channel_number=channel_number,
         )
@@ -218,33 +196,21 @@ class DeviceUpdateService:
                 "slot": slot,
                 "manufacturer": chassis.manufacturer,
                 "base_chassis": chassis,
-                "battery": (
-                    transformed_unit["battery"]
-                    if transformed_unit.get("battery") is not None
-                    else 255
-                ),
-                "battery_charge": transformed_unit.get("battery_charge"),
-                "battery_type": transformed_unit.get("battery_type") or "",
-                "battery_runtime": transformed_unit.get("runtime") or "",
-                "battery_health": transformed_unit.get("battery_health") or "",
-                "battery_cycles": transformed_unit.get("battery_cycles"),
-                "battery_temperature_c": transformed_unit.get("battery_temperature_c"),
-                "audio_level": transformed_unit.get("audio_level") or 0,
-                "rf_level": transformed_unit.get("rf_level") or 0,
-                "frequency": transformed_unit.get("frequency") or "",
-                "antenna": transformed_unit.get("antenna") or "",
-                "tx_offset": (
-                    transformed_unit["tx_offset"]
-                    if transformed_unit.get("tx_offset") is not None
-                    else 255
-                ),
-                "quality": (
-                    transformed_unit["quality"]
-                    if transformed_unit.get("quality") is not None
-                    else 255
-                ),
-                "status": transformed_unit.get("status") or "",
-                "name": transformed_unit.get("name") or "",
+                "battery": unit_data.battery,
+                "battery_charge": unit_data.battery_charge,
+                "battery_type": unit_data.battery_type,
+                "battery_runtime": unit_data.runtime,
+                "battery_health": unit_data.battery_health,
+                "battery_cycles": unit_data.battery_cycles,
+                "battery_temperature_c": unit_data.battery_temperature_c,
+                "audio_level": unit_data.audio_level,
+                "rf_level": unit_data.rf_level,
+                "frequency": unit_data.frequency,
+                "antenna": unit_data.antenna,
+                "tx_offset": unit_data.tx_offset,
+                "quality": unit_data.quality,
+                "status": unit_data.status,
+                "name": unit_data.name,
             },
         )
         alert_manager.check_wireless_unit_alerts(unit)
@@ -253,7 +219,7 @@ class DeviceUpdateService:
     def _assign_unit_slot(
         *,
         channel: RFChannel,
-        transformed_unit: dict[str, Any],
+        api_slot: int | None,
         api_device_id: str,
         channel_number: int,
     ) -> int:
@@ -267,7 +233,6 @@ class DeviceUpdateService:
             )
             return existing.slot
 
-        api_slot = transformed_unit.get("slot")
         if api_slot is not None:
             return int(api_slot)
 

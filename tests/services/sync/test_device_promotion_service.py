@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
@@ -241,69 +242,71 @@ def _dedup_result(**overrides: object) -> SimpleNamespace:
         "is_conflict": False,
         "conflict_type": None,
         "is_duplicate": False,
+        "is_moved": False,
         "existing_device": None,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
 
 
-def _promotion_inputs() -> tuple[object, Mock, dict[str, str]]:
+def _promotion_inputs() -> tuple[object, Mock, dict[str, str], NormalizedChassis]:
     discovered = DiscoveredDeviceFactory.build()
     plugin = Mock()
     data = {"id": "device-1", "ip": discovered.ip}
-    plugin.transform_device_data.return_value = {
-        "serial_number": "serial-1",
-        "mac_address": "00:11:22:33:44:55",
-        "ip": discovered.ip,
-        "api_device_id": "device-1",
-    }
-    return discovered, plugin, data
+    device = NormalizedChassis(
+        api_device_id="device-1",
+        ip=discovered.ip,
+        serial_number="serial-1",
+        mac_address="00:11:22:33:44:55",
+    )
+    plugin.normalize_device.return_value = device
+    return discovered, plugin, data, device
 
 
-def test_detailed_promotion_requires_transform(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Untransformable manufacturer data cannot be persisted."""
-    discovered, plugin, data = _promotion_inputs()
-    plugin.transform_device_data.return_value = None
+@pytest.mark.parametrize("normalized", [None, NormalizedChassis(api_device_id="device-1")])
+def test_detailed_promotion_requires_an_addressed_normalized_device(
+    normalized: NormalizedChassis | None,
+) -> None:
+    """Manufacturer data that cannot be normalized, or names no address, is not persisted."""
+    discovered, plugin, data, _device = _promotion_inputs()
+    plugin.normalize_device.return_value = normalized
 
     assert DevicePromotionService()._attempt_promotion_with_device_data(
         discovered, plugin, data
-    ) == (False, "Failed to transform device data", None)
+    ) == (False, "Failed to normalize device data", None)
 
 
-def test_detailed_promotion_reports_deduplication_conflict(
+def test_detailed_promotion_deduplicates_on_normalized_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Identity conflicts stop promotion before normalization or writes."""
-    discovered, plugin, data = _promotion_inputs()
-    monkeypatch.setattr(
-        "micboard.services.deduplication.check.check_device",
-        Mock(return_value=_dedup_result(is_conflict=True, conflict_type="ip_conflict")),
-    )
+    """Deduplication reads the normalized identity, and conflicts stop promotion."""
+    discovered, plugin, data, device = _promotion_inputs()
+    check = Mock(return_value=_dedup_result(is_conflict=True, conflict_type="ip_conflict"))
+    monkeypatch.setattr("micboard.services.deduplication.check.check_device", check)
 
     assert DevicePromotionService()._attempt_promotion_with_device_data(
         discovered, plugin, data
     ) == (False, "Device conflict: ip_conflict", None)
+    check.assert_called_once_with(
+        serial_number=device.serial_number,
+        mac_address=device.mac_address,
+        ip=device.ip,
+        api_device_id=device.api_device_id,
+        manufacturer=discovered.manufacturer,
+    )
 
 
-@pytest.mark.parametrize("normalizes", [False, True])
-def test_duplicate_promotion_requires_normalization_before_update(
-    normalizes: bool,
+def test_duplicate_promotion_updates_the_existing_chassis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Duplicate inventory is updated only from a valid normalized payload."""
-    discovered, plugin, data = _promotion_inputs()
+    """Duplicate inventory is refreshed from the one normalized payload."""
+    discovered, plugin, data, device = _promotion_inputs()
     existing = object()
-    payload = object()
     monkeypatch.setattr(
         "micboard.services.deduplication.check.check_device",
         Mock(return_value=_dedup_result(is_duplicate=True, existing_device=existing)),
     )
-    normalize = Mock(return_value=[payload] if normalizes else [])
     update = Mock()
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.ManufacturerSyncService._normalize_devices",
-        normalize,
-    )
     monkeypatch.setattr(
         "micboard.services.sync.device_promotion_service."
         "WirelessChassisPersistenceService.update_from_normalized",
@@ -316,30 +319,20 @@ def test_duplicate_promotion_requires_normalization_before_update(
         data,
     )
 
-    if normalizes:
-        assert result == (True, "Updated existing chassis", existing)
-        update.assert_called_once_with(chassis=existing, payload=payload)
-    else:
-        assert result == (False, "Failed to normalize duplicate device data", None)
-        update.assert_not_called()
+    assert result == (True, "Updated existing chassis", existing)
+    update.assert_called_once_with(chassis=existing, payload=device)
+    plugin.normalize_device.assert_called_once_with(data)
 
 
-@pytest.mark.parametrize("normalizes", [False, True])
-def test_new_promotion_requires_normalization_before_create(
-    normalizes: bool,
+def test_new_promotion_creates_from_the_normalized_device(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """New chassis creation requires one valid normalized manufacturer payload."""
-    discovered, plugin, data = _promotion_inputs()
-    payload = object()
+    """New chassis creation uses the same normalized payload deduplication checked."""
+    discovered, plugin, data, device = _promotion_inputs()
     created = object()
     monkeypatch.setattr(
         "micboard.services.deduplication.check.check_device",
         Mock(return_value=_dedup_result()),
-    )
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.ManufacturerSyncService._normalize_devices",
-        Mock(return_value=[payload] if normalizes else []),
     )
     create = Mock(return_value=created)
     monkeypatch.setattr(
@@ -354,12 +347,5 @@ def test_new_promotion_requires_normalization_before_create(
         data,
     )
 
-    if normalizes:
-        assert result == (True, "Created new managed chassis", created)
-        create.assert_called_once_with(
-            payload=payload,
-            manufacturer=discovered.manufacturer,
-        )
-    else:
-        assert result == (False, "Failed to normalize device data", None)
-        create.assert_not_called()
+    assert result == (True, "Created new managed chassis", created)
+    create.assert_called_once_with(payload=device, manufacturer=discovered.manufacturer)
