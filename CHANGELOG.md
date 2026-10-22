@@ -7,6 +7,8 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.22.1] - 2026-10-22
+
 ### Changed
 
 - Ruff now enforces lazy logging arguments (`G`, `LOG`) and timezone-aware datetimes (`DTZ`).
