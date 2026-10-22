@@ -197,7 +197,7 @@ uv run --no-sync pytest --cov=micboard  # With coverage
 - [ ] Ruff checks: `uv run --no-sync ruff check .`
 - [ ] Prek hooks: `uv run --no-sync prek run --all-files`
 - [ ] No tracked dev artifacts (db.sqlite3, .env, egg-info)
-- [ ] CHANGELOG.md updated
+- [ ] Pull-request changelog fragment added under `changelog.d/`
 - [ ] Version number updated in `pyproject.toml` (`micboard.__version__` reads package metadata)
 
 ## Further Reading

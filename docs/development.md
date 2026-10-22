@@ -170,8 +170,9 @@ just serve-docs  # serve it on http://localhost:9000 with hot reload
 Add a module to `PAGES` in `scripts/generate_api_docs.py` when a new public surface should
 appear in the API reference, then run `just docs-api` to regenerate the committed Markdown.
 
-Update `README.md` for user-facing behavior and `CHANGELOG.md` under `[Unreleased]`. Keep commands,
-paths, setting names, and optional dependencies aligned with repository code.
+Update `README.md` for user-facing behavior and add a `changelog.d/pr-<number>.md` release-note
+fragment. Keep commands, paths, setting names, and optional dependencies aligned with repository
+code.
 
 ## Packaging
 

@@ -14,6 +14,7 @@ default:
     @echo "  docs-api   - Regenerate the Python API reference from docstrings"
     @echo "  docs-verify - Validate documentation frontmatter, coverage, and links"
     @echo "  docs-e2e   - Run the documentation search, brand, and accessibility suite"
+    @echo "  changelog-check - Validate per-pull-request release-note fragments"
     @echo "  example    - Run example project"
     @echo "  wheel      - Build, validate, and smoke-test the reusable-app wheel"
     @echo "  type-check - Run type checks specifically"
@@ -89,6 +90,10 @@ docs-verify: uv-check docs
     uv run --no-sync python scripts/generate_api_docs.py --check
     uv run --no-sync python scripts/check_docs_coverage.py
     uv run --no-sync python scripts/check_docs_links.py
+
+# Validate all per-pull-request changelog fragments.
+changelog-check: uv-check
+    uv run --no-sync python scripts/changelog_fragments.py validate
 
 # Repair missing documentation frontmatter in place
 docs-frontmatter: uv-check

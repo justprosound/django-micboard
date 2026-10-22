@@ -18,5 +18,5 @@ title: "Development Tasks"
 
 - [ ] Update README with integration and release prep notes.
 - [ ] Update CONTRIBUTING with migration safety and workflow notes.
-- [ ] Update CHANGELOG for refactor entries.
+- [ ] Add pull-request changelog fragments for refactor entries.
 - [ ] Ensure `.gitignore`, pre-commit, and ruff configs are complete.
