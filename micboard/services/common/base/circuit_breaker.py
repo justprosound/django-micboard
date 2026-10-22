@@ -35,7 +35,7 @@ class CircuitBreaker:
         if prev in ("open", "half-open"):
             logger.info("Circuit closed for %s", self.name or "unknown")
             try:
-                from datetime import datetime
+                from datetime import UTC, datetime
 
                 from micboard.metrics import MetricsCollector, ServiceMetric
 
@@ -44,7 +44,7 @@ class CircuitBreaker:
                         service_name=self.name or "external_api",
                         method_name="circuit_closed",
                         duration_ms=0.0,
-                        timestamp=datetime.now(),
+                        timestamp=datetime.now(UTC),
                         success=True,
                     )
                 )
@@ -67,7 +67,7 @@ class CircuitBreaker:
                     self._failures,
                 )
                 try:
-                    from datetime import datetime
+                    from datetime import UTC, datetime
 
                     from micboard.metrics import MetricsCollector, ServiceMetric
 
@@ -76,7 +76,7 @@ class CircuitBreaker:
                             service_name=self.name or "external_api",
                             method_name="circuit_open",
                             duration_ms=0.0,
-                            timestamp=datetime.now(),
+                            timestamp=datetime.now(UTC),
                             success=False,
                             error_message="failure_threshold_exceeded",
                             metadata={"failures": self._failures},

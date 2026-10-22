@@ -168,9 +168,8 @@ This document distills all key architectural, workflow, and style rules for code
 
 ## 4. Logging, Error Handling, and Anti-Patterns
 
-- Always use `logging.exception` in `except` blocks. Pass values as logger arguments
-  (`%s` placeholders), not f-strings, so formatting is deferred until a record is emitted.
-  Example:
+- Always use `logging.exception` in `except` blocks, with lazy `%s` arguments rather than an
+  f-string, so the message is only built when it is emitted. Ruff's `G` rules enforce this. Example:
     ```python
     try:
         ...

@@ -11,7 +11,7 @@ from django.test import override_settings
 import pytest
 
 from micboard.models.discovery.discovery_queue import DeviceMovementLog
-from micboard.services.core.hardware import NormalizedHardware
+from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.deduplication.check import check_device
 from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 from micboard.services.deduplication.result import DeduplicationResult
@@ -32,7 +32,7 @@ from tests.factories.hardware import WirelessChassisFactory
 pytestmark = pytest.mark.django_db
 
 
-def _payload(**overrides: object) -> NormalizedHardware:
+def _payload(**overrides: object) -> NormalizedChassis:
     values = {
         "api_device_id": "device-1",
         "ip": "192.0.2.100",
@@ -40,7 +40,7 @@ def _payload(**overrides: object) -> NormalizedHardware:
         "mac_address": "00:11:22:33:44:55",
         "name": "Receiver",
         "model": "RX-1",
-        "device_type": "receiver",
+        "role": "receiver",
         "firmware_version": "1.0",
         "hosted_firmware_version": "1.1",
         "description": "Rack receiver",
@@ -50,7 +50,7 @@ def _payload(**overrides: object) -> NormalizedHardware:
         "interface_id": "eth0",
     }
     values.update(overrides)
-    return NormalizedHardware(**values)  # type: ignore[arg-type]
+    return NormalizedChassis(**values)  # type: ignore[arg-type]
 
 
 def _result(**overrides: object) -> ManufacturerSyncResult:
@@ -226,7 +226,7 @@ def test_sync_stops_at_limit_plus_one_and_refuses_partial_inventory(
         device_limit=2,
         inventory_complete=False,
     )
-    plugin.transform_device_data.assert_not_called()
+    plugin.normalize_device.assert_not_called()
 
 
 @override_settings(MICBOARD_POLL_MAX_DEVICES=100_000)
@@ -375,7 +375,7 @@ def test_persistence_rolls_back_earlier_mutation_when_later_payload_fails(
     manufacturer = ManufacturerFactory(code="rollback-vendor")
     payloads = [_payload(), _payload(api_device_id="device-2", ip="192.0.2.101")]
 
-    def persist(payload: NormalizedHardware, *_args: object, **_kwargs: object) -> str:
+    def persist(payload: NormalizedChassis, *_args: object, **_kwargs: object) -> str:
         if payload.api_device_id == "device-2":
             raise RuntimeError("simulated later write failure")
         WirelessChassisFactory(
@@ -678,35 +678,19 @@ def test_sync_contains_manufacturer_api_failures(monkeypatch: pytest.MonkeyPatch
     assert secret not in str(result)
 
 
-def test_normalization_skips_untransformable_and_incomplete_devices() -> None:
-    """Only transformed payloads with an external ID and address reach persistence."""
+def test_normalization_skips_unnormalizable_and_unaddressed_devices() -> None:
+    """Only normalized devices with an address reach persistence."""
     plugin = Mock()
-    plugin.transform_device_data.side_effect = [
+    complete = NormalizedChassis(api_device_id="complete", ip="192.0.2.110")
+    plugin.normalize_device.side_effect = [
         None,
-        {"id": "missing-address"},
-        {"id": "complete", "ip": "192.0.2.110"},
+        NormalizedChassis(api_device_id="missing-address"),
+        complete,
     ]
 
     result = ManufacturerSyncService._normalize_devices([{}, {}, {}], plugin)
 
-    assert result == [
-        _payload(
-            api_device_id="complete",
-            ip="192.0.2.110",
-            serial_number="",
-            mac_address="",
-            name="",
-            model="",
-            device_type="",
-            firmware_version="",
-            hosted_firmware_version="",
-            description="",
-            subnet_mask=None,
-            gateway=None,
-            network_mode="auto",
-            interface_id="",
-        )
-    ]
+    assert result == [complete]
 
 
 @pytest.mark.parametrize(
@@ -972,16 +956,16 @@ def test_indexed_move_refreshes_the_batch_ip_identity() -> None:
 
 
 @pytest.mark.parametrize(
-    ("device_type", "expected_role"),
+    ("role", "expected_role"),
     [
-        ("IEM transmitter", "transmitter"),
-        ("hybrid transceiver", "transceiver"),
+        ("transmitter", "transmitter"),
+        ("transceiver", "transceiver"),
         ("receiver", "receiver"),
-        ("", "legacy"),
+        (None, "legacy"),
     ],
 )
 def test_update_existing_chassis_maps_role_and_preserves_blank_fields(
-    device_type: str,
+    role: str | None,
     expected_role: str,
 ) -> None:
     """Normalized values update inventory without erasing useful existing metadata."""
@@ -999,7 +983,7 @@ def test_update_existing_chassis_maps_role_and_preserves_blank_fields(
         interface_id="eth0",
         save=Mock(),
     )
-    payload = _payload(device_type=device_type).model_copy(
+    payload = _payload(role=role).model_copy(
         update={
             "name": "",
             "model": "",
@@ -1086,11 +1070,11 @@ def test_update_existing_chassis_repairs_equivalent_legacy_mac_format() -> None:
 
 
 @pytest.mark.parametrize(
-    ("device_type", "expected_role"),
-    [("transmitter", "transmitter"), ("transceiver", "transceiver"), ("", "receiver")],
+    ("role", "expected_role"),
+    [("transmitter", "transmitter"), ("transceiver", "transceiver"), (None, "receiver")],
 )
 def test_create_chassis_maps_normalized_payload(
-    device_type: str,
+    role: str | None,
     expected_role: str,
 ) -> None:
     """New normalized devices produce a complete chassis creation request."""
@@ -1102,7 +1086,7 @@ def test_create_chassis_maps_normalized_payload(
         manager_create,
     ):
         result = WirelessChassisPersistenceService.create_from_normalized(
-            payload=_payload(device_type=device_type),
+            payload=_payload(role=role),
             manufacturer=manufacturer,
         )
 

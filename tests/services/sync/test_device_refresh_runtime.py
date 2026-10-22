@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from micboard.models.discovery.registry import DiscoveredDevice
+from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis
 from micboard.services.sync.device_refresh_service import DeviceRefreshService
 
 
@@ -42,22 +43,24 @@ def test_refresh_many_counts_success_and_failure() -> None:
 
 
 @patch("micboard.services.sync.device_refresh_service.build_manufacturer_plugin")
-def test_refresh_single_applies_transformed_data(get_plugin: MagicMock) -> None:
+def test_refresh_single_applies_normalized_device(get_plugin: MagicMock) -> None:
     discovered = _discovered()
     plugin = get_plugin.return_value
-    plugin.get_device.return_value = {"id": "device-1", "status": "ONLINE"}
-    plugin.get_device_channels.return_value = [{"channel": 1}]
-    plugin.transform_device_data.return_value = {
-        "model": "RX",
-        "api_device_id": "updated",
-        "channels": "2",
-        "status": "online",
-    }
+    plugin.get_device.return_value = {"id": "device-1"}
+    plugin.get_device_channels.return_value = [{"channel": 1}, {"channel": 2}]
+    plugin.normalize_device.return_value = NormalizedChassis(
+        api_device_id="updated",
+        model="RX",
+        channels=[NormalizedChannel(number=1), NormalizedChannel(number=2)],
+    )
     assert DeviceRefreshService()._refresh_single_discovered_device(discovered)
     assert discovered.model == "RX"
     assert discovered.api_device_id == "updated"
     assert discovered.channels == 2
-    assert discovered.status == DiscoveredDevice.STATUS_READY
+    assert discovered.status == DiscoveredDevice.STATUS_PENDING
+    plugin.normalize_device.assert_called_once_with(
+        {"id": "device-1", "channels": [{"channel": 1}, {"channel": 2}]}
+    )
     discovered.save.assert_called_once()
 
 
@@ -89,14 +92,14 @@ def test_refresh_single_returns_false_without_device_data(get_plugin: MagicMock)
 
 
 @patch("micboard.services.sync.device_refresh_service.build_manufacturer_plugin")
-def test_refresh_single_preserves_raw_data_when_transform_returns_none(
+def test_refresh_single_preserves_raw_data_when_normalization_returns_none(
     get_plugin: MagicMock,
 ) -> None:
     discovered = _discovered()
     plugin = get_plugin.return_value
     plugin.get_device.return_value = {"raw": True}
     plugin.get_device_channels.return_value = []
-    plugin.transform_device_data.return_value = None
+    plugin.normalize_device.return_value = None
 
     assert not DeviceRefreshService()._refresh_single_discovered_device(discovered)
     assert discovered.metadata == {"raw": True, "channels": []}
@@ -133,7 +136,7 @@ def test_device_data_list_lookup_matches_supported_address_keys(address_key: str
     plugin.get_device.assert_not_called()
 
 
-def test_channel_enrichment_and_transform_failures_are_contained() -> None:
+def test_channel_enrichment_and_normalization_failures_are_contained() -> None:
     service = DeviceRefreshService()
     discovered = _discovered()
     plugin = MagicMock()
@@ -141,45 +144,25 @@ def test_channel_enrichment_and_transform_failures_are_contained() -> None:
     plugin.get_device_channels.return_value = [1]
     service._enrich_device_with_channels(plugin, discovered, data)
     assert data["channels"] == [1]
-    plugin.transform_device_data.side_effect = RuntimeError("transform")
-    assert service._transform_device(plugin, data, discovered) is None
+    plugin.normalize_device.side_effect = RuntimeError("normalize")
+    assert service._normalize_device(plugin, data, discovered) is None
 
     plugin.get_device_channels.side_effect = RuntimeError("channels")
     service._enrich_device_with_channels(plugin, discovered, data)
     service._enrich_device_with_channels(plugin, _discovered(api_device_id=""), data)
 
 
-@pytest.mark.parametrize(
-    ("status", "expected"),
-    [
-        ("ready", DiscoveredDevice.STATUS_READY),
-        ("down", DiscoveredDevice.STATUS_OFFLINE),
-        ("fault", DiscoveredDevice.STATUS_ERROR),
-        ("unknown", DiscoveredDevice.STATUS_PENDING),
-    ],
-)
-def test_apply_transformed_maps_status(status: str, expected: str) -> None:
-    discovered = _discovered()
-    DeviceRefreshService()._apply_transformed_to_discovered(
-        discovered,
-        {"channels": "invalid", "status": status},
-        {"raw": True},
-    )
-    assert discovered.status == expected
-    assert discovered.metadata == {"raw": True}
-
-
-def test_apply_transformed_ignores_absent_optional_values() -> None:
-    """Missing and non-string normalized values preserve existing model fields."""
+def test_apply_normalized_keeps_existing_values_the_device_did_not_report() -> None:
+    """An empty model or channel list preserves what the staged record already knew."""
     discovered = _discovered(model="Existing", api_device_id="existing", channels=4)
 
-    DeviceRefreshService()._apply_transformed_to_discovered(
+    DeviceRefreshService()._apply_normalized_to_discovered(
         discovered,
-        {"model": "", "api_device_id": "", "channels": None, "status": 503},
+        NormalizedChassis(api_device_id="existing"),
         {"raw": True},
     )
 
     assert discovered.model == "Existing"
-    assert discovered.api_device_id == "existing"
     assert discovered.channels == 4
+    assert discovered.metadata == {"raw": True}
     assert discovered.status == DiscoveredDevice.STATUS_PENDING

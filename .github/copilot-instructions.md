@@ -101,8 +101,7 @@ Copilot must follow these naming conventions:
 ### 3.3 Logging
 
 *   Use `logging.exception` for error logging in exception handlers.
-*   Pass values as logger arguments with `%s` placeholders, not f-strings, so formatting
-    is deferred until a record is emitted:
+*   Pass log arguments lazily, never as an f-string (ruff `G` enforces this):
     ```python
     logger.info("Processing item %s", item_id)
     ```

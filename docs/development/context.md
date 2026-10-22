@@ -64,7 +64,7 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 
 - **Django and HTMX UI** - Tenant-scoped Django views provide monitoring workflows; Django admin provides configuration and operator workflows. No REST API layer exists.
 - **Service Layer** - Business logic lives in concern-named modules under `micboard/services/<domain>/`. Services orchestrate models, plugins, and external APIs.
-- **Plugin System** - Manufacturer integrations live in `micboard/integrations/<manufacturer>/` with a `plugin.py`, `client.py`, `discovery_client.py`, `transformers.py`, and optional `websocket.py`/`sse_client.py`.
+- **Plugin System** - Manufacturer integrations live in `micboard/integrations/<manufacturer>/` with a `plugin.py`, `client.py`, `discovery_client.py`, `normalizer.py` (the vendor's vocabulary for the shared `VendorDeviceNormalizer`), and optional `websocket.py`/`sse_client.py`.
 - **Background Tasks** - Discovery, polling, health checks, and WebSocket subscriptions run via native Huey tasks in `micboard/tasks/<domain>/`.
 - **Async Real-Time** - Server-sent events (SSE) and WebSocket connections for live monitoring.
 - **Multi-Tenancy** - Row-level tenant isolation via `TenantOptimizedQuerySet`.

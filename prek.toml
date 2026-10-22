@@ -25,6 +25,12 @@ hooks = [
   { id = "debug-statements", exclude = "(^|/)migrations/" }
 ]
 [[repos]]
+repo = "https://github.com/adamchainz/django-upgrade"
+rev = "1.33.0"
+hooks = [
+  { id = "django-upgrade", args = ["--target-version", "5.2"], exclude = "(^|/)migrations/" }
+]
+[[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
 rev = "v0.15.13"
 hooks = [

@@ -80,12 +80,14 @@ def validate_manufacturer_config(
 
     if errors:
         logger.warning(
-            f"Configuration validation failed for {config.code}",
+            "Configuration validation failed for %s",
+            config.code,
             extra={"code": config.code, "errors": errors},
         )
     else:
         logger.info(
-            f"Configuration validated successfully for {config.code}",
+            "Configuration validated successfully for %s",
+            config.code,
             extra={"code": config.code},
         )
 
@@ -106,14 +108,15 @@ def apply_manufacturer_config(
     try:
         if not config.is_valid:
             logger.warning(
-                f"Cannot apply invalid configuration for {config.code}",
+                "Cannot apply invalid configuration for %s",
+                config.code,
                 extra={"code": config.code},
             )
             return False
 
         logger.info(
-            f"Configuration validated for {config.code}. "
-            f"Will be applied on next plugin initialization.",
+            "Configuration validated for %s. Will be applied on next plugin initialization.",
+            config.code,
             extra={"code": config.code},
         )
         return True
