@@ -104,19 +104,19 @@ Transition a device on the database that supplied the instance.
 
 #### `mark_online(device: WirelessChassis | WirelessUnit, health_data: dict[str, Any] | None = None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L174)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L182)
 
 Mark device as online/operational.
 
 #### `mark_offline(device: WirelessChassis | WirelessUnit, reason: str = 'Not responding') -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L188)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L196)
 
 Mark device as offline.
 
 ### `map_api_state_to_status(api_state: str, current_status: str) -> str`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L203)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L211)
 
 Map manufacturer API state to HardwareStatus.
 

@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Ruff now enforces lazy logging arguments (`G`, `LOG`) and timezone-aware datetimes (`DTZ`).
+  The 17 log calls that built their message with `+` or an f-string pass `%s` arguments instead,
+  and metrics and circuit-breaker timestamps are UTC. `AGENTS.md` and the Copilot instructions
+  now say lazy arguments, replacing the f-string guidance that contradicted the root agent
+  instructions.
+- A `django-upgrade` prek hook (target Django 5.2) keeps deprecated Django idioms out. Its first
+  run rewrote two test-client calls from `HTTP_HX_REQUEST=` to `headers=`.
+
 ## [2026.10.22.0] - 2026-10-22
 
 ### Changed

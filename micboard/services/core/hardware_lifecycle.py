@@ -135,7 +135,11 @@ class HardwareLifecycleManager:
 
         if not self._is_valid_transition(from_status, to_status):
             logger.warning(
-                f"Invalid transition: {device_type} {device.pk} from {from_status} to {to_status}",
+                "Invalid transition: %s %s from %s to %s",
+                device_type,
+                device.pk,
+                from_status,
+                to_status,
                 extra={
                     "device_id": device.pk,
                     "device_type": device_type,
@@ -158,7 +162,11 @@ class HardwareLifecycleManager:
         device.save(update_fields=update_fields, using=using)
 
         logger.info(
-            f"Device transition: {device_type} {device.pk} {from_status} → {to_status}",
+            "Device transition: %s %s %s → %s",
+            device_type,
+            device.pk,
+            from_status,
+            to_status,
             extra={
                 "device_id": device.pk,
                 "device_type": device_type,

@@ -361,6 +361,9 @@ select = [
   "S",   # Bandit
   "Q",   # Quotes
   "T20", # Print statements
+  "G",   # Logging format: lazy %-style arguments only
+  "LOG", # Logging misuse
+  "DTZ", # Timezone-aware datetimes
   "PLR0912", # Too many branches
   "PLR0915", # Too many statements
 ]
