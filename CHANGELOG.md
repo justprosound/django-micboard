@@ -11,6 +11,7 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 - Verify the documentation search button includes its visible keyboard shortcut in its
   accessible name and opens with keyboard focus. Accessibility checks retain every axe rule.
+
 ## [2026.10.22.1] - 2026-10-22
 
 ### Changed

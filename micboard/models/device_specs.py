@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 # Load device specifications from fixture
-def _load_device_specifications() -> dict[str, dict[str, dict]]:
+def _load_device_specifications() -> dict[str, dict[str, dict[str, Any]]]:
     """Load device specifications from YAML fixture."""
     if not HAS_YAML:
         logger.warning("PyYAML not installed; device specifications are unavailable")
@@ -58,10 +58,10 @@ def _load_device_specifications() -> dict[str, dict[str, dict]]:
 
 
 # Unified device specifications by manufacturer
-DEVICE_SPECIFICATIONS: dict[str, dict[str, dict]] = _load_device_specifications()
+DEVICE_SPECIFICATIONS: dict[str, dict[str, dict[str, Any]]] = _load_device_specifications()
 
 
-def get_device_spec(*, manufacturer: str | None, model: str | None) -> dict | None:
+def get_device_spec(*, manufacturer: str | None, model: str | None) -> dict[str, Any] | None:
     """Look up device specifications by manufacturer and model.
 
     Args:

@@ -53,7 +53,10 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     list_filter = ("role", "status", "manufacturer")
     search_fields = ("name", "ip", "api_device_id")
     list_select_related = ("manufacturer", "location")
-    inlines: ClassVar[list] = [RFChannelInline, AccessoryInline]
+    inlines: ClassVar[list[type[Any]]] = [
+        RFChannelInline,
+        AccessoryInline,
+    ]
     readonly_fields = ("last_seen", "get_hardware_summary")
     date_hierarchy = "last_seen"
     actions: ClassVar[list[str]] = ["mark_online", "mark_offline", "sync_from_api"]

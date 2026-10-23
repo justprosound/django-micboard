@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from django import forms
 from django.core.exceptions import PermissionDenied
@@ -18,8 +18,13 @@ from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
 
+if TYPE_CHECKING:
+    _WirelessChassisModelForm = forms.ModelForm[WirelessChassis]
+else:
+    _WirelessChassisModelForm = forms.ModelForm
 
-class WirelessChassisAdminForm(forms.ModelForm):
+
+class WirelessChassisAdminForm(_WirelessChassisModelForm):
     """Custom admin form for WirelessChassis with band plan selection."""
 
     scope_user = None
@@ -87,7 +92,7 @@ class WirelessChassisAdminForm(forms.ModelForm):
             # Find the full name from choices
             selector = cast(forms.ChoiceField, self.fields["band_plan_selector"])
             # cast avoids django-stubs union-attr issue with ChoiceField.choices
-            selector_choices = cast(list, selector.choices)
+            selector_choices = cast(list[Any], selector.choices)
             for key, name in selector_choices:
                 if key == band_plan_selector:
                     cleaned_data["band_plan_name"] = name

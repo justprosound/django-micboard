@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import pkgutil
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django import forms
 from django.contrib import admin
@@ -21,8 +21,13 @@ from micboard.services.manufacturer.secret_redaction import (
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    _ManufacturerModelForm = forms.ModelForm[Manufacturer]
+else:
+    _ManufacturerModelForm = forms.ModelForm
 
-class ManufacturerAdminForm(forms.ModelForm):
+
+class ManufacturerAdminForm(_ManufacturerModelForm):
     """Form for Manufacturer admin with auto-discovered code choices."""
 
     class Meta:

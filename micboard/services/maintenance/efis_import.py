@@ -156,9 +156,9 @@ class EFISImportService:
             session.close()
 
     @classmethod
-    def _fetch_regions(cls, session: httpx.Client) -> list[dict]:
+    def _fetch_regions(cls, session: httpx.Client) -> list[dict[str, Any]]:
         payload = cls._request_json(session=session, path="/regions/all")
-        return cast(list[dict], payload.get("regions") or [])
+        return cast(list[dict[str, Any]], payload.get("regions") or [])
 
     @classmethod
     def _fetch_wireless_term_ids(cls, session: httpx.Client) -> set[int]:
@@ -194,7 +194,7 @@ class EFISImportService:
         updated = 0
 
         for app_range in payload.get("applicationRanges", []):
-            applications: Sequence[dict] = app_range.get("applications", [])
+            applications: Sequence[dict[str, Any]] = app_range.get("applications", [])
             matching = [
                 app
                 for app in applications
@@ -233,8 +233,8 @@ class EFISImportService:
         *,
         session: httpx.Client,
         path: str,
-        params: dict | None = None,
-    ) -> dict:
+        params: dict[str, int | str | None] | None = None,
+    ) -> dict[str, Any]:
         url = f"{cls.EFIS_URL}{path}"
         max_retries = 3
         backoff_factor = 0.5
@@ -253,7 +253,9 @@ class EFISImportService:
                 time.sleep(backoff_factor * (2**attempt))
 
     @classmethod
-    def _matches_wireless_application(cls, application: dict, wireless_term_ids: set[int]) -> bool:
+    def _matches_wireless_application(
+        cls, application: dict[str, Any], wireless_term_ids: set[int]
+    ) -> bool:
         term = application.get("applicationTerm", {})
         term_id = term.get("id")
         term_name = (term.get("name") or "").lower()
@@ -262,7 +264,7 @@ class EFISImportService:
         return any(keyword in term_name for keyword in cls._WIRELESS_KEYWORDS)
 
     @classmethod
-    def _build_band_name(cls, applications: Sequence[dict]) -> str:
+    def _build_band_name(cls, applications: Sequence[dict[str, Any]]) -> str:
         names = sorted(
             {app.get("applicationTerm", {}).get("name", "Wireless audio") for app in applications}
         )
@@ -270,14 +272,14 @@ class EFISImportService:
         return f"{base} (EFIS)"
 
     @classmethod
-    def _build_description(cls, *, region_name: str, applications: Sequence[dict]) -> str:
+    def _build_description(cls, *, region_name: str, applications: Sequence[dict[str, Any]]) -> str:
         comments = cls._combine_comments(applications)
         if comments:
             return f"EFIS application range for {region_name}. Comments: {comments}"
         return f"EFIS application range for {region_name}."
 
     @classmethod
-    def _combine_comments(cls, applications: Sequence[dict]) -> str:
+    def _combine_comments(cls, applications: Sequence[dict[str, Any]]) -> str:
         comments: list[str] = []
         for app in applications:
             comment = (app.get("comment") or "").strip()

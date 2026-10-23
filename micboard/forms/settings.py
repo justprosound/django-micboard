@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from django import forms
 from django.apps import apps
@@ -18,6 +18,17 @@ from micboard.services.settings.dtos import (
 )
 from micboard.services.settings.persistence_service import SettingsPersistenceService
 from micboard.services.settings.visibility_service import settings_visibility
+
+if TYPE_CHECKING:
+    from micboard.models.discovery.manufacturer import Manufacturer
+
+    _OrganizationChoiceField = forms.ModelChoiceField[Any]
+    _SiteChoiceField = forms.ModelChoiceField[Site]
+    _ManufacturerChoiceField = forms.ModelChoiceField[Manufacturer]
+else:
+    _OrganizationChoiceField = forms.ModelChoiceField
+    _SiteChoiceField = forms.ModelChoiceField
+    _ManufacturerChoiceField = forms.ModelChoiceField
 
 
 def _scope_for_user(user: Any | None) -> SettingsVisibilityScope:
@@ -66,21 +77,21 @@ class BulkSettingConfigForm(forms.Form):
         help_text="Select where these settings should apply",
     )
 
-    organization: forms.ModelChoiceField = forms.ModelChoiceField(
+    organization: forms.ModelChoiceField[Any] = forms.ModelChoiceField(
         queryset=None,
         required=False,
         label="Organization",
         help_text="Only shown for organization-scoped settings",
     )
 
-    site = forms.ModelChoiceField(
+    site: forms.ModelChoiceField[Site] = forms.ModelChoiceField(
         queryset=Site.objects.all(),
         required=False,
         label="Site",
         help_text="Only shown for site-scoped settings",
     )
 
-    manufacturer: forms.ModelChoiceField = forms.ModelChoiceField(
+    manufacturer: forms.ModelChoiceField[Manufacturer] = forms.ModelChoiceField(
         queryset=None,  # Set in __init__
         required=False,
         label="Manufacturer",
@@ -96,7 +107,7 @@ class BulkSettingConfigForm(forms.Form):
         if apps.is_installed("micboard.multitenancy"):
             from micboard.multitenancy.models import Organization
 
-            organization_selector = cast(forms.ModelChoiceField, self.fields["organization"])
+            organization_selector = cast(_OrganizationChoiceField, self.fields["organization"])
             organizations = Organization._default_manager.all()
             if self.visibility_scope.organization_ids is not None:
                 organizations = organizations.filter(pk__in=self.visibility_scope.organization_ids)
@@ -104,7 +115,7 @@ class BulkSettingConfigForm(forms.Form):
         else:
             self.fields.pop("organization")
 
-        site_selector = cast(forms.ModelChoiceField, self.fields["site"])
+        site_selector = cast(_SiteChoiceField, self.fields["site"])
         sites = Site.objects.all()
         if self.visibility_scope.site_ids is not None:
             sites = sites.filter(pk__in=self.visibility_scope.site_ids)
@@ -113,7 +124,7 @@ class BulkSettingConfigForm(forms.Form):
         # Populate manufacturer choices
         from micboard.models.discovery.manufacturer import Manufacturer
 
-        selector = cast(forms.ModelChoiceField, self.fields["manufacturer"])
+        selector = cast(_ManufacturerChoiceField, self.fields["manufacturer"])
         manufacturers = Manufacturer.objects.all()
         if self.visibility_scope.manufacturer_ids is not None:
             manufacturers = manufacturers.filter(pk__in=self.visibility_scope.manufacturer_ids)
@@ -272,7 +283,7 @@ class BulkSettingConfigForm(forms.Form):
 class ManufacturerSettingsForm(forms.Form):
     """Quick-access form for configuring manufacturer-specific settings."""
 
-    manufacturer: forms.ModelChoiceField = forms.ModelChoiceField(
+    manufacturer: forms.ModelChoiceField[Manufacturer] = forms.ModelChoiceField(
         queryset=None,  # Set in __init__
         label="Manufacturer",
         help_text="Select which manufacturer to configure",
@@ -345,7 +356,7 @@ class ManufacturerSettingsForm(forms.Form):
 
         from micboard.models.discovery.manufacturer import Manufacturer
 
-        selector = cast(forms.ModelChoiceField, self.fields["manufacturer"])
+        selector = cast(_ManufacturerChoiceField, self.fields["manufacturer"])
         manufacturers = Manufacturer.objects.all()
         if self.visibility_scope.manufacturer_ids is not None:
             manufacturers = manufacturers.filter(pk__in=self.visibility_scope.manufacturer_ids)
