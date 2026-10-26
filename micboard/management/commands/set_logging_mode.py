@@ -11,6 +11,7 @@ class Command(BaseCommand):
     help = "Set audit logging verbosity mode (passive/normal/high)"
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for audit logging mode and optional duration."""
         parser.add_argument(
             "mode",
             type=str,
@@ -25,6 +26,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Update the audit logging verbosity mode and optional expiry TTL."""
         mode = options["mode"]
         duration = options.get("duration")
 

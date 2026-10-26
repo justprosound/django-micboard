@@ -28,6 +28,7 @@ class Command(BaseCommand):
     requires_migrations_checks = False
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for synchronous or asynchronous manufacturer polling."""
         parser.add_argument(
             "--manufacturer",
             type=str,
@@ -47,6 +48,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Poll target manufacturers synchronously or enqueue async polling tasks."""
         manufacturer_code = options.get("manufacturer")
         use_async = options.get("async", False)
         force = options.get("force", False)

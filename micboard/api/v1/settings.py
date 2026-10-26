@@ -15,6 +15,7 @@ class SettingDefinitionViewSet(ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> QuerySet:
+        """Return all active setting definitions."""
         return SettingDefinition.objects.filter(is_active=True)
 
 
@@ -25,6 +26,7 @@ class SettingViewSet(ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> QuerySet:
+        """Return setting overrides visible to the authenticated user with definitions loaded."""
         user = self.request.user
         if not user.is_authenticated:
             return Setting.objects.none()

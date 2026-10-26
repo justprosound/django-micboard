@@ -30,9 +30,13 @@ Bases: `BaseCommand`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/archive_audit_logs.py#L13)
 
+Register CLI arguments for audit log archiving and retention.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/archive_audit_logs.py#L26)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/archive_audit_logs.py#L27)
+
+Archive old activity logs and optionally prune sync and API health logs.
 
 ## `micboard.management.commands.audit_admin`
 
@@ -85,19 +89,23 @@ Bases: `BaseCommand`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_regulatory_coverage.py#L32)
 
+Register CLI arguments for regulatory coverage auditing.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_regulatory_coverage.py#L39)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_regulatory_coverage.py#L40)
+
+Audit active wireless chassis band plans and RF channel frequencies.
 
 #### `audit_chassis(fix_mode: Any) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_regulatory_coverage.py#L51)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_regulatory_coverage.py#L53)
 
 Audit WirelessChassis band plans and regulatory domains.
 
 #### `audit_channels() -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_regulatory_coverage.py#L129)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_regulatory_coverage.py#L131)
 
 Audit active RFChannel frequencies.
 
@@ -115,43 +123,61 @@ Perform health checks on Shure System API.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L38)
 
+Verify Shure System API reachability and health status.
+
 #### `check_devices() -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L63)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L64)
+
+Query discovered wireless chassis devices and summarize their states.
 
 #### `check_discovery_ips() -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L91)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L93)
+
+Inspect configured discovery IPs and log their subnet distribution.
 
 #### `check_api_endpoints() -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L117)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L120)
+
+Probe core Shure API endpoints and return their HTTP status codes.
 
 #### `check_client_config() -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L143)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L147)
+
+Log and return the active Shure API client configuration and health.
 
 #### `print_summary(full: bool = False) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L161)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L166)
+
+Execute all diagnostic checks and log a summary with recommendations.
 
 #### `run(full: bool = False) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L196)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L202)
+
+Run the Shure System API health check suite.
 
 ### `Command`
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L200)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L207)
 
 #### `add_arguments(parser: Any) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L203)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L210)
+
+Register CLI arguments for the API health check command.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L208)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/diagnostic_api_health_check.py#L216)
+
+Run diagnostic health checks against the Shure System API.
 
 ## `micboard.management.commands.discovery_add_devices`
 
@@ -195,9 +221,13 @@ Bases: `BaseCommand`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L21)
 
+Register CLI arguments for device import filtering and output options.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L38)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L39)
+
+Import Shure devices from configured System API servers into Django models.
 
 ## `micboard.management.commands.import_efis_regulations`
 
@@ -220,9 +250,13 @@ Import EFIS regulatory data.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_efis_regulations.py#L23)
 
+Register CLI arguments for EFIS regulatory data import.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_efis_regulations.py#L35)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_efis_regulations.py#L36)
+
+Check freshness and import regulatory frequency bands from the EFIS API.
 
 ## `micboard.management.commands.init_settings`
 
@@ -242,9 +276,13 @@ Initialize settings definitions.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/init_settings.py#L15)
 
+Register CLI arguments for initializing or resetting setting definitions.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/init_settings.py#L22)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/init_settings.py#L23)
+
+Optionally clear existing definitions and seed standard setting definitions.
 
 ## `micboard.management.commands.poll_devices`
 
@@ -267,9 +305,13 @@ plugins, model updates, and real-time broadcasts.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L30)
 
+Register CLI arguments for synchronous or asynchronous manufacturer polling.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L49)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L50)
+
+Poll target manufacturers synchronously or enqueue async polling tasks.
 
 ## `micboard.management.commands.realtime_status`
 
@@ -287,9 +329,13 @@ Bases: `BaseCommand`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L18)
 
+Register CLI arguments for filtering and displaying connection status.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L36)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L37)
+
+Summarize real-time connection health and optionally list connection details.
 
 ## `micboard.management.commands.realtime_subscribe`
 
@@ -359,9 +405,13 @@ Bases: `BaseCommand`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/set_logging_mode.py#L13)
 
+Register CLI arguments for audit logging mode and optional duration.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/set_logging_mode.py#L27)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/set_logging_mode.py#L28)
+
+Update the audit logging verbosity mode and optional expiry TTL.
 
 ## `micboard.management.commands.sync_discovery`
 
@@ -382,6 +432,10 @@ Bases: `BaseCommand`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L27)
 
+Register CLI arguments for discovery synchronization and candidate limits.
+
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L54)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L55)
+
+Synchronize discovery IPs and receiver records for target manufacturers.

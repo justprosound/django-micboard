@@ -16,6 +16,7 @@ class Command(BaseCommand):
     help = "Check and display real-time connection status"
 
     def add_arguments(self, parser: Any) -> None:
+        """Register CLI arguments for filtering and displaying connection status."""
         parser.add_argument(
             "--manufacturer",
             type=str,
@@ -34,6 +35,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Summarize real-time connection health and optionally list connection details."""
         manufacturer_code = options.get("manufacturer")
         status_filter = options.get("status")
         verbose = options.get("verbose")

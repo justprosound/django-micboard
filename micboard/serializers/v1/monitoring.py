@@ -19,6 +19,7 @@ class AlertSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def to_representation(self, instance: Alert) -> dict[str, Any]:
+        """Serialize the alert and redact sensitive keys in its channel data."""
         ret = super().to_representation(instance)
         if ret.get("channel_data"):
             ret["channel_data"] = redact_sensitive_keys(ret["channel_data"])

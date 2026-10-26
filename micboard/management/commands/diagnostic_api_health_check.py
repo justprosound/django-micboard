@@ -36,6 +36,7 @@ class HealthChecker:
             self.error = f"Client initialization failed ({type(exc).__name__}); details redacted."
 
     def check_connectivity(self) -> Any:
+        """Verify Shure System API reachability and health status."""
         logger.info("1. Connectivity Check\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Failed to initialize client: %s", self.error)
@@ -61,6 +62,7 @@ class HealthChecker:
             }
 
     def check_devices(self) -> Any:
+        """Query discovered wireless chassis devices and summarize their states."""
         logger.info("\n2. WirelessChassis Discovery Check\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
@@ -89,6 +91,7 @@ class HealthChecker:
             return {}
 
     def check_discovery_ips(self) -> Any:
+        """Inspect configured discovery IPs and log their subnet distribution."""
         logger.info("\n3. Discovery IP Configuration Check\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
@@ -115,6 +118,7 @@ class HealthChecker:
             return {}
 
     def check_api_endpoints(self) -> Any:
+        """Probe core Shure API endpoints and return their HTTP status codes."""
         logger.info("\n4. API Endpoints Check\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
@@ -141,6 +145,7 @@ class HealthChecker:
         return results
 
     def check_client_config(self) -> Any:
+        """Log and return the active Shure API client configuration and health."""
         logger.info("\n5. Client Configuration\n%s", "-" * 70)
         if not self.client:
             logger.error("✗ Client not initialized")
@@ -159,6 +164,7 @@ class HealthChecker:
         }
 
     def print_summary(self, full: bool = False) -> Any:
+        """Execute all diagnostic checks and log a summary with recommendations."""
         logger.info("\n%s", "=" * 70)
         logger.info("HEALTH CHECK SUMMARY")
         logger.info("=" * 70)
@@ -194,6 +200,7 @@ class HealthChecker:
             logger.info("  • python scripts/shure_configure_discovery_ips.py --help")
 
     def run(self, full: bool = False) -> Any:
+        """Run the Shure System API health check suite."""
         self.print_summary(full=full)
 
 
@@ -201,11 +208,13 @@ class Command(BaseCommand):
     help = "Perform health checks on Shure System API."
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for the API health check command."""
         parser.add_argument(
             "--full", action="store_true", help="Run full diagnostics including device details"
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Run diagnostic health checks against the Shure System API."""
         try:
             checker = HealthChecker()
             checker.run(full=options["full"])

@@ -21,6 +21,7 @@ class WirelessChassisViewSet(ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> Any:
+        """Return wireless chassis visible to the authenticated user."""
         user = self.request.user
         if not user.is_authenticated:
             return WirelessChassis.objects.none()
@@ -34,6 +35,7 @@ class WirelessUnitViewSet(ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> Any:
+        """Return wireless units visible to the authenticated user."""
         user = self.request.user
         if not user.is_authenticated:
             return WirelessUnit.objects.none()
@@ -47,6 +49,7 @@ class RFChannelViewSet(ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> Any:
+        """Return RF channels visible to the authenticated user."""
         user = self.request.user
         if not user.is_authenticated:
             return RFChannel.objects.none()

@@ -11,6 +11,7 @@ class SettingDefinitionSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def to_representation(self, instance: SettingDefinition) -> dict[str, Any]:
+        """Serialize the setting definition and mask default values for sensitive keys."""
         ret = super().to_representation(instance)
         key = (ret.get("key") or "").lower()
         if any(
@@ -26,6 +27,7 @@ class SettingSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def to_representation(self, instance: Setting) -> dict[str, Any]:
+        """Serialize the setting override and mask stored values for sensitive definition keys."""
         ret = super().to_representation(instance)
         key = (instance.definition.key or "").lower()
         if any(

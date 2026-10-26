@@ -154,10 +154,12 @@ class SettingDefinitionAdmin(MicboardModelAdmin):
 
     @admin.display(boolean=True, description="Required")
     def required_badge(self, obj: SettingDefinition) -> bool:
+        """Return whether the setting definition is required."""
         return obj.required
 
     @admin.display(boolean=True, description="Active")
     def is_active_badge(self, obj: SettingDefinition) -> bool:
+        """Return whether the setting definition is active."""
         return obj.is_active
 
     @admin.display(description="Default Value")
@@ -266,6 +268,7 @@ class SettingAdmin(MicboardModelAdmin):
 
     @admin.display(description="Setting")
     def setting_key(self, obj: Setting) -> str:
+        """Format the setting definition key and label for display."""
         return f"{obj.definition.key} ({obj.definition.label})"
 
     @admin.display(description="Value")
@@ -278,6 +281,7 @@ class SettingAdmin(MicboardModelAdmin):
 
     @admin.display(description="Scope")
     def scope_display(self, obj: Setting) -> str:
+        """Format the effective organization, site, manufacturer, or global scope."""
         if obj.organization_id:
             return f"Org ID: {obj.organization_id}"
         elif obj.site:
@@ -288,6 +292,7 @@ class SettingAdmin(MicboardModelAdmin):
 
     @admin.display(description="Type")
     def definition_type(self, obj: Setting) -> str:
+        """Return the human-readable setting type label from the definition."""
         return obj.definition.get_setting_type_display()
 
     @admin.display(description="Parsed Value")
@@ -308,6 +313,7 @@ class SettingAdmin(MicboardModelAdmin):
             )
 
     def save_model(self, request: Any, obj: Setting, form: ModelForm, change: bool) -> None:
+        """Enforce scope permissions, persist the setting value, and invalidate cache entries."""
         previous_key = None
         if change and obj.pk:
             previous_key = (

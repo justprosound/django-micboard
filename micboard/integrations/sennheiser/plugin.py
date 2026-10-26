@@ -24,10 +24,12 @@ class SennheiserPlugin(ManufacturerPlugin):
 
     @property
     def name(self) -> str:
+        """Return the display name of the Sennheiser manufacturer."""
         return "Sennheiser"
 
     @property
     def code(self) -> str:
+        """Return the internal code for the Sennheiser manufacturer."""
         return "sennheiser"
 
     def __init__(self, manufacturer: Manufacturer | None) -> None:

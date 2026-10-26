@@ -30,6 +30,7 @@ class DiscoveredDeviceSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def to_representation(self, instance: DiscoveredDevice) -> dict[str, Any]:
+        """Serialize the discovered device and redact sensitive keys in its metadata."""
         ret = super().to_representation(instance)
         if ret.get("metadata"):
             ret["metadata"] = redact_sensitive_keys(ret["metadata"])

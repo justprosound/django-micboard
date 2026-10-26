@@ -65,6 +65,7 @@ class ShureWebSocketClient(Protocol):
 
     @property
     def websocket_url(self) -> str | None:
+        """Return the WebSocket subscription URL for the Shure API."""
         raise NotImplementedError
 
     def _make_request(self, method: str, endpoint: str) -> Any | None:

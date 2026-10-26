@@ -30,6 +30,7 @@ class Command(BaseCommand):
     help = "Audit regulatory coverage for all active devices and channels"
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for regulatory coverage auditing."""
         parser.add_argument(
             "--fix",
             action="store_true",
@@ -37,6 +38,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Audit active wireless chassis band plans and RF channel frequencies."""
         fix_mode = options["fix"]
         self.stdout.write("Starting Regulatory Coverage Audit...\n")
 

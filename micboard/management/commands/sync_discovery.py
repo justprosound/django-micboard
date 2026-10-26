@@ -25,6 +25,7 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for discovery synchronization and candidate limits."""
         parser.add_argument(
             "--manufacturer",
             type=str,
@@ -52,6 +53,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Synchronize discovery IPs and receiver records for target manufacturers."""
         manufacturer_code = options.get("manufacturer")
         scan_cidrs = options.get("scan_cidrs", False)
         scan_fqdns = options.get("scan_fqdns", False)
