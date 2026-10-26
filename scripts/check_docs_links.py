@@ -30,6 +30,7 @@ class PageParser(HTMLParser):
         self.identifiers: set[str] = set()
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """Record href/src link attributes and id/name anchor identifiers from an HTML tag."""
         attributes = {name: value for name, value in attrs if value is not None}
         for attribute in LINK_ATTRIBUTES:
             value = attributes.get(attribute)

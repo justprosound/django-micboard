@@ -170,9 +170,11 @@ class BaseHTTPClient(BaseAPIClient):
         }
 
     def is_healthy(self) -> bool:
+        """Check whether the client is healthy with fewer than five consecutive failures."""
         return self._is_healthy and self._consecutive_failures < 5
 
     def check_health(self) -> dict[str, Any]:
+        """Probe the health check endpoint and return a standardized status response."""
         try:
             endpoint = self._get_health_check_endpoint()
             response = self._send_bounded_request(

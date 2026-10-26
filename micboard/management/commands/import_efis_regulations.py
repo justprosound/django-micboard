@@ -21,6 +21,7 @@ class Command(BaseCommand):
     help = "Import regulatory frequency data from EFIS (Annex 1)"
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for EFIS regulatory data import."""
         parser.add_argument(
             "--force",
             action="store_true",
@@ -33,6 +34,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Check freshness and import regulatory frequency bands from the EFIS API."""
         force = options["force"]
         verbose = options.get("verbose", False)
 

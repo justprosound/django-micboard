@@ -94,6 +94,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         )
 
     def get_queryset(self, request: Any) -> Any:
+        """Annotate wireless chassis with RF channel and active unit counts."""
         return (
             super()
             .get_queryset(request)
@@ -110,10 +111,12 @@ class WirelessChassisAdmin(MicboardModelAdmin):
 
     @admin.display(description="Channels", ordering="_channel_count")
     def channel_count_display(self, obj: Any) -> Any:
+        """Return the annotated RF channel count for the chassis."""
         return getattr(obj, "_channel_count", 0)
 
     @admin.display(description="Active Units", ordering="_active_units_count")
     def active_units_display(self, obj: Any) -> Any:
+        """Return the annotated active wireless and IEM unit count for the chassis."""
         return getattr(obj, "_active_units_count", 0)
 
     fieldsets = (
@@ -198,6 +201,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
     )
 
     def get_urls(self) -> Any:
+        """Prepend the custom hardware layout overview route to admin URLs."""
         urls = super().get_urls()
         custom_urls = [
             path(
@@ -245,6 +249,7 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         )
 
     def changelist_view(self, request: Any, extra_context: Any = None) -> Any:
+        """Inject the hardware layout overview URL into the changelist context."""
         extra_context = extra_context or {}
         extra_context["hardware_layout_url"] = "hardware-layout/"
         return super().changelist_view(request, extra_context)

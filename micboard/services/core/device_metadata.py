@@ -73,12 +73,15 @@ class GenericMetadataAccessor(DeviceMetadataAccessor):
     """Generic accessor for unknown manufacturers."""
 
     def get_compatibility_status(self) -> str | None:
+        """Return the generic compatibility status from metadata."""
         return self.data.get("compatibility")
 
     def get_device_state(self) -> str | None:
+        """Return the generic device state from metadata."""
         return self.data.get("state") or self.data.get("device_state")
 
     def get_incompatibility_reason(self) -> str | None:
+        """Return the generic incompatibility reason from metadata."""
         return self.data.get("incompatibility_reason")
 
 

@@ -19,6 +19,7 @@ class Command(BaseCommand):
     help = "Import Shure devices from System API servers into Django models"
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for device import filtering and output options."""
         parser.add_argument(
             "--server-id",
             type=str,
@@ -36,6 +37,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Import Shure devices from configured System API servers into Django models."""
         from micboard.services.settings.settings_service import settings
 
         # Get API servers configuration

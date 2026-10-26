@@ -8,6 +8,7 @@ from micboard.services.hardware.dtos import WirelessChassisWrite
 
 
 def TestOneInput(data: bytes) -> None:  # noqa: N802
+    """Fuzz WirelessChassisWrite validation with randomized byte inputs."""
     fdp = atheris.FuzzedDataProvider(data)
 
     try:

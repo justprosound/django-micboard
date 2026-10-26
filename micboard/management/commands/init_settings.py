@@ -13,6 +13,7 @@ class Command(BaseCommand):
     help = "Initialize settings definitions with standard configuration options"
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for initializing or resetting setting definitions."""
         parser.add_argument(
             "--reset",
             action="store_true",
@@ -20,6 +21,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Optionally clear existing definitions and seed standard setting definitions."""
         if options["reset"]:
             self.stdout.write(self.style.WARNING("Resetting settings..."))
             SettingDefinition.objects.all().delete()

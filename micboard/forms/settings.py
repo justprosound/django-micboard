@@ -188,6 +188,7 @@ class BulkSettingConfigForm(forms.Form):
                 )
 
     def clean(self) -> dict[str, Any]:
+        """Validate required target identifiers and management permissions for the selected scope."""
         cleaned_data: dict[str, Any] = super().clean() or {}
         scope = cleaned_data.get("scope")
 

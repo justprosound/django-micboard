@@ -59,6 +59,7 @@ class RFChannelAdmin(MicboardModelAdmin):
     )
 
     def get_queryset(self, request: Any) -> Any:
+        """Annotate RF channels with frequency band coverage and regulatory domain."""
         qs = super().get_queryset(request)
 
         # Subquery to check for specific frequency band coverage

@@ -14,6 +14,7 @@ class DiscoveredDeviceViewSet(ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> QuerySet:
+        """Return all discovered devices for superusers and an empty queryset otherwise."""
         user = self.request.user
         if not user.is_authenticated:
             return DiscoveredDevice.objects.none()

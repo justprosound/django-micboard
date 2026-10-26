@@ -20,6 +20,7 @@ class CircuitBreaker:
         self._state = "closed"
 
     def allow_request(self) -> bool:
+        """Check whether a request is allowed based on the current circuit state."""
         if self._state == "open":
             if (time.time() - self._last_failure) > self.recovery_timeout:
                 self._state = "half-open"
@@ -29,6 +30,7 @@ class CircuitBreaker:
         return True
 
     def record_success(self) -> None:
+        """Reset failure count and close the circuit after a successful request."""
         prev = self._state
         self._failures = 0
         self._state = "closed"
@@ -55,6 +57,7 @@ class CircuitBreaker:
                 )
 
     def record_failure(self) -> None:
+        """Increment failure count and open the circuit if the threshold is reached."""
         prev = self._state
         self._failures += 1
         self._last_failure = time.time()
@@ -90,4 +93,5 @@ class CircuitBreaker:
 
     @property
     def state(self) -> str:
+        """Return the current state of the circuit breaker."""
         return self._state

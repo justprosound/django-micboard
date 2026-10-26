@@ -16,6 +16,7 @@ class MonitoringGroupViewSet(ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> Any:
+        """Return monitoring groups visible to the requesting user."""
         return visible_to(MonitoringGroup, user=self.request.user)
 
 
@@ -26,5 +27,6 @@ class AlertViewSet(ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self) -> Any:
+        """Return alerts accessible to the requesting user."""
         user = self.request.user
         return get_alerts_for_user(user)

@@ -27,10 +27,12 @@ class ShurePlugin(ManufacturerPlugin):
 
     @property
     def name(self) -> str:
+        """Return the display name of the Shure manufacturer."""
         return "Shure"
 
     @property
     def code(self) -> str:
+        """Return the internal code for the Shure manufacturer."""
         return "shure"
 
     def __init__(self, manufacturer: Manufacturer | None) -> None:

@@ -23,12 +23,14 @@ class ChargerSlotAdmin(MicboardModelAdmin):
 
     @admin.display(description="Device Info")
     def device_info(self, obj: Any) -> Any:
+        """Format docked device model and serial number for display."""
         if obj.device_model and obj.device_serial:
             return f"{obj.device_model} ({obj.device_serial})"
         return obj.device_serial or "-"
 
     @admin.display(boolean=True, description="Occupied")
     def is_occupied(self, obj: Any) -> Any:
+        """Return whether the charger slot is occupied."""
         return obj.occupied
 
 

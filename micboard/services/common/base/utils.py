@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def validate_ipv4_list(ips: Iterable[object], log_prefix: str = "") -> list[str]:
+    """Filter an iterable of objects down to normalized IPv4 address strings."""
     valid_ips: list[str] = []
     rejected_count = 0
     for ip in ips:
@@ -32,6 +33,7 @@ def validate_ipv4_list(ips: Iterable[object], log_prefix: str = "") -> list[str]
 
 
 def validate_ipv4_address(ip: str) -> bool:
+    """Return True if the given string is a valid IPv4 address."""
     try:
         addr = ipaddress.ip_address(ip)
         return addr.version == 4
@@ -40,6 +42,7 @@ def validate_ipv4_address(ip: str) -> bool:
 
 
 def validate_hostname(hostname: str) -> bool:
+    """Return True if the given string is a valid IPv4 address or DNS hostname."""
     if not hostname or len(hostname) > 253:
         return False
 

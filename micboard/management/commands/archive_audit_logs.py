@@ -11,6 +11,7 @@ class Command(BaseCommand):
     help = "Archive old activity logs and prune sync/api health logs"
 
     def add_arguments(self, parser: Any) -> Any:
+        """Register CLI arguments for audit log archiving and retention."""
         parser.add_argument(
             "--retention-days",
             type=int,
@@ -24,6 +25,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Any) -> None:
+        """Archive old activity logs and optionally prune sync and API health logs."""
         retention_days = options.get("retention_days")
         activity_only = options["activity_only"]
 

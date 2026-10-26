@@ -364,13 +364,15 @@ select = [
   "G",   # Logging format: lazy %-style arguments only
   "LOG", # Logging misuse
   "DTZ", # Timezone-aware datetimes
+  "D102", # Missing docstring in public method
+  "D103", # Missing docstring in public function
   "PLR0912", # Too many branches
   "PLR0915", # Too many statements
 ]
 ignore = [
     "COM812", "ISC001", "E501", "S101", "S105", "RUF012",
     "DJ001", "DJ012", "N815", "DJ008",
-    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107"
+    "D100", "D101", "D104", "D105", "D106", "D107"
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -380,7 +382,7 @@ ignore = [
 "micboard/query_optimization.py" = ["T201"]  # Debug utilities legitimately use print()
 "*/migrations/*.py" = ["ALL"]
 "example_project/*.py" = ["S105", "S106"]
-"tests/*.py" = ["S106"]  # Test credentials are intentionally non-production.
+"tests/*.py" = ["S106", "D102", "D103"]  # Test credentials and test helper docstrings.
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

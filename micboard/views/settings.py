@@ -89,6 +89,7 @@ class BulkSettingConfigView(LoginRequiredMixin, SettingsManagementPermissionMixi
             return self.form_invalid(form)
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """Populate page title and description for the bulk settings configuration view."""
         context = super().get_context_data(**kwargs)
         context["title"] = "Configure Settings"
         context["description"] = "Configure settings for a specific scope"
@@ -147,6 +148,7 @@ class ManufacturerSettingsView(LoginRequiredMixin, SettingsManagementPermissionM
             return self.form_invalid(form)
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        """Populate page title and description for the manufacturer settings configuration view."""
         context = super().get_context_data(**kwargs)
         context["title"] = "Configure Manufacturer Settings"
         context["description"] = "Quickly configure settings for a specific manufacturer"

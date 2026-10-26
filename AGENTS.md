@@ -1,263 +1,46 @@
-# AGENTS.md — Agent & Assistant Coding Guide for django-micboard
+# Agent Instructions
 
-This document distills all key architectural, workflow, and style rules for coded/automated contributions to the django-micboard project. Follow these guidelines to remain fully compliant with project policy, maximize code robustness, and enable seamless agentic development.
+## Package Managers
+- Use **`uv`** exclusively for Python environments and packages: `uv sync --locked --all-extras` (never use `pip`, `pipx`, `poetry`, or `venv`).
+- Use **`npm`** for the Astro Starlight documentation toolchain: `npm ci`.
+- Use **`just install`** to install both dependency trees and configure `prek` hooks.
 
----
+## Commands
+| Task | Command |
+|------|---------|
+| Test file | `uv run --no-sync pytest tests/test_settings_service.py -v` |
+| Test marker | `uv run --no-sync pytest -m "unit or integration or django_db"` |
+| Test suite & coverage | `just coverage` |
+| Lint file | `uv run --no-sync ruff check path/to/file.py` |
+| Format file | `uv run --no-sync ruff format path/to/file.py` |
+| Typecheck file | `uv run --no-sync python -m mypy path/to/file.py` |
+| Security scan | `uv run --no-sync bandit -r micboard -ll` |
+| Git hooks | `uv run --no-sync prek run --all-files` |
+| Regenerate API docs | `just docs-api` |
+| Verify docs | `just docs-verify` |
+| Validate changelog | `just changelog-check` |
 
+## External References
+| Need | File |
+|------|------|
+| Setup & PR workflow | `CONTRIBUTING.md` |
+| Canonical architecture & coding rules | `.github/copilot-instructions.md` |
+| System & domain architecture | `docs/architecture.md` |
+| Documentation platform (Starlight) | `docs/adr/013-documentation-platform-starlight.md` |
+| Security policy | `SECURITY.md` |
+| Domain glossary & ADRs | `docs/agents/domain.md` |
+| GitHub issue tracker conventions | `docs/agents/issue-tracker.md` |
+| Issue triage labels | `docs/agents/triage-labels.md` |
 
-
-## Persistent Skills
-
-- `caveman` - Ultra-compressed communication mode
-- `pirate-skill` - Speak like a pirate
-- `django-access-review` - Django access control and IDOR security review
-- `django-drf` - Django REST Framework guidance
-- `django-patterns` - Django architecture patterns, REST API design with DRF, ORM best practices, caching, signals, middleware, and production-grade Django apps
-- `django-perf-review` - Django performance code review
-- `django-security` - Django security best practices, authentication, authorization, CSRF protection, SQL injection prevention, XSS prevention, and secure deployment configurations
-- `django-verification` - Verification loop for Django projects: migrations, linting, tests with coverage, security scans, and deployment readiness checks before release or PR
-
-## Quick Reference — Agent Research
-- **When you need to search docs, use `context7` tools.**
-- **If you are unsure how to do something, use `gh_grep` to search code examples from GitHub.**
-
----
-
-## Architectural Standards
-
-### 1. Service Layer Pattern
-- **Logic Isolation**: Business logic MUST reside in the Service Layer. Django management commands and views should be "thin wrappers".
-- **Service Structure**: Use `DefaultsService`, `UpsertService`, and `BulkPersistService` patterns.
-
-### 2. Data Transfer Objects (DTOs)
-- **Standardization**: Use DTOs for data passing; **Pydantic (v2)** is mandatory.
-- **Base Class**: Inherit from `PydanticBaseDTO` for standard config.
-- **Mapping**: Use `DTOMapper` for type-safe Django model to DTO conversion.
-
-### 3. Type Safety
-- **Type Hints**: Required for all public methods and service/DTO definitions.
-
-## 1. Local Build, Test, Lint, Type, and Security Commands
-
-> **CRITICAL: uv IS MANDATORY**
->
-> All agents and developers MUST use `uv` for all **Python** dependency installation and environment management in every context. The documentation site is a Node toolchain, so its dependencies are installed with `npm ci` from the committed `package-lock.json`; `uv` cannot manage them. Nothing else in this repository may install Python packages outside `uv`. Do **NOT** use `pip`, `pipx`, `poetry`, or Python's built-in `venv` directly—this is MANDATORY for reproducibility, security, and agent workflow support.
->
-> **Resilience and Enforcement Policy:**
-> - If any documentation, code, PR, CI/CD config, script, or troubleshooting advice in this project (or a dependency) references or recommends `pip`, `pipx`, `poetry`, or direct `venv` usage, you must:
->   1. IMMEDIATELY halt and do NOT proceed with that setup or change!
->   2. Notify the maintainers and update the offending documentation/code to use `uv` exclusively.
->   3. PR reviewers must BLOCK any contributions that introduce, re-enable, or suggest legacy/non-uv patterns (even in troubleshooting, migration notes, and comments).
->   4. Agents and automation MUST refuse to reproduce or propagate bad patterns—raise an error instead.
->
-> **If you are unsure, STOP and escalate to maintainers before proceeding.**
->
-> To enforce this at the tooling level, a `uv-check` must be included in every installing or running script. See Justfile for the canonical enforcement example.
-
-- **Setup & Install:**
-    - Clone and set up the development environment (using uv ONLY; all others strictly forbidden):
-      ```bash
-      git clone https://github.com/justprosound/django-micboard.git
-      cd django-micboard
-      uv sync --locked --all-extras
-      cp .env.example .env  # configure as needed
-      ```
-    - **WARNING:** You must use uv for ALL installation, management, and environment creation. Direct or indirect usage (even examples) of pip, pipx, venv, or poetry is strictly forbidden. Any environment setup, tool install, or dependency action must use uv to ensure reproducibility and security. If you see a non-uv pattern, report and fix instead of repeating or copying it.
-
-- **Tests:**
-    - Run all tests:
-      ```bash
-      uv run --no-sync pytest
-      ```
-    - Coverage:
-      ```bash
-      uv run --no-sync pytest --cov=micboard --cov-report=html
-      ```
-    - Markers (examples):
-      - `uv run --no-sync pytest -m unit` (only unit tests)
-      - `uv run --no-sync pytest -m integration` (integration tests)
-      - `uv run --no-sync pytest -m django_db` (DB-required tests)
-    - Specific test file:
-      - `uv run --no-sync pytest tests/test_settings_service.py -v`
-
-- **Linting/Autoformat:**
-    - Check:
-      ```bash
-      uv run --no-sync ruff check .
-      ```
-    - Autoformat:
-      ```bash
-      uv run --no-sync ruff format .
-      ```
-    - **Prek (install and run all hooks):**
-
-      ```bash
-      uv run --no-sync prek install -f --prepare-hooks
-      uv run --no-sync prek run --all-files
-      ```
-
-- **Type Checking:**
-
-    ```bash
-    uv run --no-sync python -m mypy micboard
-    ```
-
-- **Security:**
-    ```bash
-    uv run --no-sync bandit -r micboard -ll
-    ```
-
-- **Documentation site:** built with [Astro Starlight](https://starlight.astro.build) from the
-  plain Markdown in `docs/`. Node and npm are prerequisites alongside `uv`; install them
-  first, then `just install` installs both dependency trees (`uv sync` and `npm ci`).
-  Never move pages out of `docs/`; the content collection loads them from there.
-
-    ```bash
-    just docs         # build the static site into site/
-    just serve-docs   # serve it on http://localhost:9000 with hot reload
-    just docs-api     # regenerate docs/api/reference/ from Google-style docstrings
-    just docs-verify  # frontmatter, reference freshness, page coverage, and link checks
-    just docs-e2e     # offline search, brand, and WCAG 2.1 AA suite (Playwright + axe-core)
-    ```
-
-    The API reference is generated statically with Griffe by `scripts/generate_api_docs.py`
-    and committed; add a module to its `PAGES` list to document a new public surface. The
-    documentation build must never import Django or require `DJANGO_SETTINGS_MODULE`. See
-    [ADR-013](docs/adr/013-documentation-platform-starlight.md).
-
----
-
-## 2. Directory Structure & Domain Architecture
-
-- All code is grouped by business domain:
-    ```
-    micboard/services/<domain>/services.py
-    micboard/tasks/<domain>/tasks.py
-    micboard/serializers/<domain>/serializers.py
-    micboard/admin/<domain>/admin.py
-    micboard/api/<domain>/views.py
-    ```
-- No files should exceed ~300–400 lines. Split by responsibility (see `.github/copilot-instructions.md` for split patterns).
-- **Services** own business logic (use DTOs, orchestrate high-level behavior).
-- **Tasks** (async/Huey) wrap service logic for background execution only. Celery and django-q2 are **LEGACY**.
-- **Admin** and **Serializers** are thin and never contain business logic.
-- Tests reside in the `tests/` root-level folder or in domain-specific test files.
-
----
-
-## 3. Code Style: Imports, Quotes, Indentation, Naming
-
-- **Imports order:**
-    1. `__future__` imports
-    2. Python standard lib
-    3. Django imports
-    4. Third-party
-    5. First-party (micboard)
-    6. Relative/local
-    - Enforced by ruff/isort with `pyproject.toml` settings
-
-- **String quotes:** Always use double quotes.
-- **Indentation:** 4 spaces everywhere (no tabs).
-- **Line length:** 100 chars (ruff).
-- **Class names:** `PascalCase` (InitialCaps).
-- **Functions/variables:** `snake_case`.
-- **Type hints:** Required for all public functions.
-- **HTTP Client**: Use **`httpx`** for modern, async-compatible requests. **`requests`** is deprecated for new development.
-
----
-
-## 4. Logging, Error Handling, and Anti-Patterns
-
-- Always use `logging.exception` in `except` blocks, with lazy `%s` arguments rather than an
-  f-string, so the message is only built when it is emitted. Ruff's `G` rules enforce this. Example:
-    ```python
-    try:
-        ...
-    except Exception:
-        logger.exception("Operation failed for item %s", item_id)
-    ```
-- Never use bare `except:` blocks; always specify exceptions or catch `Exception`.
-- Do not embed business logic into admin, tasks, or serializers—use services.
-- Never create/maintain shims or legacy/compat modules. Remove old shims and update call sites to reference new modules directly.
-- Avoid large catch-all utils files or modules with mixed unrelated responsibility.
-- **Task Queue**: All background work must use native **Huey** through `huey.contrib.djhuey`. Celery and django-q2 are deprecated.
-
----
-
-## 5. Migrations (CRITICAL)
-
-- Never edit, delete, or manually patch files in `micboard/migrations/`.
-- Only generate new migrations when schema changes are absolutely required **and approved**.
-- Always test migrations on clean and existing DBs using approved processes.
-- All migration changes must be reviewed before merge.
-- Use **`django-safemigrate`** for all production migrations.
-
----
-
-## 6. PRs, Documentation, and Changelog
-
-- Always add/update:
-    - Docstrings and type hints for all public functions/classes
-    - One `changelog.d/pr-<number>.md` fragment per pull request
-    - README.md if user-facing changes
-- PRs are committed by feature branch with a conventional commit style (e.g., `feat:`, `fix:`, etc.). See CONTRIBUTING.md for format.
-- All code must pass CI checks before merge: Ruff, mypy, pytest, Bandit, and prek.
-
----
-
-## 7. Forbidden Patterns and Agent Guardrails
-
-- **Never:**
-    - Suggest/retain shims, legacy re-exports, or compat/alias modules
-    - Circumvent architectural organization (always follow domain split)
-    - Mix business logic across domains/layers
-    - Modify or delete existing migration files
-    - Edit compiled requirements files directly (edit `.in` or pyproject.toml only)
-    - Introduce new frameworks, caching, or queue solutions unless a precedent exists
-    - Include "Co-Authored-By" or "Co-authored-by" tags in commit messages or any output
-- **Always:**
-    - Place all core logic in domain services
-    - Update ALL references when removing/shifting APIs (no backward-compat wrappers)
-    - Follow all guidelines in `.github/copilot-instructions.md` as absolute authority
-    - Standardize on the documented project stack (native Huey, httpx, pydantic, tenacity, etc.)
-
----
-
-## 8. Key References
-
-- `.github/copilot-instructions.md` — canonical architecture and code rules
-- `CONTRIBUTING.md`, `README.md` — contributor/dev workflow and policy
-- `pyproject.toml` — all linter, type-checker, and test config
-- `CHANGELOG.md`, `docs/` — history, architecture, and detailed APIs
-- `changelog.d/` — per-pull-request release-note fragments, assembled by release automation
-- For full architecture, see `docs/architecture.md`
-
----
-
-**Agents: If in doubt, always check `.github/copilot-instructions.md` and follow the strictest pattern or ask for clarification via code review. No shims, no shortcuts, strict domain discipline!
-
----
-
-## Agent skills
-
-### Required skills
-
-The following skills are always loaded:
-- **caveman** — ultra-compressed communication mode
-- **pirate-skill** — speak like a pirate
-
-### Auto-enablement
-
-Additional skills listed in `available_skills` are loaded dynamically as they become relevant to the task at hand.
-
-### Issue tracker
-
-Issues are tracked as GitHub issues on this repo. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five canonical triage labels use their default names. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context layout (`CONTEXT.md` + `docs/adr/` at root). See `docs/agents/domain.md`.
+## Key Conventions
+- Organize code by domain under `micboard/{services,tasks,serializers,admin,api}/<domain>/` and keep files under ~400 lines.
+- Isolate business logic in the Service Layer (`DefaultsService`, `UpsertService`, `BulkPersistService`); keep views, admin, tasks, and serializers as thin wrappers.
+- Pass data across layers with Pydantic v2 DTOs inheriting from `PydanticBaseDTO` and mapped via `DTOMapper`.
+- Annotate all public functions, methods, services, and DTOs with type hints.
+- Use native Huey (`huey.contrib.djhuey`) for background tasks and `httpx` for HTTP requests (`Celery`, `django-q2`, and `requests` are deprecated).
+- Log exceptions in `except Exception:` blocks using `logger.exception("Message %s", arg)` with lazy `%s` formatting.
+- Update all call sites directly when moving or removing APIs; never leave compatibility shims or re-export aliases.
+- Generate new migrations only for approved schema changes and run them with `django-safemigrate`; never edit or delete existing files in `micboard/migrations/`.
+- Regenerate `docs/api/reference/` with `just docs-api` (`scripts/generate_api_docs.py`); do not edit generated reference files by hand or import Django during docs builds.
+- Add one `changelog.d/pr-<number>.md` fragment per pull request.
+- Format commit messages with Conventional Commits (`feat:`, `fix:`, etc.) and never include `Co-Authored-By` trailers.

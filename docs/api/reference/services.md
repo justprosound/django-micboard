@@ -308,43 +308,49 @@ Generic accessor for unknown manufacturers.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L75)
 
+Return the generic compatibility status from metadata.
+
 #### `get_device_state() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L78)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L79)
+
+Return the generic device state from metadata.
 
 #### `get_incompatibility_reason() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L81)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L83)
+
+Return the generic incompatibility reason from metadata.
 
 ### `ShureMetadataAccessor`
 
 Bases: `DeviceMetadataAccessor`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L85)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L88)
 
 Accessor for Shure-specific metadata structure.
 
 #### `get_compatibility_status() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L88)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L91)
 
 Get Shure compatibility status.
 
 #### `get_device_state() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L92)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L95)
 
 Get Shure device state.
 
 #### `get_incompatibility_reason() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L96)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L99)
 
 Get human-readable Shure incompatibility reason.
 
 #### `get_communication_protocol() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L116)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L119)
 
 Get Shure communication protocol name.
 
@@ -352,25 +358,25 @@ Get Shure communication protocol name.
 
 Bases: `DeviceMetadataAccessor`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L124)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L127)
 
 Accessor for Sennheiser-specific metadata structure.
 
 #### `get_compatibility_status() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L127)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L130)
 
 Get Sennheiser compatibility status.
 
 #### `get_device_state() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L131)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L134)
 
 Get Sennheiser device state.
 
 #### `get_incompatibility_reason() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L135)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L138)
 
 Get human-readable Sennheiser incompatibility reason.
 
@@ -1172,13 +1178,17 @@ Get the exception class for rate limit errors.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L172)
 
+Check whether the client is healthy with fewer than five consecutive failures.
+
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L175)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L176)
+
+Probe the health check endpoint and return a standardized status response.
 
 #### `close() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L435)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L437)
 
 Close the underlying HTTP connection pool.
 
@@ -1217,10 +1227,16 @@ Rate-limit calls to a decorated client method through the shared cache.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L22)
 
+Check whether a request is allowed based on the current circuit state.
+
 #### `record_success() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L31)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L32)
+
+Reset failure count and close the circuit after a successful request.
 
 #### `record_failure() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L57)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L59)
+
+Increment failure count and open the circuit if the threshold is reached.
