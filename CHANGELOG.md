@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.27.0] - 2026-10-27
+
+### Changed
+
+- Enforce Ruff `D102` and `D103` rules requiring docstrings on public methods and functions.
+
+### Docs
+
+- Add concise docstrings across public methods and functions, refresh generated API reference pages, and condense `AGENTS.md` to reference-backed instructions.
+
 ## [2026.10.24.0] - 2026-10-24
 
 ### Added
