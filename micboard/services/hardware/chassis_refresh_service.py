@@ -1,7 +1,5 @@
 """Tenant-preserving refresh workflow for selected wireless chassis."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterable
 from itertools import islice

@@ -1,7 +1,5 @@
 """Django admin interface for settings management."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.contrib import admin, messages

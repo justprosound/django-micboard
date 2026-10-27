@@ -1,7 +1,5 @@
 """Admin dispatch coverage for bounded selected-chassis refreshes."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 

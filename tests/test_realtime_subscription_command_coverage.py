@@ -5,8 +5,6 @@ persisted identifiers and hands them to the runner. The transport is not an oper
 choice, so there is one command for every integration.
 """
 
-from __future__ import annotations
-
 from argparse import ArgumentParser
 from io import StringIO
 from types import SimpleNamespace

@@ -19,7 +19,7 @@ for debugging and API responses.
 
 Bases: `Exception`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L15)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L13)
 
 Base exception for all micboard errors.
 
@@ -29,7 +29,7 @@ Provides structured exception handling with error codes and details.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L45)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L43)
 
 Raised when manufacturer is not supported.
 
@@ -37,7 +37,7 @@ Raised when manufacturer is not supported.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L61)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L59)
 
 Raised when hardware is not found.
 
@@ -45,7 +45,7 @@ Raised when hardware is not found.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L86)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L84)
 
 Raised when hardware data is invalid.
 
@@ -53,7 +53,7 @@ Raised when hardware data is invalid.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L103)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L101)
 
 Raised when a tenant-scoped chassis creation would exceed its quota.
 
@@ -61,7 +61,7 @@ Raised when a tenant-scoped chassis creation would exceed its quota.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L126)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L124)
 
 Base error for bounded manufacturer API operations.
 
@@ -69,7 +69,7 @@ Base error for bounded manufacturer API operations.
 
 Bases: `APIError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L159)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L157)
 
 Raised when a manufacturer API rate limit is exceeded.
 
@@ -77,7 +77,7 @@ Raised when a manufacturer API rate limit is exceeded.
 
 Bases: `APIError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L183)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L181)
 
 Raised when manufacturer API authentication fails.
 
@@ -85,7 +85,7 @@ Raised when manufacturer API authentication fails.
 
 Bases: `APIError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L191)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L189)
 
 Raised when a manufacturer API operation times out.
 
@@ -93,7 +93,7 @@ Raised when a manufacturer API operation times out.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L199)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L197)
 
 Raised when location is not found.
 
@@ -101,7 +101,7 @@ Raised when location is not found.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L215)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L213)
 
 Raised when a required setting cannot be resolved.
 
@@ -109,7 +109,7 @@ Raised when a required setting cannot be resolved.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L227)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L225)
 
 Raised when the live admin cannot be audited safely.
 
@@ -117,7 +117,7 @@ Raised when the live admin cannot be audited safely.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L235)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L233)
 
 Raised when another worker owns a realtime supervisor lease.
 
@@ -125,7 +125,7 @@ Raised when another worker owns a realtime supervisor lease.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L246)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L244)
 
 Raised when service operation fails.
 
@@ -133,7 +133,7 @@ Raised when service operation fails.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L267)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L265)
 
 Raised when device discovery fails.
 
@@ -141,6 +141,6 @@ Raised when device discovery fails.
 
 Bases: `MicboardError`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L273)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/exceptions.py#L271)
 
 Raised when a location with the given name already exists.

@@ -48,19 +48,19 @@ Audit the live Django admin registry for configuration and query risks.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_admin.py#L20)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_admin.py#L18)
 
 Expose the admin audit service through Django's command interface.
 
 #### `add_arguments(parser: CommandParser) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_admin.py#L25)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_admin.py#L23)
 
 Register the supported audit filters and check selectors.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_admin.py#L72)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_admin.py#L70)
 
 Validate options, run the service, and render its typed report.
 
@@ -189,19 +189,19 @@ Submit validated IP addresses to a manufacturer's discovery workflow.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/discovery_add_devices.py#L17)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/discovery_add_devices.py#L15)
 
 Validate operator-supplied addresses and submit them through the service layer.
 
 #### `add_arguments(parser: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/discovery_add_devices.py#L22)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/discovery_add_devices.py#L20)
 
 Register bounded discovery candidate options.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/discovery_add_devices.py#L37)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/discovery_add_devices.py#L35)
 
 Submit a bounded, canonical address list without direct network probing.
 
@@ -215,17 +215,17 @@ Management command to import Shure devices from System API into Django models.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L18)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L16)
 
 #### `add_arguments(parser: Any) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L19)
 
 Register CLI arguments for device import filtering and output options.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L39)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/import_devices.py#L37)
 
 Import Shure devices from configured System API servers into Django models.
 
@@ -294,7 +294,7 @@ Management command to poll device APIs using the service layer.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L17)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L15)
 
 Poll manufacturer APIs for device data and update models.
 
@@ -303,13 +303,13 @@ plugins, model updates, and real-time broadcasts.
 
 #### `add_arguments(parser: Any) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L30)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L28)
 
 Register CLI arguments for synchronous or asynchronous manufacturer polling.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L50)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/poll_devices.py#L48)
 
 Poll target manufacturers synchronously or enqueue async polling tasks.
 
@@ -323,17 +323,17 @@ Management command to check and display real-time connection status.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L15)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L13)
 
 #### `add_arguments(parser: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L18)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L16)
 
 Register CLI arguments for filtering and displaying connection status.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L37)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_status.py#L35)
 
 Summarize real-time connection health and optionally list connection details.
 
@@ -347,19 +347,19 @@ Start the bounded realtime subscription supervisor from the command line.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L18)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L16)
 
 Thin foreground adapter for the realtime subscription runner.
 
 #### `add_arguments(parser: CommandParser) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L23)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L21)
 
 Register the manufacturer and optional single-device selectors.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L37)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L35)
 
 Resolve the manufacturer and run the singleton supervisor for its transport.
 
@@ -373,19 +373,19 @@ Management command that seeds the demonstration dataset.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L13)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L11)
 
 Create a small, self-consistent demonstration dataset.
 
 #### `add_arguments(parser: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L19)
 
 Register the optional read-only account password.
 
 #### `handle(*_args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L32)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/seed_demo_data.py#L30)
 
 Delegate to the seeding service and report what it produced.
 
@@ -426,16 +426,16 @@ and then pulls device data back to Django. Django Micboard is the "source of tru
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L22)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L20)
 
 #### `add_arguments(parser: Any) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L27)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L25)
 
 Register CLI arguments for discovery synchronization and candidate limits.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L55)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/sync_discovery.py#L53)
 
 Synchronize discovery IPs and receiver records for target manufacturers.

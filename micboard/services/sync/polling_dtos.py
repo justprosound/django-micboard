@@ -1,7 +1,5 @@
 """Validated limits and results for manufacturer polling."""
 
-from __future__ import annotations
-
 from collections.abc import Iterable
 from itertools import islice
 from typing import Any

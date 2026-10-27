@@ -8,8 +8,6 @@ keeps its Markdown ``# Heading`` would render two level-one headings. This check
 the documentation site needs.
 """
 
-from __future__ import annotations
-
 import argparse
 import re
 from collections.abc import Iterator

@@ -1,7 +1,5 @@
 """Behavior and failure-path coverage for the EFIS import service."""
 
-from __future__ import annotations
-
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock

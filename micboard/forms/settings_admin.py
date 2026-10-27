@@ -1,7 +1,5 @@
 """Forms used by the standard Django settings administration."""
 
-from __future__ import annotations
-
 from typing import Any, cast
 
 from django import forms

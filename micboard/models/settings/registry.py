@@ -1,7 +1,5 @@
 """Settings registry models for database-backed configuration."""
 
-from __future__ import annotations
-
 import json
 import logging
 from typing import Any, ClassVar

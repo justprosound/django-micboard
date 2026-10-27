@@ -1,7 +1,5 @@
 """Regression coverage for the canonical wireless-unit service API."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Any, cast
 

@@ -1,7 +1,5 @@
 """Coverage for manufacturer workflows and tenant-aware admin scoping."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch

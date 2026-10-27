@@ -1,7 +1,5 @@
 """Security coverage for manufacturer configuration administration."""
 
-from __future__ import annotations
-
 import json
 from types import SimpleNamespace
 from unittest.mock import Mock, patch

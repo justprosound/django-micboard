@@ -1,7 +1,5 @@
 """Unit coverage for MAC identity normalization helpers."""
 
-from __future__ import annotations
-
 from micboard.utils.mac_address import canonicalize_mac_address, mac_address_query_variants
 
 

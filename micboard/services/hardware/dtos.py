@@ -3,8 +3,6 @@
 All DTOs inherit from PydanticBaseDTO for consistent configuration.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any
 

@@ -1,7 +1,5 @@
 """Regression tests for Huey's native Django integration."""
 
-from __future__ import annotations
-
 from django.db import transaction
 
 import pytest

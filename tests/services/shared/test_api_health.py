@@ -1,7 +1,5 @@
 """Request-path contracts for public manufacturer API health summaries."""
 
-from __future__ import annotations
-
 from datetime import timedelta
 from unittest.mock import patch
 

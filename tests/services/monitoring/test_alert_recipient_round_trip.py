@@ -7,8 +7,6 @@ its own chassis, and different buildings as soon as it is not — so the two sid
 agree on which boundary governs, or alerts land where nobody can read them.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import patch
 

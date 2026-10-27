@@ -5,8 +5,6 @@ small inventory and ask the same question for every deployment mode and kind of 
 model that answers differently from its neighbours shows up here.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any

@@ -1,7 +1,5 @@
 """Persistence, authorization, and cache contracts for setting overrides."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError

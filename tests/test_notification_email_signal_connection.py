@@ -1,7 +1,5 @@
 """Behavioral coverage for email, notification signals, and connection state."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import Mock
 

@@ -4,8 +4,6 @@ Provides audit logging and discovery trigger side-effects
 when manufacturers are created, updated, or deleted.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING
 

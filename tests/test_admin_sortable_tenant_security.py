@@ -1,7 +1,5 @@
 """Tenant isolation contracts for the optional sortable admin integration."""
 
-from __future__ import annotations
-
 import json
 from unittest.mock import patch
 

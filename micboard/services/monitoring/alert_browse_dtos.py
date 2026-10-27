@@ -1,7 +1,5 @@
 """Typed projections for alert-history browsing."""
 
-from __future__ import annotations
-
 from datetime import datetime
 
 from pydantic import Field

@@ -1,7 +1,5 @@
 """Shared lifecycle for realtime subscription inventory and device updates."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

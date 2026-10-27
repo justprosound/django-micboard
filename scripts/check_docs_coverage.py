@@ -8,8 +8,6 @@ missing from that set was silently dropped by the build or excluded from the con
 collection, which is the failure mode this guards against.
 """
 
-from __future__ import annotations
-
 import argparse
 import re
 from pathlib import Path

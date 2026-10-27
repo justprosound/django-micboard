@@ -1,7 +1,5 @@
 """Focused secret-handling coverage for integration configuration forms."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django import forms

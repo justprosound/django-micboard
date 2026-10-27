@@ -1,7 +1,5 @@
 """Deterministic paging for the live assignment refresh."""
 
-from __future__ import annotations
-
 import pytest
 
 from micboard.services.core.performer_assignment import PerformerAssignmentService

@@ -1,7 +1,5 @@
 """Shared isolation for core service tests."""
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 
 from django.conf import LazySettings

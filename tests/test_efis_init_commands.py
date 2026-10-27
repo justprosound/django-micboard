@@ -1,7 +1,5 @@
 """Behavioral coverage for EFIS import and settings initialization commands."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from io import StringIO
 from unittest.mock import MagicMock, Mock

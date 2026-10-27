@@ -4,8 +4,6 @@ Provides structured error handling with clear error codes and details
 for debugging and API responses.
 """
 
-from __future__ import annotations
-
 from contextlib import suppress
 from typing import Any
 

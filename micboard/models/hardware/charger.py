@@ -1,7 +1,5 @@
 """Charger and charger slot models for wireless equipment charging and storage."""
 
-from __future__ import annotations
-
 from typing import Any, ClassVar
 
 from django.db import models, router, transaction

@@ -1,7 +1,5 @@
 """Resource-bound contracts shared by discovery reconciliation paths."""
 
-from __future__ import annotations
-
 from typing import cast
 from unittest.mock import MagicMock, patch
 

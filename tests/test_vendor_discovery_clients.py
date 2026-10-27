@@ -1,7 +1,5 @@
 """Behavioral coverage for vendor discovery clients."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, call
 
 import pytest

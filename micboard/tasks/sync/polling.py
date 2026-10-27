@@ -1,7 +1,6 @@
 """Native Huey task entry points for manufacturer polling."""
 
 # Polling-related background tasks for the micboard app.
-from __future__ import annotations
 
 import logging
 from typing import Any

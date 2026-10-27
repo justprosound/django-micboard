@@ -1,7 +1,5 @@
 """Management command to poll device APIs using the service layer."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

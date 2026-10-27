@@ -1,7 +1,5 @@
 """Behavioral coverage for shared service foundations."""
 
-from __future__ import annotations
-
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 

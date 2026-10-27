@@ -1,7 +1,5 @@
 """Factories for performers, monitoring groups, assignments, and alerts."""
 
-from __future__ import annotations
-
 import factory
 
 from micboard.models.monitoring.alert import Alert, UserAlertPreference

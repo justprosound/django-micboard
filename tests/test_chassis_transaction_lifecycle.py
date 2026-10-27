@@ -1,7 +1,5 @@
 """Regression tests for chassis lifecycle delegation and commit boundaries."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, call, patch
 
 from django.contrib import admin

@@ -1,7 +1,5 @@
 """Behavioral coverage for the Shure WebSocket transport."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from types import SimpleNamespace

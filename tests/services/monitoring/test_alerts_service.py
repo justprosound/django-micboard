@@ -1,7 +1,5 @@
 """Service-level coverage for alert creation and lifecycle behavior."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.contrib.auth.models import AnonymousUser

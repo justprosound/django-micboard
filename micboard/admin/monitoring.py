@@ -6,8 +6,6 @@ This module provides Django admin interfaces for managing monitoring groups,
 locations, and system configuration.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 

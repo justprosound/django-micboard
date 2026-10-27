@@ -1,7 +1,5 @@
 """Security and workload contracts for queued API server health checks."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite

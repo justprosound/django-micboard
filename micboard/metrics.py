@@ -3,8 +3,6 @@
 Provides utilities for tracking service performance and usage.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 from collections.abc import Callable, Iterator

@@ -1,7 +1,5 @@
 """Kiosk/display wall views for stage and charger monitoring displays."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.contrib.auth.decorators import login_required

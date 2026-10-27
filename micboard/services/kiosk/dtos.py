@@ -1,7 +1,5 @@
 """Typed, template-safe DisplayWall snapshots."""
 
-from __future__ import annotations
-
 from micboard.services.shared.base_dto import PydanticBaseDTO
 
 MAX_KIOSK_SECTIONS = 16

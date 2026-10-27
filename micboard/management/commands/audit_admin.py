@@ -1,7 +1,5 @@
 """Audit the live Django admin registry for configuration and query risks."""
 
-from __future__ import annotations
-
 import os
 from typing import Any
 

@@ -7,8 +7,6 @@ whose campus belongs to its organization. In multi-site mode it must also belong
 current site. `active_memberships` is the only place that query is written.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any, Final, Literal
 

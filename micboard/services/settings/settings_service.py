@@ -4,8 +4,6 @@ Composes Django settings, feature flags, package defaults, and the
 DB-backed SettingsRegistry into a single resolution chain.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from micboard.services.settings.registry import SettingsRegistry

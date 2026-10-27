@@ -1,7 +1,5 @@
 """Core HTTP client for Shure System API with connection pooling and retry logic."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

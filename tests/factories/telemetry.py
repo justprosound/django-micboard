@@ -1,7 +1,5 @@
 """Factories for telemetry-domain models."""
 
-from __future__ import annotations
-
 from django.utils import timezone
 
 import factory

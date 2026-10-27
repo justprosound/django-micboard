@@ -1,7 +1,5 @@
 """Factories for Micboard user extensions and saved views."""
 
-from __future__ import annotations
-
 import factory
 
 from micboard.models.users.user_profile import UserProfile

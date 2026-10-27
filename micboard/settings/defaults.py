@@ -1,7 +1,5 @@
 """Dependency-free defaults for the Micboard settings interface."""
 
-from __future__ import annotations
-
 from typing import Final
 
 #: Bounds shared by every browser refresh interval, whether it comes from host

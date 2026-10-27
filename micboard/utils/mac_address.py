@@ -1,7 +1,5 @@
 """MAC-address identity normalization helpers."""
 
-from __future__ import annotations
-
 import re
 
 _DELIMITED_MAC_ADDRESS_PATTERN = re.compile(r"[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}")

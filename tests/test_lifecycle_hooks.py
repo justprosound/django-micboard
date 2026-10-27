@@ -7,8 +7,6 @@ Tests the django-lifecycle integration for automatic state management:
 - Broadcast events
 """
 
-from __future__ import annotations
-
 from datetime import timedelta
 from unittest.mock import patch
 

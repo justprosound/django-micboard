@@ -1,7 +1,5 @@
 """Policy for scheduling discovery after chassis identity persistence."""
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, ClassVar
 
 from micboard.services.shared.base_dto import PydanticBaseDTO

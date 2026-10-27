@@ -1,7 +1,5 @@
 """Hard resource limits shared by discovery workflows."""
 
-from __future__ import annotations
-
 DEFAULT_DISCOVERY_CANDIDATE_LIMIT = 1024
 MAX_DISCOVERY_CANDIDATES = 4096
 MAX_DISCOVERY_APPROVAL_BATCH = 100

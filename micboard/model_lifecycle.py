@@ -4,8 +4,6 @@ Models stay responsible for persistence. These adapters translate Django's
 pre/post-save events into service-layer calls and task-layer dispatches.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar

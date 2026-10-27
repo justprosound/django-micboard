@@ -1,7 +1,5 @@
 """Receiver-browse projection, access, and pagination contracts."""
 
-from __future__ import annotations
-
 from django.contrib.auth.models import User
 from django.http import QueryDict
 from django.test import TestCase

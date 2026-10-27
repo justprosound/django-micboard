@@ -1,7 +1,5 @@
 """Behavioral coverage for supported discovery and diagnostic commands."""
 
-from __future__ import annotations
-
 from argparse import ArgumentParser
 from io import StringIO
 from types import SimpleNamespace

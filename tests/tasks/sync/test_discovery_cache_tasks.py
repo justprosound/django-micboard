@@ -1,7 +1,5 @@
 """Discovery candidate cache publication contracts."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Literal
 from unittest.mock import Mock, call, patch

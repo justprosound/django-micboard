@@ -1,7 +1,5 @@
 """MSP role contracts for dedicated setting-management workflows."""
 
-from __future__ import annotations
-
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Permission
 from django.test import RequestFactory, override_settings

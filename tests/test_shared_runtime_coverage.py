@@ -1,7 +1,5 @@
 """Behavioral branch coverage for reusable service-layer helpers."""
 
-from __future__ import annotations
-
 import socket
 from types import SimpleNamespace
 from unittest.mock import Mock

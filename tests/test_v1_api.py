@@ -5,8 +5,6 @@ Uses pytest-django conventions (``@pytest.mark.django_db``, fixtures, plain
 the test integrates cleanly with the rest of the suite.
 """
 
-from __future__ import annotations
-
 from django.urls import reverse
 
 import pytest

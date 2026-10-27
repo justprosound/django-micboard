@@ -1,7 +1,5 @@
 """Service for triggering async discovery scans for manufacturers."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager

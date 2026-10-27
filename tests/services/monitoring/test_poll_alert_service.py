@@ -1,7 +1,5 @@
 """Coverage for fair, bounded post-poll alert evaluation."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.core.cache import cache

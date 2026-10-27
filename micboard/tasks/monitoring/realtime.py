@@ -1,7 +1,5 @@
 """Native Huey task boundary for realtime subscriptions."""
 
-from __future__ import annotations
-
 from micboard.services.realtime.subscription_runner import run_realtime_subscriptions
 
 

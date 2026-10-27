@@ -1,7 +1,5 @@
 """Behavior tests for hardware persistence hooks."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, call, patch
 
 import pytest

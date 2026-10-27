@@ -1,7 +1,5 @@
 """Tenant-safe broadcasting for real-time UI updates."""
 
-from __future__ import annotations
-
 import logging
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
