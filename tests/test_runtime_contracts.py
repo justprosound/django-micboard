@@ -90,7 +90,7 @@ def test_realtime_startup_builds_the_plugin_and_uses_chassis_status() -> None:
 
     with (
         patch(
-            "micboard.models.discovery.manufacturer.Manufacturer.objects.get",
+            "micboard.services.manufacturer.activation_service.ManufacturerActivationService.get_active",
             return_value=manufacturer,
         ) as get_manufacturer,
         patch(
@@ -108,7 +108,7 @@ def test_realtime_startup_builds_the_plugin_and_uses_chassis_status() -> None:
     ):
         run_realtime_subscriptions(14)
 
-    get_manufacturer.assert_called_once_with(pk=14, is_active=True)
+    get_manufacturer.assert_called_once_with(14)
     build_plugin.assert_called_once_with(manufacturer)
     filter_chassis.assert_called_once_with(
         manufacturer_id=14,

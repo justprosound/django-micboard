@@ -10,6 +10,7 @@ from django.core.cache import cache
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.telemetry.health import APIHealthLog
 from micboard.services.common.base.plugin import build_manufacturer_plugin
+from micboard.services.manufacturer.activation_service import ManufacturerActivationService
 from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.realtime.health_dtos import RealtimeConnectionHealthResult
 from micboard.services.realtime.health_service import RealtimeConnectionHealthService
@@ -62,18 +63,19 @@ def _publish_manufacturer_api_health(manufacturer: Manufacturer, health_data: ob
 def check_manufacturer_api_health(manufacturer_id: int) -> None:
     """Task to check a specific manufacturer's API health."""
     try:
-        manufacturer = Manufacturer.objects.get(pk=manufacturer_id, is_active=True)
-    except Manufacturer.DoesNotExist:
-        logger.warning(
-            "Manufacturer with ID %s not found or inactive for API health check task.",
-            manufacturer_id,
-        )
-        return
+        manufacturer = ManufacturerActivationService.get_active(manufacturer_id)
     except Exception as exc:
         logger.exception(
             "Error loading manufacturer ID %s for API health check",
             manufacturer_id,
             exc_info=sanitized_exception_info(exc),
+        )
+        return
+
+    if manufacturer is None:
+        logger.warning(
+            "Manufacturer with ID %s not found or inactive for API health check task.",
+            manufacturer_id,
         )
         return
 

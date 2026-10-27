@@ -71,8 +71,8 @@ def test_charger_poll_task_delegates_and_serializes_service_result() -> None:
     )
     with (
         patch.object(
-            charger_tasks.Manufacturer.objects,
-            "get",
+            charger_tasks.ManufacturerActivationService,
+            "get_active",
             return_value=manufacturer,
         ) as get_manufacturer,
         patch(
@@ -82,7 +82,7 @@ def test_charger_poll_task_delegates_and_serializes_service_result() -> None:
     ):
         assert charger_tasks.poll_charger_data(23) == result.model_dump()
 
-    get_manufacturer.assert_called_once_with(pk=23, is_active=True)
+    get_manufacturer.assert_called_once_with(23)
     poll.assert_called_once_with(manufacturer)
 
 
@@ -90,9 +90,9 @@ def test_charger_poll_handles_missing_manufacturer() -> None:
     """A stale queued manufacturer ID must not load any plugin."""
     with (
         patch.object(
-            charger_tasks.Manufacturer.objects,
-            "get",
-            side_effect=charger_tasks.Manufacturer.DoesNotExist,
+            charger_tasks.ManufacturerActivationService,
+            "get_active",
+            return_value=None,
         ) as get_manufacturer,
         patch.object(charger_tasks.logger, "warning") as warning,
     ):
@@ -102,7 +102,7 @@ def test_charger_poll_handles_missing_manufacturer() -> None:
         "Active manufacturer with ID %s not found for charger polling task.",
         404,
     )
-    get_manufacturer.assert_called_once_with(pk=404, is_active=True)
+    get_manufacturer.assert_called_once_with(404)
 
 
 def test_charger_poll_contains_plugin_failure() -> None:
@@ -113,8 +113,8 @@ def test_charger_poll_contains_plugin_failure() -> None:
 
     with (
         patch.object(
-            charger_tasks.Manufacturer.objects,
-            "get",
+            charger_tasks.ManufacturerActivationService,
+            "get_active",
             return_value=manufacturer,
         ),
         patch(

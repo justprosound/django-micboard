@@ -9,6 +9,11 @@ class ManufacturerActivationService:
     """Read current activation state at external-work boundaries."""
 
     @staticmethod
+    def get_active(manufacturer_id: int) -> Manufacturer | None:
+        """Return the manufacturer when it exists and permits outbound work, else None."""
+        return Manufacturer.objects.filter(pk=manufacturer_id, is_active=True).first()
+
+    @staticmethod
     def is_active(manufacturer_id: int) -> bool:
         """Return whether the manufacturer still exists and permits outbound work."""
         return Manufacturer.objects.filter(pk=manufacturer_id, is_active=True).exists()

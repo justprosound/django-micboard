@@ -71,9 +71,9 @@ def _bind(monkeypatch, plugin) -> None:
 def test_a_missing_or_inactive_manufacturer_does_no_outbound_work(monkeypatch) -> None:
     """A stale queued manufacturer ID stops before a plugin is ever built."""
     monkeypatch.setattr(
-        runner.Manufacturer.objects,
-        "get",
-        Mock(side_effect=runner.Manufacturer.DoesNotExist),
+        runner.ManufacturerActivationService,
+        "get_active",
+        Mock(return_value=None),
     )
     build = Mock()
     monkeypatch.setattr(runner, "build_manufacturer_plugin", build)
@@ -87,8 +87,8 @@ def test_a_held_lease_skips_external_work(monkeypatch) -> None:
     """Only one supervisor per transport and manufacturer may open connections."""
     plugin = _plugin()
     monkeypatch.setattr(
-        runner.Manufacturer.objects,
-        "get",
+        runner.ManufacturerActivationService,
+        "get_active",
         Mock(return_value=plugin.manufacturer),
     )
     _bind(monkeypatch, plugin)
@@ -112,8 +112,8 @@ def test_an_empty_inventory_starts_no_supervisor(monkeypatch) -> None:
     """A manufacturer with no eligible chassis is not a failure and starts no loop."""
     plugin = _plugin()
     monkeypatch.setattr(
-        runner.Manufacturer.objects,
-        "get",
+        runner.ManufacturerActivationService,
+        "get_active",
         Mock(return_value=plugin.manufacturer),
     )
     _bind(monkeypatch, plugin)
@@ -136,8 +136,8 @@ def test_a_selected_device_narrows_the_window_to_one_chassis(monkeypatch) -> Non
         SimpleNamespace(api_device_id="device-1")
     ]
     monkeypatch.setattr(
-        runner.Manufacturer.objects,
-        "get",
+        runner.ManufacturerActivationService,
+        "get_active",
         Mock(return_value=plugin.manufacturer),
     )
     _bind(monkeypatch, plugin)
@@ -166,8 +166,8 @@ def test_the_supervisor_reloads_the_next_fair_window_off_the_event_loop(
     second = SimpleNamespace(api_device_id="device-2")
     isolated_supervisor_lease.side_effect = [[first], [second]]
     monkeypatch.setattr(
-        runner.Manufacturer.objects,
-        "get",
+        runner.ManufacturerActivationService,
+        "get_active",
         Mock(return_value=plugin.manufacturer),
     )
     _bind(monkeypatch, plugin)
@@ -193,8 +193,8 @@ def test_a_reload_stops_rotating_work_after_manufacturer_deactivation(
     plugin = _plugin()
     isolated_supervisor_lease.side_effect = [[SimpleNamespace(api_device_id="device-1")]]
     monkeypatch.setattr(
-        runner.Manufacturer.objects,
-        "get",
+        runner.ManufacturerActivationService,
+        "get_active",
         Mock(return_value=plugin.manufacturer),
     )
     _bind(monkeypatch, plugin)
@@ -221,8 +221,8 @@ def test_an_orchestration_failure_is_contained_and_redacted(monkeypatch, caplog)
     secret = "private-supervisor-detail"
     plugin = _plugin()
     monkeypatch.setattr(
-        runner.Manufacturer.objects,
-        "get",
+        runner.ManufacturerActivationService,
+        "get_active",
         Mock(return_value=plugin.manufacturer),
     )
     _bind(monkeypatch, plugin)
@@ -373,8 +373,8 @@ def test_an_empty_inventory_does_not_burn_the_transport_lease(monkeypatch) -> No
     """
     plugin = _plugin()
     monkeypatch.setattr(
-        runner.Manufacturer.objects,
-        "get",
+        runner.ManufacturerActivationService,
+        "get_active",
         Mock(return_value=plugin.manufacturer),
     )
     _bind(monkeypatch, plugin)
