@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from django import forms
 
@@ -32,8 +32,8 @@ class ManufacturerConfigurationForm(_ManufacturerConfigurationForm):
         if self.instance.pk:
             self.initial["config"] = redact_secrets(self.instance.config)
 
-    def clean_config(self) -> dict[str, Any]:
+    def clean_config(self) -> Any:
         """Preserve secrets represented by unchanged redaction placeholders."""
         config = self.cleaned_data.get("config") or {}
         original = self.instance.config if self.instance.pk else {}
-        return cast(dict[Any, Any], restore_redacted_secrets(config, original))
+        return restore_redacted_secrets(config, original)
