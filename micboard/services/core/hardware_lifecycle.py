@@ -46,7 +46,7 @@ class DeviceKind(StrEnum):
     UNIT = "unit"
 
 
-class InvalidStatusTransition(ValueError):
+class InvalidStatusTransitionError(ValueError):
     """A status move the lifecycle graph does not allow."""
 
 
@@ -85,12 +85,12 @@ def is_valid_transition(kind: DeviceKind, from_status: str, to_status: str) -> b
 
 
 def ensure_valid_transition(kind: DeviceKind, from_status: str, to_status: str) -> None:
-    """Raise ``InvalidStatusTransition`` unless the move is allowed."""
+    """Raise ``InvalidStatusTransitionError`` unless the move is allowed."""
     if is_valid_transition(kind, from_status, to_status):
         return
     allowed = allowed_transitions(kind, from_status)
     allowed_label = ", ".join(sorted(allowed)) if allowed else "none (terminal state)"
-    raise InvalidStatusTransition(
+    raise InvalidStatusTransitionError(
         f"Invalid status transition: {from_status} → {to_status}. Allowed: {allowed_label}"
     )
 

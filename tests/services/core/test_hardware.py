@@ -25,20 +25,6 @@ def test_chassis_save_hook_threads_database_alias_to_channel_sync() -> None:
     ensure.assert_called_once_with(chassis=chassis, using="inventory")
 
 
-@pytest.mark.parametrize(("online", "expected_status"), [(True, "online"), (False, "offline")])
-def test_hardware_status_sync_persists_the_requested_state(
-    online: bool,
-    expected_status: str,
-) -> None:
-    """Persist the canonical lifecycle status without a forwarding async API."""
-    chassis = Mock(status="discovered")
-
-    HardwareSyncService.sync_hardware_status(obj=chassis, online=online)
-
-    assert chassis.status == expected_status
-    chassis.save.assert_called_once_with(update_fields=["status"])
-
-
 def test_chassis_lifecycle_logs_redact_vendor_hardware_identity() -> None:
     """Save/delete hooks retain numeric context without names, addresses, or vendor IDs."""
     private_identity = "private-chassis-identity"

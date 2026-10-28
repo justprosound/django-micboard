@@ -12,7 +12,7 @@ from micboard.services.core.hardware_lifecycle import (
     DeviceKind,
     HardwareLifecycleManager,
     HardwareStatus,
-    InvalidStatusTransition,
+    InvalidStatusTransitionError,
     ensure_valid_transition,
     is_valid_transition,
     map_api_state_to_status,
@@ -221,7 +221,7 @@ def test_chassis_graph_has_no_idle_state() -> None:
 def test_ensure_valid_transition_names_the_allowed_moves() -> None:
     """Refusals carry the from/to pair and the moves that would have been allowed."""
     with pytest.raises(
-        InvalidStatusTransition,
+        InvalidStatusTransitionError,
         match=re.escape("discovered → online. Allowed: offline, provisioning, retired"),
     ):
         ensure_valid_transition(DeviceKind.CHASSIS, "discovered", "online")
