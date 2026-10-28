@@ -1,6 +1,6 @@
 """Coverage for fair, bounded post-poll alert evaluation."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
 from django.test import override_settings
@@ -85,12 +85,6 @@ def test_alert_scan_invalid_settings_use_the_safe_default(value: object) -> None
         assert PollAlertService._scan_limit() == 100
 
 
-def test_alert_scan_invalid_cursor_resets_to_start() -> None:
-    """Malformed shared cursor values cannot alter scan ordering."""
-    with patch("micboard.services.monitoring.poll_alert_service.cache.get", return_value=True):
-        assert PollAlertService._read_cursor(1) == 0
-
-
 @pytest.mark.django_db
 @override_settings(MICBOARD_POLL_ALERT_MAX_UNITS=2)
 def test_alert_scan_isolates_and_redacts_unit_failures(caplog) -> None:
@@ -125,18 +119,14 @@ def test_alert_scan_isolates_and_redacts_unit_failures(caplog) -> None:
 
 @pytest.mark.django_db
 def test_alert_scan_continues_when_cursor_cache_fails(caplog) -> None:
-    """Cache outages cannot suppress bounded alert evaluation or leak cache errors."""
+    """Cache outages cannot suppress bounded alert evaluation, even in the per-unit finally."""
     unit = _assigned_units(1)[0]
     secret = "cache-password"
+    handler = MagicMock()
+    handler.__getitem__.return_value.get.side_effect = RuntimeError(secret)
+    handler.__getitem__.return_value.set.side_effect = RuntimeError(secret)
     with (
-        patch(
-            "micboard.services.monitoring.poll_alert_service.cache.get",
-            side_effect=RuntimeError(secret),
-        ),
-        patch(
-            "micboard.services.monitoring.poll_alert_service.cache.set",
-            side_effect=RuntimeError(secret),
-        ),
+        patch("micboard.services.shared.fair_page_cursor.caches", handler),
         patch(
             "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts"
         ) as offline,
@@ -149,6 +139,7 @@ def test_alert_scan_continues_when_cursor_cache_fails(caplog) -> None:
     offline.assert_called_once()
     assert offline.call_args.args == (unit,)
     assert result.scanned == 1
+    assert handler.__getitem__.return_value.set.call_count == 2
     assert secret not in caplog.text
 
 

@@ -1,21 +1,25 @@
 """Fair shared-cache cursors for bounded local discovery sources."""
 
-import logging
 from collections.abc import Sequence
 from hashlib import blake2s
-from typing import Any, NamedTuple, cast
+from typing import Any, NamedTuple
 
-from django.core.cache import cache
-from django.db.models import Case, IntegerField, QuerySet, Value, When
+from django.db.models import QuerySet
 
 from micboard.discovery.limits import clamp_candidate_limit
 from micboard.models.discovery.manufacturer import Manufacturer
+from micboard.services.shared.fair_page_cursor import (
+    fair_page_rows,
+    position_cursor,
+    read_cursor,
+    write_cursor,
+)
 from micboard.services.sync.discovery_dtos import DiscoverySourcePage
-from micboard.utils.exception_logging import sanitized_exception_info
-
-logger = logging.getLogger(__name__)
 
 DISCOVERY_SOURCE_CURSOR_TIMEOUT_SECONDS = 7 * 24 * 60 * 60
+_SOURCE_CURSOR = position_cursor(
+    "discovery source cursor", timeout=DISCOVERY_SOURCE_CURSOR_TIMEOUT_SECONDS
+)
 
 
 class DiscoverySource(NamedTuple):
@@ -46,27 +50,18 @@ class DiscoverySourceCursorService:
             )
 
         cursor_key = cls._cursor_key(manufacturer, group=group, source=source.name)
-        cursor = cls._read_cursor(cursor_key)
-        rows = cast(
-            list[tuple[int, object]],
-            list(
-                source.queryset.annotate(
-                    _discovery_cursor_bucket=Case(
-                        When(pk__gt=cursor, then=Value(0)),
-                        default=Value(1),
-                        output_field=IntegerField(),
-                    )
-                )
-                .order_by("_discovery_cursor_bucket", "pk")
-                .values_list("pk", source.value_field)[: page_limit + 1]
-            ),
+        cursor = read_cursor(_SOURCE_CURSOR, cursor_key)
+        selected, truncated = fair_page_rows(
+            source.queryset,
+            after_pk=cursor,
+            fields=("pk", source.value_field),
+            limit=page_limit,
         )
-        selected = rows[:page_limit]
         if selected:
-            cls._write_cursor(cursor_key, selected[-1][0])
+            write_cursor(_SOURCE_CURSOR, cursor_key, selected[-1][0])
         return DiscoverySourcePage(
             values=[str(value) for _pk, value in selected],
-            sources_complete=len(rows) <= page_limit,
+            sources_complete=not truncated,
         )
 
     @classmethod
@@ -95,7 +90,7 @@ class DiscoverySourceCursorService:
             }
 
         priority_key = cls._cursor_key(manufacturer, group=group, source="priority")
-        start_index = cls._read_cursor(priority_key) % len(sources)
+        start_index = read_cursor(_SOURCE_CURSOR, priority_key) % len(sources)
         ordered_sources = [*sources[start_index:], *sources[:start_index]]
         allocations = cls._allocate_budget(
             ordered_sources,
@@ -118,7 +113,7 @@ class DiscoverySourceCursorService:
             for source in ordered_sources
         }
         if any(page.values for page in pages.values()):
-            cls._write_cursor(priority_key, (start_index + 1) % len(sources))
+            write_cursor(_SOURCE_CURSOR, priority_key, (start_index + 1) % len(sources))
         return pages
 
     @staticmethod
@@ -165,33 +160,3 @@ class DiscoverySourceCursorService:
             digest_size=8,
         ).hexdigest()
         return f"micboard:discovery-source-cursor:v1:{identity}:{group}:{source}"
-
-    @staticmethod
-    def _read_cursor(key: str) -> int:
-        """Read a validated cursor, defaulting safely during cache outages."""
-        try:
-            value = cache.get(key, 0)
-        except Exception as exc:
-            logger.exception(
-                "Could not read a discovery source cursor",
-                exc_info=sanitized_exception_info(exc),
-            )
-            return 0
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            return 0
-        return int(value)
-
-    @staticmethod
-    def _write_cursor(key: str, value: int) -> None:
-        """Persist a cursor without making discovery depend on cache availability."""
-        try:
-            cache.set(
-                key,
-                value,
-                timeout=DISCOVERY_SOURCE_CURSOR_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Could not persist a discovery source cursor",
-                exc_info=sanitized_exception_info(exc),
-            )

@@ -3,8 +3,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from django.core.cache import cache
-
 from pydantic import Field
 
 from micboard.models.hardware.wireless_unit import WirelessUnit
@@ -17,6 +15,13 @@ from micboard.services.monitoring.alert_fanout_dtos import (
 from micboard.services.monitoring.alerts import alert_manager
 from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.services.shared.base_dto import PydanticBaseDTO
+from micboard.services.shared.fair_page_cursor import (
+    fair_page,
+    flag_cursor,
+    position_cursor,
+    read_cursor,
+    write_cursor,
+)
 from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -27,6 +32,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_POLL_ALERT_MAX_UNITS = 100
 HARD_POLL_ALERT_MAX_UNITS = 500
 POLL_ALERT_CURSOR_TIMEOUT_SECONDS = 7 * 24 * 60 * 60
+_SCAN_CURSOR = position_cursor("alert scan cursor", timeout=POLL_ALERT_CURSOR_TIMEOUT_SECONDS)
+_SCOPE_CURSOR = flag_cursor("alert scope cursor", timeout=POLL_ALERT_CURSOR_TIMEOUT_SECONDS)
 
 
 class PollAlertScanResult(PydanticBaseDTO):
@@ -52,27 +59,19 @@ class PollAlertService:
     def evaluate_manufacturer(cls, manufacturer: Manufacturer) -> PollAlertScanResult:
         """Evaluate assigned units without allowing an unbounded post-poll scan."""
         limit = cls._scan_limit()
-        cursor = cls._read_cursor(manufacturer.pk)
+        cursor = read_cursor(_SCAN_CURSOR, cls._cursor_key(manufacturer.pk))
         candidates = WirelessUnit.objects.filter(
             manufacturer=manufacturer,
             performer_assignments__is_active=True,
             performer_assignments__monitoring_group__is_active=True,
             performer_assignments__monitoring_group__users__is_active=True,
         ).distinct()
-        after_cursor = list(candidates.filter(pk__gt=cursor).order_by("pk")[: limit + 1])
-        bounded_units = after_cursor[:limit]
-        truncated = len(after_cursor) > limit
-
-        if not truncated and cursor > 0:
-            remaining = limit - len(bounded_units)
-            wrapped = list(candidates.filter(pk__lte=cursor).order_by("pk")[: remaining + 1])
-            bounded_units.extend(wrapped[:remaining])
-            truncated = len(wrapped) > remaining
+        bounded_units, truncated = fair_page(candidates, after_pk=cursor, limit=limit)
 
         failed = 0
         scanned = 0
         budget = AlertFanoutBudget.from_settings()
-        transmitter_first = cls._read_scope_cursor(manufacturer.pk)
+        transmitter_first = read_cursor(_SCOPE_CURSOR, cls._scope_cursor_key(manufacturer.pk))
         checks = (
             (
                 alert_manager.check_wireless_unit_alerts,
@@ -85,7 +84,11 @@ class PollAlertService:
             )
         )
         if bounded_units:
-            cls._write_scope_cursor(manufacturer.pk, transmitter_first=not transmitter_first)
+            write_cursor(
+                _SCOPE_CURSOR,
+                cls._scope_cursor_key(manufacturer.pk),
+                not transmitter_first,
+            )
 
         for unit in bounded_units:
             try:
@@ -100,7 +103,7 @@ class PollAlertService:
                 )
             finally:
                 scanned += 1
-                cls._write_cursor(manufacturer.pk, unit.pk)
+                write_cursor(_SCAN_CURSOR, cls._cursor_key(manufacturer.pk), unit.pk)
 
             if budget.truncated or budget.exhausted:
                 break
@@ -135,68 +138,6 @@ class PollAlertService:
     @staticmethod
     def _scope_cursor_key(manufacturer_id: int) -> str:
         return f"micboard:poll-alert-scope:v1:{manufacturer_id}"
-
-    @classmethod
-    def _read_cursor(cls, manufacturer_id: int) -> int:
-        """Read a shared scan cursor, falling back safely when cache is unavailable."""
-        try:
-            value = cache.get(cls._cursor_key(manufacturer_id), 0)
-        except Exception as exc:
-            logger.exception(
-                "Could not read alert scan cursor for manufacturer %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
-            )
-            return 0
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            return 0
-        return int(value)
-
-    @classmethod
-    def _write_cursor(cls, manufacturer_id: int, unit_id: int) -> None:
-        """Persist the next fair scan position without making alerts cache-dependent."""
-        try:
-            cache.set(
-                cls._cursor_key(manufacturer_id),
-                unit_id,
-                timeout=POLL_ALERT_CURSOR_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Could not persist alert scan cursor for manufacturer %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
-            )
-
-    @classmethod
-    def _read_scope_cursor(cls, manufacturer_id: int) -> bool:
-        """Return whether transmitter checks run first in this bounded scan."""
-        try:
-            value = cache.get(cls._scope_cursor_key(manufacturer_id), False)
-        except Exception as exc:
-            logger.exception(
-                "Could not read alert scope cursor for manufacturer %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
-            )
-            return False
-        return value if isinstance(value, bool) else False
-
-    @classmethod
-    def _write_scope_cursor(cls, manufacturer_id: int, *, transmitter_first: bool) -> None:
-        """Alternate first access to the shared budget without making scans cache-dependent."""
-        try:
-            cache.set(
-                cls._scope_cursor_key(manufacturer_id),
-                transmitter_first,
-                timeout=POLL_ALERT_CURSOR_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Could not persist alert scope cursor for manufacturer %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
-            )
 
     @staticmethod
     def _scan_limit() -> int:

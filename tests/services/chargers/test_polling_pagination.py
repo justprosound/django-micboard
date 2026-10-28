@@ -13,6 +13,7 @@ from micboard.services.chargers.polling_service import (
     HARD_MAX_CHARGER_INVENTORY_SIZE,
     ChargerPollingService,
 )
+from tests.cache_backend import patched_cache_backend
 
 
 def _manufacturer() -> SimpleNamespace:
@@ -116,7 +117,7 @@ def test_inventory_above_fingerprint_ceiling_preserves_last_complete_snapshot() 
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert result.scanned_count == 0
@@ -142,7 +143,7 @@ def test_repeated_poll_reaches_station_behind_ordinary_inventory_prefix() -> Non
     ]
     plugin = _plugin(inventory)
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         first = ChargerPollingService.poll(manufacturer)
 
         assert values[public_key] is previous_snapshot
@@ -181,7 +182,7 @@ def test_channel_failure_in_any_page_preserves_last_complete_snapshot() -> None:
     plugin = _plugin(inventory)
     plugin.get_device_channels.side_effect = [RuntimeError("private channel failure"), [], []]
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         first = ChargerPollingService.poll(manufacturer)
 
         assert first.failed_count == 1
@@ -209,7 +210,7 @@ def test_cursor_accumulates_in_inventory_order_and_deduplicates_across_pages() -
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
         result = ChargerPollingService.poll(manufacturer)
 
@@ -236,7 +237,7 @@ def test_changed_inventory_size_restarts_cycle_without_stale_stations() -> None:
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
             {"api_device_id": "replacement-charger", "model": "SBC250"},
@@ -274,7 +275,7 @@ def test_same_length_inventory_reorder_restarts_without_hybrid_station_order() -
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
             {"api_device_id": "charger-c", "model": "SBC250"},
@@ -313,7 +314,7 @@ def test_same_length_identity_change_discards_stale_accumulated_station() -> Non
         ]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
             {"api_device_id": "replacement-charger", "model": "SBC250"},
@@ -355,7 +356,7 @@ def test_invalid_cursor_restarts_first_page_and_preserves_public_snapshot() -> N
     ]
     plugin = _plugin(inventory)
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert result.scanned_count == 2
@@ -394,7 +395,7 @@ def test_missing_or_invalid_cursor_fingerprint_restarts_first_page(
     backend, values = _cache_backend({cursor_key: cached_cursor})
     plugin = _plugin(inventory)
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert result.scanned_count == 2
@@ -424,7 +425,7 @@ def test_partial_poll_contains_cursor_read_and_write_failures(caplog) -> None:
 
     with (
         _plugin_patch(plugin),
-        patch("micboard.services.chargers.polling_cache.cache", backend),
+        patched_cache_backend(backend),
         caplog.at_level("ERROR"),
     ):
         result = ChargerPollingService.poll(_manufacturer())
@@ -446,7 +447,7 @@ def test_complete_poll_contains_snapshot_write_and_cursor_delete_failures(caplog
 
     with (
         _plugin_patch(plugin),
-        patch("micboard.services.chargers.polling_cache.cache", backend),
+        patched_cache_backend(backend),
         caplog.at_level("ERROR"),
     ):
         result = ChargerPollingService.poll(_manufacturer())
@@ -478,7 +479,7 @@ def test_truncated_one_shot_inventory_preserves_complete_public_snapshot() -> No
             yield {"api_device_id": f"charger-{index}", "model": "SBC250"}
 
     plugin = _plugin(inventory())
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert consumed == 3
@@ -518,7 +519,7 @@ def test_cursor_stations_are_rebounded_in_stable_order_when_limit_shrinks() -> N
     )
     plugin = _plugin(inventory)
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         result = ChargerPollingService.poll(manufacturer)
 
     assert result.cached_count == 1
@@ -536,7 +537,7 @@ def test_station_cap_retains_same_exact_vendor_order_prefix_across_cycles() -> N
         [{"api_device_id": f"charger-{index}", "model": "SBC250"} for index in range(4)]
     )
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
         first_cycle = ChargerPollingService.poll(manufacturer)
         ChargerPollingService.poll(manufacturer)
@@ -577,7 +578,7 @@ def test_cursor_retains_snapshot_truncation_flags_until_cycle_completion() -> No
         {"channel": 1, "tx": {"battery_percentage": 75}},
     ]
 
-    with _plugin_patch(plugin), patch("micboard.services.chargers.polling_cache.cache", backend):
+    with _plugin_patch(plugin), patched_cache_backend(backend):
         partial = ChargerPollingService.poll(manufacturer)
 
         assert partial.stations_truncated is True

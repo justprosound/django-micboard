@@ -5,12 +5,16 @@ from typing import Any
 
 from django.core.cache import cache
 
-from pydantic import ValidationError
-
 from micboard.services.chargers.polling_dtos import (
     ChargerInventoryPage,
     ChargerPollingCursor,
     ChargerStationSnapshot,
+)
+from micboard.services.shared.fair_page_cursor import (
+    clear_cursor,
+    model_cursor,
+    read_cursor,
+    write_cursor,
 )
 from micboard.utils.exception_logging import sanitized_exception_info
 
@@ -18,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 CHARGER_POLL_CURSOR_TIMEOUT_SECONDS = 7 * 24 * 60 * 60
 CHARGER_SNAPSHOT_TIMEOUT_SECONDS = 60
+_CURSOR = model_cursor(
+    "charger polling cursor",
+    timeout=CHARGER_POLL_CURSOR_TIMEOUT_SECONDS,
+    model=ChargerPollingCursor,
+    fresh=lambda: ChargerPollingCursor(next_offset=0, inventory_size=0, stations=[]),
+    exclude_defaults=True,
+)
 
 
 class ChargerPollingCacheAdapter:
@@ -36,47 +47,17 @@ class ChargerPollingCacheAdapter:
     @classmethod
     def read_cursor(cls, manufacturer: Any) -> ChargerPollingCursor:
         """Read validated continuation state without making polling cache-dependent."""
-        try:
-            value = cache.get(cls.cursor_key(manufacturer))
-        except Exception as exc:
-            logger.exception(
-                "Could not read charger polling cursor for manufacturer %s",
-                manufacturer.pk,
-                exc_info=sanitized_exception_info(exc),
-            )
-            value = None
-        try:
-            return ChargerPollingCursor.model_validate(value)
-        except TypeError, ValidationError:
-            return ChargerPollingCursor(next_offset=0, inventory_size=0, stations=[])
+        return read_cursor(_CURSOR, cls.cursor_key(manufacturer))
 
     @classmethod
     def write_cursor(cls, manufacturer: Any, cursor: ChargerPollingCursor) -> None:
         """Persist a partial bounded cycle while tolerating shared-cache outages."""
-        try:
-            cache.set(
-                cls.cursor_key(manufacturer),
-                cursor.model_dump(exclude_defaults=True),
-                timeout=CHARGER_POLL_CURSOR_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Could not persist charger polling cursor for manufacturer %s",
-                manufacturer.pk,
-                exc_info=sanitized_exception_info(exc),
-            )
+        write_cursor(_CURSOR, cls.cursor_key(manufacturer), cursor)
 
     @classmethod
     def clear_cursor(cls, manufacturer: Any) -> None:
         """Clear completed continuation state without failing a successful poll."""
-        try:
-            cache.delete(cls.cursor_key(manufacturer))
-        except Exception as exc:
-            logger.exception(
-                "Could not clear charger polling cursor for manufacturer %s",
-                manufacturer.pk,
-                exc_info=sanitized_exception_info(exc),
-            )
+        clear_cursor(_CURSOR, cls.cursor_key(manufacturer))
 
     @classmethod
     def publish_snapshot(

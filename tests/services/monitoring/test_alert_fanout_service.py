@@ -1,6 +1,6 @@
 """Security, fairness, and hard-budget contracts for alert fanout."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
@@ -221,16 +221,10 @@ def test_cache_outage_does_not_suppress_bounded_fanout(assigned_unit, caplog) ->
     assigned_unit.assignment.monitoring_group.users.add(UserFactory())
     secret = "redis://operator:private@example.test"
     budget = _budget(assignments=1, recipients=1)
-    with (
-        patch(
-            "micboard.services.monitoring.alert_fanout_service.cache.get",
-            side_effect=RuntimeError(secret),
-        ),
-        patch(
-            "micboard.services.monitoring.alert_fanout_service.cache.set",
-            side_effect=RuntimeError(secret),
-        ),
-    ):
+    handler = MagicMock()
+    handler.__getitem__.return_value.get.side_effect = RuntimeError(secret)
+    handler.__getitem__.return_value.set.side_effect = RuntimeError(secret)
+    with patch("micboard.services.shared.fair_page_cursor.caches", handler):
         assignments = AlertFanoutService.assignments_for_unit(
             unit=assigned_unit.unit,
             scope="cache-outage",
@@ -380,14 +374,3 @@ def test_fresh_authorization_rejects_unsaved_or_inactive_objects(assigned_unit) 
         )
         is None
     )
-
-
-def test_invalid_fanout_cursor_values_reset_to_start() -> None:
-    """Malformed cache values cannot influence bounded page ordering."""
-    with patch("micboard.services.monitoring.alert_fanout_service.cache.get", return_value=True):
-        assert AlertFanoutService._read_cursor("invalid") == 0
-    with patch(
-        "micboard.services.monitoring.alert_fanout_service.cache.get",
-        return_value=(True, 0),
-    ):
-        assert AlertFanoutService._read_pair_cursor("invalid") == (0, 0)
