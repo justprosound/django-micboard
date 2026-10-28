@@ -1,7 +1,5 @@
 """Integration models for managing external manufacturer API connections."""
 
-from __future__ import annotations
-
 from django.core.exceptions import ValidationError
 from django.db import models
 

@@ -1,7 +1,5 @@
 """Management command to check and display real-time connection status."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.core.management.base import BaseCommand

@@ -1,7 +1,5 @@
 """Argument-contract coverage for supported maintenance commands."""
 
-from __future__ import annotations
-
 from argparse import ArgumentParser
 
 import pytest

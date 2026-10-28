@@ -3,8 +3,6 @@
 This module provides Django admin interfaces for managing wireless audio hardware.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any, ClassVar
 

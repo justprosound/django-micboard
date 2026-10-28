@@ -1,7 +1,5 @@
 """Wireless chassis save lifecycle and committed status side effects."""
 
-from __future__ import annotations
-
 from functools import partial
 from typing import TYPE_CHECKING
 

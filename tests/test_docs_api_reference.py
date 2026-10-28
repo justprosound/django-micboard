@@ -6,8 +6,6 @@ modules change, they must still cover the public surface, and they must still ca
 Google-style docstring sections and source links the previous ``mkdocstrings`` pages had.
 """
 
-from __future__ import annotations
-
 import os
 import re
 import subprocess

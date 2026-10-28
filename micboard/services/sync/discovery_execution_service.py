@@ -1,7 +1,5 @@
 """Service-layer execution for background discovery entry points."""
 
-from __future__ import annotations
-
 import logging
 from itertools import islice
 

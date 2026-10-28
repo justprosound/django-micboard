@@ -1,7 +1,5 @@
 """Shure manufacturer plugin for django-micboard."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any

@@ -4,8 +4,6 @@ This encapsulates the device import/update logic previously embedded in the
 management command to make it reusable and easier to test.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, Any
 

@@ -1,7 +1,5 @@
 """Service for promoting discovered devices to managed WirelessChassis instances."""
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, Any
 

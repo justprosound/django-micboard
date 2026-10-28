@@ -1,7 +1,5 @@
 """Bounded maintenance and status aggregation for real-time connections."""
 
-from __future__ import annotations
-
 import logging
 from datetime import timedelta
 

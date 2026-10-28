@@ -1,7 +1,5 @@
 """Typed projections for wireless-chassis admin views."""
 
-from __future__ import annotations
-
 from micboard.services.shared.base_dto import PydanticBaseDTO
 
 

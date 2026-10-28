@@ -1,7 +1,5 @@
 """Coverage for UI middleware, decorators, and template helpers."""
 
-from __future__ import annotations
-
 import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch

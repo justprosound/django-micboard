@@ -1,7 +1,5 @@
 """Discovery scheduling contracts for manufacturer inventory persistence."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, patch
 
 import pytest

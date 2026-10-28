@@ -1,7 +1,5 @@
 """Bounded, tenant-safe kiosk health projection contracts."""
 
-from __future__ import annotations
-
 from datetime import timedelta
 
 from django.utils import timezone

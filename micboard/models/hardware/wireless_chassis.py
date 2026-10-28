@@ -44,8 +44,6 @@ Architecture & Future-Proofing Notes:
       a separate model, not a chassis role (docs/adr/014-rf-distribution-units-are-not-chassis.md).
 """
 
-from __future__ import annotations
-
 from typing import Any, ClassVar
 
 from django.db import models, router, transaction

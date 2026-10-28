@@ -5,8 +5,6 @@ reads it. Vendor key names stop at the normalizer, so callers read fields rather
 guessing which spelling a payload used.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import Field, field_validator

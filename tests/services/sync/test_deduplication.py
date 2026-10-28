@@ -1,7 +1,5 @@
 """Database-backed coverage for hardware identity deduplication."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 
 import pytest

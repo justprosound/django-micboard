@@ -1,7 +1,5 @@
 """Authorization and secret-redaction coverage for settings administration."""
 
-from __future__ import annotations
-
 from django.contrib.auth.models import Permission
 from django.contrib.sites.models import Site
 from django.test import Client, RequestFactory, TestCase, override_settings

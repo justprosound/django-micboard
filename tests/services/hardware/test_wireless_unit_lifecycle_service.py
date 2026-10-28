@@ -1,7 +1,5 @@
 """Wireless-unit health, assignment, and lifecycle service contracts."""
 
-from __future__ import annotations
-
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch

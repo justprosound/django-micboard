@@ -1,7 +1,5 @@
 """Admin configuration for display walls and kiosks."""
 
-from __future__ import annotations
-
 from django.contrib import admin
 
 from micboard.admin.mixins import MicboardModelAdmin, TenantScopedAdminInlineMixin

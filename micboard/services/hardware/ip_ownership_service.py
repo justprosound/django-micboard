@@ -1,7 +1,5 @@
 """Cross-model IP ownership for managed network hardware."""
 
-from __future__ import annotations
-
 import hashlib
 import ipaddress
 from collections.abc import Iterable

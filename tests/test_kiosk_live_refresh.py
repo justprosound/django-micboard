@@ -1,7 +1,5 @@
 """Request-level contracts for the live DisplayWall browser seam."""
 
-from __future__ import annotations
-
 from django.contrib.staticfiles import finders
 from django.template.loader import render_to_string
 from django.test import Client

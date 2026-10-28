@@ -1,7 +1,5 @@
 """Normalize manufacturer payloads and persist discovery review entries."""
 
-from __future__ import annotations
-
 import ipaddress
 import logging
 import re

@@ -1,7 +1,5 @@
 """Runtime configuration and optional-dependency contract coverage."""
 
-from __future__ import annotations
-
 import importlib
 import importlib.metadata
 import logging

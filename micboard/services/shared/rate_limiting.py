@@ -1,7 +1,5 @@
 """Rate limiting service logic for micboard."""
 
-from __future__ import annotations
-
 import logging
 import time
 

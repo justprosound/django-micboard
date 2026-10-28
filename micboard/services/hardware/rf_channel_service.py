@@ -4,8 +4,6 @@ Provides regulatory domain resolution, coverage checking, and status
 reporting for RF channels, separated from the model layer per ADR-002.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, Any, cast
 

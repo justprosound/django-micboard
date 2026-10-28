@@ -12,8 +12,6 @@ Note: All admin modules must be imported here to trigger @admin.register() decor
 Django's autodiscover only looks for admin.py files, not admin/ packages.
 """
 
-from __future__ import annotations
-
 # Import all admin modules to trigger registration
 from micboard.admin import (
     activity_logs,

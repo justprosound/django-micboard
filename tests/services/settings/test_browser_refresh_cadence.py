@@ -7,8 +7,6 @@ than from markup, and it has to be bounded at both ends so that neither a typo n
 value can storm the proxy or stall a surface for an hour.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 

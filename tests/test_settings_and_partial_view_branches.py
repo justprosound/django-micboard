@@ -1,7 +1,5 @@
 """Focused controller coverage for settings and user views."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch

@@ -7,8 +7,6 @@ same path. These tests pin the two numbers that now bound it — how long one au
 decision may be reused, and how many commands one connection may spend per minute.
 """
 
-from __future__ import annotations
-
 import asyncio
 
 from django.test import override_settings

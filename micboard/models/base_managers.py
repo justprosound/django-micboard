@@ -6,8 +6,6 @@ Base classes for all models to support:
 - Common filtering patterns
 """
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from typing import Protocol, TypeVar
 

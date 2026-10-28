@@ -1,7 +1,5 @@
 """Tenant-isolation regression tests for shared Micboard admin behavior."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from django.contrib import admin

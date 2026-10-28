@@ -1,7 +1,5 @@
 """Poll-to-alert integration coverage across the native Huey boundary."""
 
-from __future__ import annotations
-
 from unittest.mock import MagicMock, patch
 
 from django.core import mail

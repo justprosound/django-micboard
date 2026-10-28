@@ -4,8 +4,6 @@ Provides query and validation functions for discovered device lifecycle,
 separated from the model layer per ADR-002.
 """
 
-from __future__ import annotations
-
 import logging
 
 from micboard.models.discovery.registry import DiscoveredDevice

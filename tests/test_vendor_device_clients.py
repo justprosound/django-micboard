@@ -1,7 +1,5 @@
 """Behavioral coverage for built-in vendor device clients."""
 
-from __future__ import annotations
-
 import pytest
 
 from micboard.integrations.sennheiser.device_client import SennheiserDeviceClient

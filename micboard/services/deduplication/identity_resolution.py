@@ -1,7 +1,5 @@
 """Durable device-identity lookup helpers."""
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis

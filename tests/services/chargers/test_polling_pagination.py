@@ -1,7 +1,5 @@
 """Resumable charger inventory pagination and cache-failure contracts."""
 
-from __future__ import annotations
-
 from collections.abc import Iterator, Sequence
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch

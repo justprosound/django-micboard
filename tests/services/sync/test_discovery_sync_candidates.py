@@ -1,7 +1,5 @@
 """Coverage for discovery source expansion, candidate submission, and publication."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, patch
 
 import pytest

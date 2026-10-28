@@ -1,7 +1,5 @@
 """Behavioral coverage for discovery queue models and movement tracking."""
 
-from __future__ import annotations
-
 import pytest
 
 from micboard.services.deduplication.queue_conflict_service import (

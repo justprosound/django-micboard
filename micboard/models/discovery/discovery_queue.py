@@ -1,7 +1,5 @@
 """Discovery queue and device movement tracking."""
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.conf import settings

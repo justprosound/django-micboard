@@ -2,8 +2,6 @@
 # ruff: noqa: T201
 """Validate that built wheels contain the complete reusable Django app."""
 
-from __future__ import annotations
-
 import argparse
 from email.parser import BytesParser
 from pathlib import Path, PurePosixPath

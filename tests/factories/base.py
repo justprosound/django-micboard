@@ -1,7 +1,5 @@
 """Shared factory primitives for test-only model graphs."""
 
-from __future__ import annotations
-
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.contrib.sites.models import Site

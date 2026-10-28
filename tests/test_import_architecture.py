@@ -1,7 +1,5 @@
 """Regression tests for static import direction and cycle detection."""
 
-from __future__ import annotations
-
 import ast
 from pathlib import Path
 

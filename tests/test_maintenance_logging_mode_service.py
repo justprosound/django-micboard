@@ -1,7 +1,5 @@
 """Behavioral coverage for maintenance logging-mode selection."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, call
 
 from micboard.services.maintenance import logging_mode as mode_module

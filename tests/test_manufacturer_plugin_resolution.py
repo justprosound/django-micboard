@@ -5,8 +5,6 @@ a manufacturer. There is one way to get one, it is cached, and it fails the same
 every caller.
 """
 
-from __future__ import annotations
-
 import pytest
 
 from micboard.integrations.sennheiser.plugin import SennheiserPlugin

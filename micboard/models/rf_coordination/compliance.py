@@ -4,8 +4,6 @@ Provides models to track regulatory domains (FCC, ETSI), excluded frequency rang
 and compliance rules for specific locations.
 """
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.db import models

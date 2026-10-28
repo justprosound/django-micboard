@@ -1,7 +1,5 @@
 """Coverage for bounded, secret-safe real-time connection health maintenance."""
 
-from __future__ import annotations
-
 from datetime import timedelta
 from unittest.mock import patch
 

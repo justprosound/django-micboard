@@ -4,8 +4,6 @@ Every branch here decides whether a recipient is entitled to an alert, so each o
 pinning rather than inferring from the paths that happen to run in the round-trip tests.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.test import override_settings

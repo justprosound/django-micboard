@@ -1,7 +1,5 @@
 """Behavioral coverage for polling, real-time, and logging-mode commands."""
 
-from __future__ import annotations
-
 from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, call, patch

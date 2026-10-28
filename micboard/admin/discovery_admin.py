@@ -4,8 +4,6 @@ Provides admin views for DiscoveryQueue (device approval workflow) and
 DeviceMovementLog (movement tracking and acknowledgment).
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin, messages

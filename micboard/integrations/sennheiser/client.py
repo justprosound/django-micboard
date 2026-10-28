@@ -1,7 +1,5 @@
 """Core HTTP client for Sennheiser SSCv2 API with connection pooling and retry logic."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any

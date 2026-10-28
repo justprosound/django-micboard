@@ -1,7 +1,5 @@
 """Factories for real-time connection state."""
 
-from __future__ import annotations
-
 import factory
 
 from micboard.models.realtime.connection import RealTimeConnection

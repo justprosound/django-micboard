@@ -1,7 +1,5 @@
 """Transactional deletion workflow for staged discovery devices."""
 
-from __future__ import annotations
-
 from django.db import transaction
 from django.db.models import QuerySet
 

@@ -5,8 +5,6 @@ Each band plan defines a frequency range, region, and name for wireless
 microphone systems.
 """
 
-from __future__ import annotations
-
 import importlib.resources
 import logging
 import re

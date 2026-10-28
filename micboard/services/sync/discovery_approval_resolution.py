@@ -1,7 +1,5 @@
 """Identity resolution and conflict policy for discovery approval."""
 
-from __future__ import annotations
-
 from hashlib import sha256
 from typing import Any
 

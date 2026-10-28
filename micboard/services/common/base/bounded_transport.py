@@ -1,7 +1,5 @@
 """Bounded synchronous HTTP transport for untrusted vendor responses."""
 
-from __future__ import annotations
-
 import logging
 import math
 from collections.abc import Callable

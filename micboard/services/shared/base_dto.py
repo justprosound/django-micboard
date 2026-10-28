@@ -3,8 +3,6 @@
 All DTOs should inherit from this class to ensure consistent configuration.
 """
 
-from __future__ import annotations
-
 from pydantic import BaseModel, ConfigDict
 
 

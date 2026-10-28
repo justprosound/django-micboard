@@ -8,8 +8,6 @@ For high-level manufacturer polling orchestration, use PollingService
 from polling_service.py instead.
 """
 
-from __future__ import annotations
-
 import logging
 
 from django.core.exceptions import PermissionDenied, ValidationError

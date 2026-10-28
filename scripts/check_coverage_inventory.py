@@ -1,7 +1,5 @@
 """Verify that coverage data accounts for every distributable Python module."""
 
-from __future__ import annotations
-
 import argparse
 import sys
 from pathlib import Path

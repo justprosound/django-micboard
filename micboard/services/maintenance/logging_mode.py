@@ -8,8 +8,6 @@ Manages verbosity state:
 Supports automatic expiry (TTL) to prevent accidental high-churn modes.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 from typing import Literal, cast

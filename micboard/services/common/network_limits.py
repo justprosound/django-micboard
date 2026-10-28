@@ -1,7 +1,5 @@
 """Validated package ceilings for untrusted vendor network responses."""
 
-from __future__ import annotations
-
 import math
 
 from pydantic import Field

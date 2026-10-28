@@ -3,8 +3,6 @@
 Provides functions for creating and managing alerts based on device conditions.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

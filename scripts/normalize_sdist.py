@@ -1,7 +1,5 @@
 """Normalize source-distribution metadata for byte-reproducible release archives."""
 
-from __future__ import annotations
-
 import argparse
 import copy
 import gzip

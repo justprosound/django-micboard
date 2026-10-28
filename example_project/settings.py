@@ -8,7 +8,6 @@ DO NOT use these settings in production. See docs/installation.md for
 proper configuration guidance.
 """
 
-from __future__ import annotations
 
 import os
 from importlib.util import find_spec

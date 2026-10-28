@@ -1,7 +1,5 @@
 """Behavioral coverage for discovery synchronization orchestration and lifecycle."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 

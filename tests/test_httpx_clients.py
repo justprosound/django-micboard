@@ -1,7 +1,5 @@
 """Regression tests for Micboard's httpx-only network boundary."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from types import SimpleNamespace

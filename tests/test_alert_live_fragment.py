@@ -1,7 +1,5 @@
 """Alert page and live-row fragment integration contracts."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.contrib.auth.models import User

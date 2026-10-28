@@ -18,7 +18,7 @@ guessing which spelling a payload used.
 
 ### `UNKNOWN_BYTE_LEVEL`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L17)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L15)
 
 Vendor sentinel for a battery, quality, or offset reading the device did not report.
 
@@ -26,7 +26,7 @@ Vendor sentinel for a battery, quality, or offset reading the device did not rep
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L19)
 
 Telemetry for the wireless unit linked to one RF channel.
 
@@ -34,7 +34,7 @@ Telemetry for the wireless unit linked to one RF channel.
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L42)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L40)
 
 One RF channel reported by a chassis, with its linked unit if any.
 
@@ -42,7 +42,7 @@ One RF channel reported by a chassis, with its linked unit if any.
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L49)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L47)
 
 One chassis as reported by its manufacturer, independent of vendor key names.
 
@@ -54,7 +54,7 @@ the existing role otherwise.
 
 #### `canonicalize_mac(value: Any) -> str`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L75)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware.py#L73)
 
 Canonicalize hardware identity on creation and assignment.
 
@@ -79,13 +79,13 @@ testable method calls.
 
 Bases: `StrEnum`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L31)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L29)
 
 Device lifecycle states.
 
 ### `HardwareLifecycleManager`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L43)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L41)
 
 Centralized manager for device lifecycle operations.
 
@@ -98,25 +98,25 @@ Does NOT use signals for state management (signals only for broadcasts).
 
 #### `transition_device(device: WirelessChassis | WirelessUnit, to_status: str, reason: str = '', metadata: dict[str, Any] | None = None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L90)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L88)
 
 Transition a device on the database that supplied the instance.
 
 #### `mark_online(device: WirelessChassis | WirelessUnit, health_data: dict[str, Any] | None = None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L182)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L180)
 
 Mark device as online/operational.
 
 #### `mark_offline(device: WirelessChassis | WirelessUnit, reason: str = 'Not responding') -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L196)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L194)
 
 Mark device as offline.
 
 ### `map_api_state_to_status(api_state: str, current_status: str) -> str`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L211)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L209)
 
 Map manufacturer API state to HardwareStatus.
 
@@ -130,11 +130,11 @@ Provides write operations that synchronize hardware state from external sources.
 
 ### `HardwareSyncService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L18)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L16)
 
 #### `sync_hardware_status(obj: WirelessChassis | WirelessUnit, online: bool) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L19)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L17)
 
 Update hardware online status.
 
@@ -142,7 +142,7 @@ Uses direct status update - lifecycle hooks handle timestamps, audit, broadcast.
 
 #### `ensure_channel_count(chassis: WirelessChassis, using: str = DEFAULT_DB_ALIAS) -> tuple[int, int]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L28)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L26)
 
 Ensure RFChannel rows for a chassis match its model capacity.
 
@@ -158,55 +158,55 @@ Handles assignment lifecycle, state transitions, and lookup helpers.
 
 ### `PerformerAssignmentService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L32)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L30)
 
 Business logic for performer-to-device assignments.
 
 #### `get_visible_assignments(user: Any) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L37)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L35)
 
 Return user-scoped assignments with all row relations eager loaded.
 
 #### `get_visible_assignment_rows(user: Any, page: int | str | None = 1) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L55)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L53)
 
 Return one bounded live-refresh slice without a count query.
 
 #### `get_preferred_active_assignments_for_units(user: Any, unit_ids: Collection[int]) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L113)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L111)
 
 Return at most one deterministic active assignment for each requested unit.
 
 #### `get_preferred_active_assignments_for_serials(user: Any, serial_numbers: Collection[str]) -> QuerySet[PerformerAssignment]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L128)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L126)
 
 Return at most one deterministic active assignment for each requested serial.
 
 #### `ensure_group_can_manage_unit(group: MonitoringGroup, unit: WirelessUnit) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L143)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L141)
 
 Require the selected group to cover the unit in tenant-aware deployments.
 
 #### `ensure_can_modify_unit(user: Any, unit: WirelessUnit) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L156)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L154)
 
 Require an MSP role that permits assignment changes for the unit.
 
 #### `create_assignment(command: CreatePerformerAssignment, user: Any) -> PerformerAssignment`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L205)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L203)
 
 Create an assignment after validating every object against user scope.
 
 #### `update_assignment(command: UpdatePerformerAssignment, user: Any) -> PerformerAssignment`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L262)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L260)
 
 Update fields on an existing assignment and return the instance.
 
@@ -214,13 +214,13 @@ Raises PerformerAssignment.DoesNotExist if the assignment is missing.
 
 #### `delete_assignment(assignment_id: int, user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L291)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L289)
 
 Permanently delete an assignment. Returns True if deleted, False if not found.
 
 #### `deactivate_assignment(assignment_id: int, user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L310)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/performer_assignment.py#L308)
 
 Deactivate an existing assignment.
 
@@ -259,31 +259,31 @@ DiscoveredDevice models without hardcoding assumptions about metadata structure.
 
 Bases: `ABC`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L19)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L17)
 
 Abstract base for accessing manufacturer-specific metadata.
 
 #### `get_compatibility_status() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L30)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L28)
 
 Get device compatibility status (e.g., COMPATIBLE, INCOMPATIBLE_TOO_OLD).
 
 #### `get_device_state() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L35)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L33)
 
 Get device state (e.g., DISCOVERED, ONLINE, OFFLINE).
 
 #### `get_incompatibility_reason() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L40)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L38)
 
 Get human-readable reason if device is incompatible.
 
 #### `get_for(manufacturer: Manufacturer | None, device_data: dict[str, Any] | None = None) -> DeviceMetadataAccessor`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L45)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L43)
 
 Factory method to get appropriate accessor for manufacturer.
 
@@ -300,25 +300,25 @@ Factory method to get appropriate accessor for manufacturer.
 
 Bases: `DeviceMetadataAccessor`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L72)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L70)
 
 Generic accessor for unknown manufacturers.
 
 #### `get_compatibility_status() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L75)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L73)
 
 Return the generic compatibility status from metadata.
 
 #### `get_device_state() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L79)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L77)
 
 Return the generic device state from metadata.
 
 #### `get_incompatibility_reason() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L83)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L81)
 
 Return the generic incompatibility reason from metadata.
 
@@ -326,31 +326,31 @@ Return the generic incompatibility reason from metadata.
 
 Bases: `DeviceMetadataAccessor`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L88)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L86)
 
 Accessor for Shure-specific metadata structure.
 
 #### `get_compatibility_status() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L91)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L89)
 
 Get Shure compatibility status.
 
 #### `get_device_state() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L95)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L93)
 
 Get Shure device state.
 
 #### `get_incompatibility_reason() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L99)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L97)
 
 Get human-readable Shure incompatibility reason.
 
 #### `get_communication_protocol() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L119)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L117)
 
 Get Shure communication protocol name.
 
@@ -358,25 +358,25 @@ Get Shure communication protocol name.
 
 Bases: `DeviceMetadataAccessor`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L127)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L125)
 
 Accessor for Sennheiser-specific metadata structure.
 
 #### `get_compatibility_status() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L130)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L128)
 
 Get Sennheiser compatibility status.
 
 #### `get_device_state() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L134)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L132)
 
 Get Sennheiser device state.
 
 #### `get_incompatibility_reason() -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L138)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_metadata.py#L136)
 
 Get human-readable Sennheiser incompatibility reason.
 
@@ -391,19 +391,19 @@ without embedding lookup logic in models.
 
 ### `DeviceSpec`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_specs.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_specs.py#L19)
 
 Device specifications from registry.
 
 ### `DeviceSpecService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_specs.py#L34)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_specs.py#L32)
 
 Service for looking up standardized device specifications.
 
 #### `get_specs(manufacturer: Manufacturer | None, model: str) -> DeviceSpec | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_specs.py#L37)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_specs.py#L35)
 
 Get device specifications for a manufacturer/model combination.
 
@@ -418,7 +418,7 @@ Get device specifications for a manufacturer/model combination.
 
 #### `apply_specs_to_chassis(chassis: object) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_specs.py#L85)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/device_specs.py#L83)
 
 Apply specifications to a WirelessChassis instance (for use in save()).
 
@@ -434,13 +434,13 @@ User profile preference operations.
 
 ### `UserProfileService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/user_profile.py#L15)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/user_profile.py#L13)
 
 Persist validated user profile preferences.
 
 #### `set_display_width(user: Any, width_px: int) -> UserProfile`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/user_profile.py#L18)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/user_profile.py#L16)
 
 Set a user's charger-dashboard width within supported browser limits.
 
@@ -455,7 +455,7 @@ DB-backed SettingsRegistry into a single resolution chain.
 
 ### `SettingsService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L18)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L16)
 
 Unified settings resolution with multi-source fallback.
 
@@ -470,7 +470,7 @@ Resolution order for ``get()``:
 
 #### `get(key: str, default: Any = None, organization: Any = None, site: Any = None, manufacturer: Any = None) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L57)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L55)
 
 Resolve a setting value through the multi-source fallback chain.
 
@@ -488,19 +488,19 @@ Resolve a setting value through the multi-source fallback chain.
 
 #### `get_config_dict() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L109)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L107)
 
 Return ``MICBOARD_CONFIG`` merged with package defaults.
 
 #### `invalidate_value_cache(key: str | None = None) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L114)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L112)
 
 Invalidate one resolved database value or every cached value.
 
 #### `invalidate_definition_cache(key: str | None = None) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L118)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/settings_service.py#L116)
 
 Invalidate definition metadata and every value derived from it.
 
@@ -520,7 +520,7 @@ that already govern stored kiosk refresh rates.
 
 ### `bounded_refresh_interval(value: Any, default: int) -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L42)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L40)
 
 Return one refresh interval clamped into the range a browser can be trusted with.
 
@@ -540,13 +540,13 @@ than one refreshing at the shipped rate.
 
 ### `BrowserRefreshCadence`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L71)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L69)
 
 Resolve the bounded poll interval for one named browser surface.
 
 #### `seconds_for(surface: str) -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L74)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L72)
 
 Return how many seconds *surface* waits between refreshes.
 
@@ -564,7 +564,7 @@ Return how many seconds *surface* waits between refreshes.
 
 #### `milliseconds_for(surface: str) -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L92)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/browser_refresh_service.py#L90)
 
 Return the same bounded interval as a JavaScript timer duration.
 
@@ -586,19 +586,19 @@ Internal registry implementation for typed, explicitly scoped settings.
 
 Bases: `Protocol`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L13)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L11)
 
 Minimal model contract required to identify one settings scope.
 
 ### `SettingsRegistry`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L19)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L17)
 
 Centralized settings accessor honoring each definition's declared scope.
 
 #### `get(key: str, default: Any = None, organization: SettingsScopeReference | None = None, site: SettingsScopeReference | None = None, manufacturer: SettingsScopeReference | None = None, required: bool = False, include_definition_default: bool = True) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L27)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L25)
 
 Get a setting value at its definition's declared scope.
 
@@ -628,13 +628,13 @@ Resolution order:
 
 #### `get_definition_default(key: str, default: Any = None) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L99)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L97)
 
 Return the typed definition default without consulting stored values.
 
 #### `invalidate_cache(key: str | None = None) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L107)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L105)
 
 Invalidate settings cache.
 
@@ -644,7 +644,7 @@ Invalidate settings cache.
 
 #### `invalidate_definition(key: str | None = None) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L128)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/registry.py#L126)
 
 Invalidate cached definition metadata and all values derived from it.
 
@@ -658,7 +658,7 @@ Data-transfer objects for tenant-aware settings presentation.
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L12)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L10)
 
 Identifiers whose stored overrides a user may inspect.
 
@@ -669,13 +669,13 @@ fail closed and expose no overrides for that dimension.
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L24)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L22)
 
 One exact global, organization, site, or manufacturer scope.
 
 #### `validate_exact_scope() -> SettingWriteTarget`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L32)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L30)
 
 Reject identifiers that do not match the declared scope.
 
@@ -683,13 +683,13 @@ Reject identifiers that do not match the declared scope.
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L50)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L48)
 
 One validated form value awaiting definition serialization.
 
 #### `validate_identifier() -> SettingWriteItem`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L58)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L56)
 
 Require exactly one definition identifier.
 
@@ -697,7 +697,7 @@ Require exactly one definition identifier.
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L66)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L64)
 
 Authorized batch of setting override writes.
 
@@ -705,7 +705,7 @@ Authorized batch of setting override writes.
 
 Bases: `PydanticBaseDTO`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L73)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/settings/dtos.py#L71)
 
 Best-effort persistence result safe to render to an operator.
 
@@ -717,49 +717,49 @@ Shared policy for tenant-wide read and mutation access decisions.
 
 ### `has_unrestricted_tenant_access(user: Any) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L42)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L40)
 
 Return whether ``user`` may bypass organization membership boundaries.
 
 ### `TenantRoleAccessService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L47)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L45)
 
 Apply MSP membership roles without narrowing read-only visibility.
 
 #### `management_memberships(user: Any, using: str | None = None) -> list[tuple[int, int | None]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L57)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L55)
 
 Return active organization/campus scopes where ``user`` may administer.
 
 #### `is_platform_global_model(model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L77)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L75)
 
 Return whether ``model`` is a reviewed host-wide admin surface.
 
 #### `scope_manageable_queryset(queryset: models.QuerySet[Any], user: Any) -> models.QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L112)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L110)
 
 Intersect ``queryset`` with scopes where ``user`` has an admin role.
 
 #### `can_add_model(user: Any, model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L153)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L151)
 
 Authorize adds only where a new row can carry exclusive tenant ownership.
 
 #### `can_manage_model(user: Any, model: type[models.Model]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L169)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L167)
 
 Authorize adding or bulk-mutating rows of one tenant-owned model.
 
 #### `can_manage_object(user: Any, obj: models.Model) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L184)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/access_policy.py#L182)
 
 Authorize mutation only when the object's exact tenant role permits it.
 
@@ -795,7 +795,7 @@ Anonymous and inactive accounts see nothing.
 
 ### `visibility_filter(model: type[models.Model], user: Any, using: str | None = None, monitoring_reach: bool = True) -> Q | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L281)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L279)
 
 Return the filter selecting the rows of ``model`` that ``user`` may see.
 
@@ -804,7 +804,7 @@ membership saw its whole tenant. An empty ``Q()`` means every row; None means no
 
 ### `visible_to(model: type[models.Model], user: Any, using: str | None = None) -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L332)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L330)
 
 Return the rows of ``model`` that ``user`` may see on operator surfaces.
 
@@ -815,7 +815,7 @@ on the database being asked about, not whichever database the manager defaults t
 
 ### `restrict_to_tenant_boundary(queryset: QuerySet[Any], user: Any) -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L349)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L347)
 
 Narrow ``queryset`` to rows inside the user's tenant and site boundary.
 
@@ -825,7 +825,7 @@ back unchanged when no boundary applies.
 
 ### `reaches(group: Any, obj: models.Model) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L366)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/visibility.py#L364)
 
 Return whether one monitoring group covers ``obj`` through the declared reach paths.
 
@@ -845,43 +845,43 @@ current site. `active_memberships` is the only place that query is written.
 
 ### `ADMIN_ROLES: Final[frozenset[str]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L19)
 
 Roles that administer their tenant and see all of it.
 
 ### `MODIFY_ROLES: Final[frozenset[str]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L24)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L22)
 
 Roles that may change device assignments.
 
 ### `Membership`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L30)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L28)
 
 One active organization membership, optionally limited to a campus.
 
 #### `covers(organization_id: int, campus_id: int | None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L43)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L41)
 
 Return whether this membership reaches a row owned by that organization and campus.
 
 ### `deployment_mode() -> DeploymentMode`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L50)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L48)
 
 Return the tenant boundary the deployment enforces.
 
 ### `current_site_id() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L59)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L57)
 
 Return the Django Site this process serves.
 
 ### `active_memberships(user_id: int, using: str | None = None, roles: frozenset[str] | None = None) -> tuple[Membership, ...]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L64)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L62)
 
 Return the user's active memberships, newest first, optionally limited to some roles.
 
@@ -890,7 +890,7 @@ inactive, so a revoked account holds no tenant.
 
 ### `TenantPrincipal`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L103)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L101)
 
 The tenant facts every access decision about one user starts from.
 
@@ -905,13 +905,13 @@ The tenant facts every access decision about one user starts from.
 
 #### `resolve(user: Any, using: str | None = None) -> TenantPrincipal`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L124)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L122)
 
 Resolve ``user`` with at most one membership query.
 
 #### `sees_whole_tenant(membership: Membership) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L166)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L164)
 
 Return whether this membership shows its whole tenant rather than group reach.
 
@@ -922,13 +922,13 @@ groups reach.
 
 #### `scopes(roles: frozenset[str] | None = None) -> list[tuple[int, int | None]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L176)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L174)
 
 Return membership scopes, optionally limited to some roles.
 
 #### `has_role_for(roles: frozenset[str], organization_id: int, campus_id: int | None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L180)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/tenant_principal.py#L178)
 
 Return whether a membership with one of ``roles`` covers that tenant.
 
@@ -944,7 +944,7 @@ All DTOs should inherit from this class to ensure consistent configuration.
 
 Bases: `BaseModel`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/base_dto.py#L11)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/shared/base_dto.py#L9)
 
 Base DTO with standard configuration for all service layer DTOs.
 
@@ -954,13 +954,13 @@ Base DTO with standard configuration for all service layer DTOs.
 
 ### `clear_plugin_cache() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L22)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L20)
 
 Forget resolved plugin classes, so a test starts from a cold cache.
 
 ### `build_manufacturer_plugin(manufacturer: Manufacturer) -> ManufacturerPlugin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L27)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L25)
 
 Return a plugin bound to ``manufacturer``.
 
@@ -970,7 +970,7 @@ and others do not.
 
 ### `get_manufacturer_plugin(code: str) -> type[ManufacturerPlugin]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L38)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L36)
 
 Return the plugin class for a manufacturer code, resolving it at most once.
 
@@ -982,13 +982,13 @@ locate a concrete ``ManufacturerPlugin`` subclass. Prefers
 
 Bases: `ABC`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L91)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L89)
 
 Base interface for all manufacturer plugins.
 
 #### `get_devices() -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L110)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L108)
 
 Retrieve a list of all devices associated with or discovered by this plugin.
 
@@ -996,13 +996,13 @@ Retrieve a list of all devices associated with or discovered by this plugin.
 
 Bases: `BasePlugin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L116)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L114)
 
 Extended plugin interface specifically for manufacturer hardware integrations.
 
 #### `async subscribe_to_chassis(chassis: WirelessChassis, callback: Callable[[dict[str, Any]], Awaitable[None]]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L129)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L127)
 
 Open this integration's stream for one chassis and await its updates.
 
@@ -1011,19 +1011,19 @@ runner owns leasing, inventory selection, connection tracking, and persistence.
 
 #### `get_device_channels(device_id: str) -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L142)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L140)
 
 Retrieve all channels associated with a specific device identifier.
 
 #### `get_client() -> BaseAPIClient`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L147)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L145)
 
 Get an instance of the configured API client for this manufacturer.
 
 #### `normalize_device(api_data: dict[str, Any]) -> NormalizedChassis | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L152)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L150)
 
 Normalize one raw device payload, or return None when it is unusable.
 
@@ -1032,7 +1032,7 @@ Channels are included when the payload embeds them.
 
 #### `normalize_channels(api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L161)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L159)
 
 Normalize the channel list returned by `get_device_channels`.
 
@@ -1040,37 +1040,37 @@ Persistence uses this for devices whose payload embeds no channels.
 
 #### `get_device(device_id: str) -> dict[str, Any] | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L169)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L167)
 
 Fetch details for a single device by its identifier.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L174)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L172)
 
 Check if the plugin and its underlying integrations are currently healthy.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L179)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L177)
 
 Perform a detailed health check and return the results as a dictionary.
 
 #### `add_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L184)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L182)
 
 Add a list of IP addresses to the plugin's discovery targets.
 
 #### `get_discovery_ips() -> list[str]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L189)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L187)
 
 Retrieve the list of currently configured discovery IP addresses.
 
 #### `remove_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L194)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L192)
 
 Remove a list of IP addresses from the plugin's discovery targets.
 
@@ -1087,7 +1087,7 @@ payload carries no model name.
 
 ### `VendorDeviceNormalizer`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L55)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L53)
 
 Normalize one integration's device and channel payloads.
 
@@ -1099,7 +1099,7 @@ Normalize one integration's device and channel payloads.
 
 #### `normalize_device(api_data: Mapping[str, Any]) -> NormalizedChassis | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L71)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L69)
 
 Normalize one device payload, or return None when it is unusable.
 
@@ -1109,7 +1109,7 @@ serial numbers.
 
 #### `normalize_channels(api_channels: Iterable[Mapping[str, Any]]) -> list[NormalizedChannel]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L112)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L110)
 
 Normalize the channel list a device embeds or a channel endpoint returns.
 
@@ -1126,7 +1126,7 @@ Every channel is kept. A channel whose linked unit is absent or unusable carries
 
 ### `standardize_health_response(status: str, details: dict[str, Any] | None = None, error: str | None = None) -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L27)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L25)
 
 Return one health result in the shape every consumer reads.
 
@@ -1138,19 +1138,19 @@ read `status` from a closed vocabulary plus a timestamp, so an unrecognized stat
 
 Bases: `ABC`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L54)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L52)
 
 Base API client interface.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L57)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L55)
 
 Check if the client is healthy.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L62)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L60)
 
 Perform a health check and return details.
 
@@ -1158,37 +1158,37 @@ Perform a health check and return details.
 
 Bases: `BaseAPIClient`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L75)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L73)
 
 Base HTTP client with circuit breaker and retries.
 
 #### `get_exception_class() -> type[APIError]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L152)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L150)
 
 Get the exception class for API errors.
 
 #### `get_rate_limit_exception_class() -> type[APIRateLimitError]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L157)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L155)
 
 Get the exception class for rate limit errors.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L172)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L170)
 
 Check whether the client is healthy with fewer than five consecutive failures.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L176)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L174)
 
 Probe the health check endpoint and return a standardized status response.
 
 #### `close() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L437)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/client.py#L435)
 
 Close the underlying HTTP connection pool.
 
@@ -1198,7 +1198,7 @@ Close the underlying HTTP connection pool.
 
 ### `create_resilient_session(max_retries: int = 3, pool_connections: int = 10, pool_maxsize: int = 20, follow_redirects: bool = True) -> httpx.Client`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/resilience.py#L6)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/resilience.py#L4)
 
 Create an HTTPX client with bounded connection retries and pooling.
 
@@ -1211,7 +1211,7 @@ knows whether a request is safe to replay and how to interpret Retry-After.
 
 ### `rate_limit(calls_per_second: float = 10.0) -> Callable[[_CallableT], _CallableT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/rate_limiter.py#L26)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/rate_limiter.py#L24)
 
 Rate-limit calls to a decorated client method through the shared cache.
 
@@ -1221,22 +1221,22 @@ Rate-limit calls to a decorated client method through the shared cache.
 
 ### `CircuitBreaker`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L11)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L9)
 
 #### `allow_request() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L22)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L20)
 
 Check whether a request is allowed based on the current circuit state.
 
 #### `record_success() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L32)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L30)
 
 Reset failure count and close the circuit after a successful request.
 
 #### `record_failure() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L59)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/circuit_breaker.py#L57)
 
 Increment failure count and open the circuit if the threshold is reached.

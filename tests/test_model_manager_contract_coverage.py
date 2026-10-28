@@ -4,8 +4,6 @@ Which rows a user may see is answered by `micboard.services.shared.visibility`; 
 the membership filter it composes, which has to fail closed on its own.
 """
 
-from __future__ import annotations
-
 from django.test import override_settings
 
 from micboard.models.base_managers import TenantOptimizedQuerySet
