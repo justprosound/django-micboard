@@ -18,6 +18,7 @@ from micboard.admin import receivers
 from micboard.admin.mixins import MicboardModelAdmin
 from micboard.admin.receiver_inlines import RFChannelInlineFormSet
 from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.services.hardware.chassis_refresh_service import MAX_SYNCHRONOUS_REFRESH
 
 
 def _request(method: str = "get", data: dict[str, Any] | None = None) -> Any:
@@ -202,9 +203,7 @@ def test_wireless_chassis_sync_action_empty_huey_limit_and_local_results() -> No
 
     model_admin.message_user.reset_mock()
     with patch("micboard.utils.dependencies.huey_is_configured", return_value=False):
-        model_admin.sync_from_api(
-            request, _sync_queryset(list(range(receivers.MAX_SYNCHRONOUS_REFRESH + 1)))
-        )
+        model_admin.sync_from_api(request, _sync_queryset(list(range(MAX_SYNCHRONOUS_REFRESH + 1))))
     assert "must be configured" in model_admin.message_user.call_args.args[1]
 
     model_admin.message_user.reset_mock()
