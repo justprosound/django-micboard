@@ -29,10 +29,6 @@ DEFAULT_CACHE_ALIAS = "default"
 _BUCKET = "_fair_page_bucket"
 
 
-def _same(value: Any) -> Any:
-    return value
-
-
 @dataclass(frozen=True, slots=True)
 class CursorSpec[CursorT]:
     """One kind of cursor: how it is validated, stored and named in logs."""
@@ -41,7 +37,13 @@ class CursorSpec[CursorT]:
     timeout: int
     fresh: Callable[[], CursorT]
     parse: Callable[[object], CursorT]
-    dump: Callable[[CursorT], object] = _same
+    dump: Callable[[CursorT], object] | None = None
+
+    def serialize(self, cursor: CursorT) -> object:
+        """Return the cache representation of ``cursor``; plain values are stored as they are."""
+        if self.dump is None:
+            return cursor
+        return self.dump(cursor)
 
 
 def _parse_position(value: object) -> int:
@@ -130,7 +132,7 @@ def write_cursor[CursorT](
 ) -> None:
     """Persist a cursor with the spec's timeout, tolerating a cache outage."""
     try:
-        caches[cache_alias].set(key, spec.dump(cursor), timeout=spec.timeout)
+        caches[cache_alias].set(key, spec.serialize(cursor), timeout=spec.timeout)
     except Exception as exc:
         logger.exception(
             "Could not persist %s at %s",
@@ -215,18 +217,13 @@ def _bucketed[ModelT: models.Model](
     order_by: Sequence[str],
 ) -> QuerySet[ModelT]:
     """Order the rows past ``after`` first and the rest second, in one query."""
-    return cast(
-        QuerySet[ModelT],
-        queryset.annotate(
-            **{
-                _BUCKET: Case(
-                    When(after, then=Value(0)),
-                    default=Value(1),
-                    output_field=IntegerField(),
-                )
-            }
-        ).order_by(_BUCKET, *order_by),
+    bucket = Case(
+        When(after, then=Value(0)),
+        default=Value(1),
+        output_field=IntegerField(),
     )
+    ordered: QuerySet[ModelT] = queryset.annotate(**{_BUCKET: bucket}).order_by(_BUCKET, *order_by)
+    return ordered
 
 
 def fair_composite_page[ModelT: models.Model](
