@@ -4,7 +4,7 @@ Handles all device state transitions, validation, and bi-directional sync
 with manufacturer APIs. Replaces signal-based state management with direct,
 testable method calls.
 
-State Transitions:
+State Transitions (the allowed graph lives in this module; nothing else copies it):
     DISCOVERED → PROVISIONING → ONLINE
                               ↓
                          DEGRADED → MAINTENANCE
@@ -35,7 +35,69 @@ class HardwareStatus(StrEnum):
     DEGRADED = "degraded"  # Functional but with warnings
     OFFLINE = "offline"  # Not responding
     MAINTENANCE = "maintenance"  # Administratively disabled
+    IDLE = "idle"  # Units only: powered and reachable but not in use
     RETIRED = "retired"  # Permanently decommissioned
+
+
+class DeviceKind(StrEnum):
+    """Which status graph a device follows."""
+
+    CHASSIS = "chassis"
+    UNIT = "unit"
+
+
+class InvalidStatusTransition(ValueError):
+    """A status move the lifecycle graph does not allow."""
+
+
+_S = HardwareStatus
+_CHASSIS_TRANSITIONS: dict[str, frozenset[str]] = {
+    _S.DISCOVERED: frozenset({_S.PROVISIONING, _S.OFFLINE, _S.RETIRED}),
+    _S.PROVISIONING: frozenset({_S.ONLINE, _S.OFFLINE, _S.DISCOVERED}),
+    _S.ONLINE: frozenset({_S.DEGRADED, _S.OFFLINE, _S.MAINTENANCE}),
+    _S.DEGRADED: frozenset({_S.ONLINE, _S.OFFLINE, _S.MAINTENANCE}),
+    _S.OFFLINE: frozenset({_S.ONLINE, _S.DEGRADED, _S.MAINTENANCE, _S.RETIRED}),
+    _S.MAINTENANCE: frozenset({_S.ONLINE, _S.OFFLINE, _S.RETIRED}),
+    _S.RETIRED: frozenset(),  # Terminal state
+}
+# Units add IDLE: reachable from online/degraded/offline and able to leave it.
+_UNIT_TRANSITIONS: dict[str, frozenset[str]] = {
+    **_CHASSIS_TRANSITIONS,
+    _S.ONLINE: _CHASSIS_TRANSITIONS[_S.ONLINE] | {_S.IDLE},
+    _S.DEGRADED: _CHASSIS_TRANSITIONS[_S.DEGRADED] | {_S.IDLE},
+    _S.OFFLINE: _CHASSIS_TRANSITIONS[_S.OFFLINE] | {_S.IDLE},
+    _S.IDLE: frozenset({_S.ONLINE, _S.OFFLINE, _S.MAINTENANCE, _S.RETIRED}),
+}
+_GRAPHS: dict[DeviceKind, dict[str, frozenset[str]]] = {
+    DeviceKind.CHASSIS: _CHASSIS_TRANSITIONS,
+    DeviceKind.UNIT: _UNIT_TRANSITIONS,
+}
+
+
+def allowed_transitions(kind: DeviceKind, from_status: str) -> frozenset[str]:
+    """Return the statuses a device may move to from ``from_status``."""
+    return _GRAPHS[kind].get(from_status, frozenset())
+
+
+def is_valid_transition(kind: DeviceKind, from_status: str, to_status: str) -> bool:
+    """Check a status move; staying put is always allowed."""
+    return from_status == to_status or to_status in allowed_transitions(kind, from_status)
+
+
+def ensure_valid_transition(kind: DeviceKind, from_status: str, to_status: str) -> None:
+    """Raise ``InvalidStatusTransition`` unless the move is allowed."""
+    if is_valid_transition(kind, from_status, to_status):
+        return
+    allowed = allowed_transitions(kind, from_status)
+    allowed_label = ", ".join(sorted(allowed)) if allowed else "none (terminal state)"
+    raise InvalidStatusTransition(
+        f"Invalid status transition: {from_status} → {to_status}. Allowed: {allowed_label}"
+    )
+
+
+def device_kind(device: WirelessChassis | WirelessUnit) -> DeviceKind:
+    """Return which graph governs ``device``."""
+    return DeviceKind.UNIT if device._meta.model_name == "wirelessunit" else DeviceKind.CHASSIS
 
 
 class HardwareLifecycleManager:
@@ -48,42 +110,6 @@ class HardwareLifecycleManager:
 
     Does NOT use signals for state management (signals only for broadcasts).
     """
-
-    # Valid state transitions (from_state -> [to_states])
-    VALID_TRANSITIONS: dict[str, list[str]] = {
-        HardwareStatus.DISCOVERED.value: [
-            HardwareStatus.PROVISIONING.value,
-            HardwareStatus.OFFLINE.value,
-            HardwareStatus.RETIRED.value,
-        ],
-        HardwareStatus.PROVISIONING.value: [
-            HardwareStatus.ONLINE.value,
-            HardwareStatus.OFFLINE.value,
-            HardwareStatus.DISCOVERED.value,
-        ],
-        HardwareStatus.ONLINE.value: [
-            HardwareStatus.DEGRADED.value,
-            HardwareStatus.OFFLINE.value,
-            HardwareStatus.MAINTENANCE.value,
-        ],
-        HardwareStatus.DEGRADED.value: [
-            HardwareStatus.ONLINE.value,
-            HardwareStatus.OFFLINE.value,
-            HardwareStatus.MAINTENANCE.value,
-        ],
-        HardwareStatus.OFFLINE.value: [
-            HardwareStatus.ONLINE.value,
-            HardwareStatus.DEGRADED.value,
-            HardwareStatus.MAINTENANCE.value,
-            HardwareStatus.RETIRED.value,
-        ],
-        HardwareStatus.MAINTENANCE.value: [
-            HardwareStatus.ONLINE.value,
-            HardwareStatus.OFFLINE.value,
-            HardwareStatus.RETIRED.value,
-        ],
-        HardwareStatus.RETIRED.value: [],  # Terminal state
-    }
 
     def transition_device(
         self,
@@ -131,7 +157,7 @@ class HardwareLifecycleManager:
         )
         from_status = device.status
 
-        if not self._is_valid_transition(from_status, to_status):
+        if not is_valid_transition(device_kind(device), from_status, to_status):
             logger.warning(
                 "Invalid transition: %s %s from %s to %s",
                 device_type,
@@ -196,14 +222,6 @@ class HardwareLifecycleManager:
     ) -> bool:
         """Mark device as offline."""
         return self.transition_device(device, HardwareStatus.OFFLINE.value, reason=reason)
-
-    # Helper methods
-
-    def _is_valid_transition(self, from_status: str, to_status: str) -> bool:
-        """Check if transition is valid."""
-        if from_status == to_status:
-            return True  # No-op transition
-        return to_status in self.VALID_TRANSITIONS.get(from_status, [])
 
 
 def map_api_state_to_status(api_state: str, current_status: str) -> str:

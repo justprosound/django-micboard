@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 from django.utils import timezone
 
+from micboard.services.core.hardware_lifecycle import DeviceKind, ensure_valid_transition
 from micboard.services.hardware.chassis_regulatory_service import (
     prepare_chassis_regulatory_fields,
 )
@@ -15,15 +16,6 @@ if TYPE_CHECKING:
     from micboard.models.hardware.wireless_chassis import WirelessChassis
 
 _OPERATIONAL_STATES: set[str] = {"online", "degraded"}
-_VALID_STATUS_TRANSITIONS: dict[str, set[str]] = {
-    "discovered": {"provisioning", "offline", "retired"},
-    "provisioning": {"online", "offline", "discovered"},
-    "online": {"degraded", "offline", "maintenance"},
-    "degraded": {"online", "offline", "maintenance"},
-    "offline": {"online", "degraded", "maintenance", "retired"},
-    "maintenance": {"online", "offline", "retired"},
-    "retired": set(),
-}
 
 
 def prepare_chassis_for_save(
@@ -97,12 +89,7 @@ def _prepare_lifecycle_fields(
     if old_status == chassis.status:
         return old_status, lifecycle_update_fields
 
-    allowed = _VALID_STATUS_TRANSITIONS.get(old_status, set())
-    if chassis.status not in allowed:
-        allowed_label = ", ".join(sorted(allowed)) if allowed else "none (terminal state)"
-        raise ValueError(
-            f"Invalid status transition: {old_status} → {chassis.status}. Allowed: {allowed_label}"
-        )
+    ensure_valid_transition(DeviceKind.CHASSIS, old_status, chassis.status)
 
     now = timezone.now()
     was_operational = previous.is_online or old_status in _OPERATIONAL_STATES

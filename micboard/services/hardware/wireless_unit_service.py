@@ -15,22 +15,13 @@ if TYPE_CHECKING:
     from micboard.models.rf_coordination.compliance import RegulatoryDomain
     from micboard.models.rf_coordination.rf_channel import RFChannel
 
+from micboard.services.core.hardware_lifecycle import DeviceKind, ensure_valid_transition
 from micboard.services.hardware.dtos import RegulatoryDomainDTO
 
 logger = logging.getLogger(__name__)
 
 
 _UNKNOWN_BYTE_VALUE = 255
-_VALID_STATUS_TRANSITIONS: dict[str, set[str]] = {
-    "discovered": {"provisioning", "offline", "retired"},
-    "provisioning": {"online", "offline", "discovered"},
-    "online": {"degraded", "idle", "offline", "maintenance"},
-    "degraded": {"online", "idle", "offline", "maintenance"},
-    "idle": {"online", "offline", "maintenance", "retired"},
-    "offline": {"online", "degraded", "idle", "maintenance", "retired"},
-    "maintenance": {"online", "offline", "retired"},
-    "retired": set(),
-}
 
 
 def get_battery_percentage(unit: WirelessUnit) -> int | None:
@@ -221,13 +212,7 @@ def prepare_unit_for_save(unit: WirelessUnit, *, using: str = "default") -> dict
     update_fields: set[str] = set()
 
     if status_changed:
-        allowed = _VALID_STATUS_TRANSITIONS.get(previous.status, set())
-        if unit.status not in allowed:
-            allowed_label = ", ".join(sorted(allowed)) if allowed else "none (terminal state)"
-            raise ValueError(
-                "Invalid status transition: "
-                f"{previous.status} → {unit.status}. Allowed: {allowed_label}"
-            )
+        ensure_valid_transition(DeviceKind.UNIT, previous.status, unit.status)
 
         if unit.status in {"online", "degraded", "offline"}:
             unit.last_seen = timezone.now()
