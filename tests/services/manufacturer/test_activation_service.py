@@ -7,7 +7,8 @@ from tests.factories.discovery import ManufacturerFactory
 
 
 @pytest.mark.django_db
-def test_get_active_returns_the_active_manufacturer() -> None:
+def test_get_active_returns_the_requested_active_manufacturer() -> None:
+    ManufacturerFactory(is_active=True)
     manufacturer = ManufacturerFactory(is_active=True)
 
     assert ManufacturerActivationService.get_active(manufacturer.pk) == manufacturer
@@ -15,6 +16,7 @@ def test_get_active_returns_the_active_manufacturer() -> None:
 
 @pytest.mark.django_db
 def test_get_active_returns_none_for_an_inactive_manufacturer() -> None:
+    ManufacturerFactory(is_active=True)
     manufacturer = ManufacturerFactory(is_active=False)
 
     assert ManufacturerActivationService.get_active(manufacturer.pk) is None
@@ -22,4 +24,6 @@ def test_get_active_returns_none_for_an_inactive_manufacturer() -> None:
 
 @pytest.mark.django_db
 def test_get_active_returns_none_for_a_missing_manufacturer() -> None:
+    ManufacturerFactory(is_active=True)
+
     assert ManufacturerActivationService.get_active(0) is None
