@@ -159,7 +159,7 @@ class DiscoveredDevicePromotionAccessTests(TestCase):
         )
 
     @patch(
-        "micboard.admin.monitoring.DiscoveredDeviceAdmin._promote_to_chassis",
+        "micboard.services.sync.device_promotion_service.DevicePromotionService.promote_and_retire",
         return_value=(False, "not promoted", None),
     )
     def test_get_does_not_promote_device(self, promote_mock) -> None:
@@ -169,7 +169,7 @@ class DiscoveredDevicePromotionAccessTests(TestCase):
         promote_mock.assert_not_called()
 
     @patch(
-        "micboard.admin.monitoring.DiscoveredDeviceAdmin._promote_to_chassis",
+        "micboard.services.sync.device_promotion_service.DevicePromotionService.promote_and_retire",
         return_value=(False, "not promoted", None),
     )
     def test_post_requires_all_promotion_permissions(self, promote_mock) -> None:
@@ -179,7 +179,7 @@ class DiscoveredDevicePromotionAccessTests(TestCase):
         promote_mock.assert_not_called()
 
     @patch(
-        "micboard.admin.monitoring.DiscoveredDeviceAdmin._promote_to_chassis",
+        "micboard.services.sync.device_promotion_service.DevicePromotionService.promote_and_retire",
         return_value=(False, "not promoted", None),
     )
     def test_post_requires_csrf_token(self, promote_mock) -> None:
@@ -197,7 +197,7 @@ class DiscoveredDevicePromotionAccessTests(TestCase):
 
     @override_settings(MICBOARD_MSP_ENABLED=True, MICBOARD_ALLOW_CROSS_ORG_VIEW=False)
     @patch(
-        "micboard.admin.monitoring.DiscoveredDeviceAdmin._promote_to_chassis",
+        "micboard.services.sync.device_promotion_service.DevicePromotionService.promote_and_retire",
         return_value=(False, "not promoted", None),
     )
     def test_post_applies_admin_tenant_scope(self, promote_mock) -> None:

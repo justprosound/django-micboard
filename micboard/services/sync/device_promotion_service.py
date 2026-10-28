@@ -74,6 +74,16 @@ class DevicePromotionService:
                 None,
             )
 
+    def promote_and_retire(
+        self,
+        discovered: DiscoveredDevice,
+    ) -> tuple[bool, str, WirelessChassis | None]:
+        """Promote a discovered device and delete its staged row once a chassis exists."""
+        success, message, chassis = self.promote_discovered_device(discovered)
+        if success and chassis is not None:
+            discovered.delete()
+        return success, message, chassis
+
     def _find_existing_chassis_for_discovered(self, discovered: Any) -> Any:
         from micboard.models.hardware.wireless_chassis import WirelessChassis
 
