@@ -133,16 +133,18 @@ def poll_manufacturer_devices(
             force=force,
         )
 
+        persisted = result.devices_added + result.devices_updated
         if not result.success:
-            # No fresh inventory was persisted, so evaluating alerts would read stale state
-            # and the completion log would claim a poll that did not happen.
             logger.warning(
                 "Polling task failed for %s with %d error(s)",
                 manufacturer.name,
                 len(result.errors),
                 extra={"code": manufacturer.code, "errors": result.errors},
             )
-            return result.model_dump()
+            if not persisted:
+                # No fresh inventory was persisted, so evaluating alerts would read stale
+                # state and the completion log would claim a poll that did not happen.
+                return result.model_dump()
 
         from micboard.services.monitoring.poll_alert_service import PollAlertService
 
@@ -151,7 +153,7 @@ def poll_manufacturer_devices(
         logger.info(
             "Polling task complete for %s: %d chassis created/updated of %d examined",
             manufacturer.name,
-            result.devices_added + result.devices_updated,
+            persisted,
             result.devices_examined,
         )
         if alert_scan.failed:

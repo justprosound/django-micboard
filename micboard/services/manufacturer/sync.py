@@ -10,7 +10,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from micboard.services.common.base.plugin import build_manufacturer_plugin
-from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
+from micboard.services.sync.chassis_ingest import (
+    ChassisIngestResult,
+    ChassisIngestService,
+    IngestMode,
+)
 from micboard.services.sync.device_update_service import DeviceUpdatePlugin
 from micboard.services.sync.polling_dtos import (
     ManufacturerPollLimits,
@@ -106,7 +110,9 @@ class ManufacturerSyncService:
             started_at=started_at,
             result=result,
         )
-        if not result.errors:
+        # Rows that committed are worth publishing even when another device in the same poll
+        # failed, so one persistently bad device cannot silence every other one.
+        if result.devices_added or result.devices_updated:
             ManufacturerSyncService._broadcast_persisted_devices(manufacturer)
         return result
 
@@ -220,18 +226,10 @@ class ManufacturerSyncService:
                     device_limit=limits.max_devices,
                 )
 
-            return ManufacturerSyncResult(
-                success=not ingest.failed,
-                errors=(
-                    [
-                        f"Device synchronization failed for {ingest.failed} device(s); details redacted."
-                    ]
-                    if ingest.failed
-                    else []
-                ),
-                devices_added=ingest.created,
-                devices_updated=ingest.updated,
-                devices_examined=len(inventory.devices),
+            return ManufacturerSyncService._ingest_outcome(
+                ingest,
+                examined=len(inventory.devices),
+                unaddressed=len(inventory.devices) - len(normalized_devices),
                 device_limit=limits.max_devices,
             )
 
@@ -246,6 +244,36 @@ class ManufacturerSyncService:
                 errors=[f"Device synchronization failed ({type(exc).__name__}); details redacted."],
                 device_limit=limits.max_devices,
             )
+
+    @staticmethod
+    def _ingest_outcome(
+        ingest: ChassisIngestResult,
+        *,
+        examined: int,
+        unaddressed: int,
+        device_limit: int,
+    ) -> ManufacturerSyncResult:
+        """Report every examined device as persisted, skipped, rejected or failed."""
+        skipped = ingest.skipped + unaddressed
+        errors: list[str] = []
+        if ingest.failed:
+            errors.append(
+                f"Device synchronization failed for {ingest.failed} device(s); details redacted."
+            )
+        if ingest.rejected:
+            errors.append(f"{ingest.rejected} device(s) were rejected for an identity conflict.")
+        if skipped:
+            errors.append(f"{skipped} device(s) were skipped for lacking an address.")
+        return ManufacturerSyncResult(
+            success=not errors,
+            errors=errors,
+            devices_added=ingest.created,
+            devices_updated=ingest.updated,
+            devices_skipped=skipped,
+            devices_rejected=ingest.rejected,
+            devices_examined=examined,
+            device_limit=device_limit,
+        )
 
     @staticmethod
     def _normalize_devices(

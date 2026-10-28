@@ -341,3 +341,127 @@ def test_snapshot_reconciliation_continues_after_one_lifecycle_failure() -> None
     second.refresh_from_db()
     assert second.status == "offline"
     alerts.assert_called_once_with(unit)
+
+
+def test_a_move_whose_lifecycle_transition_fails_leaves_the_identity_index_unchanged() -> None:
+    """A savepoint rollback must not leave the batch index pointing at the rolled-back address."""
+    manufacturer = ManufacturerFactory(code="rollback-vendor")
+    WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="device-1",
+        serial_number="serial-1",
+        ip="192.0.2.180",
+        status="online",
+    )
+    real_bring_online = HardwareLifecycleManager.bring_responding_online
+    calls: list[int] = []
+
+    def fail_first(self: HardwareLifecycleManager, chassis: WirelessChassis, **kwargs: object):
+        calls.append(chassis.pk)
+        if len(calls) == 1:
+            raise RuntimeError("transition failed")
+        return real_bring_online(self, chassis, **kwargs)  # type: ignore[arg-type]
+
+    with patch.object(HardwareLifecycleManager, "bring_responding_online", fail_first):
+        result = _ingest(
+            manufacturer,
+            _payload(ip="192.0.2.181"),
+            _payload(api_device_id="other-id", serial_number="", ip="192.0.2.180"),
+        )
+
+    assert result.failed == 1
+    assert WirelessChassis.objects.count() == 1
+    assert str(WirelessChassis.objects.get().ip) == "192.0.2.180"
+
+
+def test_a_snapshot_never_marks_offline_a_chassis_a_rejected_payload_still_names() -> None:
+    """A conflicting payload still proves the vendor reports its chassis; it is not absent."""
+    manufacturer = ManufacturerFactory(code="named-vendor")
+    serial_owner = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        serial_number="serial-owner",
+        mac_address="02:00:00:00:40:01",
+        ip="192.0.2.140",
+        status="online",
+    )
+    mac_owner = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        serial_number="mac-owner",
+        mac_address="02:00:00:00:40:02",
+        ip="192.0.2.141",
+        status="online",
+    )
+    absent = WirelessChassisFactory(manufacturer=manufacturer, status="online", ip="192.0.2.142")
+    conflicting = _payload(
+        api_device_id="mixed",
+        serial_number="serial-owner",
+        mac_address="02:00:00:00:40:02",
+        ip="192.0.2.143",
+    )
+
+    result = _ingest(manufacturer, conflicting, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
+
+    assert (result.rejected, result.skipped, result.failed) == (1, 0, 0)
+    for chassis in (serial_owner, mac_owner, absent):
+        chassis.refresh_from_db()
+    assert (serial_owner.status, mac_owner.status, absent.status) == ("online", "online", "offline")
+
+
+def test_a_snapshot_never_marks_offline_a_chassis_a_skipped_payload_still_names() -> None:
+    """An address-less payload naming a known chassis keeps it out of the absent set."""
+    manufacturer = ManufacturerFactory(code="addressless-vendor")
+    known = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="known",
+        serial_number="known-serial",
+        ip="192.0.2.150",
+        status="online",
+    )
+    absent = WirelessChassisFactory(manufacturer=manufacturer, status="online", ip="192.0.2.151")
+
+    result = _ingest(
+        manufacturer,
+        _payload(api_device_id="other", serial_number="known-serial", ip=""),
+        mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+    )
+
+    known.refresh_from_db()
+    absent.refresh_from_db()
+    assert (result.skipped, result.rejected) == (1, 0)
+    assert (known.status, absent.status) == ("online", "offline")
+
+
+def test_a_snapshot_alerts_only_for_chassis_it_marked_offline() -> None:
+    """A chassis that was already offline does not re-alert on every reconciliation."""
+    manufacturer = ManufacturerFactory(code="alert-scope-vendor")
+    already_offline = WirelessChassisFactory(
+        manufacturer=manufacturer, status="offline", ip="192.0.2.160"
+    )
+    WirelessUnitFactory(base_chassis=already_offline, manufacturer=manufacturer)
+    newly_absent = WirelessChassisFactory(
+        manufacturer=manufacturer, status="online", ip="192.0.2.161"
+    )
+    unit = WirelessUnitFactory(base_chassis=newly_absent, manufacturer=manufacturer)
+
+    with patch(
+        "micboard.services.sync.chassis_ingest.alert_manager.check_hardware_offline_alerts"
+    ) as alerts:
+        _ingest(manufacturer, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
+
+    alerts.assert_called_once_with(unit)
+
+
+def test_ingest_counts_skipped_and_rejected_payloads() -> None:
+    """Every payload that is not persisted is accounted for in the result."""
+    manufacturer = ManufacturerFactory(code="counted-vendor")
+    other = ManufacturerFactory(code="counted-other")
+    WirelessChassisFactory(manufacturer=other, serial_number="foreign", ip="192.0.2.170")
+
+    result = _ingest(
+        manufacturer,
+        _payload(api_device_id="ok", serial_number="ok", ip="192.0.2.171"),
+        _payload(api_device_id="no-address", serial_number="", ip=""),
+        _payload(api_device_id="foreign-owned", serial_number="foreign", ip="192.0.2.172"),
+    )
+
+    assert (result.created, result.skipped, result.rejected, result.failed) == (1, 1, 1, 0)

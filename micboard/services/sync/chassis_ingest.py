@@ -6,7 +6,7 @@ MAC, address or API id) is matched, moved or rejected the same way whichever pat
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
@@ -57,12 +57,26 @@ class IngestedChassis:
     outcome: IngestOutcome
 
 
+@dataclass(frozen=True, slots=True)
+class _NotPersisted:
+    """A payload ingest declined, and the chassis of this manufacturer it still names."""
+
+    kind: Literal["skipped", "rejected"]
+    named_chassis_ids: frozenset[int] = frozenset()
+
+
 @dataclass(slots=True)
 class ChassisIngestResult:
-    """What one ingest persisted, skipped and failed."""
+    """What one ingest persisted, skipped, rejected and failed.
+
+    `skipped` counts payloads with no address to create from; `rejected` counts payloads
+    refused for an identity conflict or because another manufacturer owns the chassis.
+    """
 
     ingested: list[IngestedChassis] = field(default_factory=list)
     failed: int = 0
+    skipped: int = 0
+    rejected: int = 0
     manufacturer_inactive: bool = False
 
     @property
@@ -91,12 +105,14 @@ class ChassisIngestService:
         """Persist payloads under the global identity lock and report each outcome.
 
         One payload that cannot be persisted is counted in `failed` and does not stop the
-        rest. An authoritative snapshot only marks absent chassis offline when every payload
-        was persisted or deliberately skipped, so a partial failure never reads as an outage.
+        rest. An authoritative snapshot only marks absent chassis offline when no payload
+        failed, and never marks a chassis that a skipped or rejected payload still names, so
+        neither a partial failure nor a refused payload reads as an outage.
         With `require_active`, a manufacturer deactivated before the lock was taken ingests
         nothing.
         """
         result = ChassisIngestResult()
+        protected_ids: set[int] = set()
         with DeviceIdentityMutationLockService.acquire(
             manufacturer=manufacturer
         ) as locked_manufacturer:
@@ -122,8 +138,14 @@ class ChassisIngestService:
                             exc_info=sanitized_exception_info(exc),
                         )
                         continue
-                    if entry is not None:
+                    if isinstance(entry, IngestedChassis):
                         result.ingested.append(entry)
+                        continue
+                    if entry.kind == "skipped":
+                        result.skipped += 1
+                    else:
+                        result.rejected += 1
+                    protected_ids.update(entry.named_chassis_ids)
 
         if mode is IngestMode.AUTHORITATIVE_SNAPSHOT:
             if result.failed:
@@ -134,7 +156,7 @@ class ChassisIngestService:
             else:
                 cls._mark_absent_offline(
                     manufacturer=manufacturer,
-                    present_ids=[entry.chassis.pk for entry in result.ingested],
+                    present_ids={entry.chassis.pk for entry in result.ingested} | protected_ids,
                 )
         return result
 
@@ -144,15 +166,16 @@ class ChassisIngestService:
         payload: NormalizedChassis,
         manufacturer: Manufacturer,
         identity_index: DeviceIdentityIndex,
-    ) -> IngestedChassis | None:
-        """Persist one payload, or return None when it is skipped."""
+    ) -> IngestedChassis | _NotPersisted:
+        """Persist one payload, or say why it was not."""
         payload = cls._with_known_address(payload, manufacturer, identity_index)
+        named = cls._named_chassis_ids(payload, manufacturer, identity_index)
         if not payload.ip:
             logger.debug(
                 "Skipped chassis ingest for manufacturer ID %s: no address to create from",
                 manufacturer.pk,
             )
-            return None
+            return _NotPersisted("skipped", named)
 
         dedup_result = check_device(
             serial_number=payload.serial_number or None,
@@ -163,7 +186,7 @@ class ChassisIngestService:
             identity_index=identity_index,
         )
         if dedup_result.is_conflict:
-            return None
+            return _NotPersisted("rejected", named)
 
         existing = dedup_result.existing_device
         if existing is not None and existing.manufacturer_id != manufacturer.pk:
@@ -174,7 +197,7 @@ class ChassisIngestService:
                 existing.manufacturer_id,
                 manufacturer.pk,
             )
-            return None
+            return _NotPersisted("rejected", named)
 
         if existing is not None and dedup_result.is_moved:
             cls._persist_move(existing, payload, identity_index)
@@ -201,7 +224,26 @@ class ChassisIngestService:
                 manufacturer.pk,
             )
             return IngestedChassis(payload, chassis, "created")
-        return None
+        return _NotPersisted("rejected", named)
+
+    @staticmethod
+    def _named_chassis_ids(
+        payload: NormalizedChassis,
+        manufacturer: Manufacturer,
+        identity_index: DeviceIdentityIndex,
+    ) -> frozenset[int]:
+        """Return the chassis of this manufacturer that any identity of the payload names."""
+        candidates = (
+            identity_index.serial(payload.serial_number) if payload.serial_number else None,
+            identity_index.mac(payload.mac_address) if payload.mac_address else None,
+            identity_index.ip(payload.ip) if payload.ip else None,
+            identity_index.api_id(manufacturer.pk, payload.api_device_id),
+        )
+        return frozenset(
+            chassis.pk
+            for chassis in candidates
+            if chassis is not None and chassis.manufacturer_id == manufacturer.pk
+        )
 
     @staticmethod
     def _with_known_address(
@@ -240,9 +282,9 @@ class ChassisIngestService:
                 detected_by="chassis_ingest",
                 reason="Chassis ingest detected an address change",
             )
+        cls._bring_online(chassis)
         if old_ip is not None:
             identity_index.move_ip(chassis, old_ip=old_ip)
-        cls._bring_online(chassis)
 
     @staticmethod
     def _bring_online(chassis: WirelessChassis) -> None:
@@ -255,7 +297,7 @@ class ChassisIngestService:
     def _mark_absent_offline(
         *,
         manufacturer: Manufacturer,
-        present_ids: Sequence[int],
+        present_ids: Collection[int],
     ) -> None:
         """Mark chassis missing from an authoritative snapshot offline and raise their alerts."""
         absent = WirelessChassis.objects.filter(
@@ -281,10 +323,7 @@ class ChassisIngestService:
             len(marked),
             manufacturer.pk,
         )
-        offline = WirelessChassis.objects.filter(
-            manufacturer=manufacturer,
-            status="offline",
-        ).prefetch_related("field_units")
+        offline = WirelessChassis.objects.filter(pk__in=marked).prefetch_related("field_units")
         for chassis in offline:
             for unit in chassis.field_units.all():
                 alert_manager.check_hardware_offline_alerts(unit)

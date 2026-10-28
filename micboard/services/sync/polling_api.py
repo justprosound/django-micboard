@@ -65,7 +65,7 @@ class APIServerPollingService:
 
             from micboard.services.sync.device_update_service import DeviceUpdateService
 
-            updated = DeviceUpdateService.update_models_from_api_data(
+            update = DeviceUpdateService.update_models_from_api_data(
                 api_data=target_devices[:1],
                 manufacturer=chassis.manufacturer,
                 plugin=build_manufacturer_plugin(chassis.manufacturer),
@@ -75,7 +75,7 @@ class APIServerPollingService:
             server.status_message = ""
             server.last_health_check = timezone.now()
             server.save(update_fields=["status", "status_message", "last_health_check"])
-            return updated
+            return update.persisted
         except Exception as exc:
             server.status = ManufacturerAPIServer.Status.ERROR
             server.status_message = f"Polling failed ({type(exc).__name__})"

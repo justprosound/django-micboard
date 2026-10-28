@@ -3,6 +3,7 @@
 import hashlib
 import logging
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from micboard.models.discovery.manufacturer import Manufacturer
@@ -33,6 +34,21 @@ class DeviceUpdatePlugin(Protocol):
         raise NotImplementedError
 
 
+@dataclass(frozen=True, slots=True)
+class DeviceUpdateResult:
+    """What one device update persisted and what it could not."""
+
+    persisted: int = 0
+    skipped: int = 0
+    rejected: int = 0
+    failed: int = 0
+
+    @property
+    def dropped(self) -> int:
+        """Number of payloads that were not persisted."""
+        return self.skipped + self.rejected + self.failed
+
+
 class DeviceUpdateService:
     """Persist realtime and API-server device updates, with their channels and units."""
 
@@ -44,15 +60,15 @@ class DeviceUpdateService:
         manufacturer: Manufacturer,
         plugin: DeviceUpdatePlugin,
         mode: IngestMode = IngestMode.PARTIAL_EVENT,
-    ) -> int:
-        """Persist raw API data and return the number of persisted chassis.
+    ) -> DeviceUpdateResult:
+        """Persist raw API data and report what was persisted and what was dropped.
 
         Realtime events are partial by default and therefore never mark devices absent
         from one event offline. A complete snapshot opts into that reconciliation with
         `IngestMode.AUTHORITATIVE_SNAPSHOT`, unless a payload could not be normalized.
         """
         payloads: list[NormalizedChassis] = []
-        normalization_failed = False
+        normalization_failed = 0
         for device_index, device_data in enumerate(api_data, start=1):
             try:
                 payload = plugin.normalize_device(device_data)
@@ -64,7 +80,7 @@ class DeviceUpdateService:
                 )
                 payload = None
             if payload is None:
-                normalization_failed = True
+                normalization_failed += 1
                 continue
             payloads.append(payload)
 
@@ -83,7 +99,23 @@ class DeviceUpdateService:
         )
         for entry in result.ingested:
             cls._persist_channels(entry, plugin)
-        return len(result.ingested)
+        outcome = DeviceUpdateResult(
+            persisted=len(result.ingested),
+            skipped=result.skipped,
+            rejected=result.rejected,
+            failed=result.failed + normalization_failed,
+        )
+        if outcome.dropped:
+            logger.warning(
+                "Device update for manufacturer ID %s dropped %d payload(s): "
+                "%d skipped, %d rejected, %d failed",
+                manufacturer.pk,
+                outcome.dropped,
+                outcome.skipped,
+                outcome.rejected,
+                outcome.failed,
+            )
+        return outcome
 
     @classmethod
     def _persist_channels(cls, entry: IngestedChassis, plugin: DeviceUpdatePlugin) -> None:

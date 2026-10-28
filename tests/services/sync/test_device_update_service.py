@@ -10,7 +10,10 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis, NormalizedUnit
 from micboard.services.sync.chassis_ingest import IngestMode
-from micboard.services.sync.device_update_service import DeviceUpdateService
+from micboard.services.sync.device_update_service import (
+    DeviceUpdateResult,
+    DeviceUpdateService,
+)
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
 
@@ -36,7 +39,7 @@ def test_realtime_update_does_not_reconcile_missing_chassis() -> None:
     )
 
     sibling.refresh_from_db()
-    assert updated == 1
+    assert updated.persisted == 1
     assert sibling.status == "online"
 
 
@@ -54,7 +57,7 @@ def test_authoritative_snapshot_reconciles_only_missing_chassis() -> None:
     )
 
     missing.refresh_from_db()
-    assert updated == 1
+    assert updated.persisted == 1
     assert missing.status == "offline"
     assert WirelessChassis.objects.get(api_device_id="device-2").status == "online"
 
@@ -72,7 +75,7 @@ def test_normalization_failure_redacts_raw_device_identifier_and_exception() -> 
             plugin=plugin,
         )
 
-    assert updated == 0
+    assert updated.persisted == 0
     assert logger.exception.call_args.args == (
         "Error normalizing vendor device at snapshot position %s",
         1,
@@ -107,7 +110,7 @@ def test_shipped_normalizers_create_online_chassis(normalizer, device_id: str) -
         manufacturer=manufacturer,
         api_device_id=device_id,
     )
-    assert updated == 1
+    assert updated.persisted == 1
     assert chassis.status == "online"
     assert chassis.is_online is True
 
@@ -135,7 +138,7 @@ def test_existing_discovered_chassis_reaches_online_through_valid_transitions() 
     )
 
     chassis.refresh_from_db()
-    assert updated == 1
+    assert updated.persisted == 1
     assert chassis.status == "online"
     assert chassis.is_online is True
 
@@ -157,7 +160,7 @@ def test_incomplete_authoritative_snapshot_never_marks_devices_offline() -> None
     )
 
     missing.refresh_from_db()
-    assert updated == 1
+    assert updated.persisted == 1
     assert missing.status == "online"
 
 
@@ -166,14 +169,11 @@ def test_unnormalizable_payloads_are_contained() -> None:
     """A payload the integration cannot normalize never reaches chassis persistence."""
     plugin = _plugin(None)
 
-    assert (
-        DeviceUpdateService.update_models_from_api_data(
-            api_data=[{"id": "empty"}],
-            manufacturer=ManufacturerFactory(),
-            plugin=plugin,
-        )
-        == 0
-    )
+    assert DeviceUpdateService.update_models_from_api_data(
+        api_data=[{"id": "empty"}],
+        manufacturer=ManufacturerFactory(),
+        plugin=plugin,
+    ) == DeviceUpdateResult(failed=1)
 
 
 @pytest.mark.django_db
@@ -200,7 +200,7 @@ def test_embedded_channels_persist_unit_telemetry_without_a_second_fetch() -> No
         )
 
     unit = WirelessUnit.objects.get(base_chassis__api_device_id="embedded-device")
-    assert updated == 1
+    assert updated.persisted == 1
     assert unit.slot == 4
     assert unit.battery == 255
     assert unit.battery_type == ""
@@ -230,14 +230,11 @@ def test_device_without_embedded_channels_uses_the_channel_endpoint() -> None:
     with patch(
         "micboard.services.sync.device_update_service.alert_manager.check_wireless_unit_alerts"
     ):
-        assert (
-            DeviceUpdateService.update_models_from_api_data(
-                api_data=[{"id": "detail-device"}],
-                manufacturer=manufacturer,
-                plugin=plugin,
-            )
-            == 1
-        )
+        assert DeviceUpdateService.update_models_from_api_data(
+            api_data=[{"id": "detail-device"}],
+            manufacturer=manufacturer,
+            plugin=plugin,
+        ) == DeviceUpdateResult(persisted=1)
 
     unit = WirelessUnit.objects.get(base_chassis__api_device_id="detail-device")
     assert unit.assigned_resource.channel_number == 3
@@ -265,7 +262,7 @@ def test_retired_chassis_is_not_revived_by_a_realtime_update() -> None:
     )
 
     chassis.refresh_from_db()
-    assert (updated, chassis.status) == (0, "retired")
+    assert (updated.persisted, chassis.status) == (0, "retired")
 
 
 def test_derived_unit_slot_resolves_collisions_deterministically() -> None:

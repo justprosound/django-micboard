@@ -13,6 +13,7 @@ from micboard.services.realtime.subscription_lifecycle_service import (
     RealtimeSubscriptionLifecycleService,
     RealtimeTransport,
 )
+from micboard.services.sync.device_update_service import DeviceUpdateResult
 
 
 def direct_sync_adapter(function, **_kwargs):
@@ -107,7 +108,7 @@ def test_process_update_branches(
         manufacturer=manufacturer,
         normalize_device=Mock(return_value=normalized),
     )
-    update = Mock(return_value=updated_count)
+    update = Mock(return_value=DeviceUpdateResult(persisted=updated_count))
     broadcast = AsyncMock()
     monkeypatch.setattr(lifecycle_service, "sync_to_async", direct_sync_adapter)
     monkeypatch.setattr(
@@ -157,7 +158,7 @@ def test_process_update_contains_and_redacts_failures(
         manufacturer=manufacturer,
         normalize_device=Mock(return_value=NormalizedChassis(api_device_id="one")),
     )
-    update = Mock(return_value=1)
+    update = Mock(return_value=DeviceUpdateResult(persisted=1))
     broadcast = AsyncMock()
     if failure_stage == "normalize":
         plugin.normalize_device.side_effect = RuntimeError(secret)
@@ -302,3 +303,33 @@ def test_broadcast_update_async_handles_success_missing_and_failure(
 
     assert secret not in caplog.text
     assert "manufacturer ID 11" in caplog.text
+
+
+@pytest.mark.parametrize("transport", ["sse", "websocket"])
+def test_process_update_warns_when_the_event_was_dropped(
+    monkeypatch, caplog, transport: RealtimeTransport
+) -> None:
+    """A rejected or failed event is reported at warning level, not buried at debug."""
+    manufacturer = SimpleNamespace(pk=11)
+    plugin = SimpleNamespace(
+        manufacturer=manufacturer,
+        normalize_device=Mock(return_value=NormalizedChassis(api_device_id="one")),
+    )
+    monkeypatch.setattr(lifecycle_service, "sync_to_async", direct_sync_adapter)
+    monkeypatch.setattr(
+        lifecycle_service.DeviceUpdateService,
+        "update_models_from_api_data",
+        Mock(return_value=DeviceUpdateResult(rejected=1, failed=2)),
+    )
+    broadcast = AsyncMock()
+    monkeypatch.setattr(RealtimeSubscriptionLifecycleService, "_broadcast_update_async", broadcast)
+
+    with caplog.at_level("WARNING"):
+        asyncio.run(
+            RealtimeSubscriptionLifecycleService.process_update(
+                plugin=plugin, data={"raw": True}, transport=transport
+            )
+        )
+
+    assert "0 skipped, 1 rejected, 2 failed" in caplog.text
+    broadcast.assert_not_awaited()

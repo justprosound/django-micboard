@@ -1,7 +1,6 @@
 """A responding chassis reaches online through one lifecycle, from poll and realtime alike."""
 
 from collections.abc import Callable
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -12,6 +11,7 @@ from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMo
 from micboard.services.sync.device_update_service import DeviceUpdateService
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
+from tests.fake_vendor import FakeVendorPlugin
 
 pytestmark = pytest.mark.django_db
 
@@ -55,15 +55,11 @@ def _poll_moved(chassis: WirelessChassis) -> None:
 
 
 def _realtime(chassis: WirelessChassis) -> None:
-    plugin = MagicMock()
-    plugin.normalize_device.return_value = NormalizedChassis(
-        api_device_id=chassis.api_device_id,
-        ip=str(chassis.ip),
+    plugin = FakeVendorPlugin(
+        [NormalizedChassis(api_device_id=chassis.api_device_id, ip=str(chassis.ip))]
     )
-    plugin.get_device_channels.return_value = []
-    plugin.normalize_channels.return_value = []
     DeviceUpdateService.update_models_from_api_data(
-        api_data=[{"id": chassis.api_device_id}],
+        api_data=plugin.raw_devices,
         manufacturer=chassis.manufacturer,
         plugin=plugin,
     )

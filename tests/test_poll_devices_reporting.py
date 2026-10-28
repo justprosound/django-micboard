@@ -17,6 +17,7 @@ from micboard.services.manufacturer.sync import ManufacturerSyncService
 from micboard.services.sync.polling_dtos import ManufacturerSyncResult
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
+from tests.fake_vendor import FakeVendorPlugin, use_vendor
 
 pytestmark = pytest.mark.django_db
 
@@ -42,17 +43,7 @@ def _poll(
             mac_address=payload.mac_address,
             ip=payload.ip,
         )
-    plugin = Mock()
-    plugin.get_devices.return_value = [{"id": payload.api_device_id} for payload in payloads]
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
-        Mock(return_value=plugin),
-    )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_normalize_devices",
-        Mock(return_value=payloads),
-    )
+    use_vendor(monkeypatch, FakeVendorPlugin(payloads))
     monkeypatch.setattr(
         "micboard.services.notification.device_broadcast_service."
         "DeviceSnapshotBroadcastService.broadcast",
