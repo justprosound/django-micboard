@@ -11,22 +11,32 @@ from micboard.discovery.limits import (
 )
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.services.common.base.plugin import build_manufacturer_plugin
-from micboard.services.manufacturer.activation_service import ManufacturerActivationService
-from micboard.services.sync.discovery_claim_service import DiscoverySyncClaimService
 from micboard.services.sync.discovery_dtos import (
     DiscoveryReconciliationResult,
     DiscoverySyncSummary,
+)
+from micboard.services.sync.discovery_run_lifecycle import (
+    CLAIM_FAILURE_REASON,
+    FINALIZATION_FAILURE_REASON,
+    ClaimedRunOutcome,
+    ClaimedRunStatus,
+    DiscoveryClaimedRun,
+    activation_failure_reason,
 )
 from micboard.services.sync.discovery_service import DiscoveryService
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
-CLAIM_FAILURE_REASON = "discovery_claim_failed"
 RECONCILIATION_FAILURE_REASON = "vendor_reconciliation_failed"
-FINALIZATION_FAILURE_REASON = "discovery_finalization_failed"
-MANUFACTURER_INACTIVE_REASON = "manufacturer_inactive"
-MANUFACTURER_STATUS_CHECK_FAILURE_REASON = "manufacturer_status_check_failed"
+RECONCILIATION_OPERATION = "discovery reconciliation"
+
+_FAILED_REASONS = {
+    ClaimedRunStatus.NOT_FOUND: "manufacturer_not_found",
+    ClaimedRunStatus.CLAIM_FAILED: CLAIM_FAILURE_REASON,
+    ClaimedRunStatus.FINALIZE_FAILED: FINALIZATION_FAILURE_REASON,
+    ClaimedRunStatus.CLAIM_EXPIRED: "discovery_claim_expired",
+}
 
 
 class DiscoveryExecutionService:
@@ -40,141 +50,50 @@ class DiscoveryExecutionService:
         scan_fqdns: bool,
     ) -> DiscoveryReconciliationResult:
         """Run vendor discovery reconciliation for one manufacturer."""
-        summary = DiscoverySyncSummary(manufacturer=manufacturer_id)
-        claim_service = DiscoverySyncClaimService()
-        try:
-            claim = claim_service.claim(manufacturer_id)
-        except Manufacturer.DoesNotExist:
-            logger.warning("Manufacturer with ID %s not found for discovery.", manufacturer_id)
-            return DiscoveryReconciliationResult(
-                manufacturer=manufacturer_id,
-                status="failed",
-                reason="manufacturer_not_found",
-            )
-        except Exception as exc:
-            logger.exception(
-                "Error claiming discovery for manufacturer ID %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
-            )
-            return DiscoveryReconciliationResult(
-                manufacturer=manufacturer_id,
-                status="failed",
-                reason=CLAIM_FAILURE_REASON,
-            )
 
-        if claim is None:
-            logger.info(
-                "Discovery reconciliation already running for manufacturer ID %s",
-                manufacturer_id,
+        def reconcile(manufacturer: Manufacturer, summary: DiscoverySyncSummary) -> None:
+            reconciliation = DiscoveryService().run_manufacturer_discovery(
+                manufacturer,
+                scan_cidrs=scan_cidrs,
+                scan_fqdns=scan_fqdns,
+                max_hosts=DEFAULT_DISCOVERY_CANDIDATE_LIMIT,
             )
+            if not reconciliation.success:
+                summary.record_error(RECONCILIATION_FAILURE_REASON)
+
+        outcome = DiscoveryClaimedRun().run(
+            manufacturer_id,
+            operation=RECONCILIATION_OPERATION,
+            work=reconcile,
+            work_failure_reason=RECONCILIATION_FAILURE_REASON,
+        )
+        return DiscoveryExecutionService._to_result(manufacturer_id, outcome)
+
+    @staticmethod
+    def _to_result(
+        manufacturer_id: int,
+        outcome: ClaimedRunOutcome,
+    ) -> DiscoveryReconciliationResult:
+        """Map a lifecycle outcome to the stable reconciliation result."""
+        if outcome.status is ClaimedRunStatus.BUSY:
             return DiscoveryReconciliationResult(
                 manufacturer=manufacturer_id,
                 status="busy",
                 reason="manufacturer_reconciliation_busy",
             )
-
-        manufacturer, job = claim
-        if DiscoveryExecutionService._record_current_activation_state(
-            manufacturer_id,
-            summary,
-        ):
-            try:
-                reconciliation = DiscoveryService().run_manufacturer_discovery(
-                    manufacturer,
-                    scan_cidrs=scan_cidrs,
-                    scan_fqdns=scan_fqdns,
-                    max_hosts=DEFAULT_DISCOVERY_CANDIDATE_LIMIT,
-                )
-                if not reconciliation.success:
-                    summary.record_error(RECONCILIATION_FAILURE_REASON)
-            except Exception as exc:
-                logger.exception(
-                    "Error running discovery for manufacturer ID %s",
-                    manufacturer_id,
-                    exc_info=sanitized_exception_info(exc),
-                )
-                summary.record_error(RECONCILIATION_FAILURE_REASON)
-
-        try:
-            finalized = claim_service.finalize(job, summary)
-        except Exception as exc:
-            logger.exception(
-                "Error finalizing discovery for manufacturer ID %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
-            )
+        if outcome.status in _FAILED_REASONS:
             return DiscoveryReconciliationResult(
                 manufacturer=manufacturer_id,
                 status="failed",
-                reason=FINALIZATION_FAILURE_REASON,
+                reason=_FAILED_REASONS[outcome.status],
             )
-        if not finalized:
-            logger.warning("Discovery claim expired for manufacturer ID %s", manufacturer_id)
+        if outcome.summary.errors:
             return DiscoveryReconciliationResult(
                 manufacturer=manufacturer_id,
                 status="failed",
-                reason="discovery_claim_expired",
+                reason=outcome.summary.errors[0],
             )
-
-        logger.info(
-            "Discovery reconciliation finished for %s (CIDRs: %s, FQDNs: %s)",
-            manufacturer.code,
-            scan_cidrs,
-            scan_fqdns,
-        )
-        if summary.errors:
-            return DiscoveryReconciliationResult(
-                manufacturer=manufacturer_id,
-                status="failed",
-                reason=summary.errors[0],
-            )
-        return DiscoveryReconciliationResult(
-            manufacturer=manufacturer_id,
-            status="success",
-        )
-
-    @staticmethod
-    def _record_current_activation_state(
-        manufacturer_id: int,
-        summary: DiscoverySyncSummary,
-    ) -> bool:
-        """Fail closed and record why current activation cannot permit discovery."""
-        failure_reason = DiscoveryExecutionService._activation_failure_reason(
-            manufacturer_id,
-            operation="discovery reconciliation",
-        )
-        if failure_reason is None:
-            return True
-        summary.record_error(failure_reason)
-        return False
-
-    @staticmethod
-    def _activation_failure_reason(
-        manufacturer_id: int,
-        *,
-        operation: str,
-    ) -> str | None:
-        """Return a fail-closed reason when fresh activation cannot permit vendor work."""
-        try:
-            manufacturer_active = ManufacturerActivationService.is_active(manufacturer_id)
-        except Exception as exc:
-            logger.exception(
-                "Error revalidating manufacturer ID %s before %s",
-                manufacturer_id,
-                operation,
-                exc_info=sanitized_exception_info(exc),
-            )
-            return MANUFACTURER_STATUS_CHECK_FAILURE_REASON
-        if manufacturer_active:
-            return None
-
-        logger.info(
-            "%s stopped for inactive manufacturer ID %s",
-            operation.capitalize(),
-            manufacturer_id,
-        )
-        return MANUFACTURER_INACTIVE_REASON
+        return DiscoveryReconciliationResult(manufacturer=manufacturer_id, status="success")
 
     @classmethod
     def cache_all_candidates(cls, *, scan_cidrs: bool, scan_fqdns: bool) -> None:
@@ -201,15 +120,15 @@ class DiscoveryExecutionService:
                         outcome.status,
                     )
                     continue
-                activation_failure = cls._activation_failure_reason(
+                failure = activation_failure_reason(
                     manufacturer.pk,
                     operation="discovery cache refresh",
                 )
-                if activation_failure is not None:
+                if failure is not None:
                     logger.info(
                         "Skipping discovery cache refresh for %s after %s",
                         manufacturer.code,
-                        activation_failure,
+                        failure,
                     )
                     continue
                 remote_ips = build_manufacturer_plugin(manufacturer).get_discovery_ips() or []

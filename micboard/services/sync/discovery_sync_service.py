@@ -9,9 +9,7 @@ from micboard.discovery.limits import (
     clamp_candidate_limit,
 )
 from micboard.models.discovery.manufacturer import Manufacturer
-from micboard.models.discovery.registry import DiscoveryJob
 from micboard.services.common.base.plugin import ManufacturerPlugin, build_manufacturer_plugin
-from micboard.services.manufacturer.activation_service import ManufacturerActivationService
 from micboard.services.notification.device_broadcast_service import (
     DeviceSnapshotBroadcastService,
 )
@@ -24,21 +22,25 @@ from micboard.services.sync.discovery_configuration_service import (
 )
 from micboard.services.sync.discovery_dtos import DiscoverySyncSummary
 from micboard.services.sync.discovery_queue_service import DiscoveryQueueService
+from micboard.services.sync.discovery_run_lifecycle import (
+    CLAIM_FAILURE_REASON,
+    FINALIZATION_FAILURE_REASON,
+    ClaimedRunOutcome,
+    ClaimedRunStatus,
+    DiscoveryClaimedRun,
+)
 from micboard.services.sync.discovery_service import DiscoveryService
 from micboard.services.sync.polling_dtos import ManufacturerPollLimits
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
-CLAIM_FAILURE_REASON = "discovery_claim_failed"
 SYNC_FAILURE_REASON = "discovery_workflow_failed"
-FINALIZATION_FAILURE_REASON = "discovery_finalization_failed"
+SYNC_OPERATION = "discovery synchronization"
 SUPPORTED_MODELS_INCOMPLETE_REASON = "supported_models_payload_incomplete"
 CONFIG_ENTRIES_INCOMPLETE_REASON = "discovery_configuration_input_incomplete"
 INVENTORY_SOURCES_INCOMPLETE_REASON = "discovery_inventory_sources_incomplete"
 SCAN_SOURCES_INCOMPLETE_REASON = "discovery_scan_sources_incomplete"
-MANUFACTURER_INACTIVE_REASON = "manufacturer_inactive"
-MANUFACTURER_STATUS_CHECK_FAILURE_REASON = "manufacturer_status_check_failed"
 
 
 class DiscoverySyncService:
@@ -69,116 +71,44 @@ class DiscoverySyncService:
         max_hosts: int = DEFAULT_DISCOVERY_CANDIDATE_LIMIT,
     ) -> dict[str, Any]:
         """Run one synchronization and return its stable task-result mapping."""
-        summary = DiscoverySyncSummary(manufacturer=manufacturer_id)
-        try:
-            claim = self.claim_service.claim(manufacturer_id)
-        except Manufacturer.DoesNotExist:
-            message = f"Manufacturer {manufacturer_id} not found"
-            logger.error(message)
-            summary.record_error(message)
-            return summary.model_dump()
-        except Exception as exc:
-            logger.exception(
-                "Could not claim discovery synchronization for %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
+
+        def synchronize(manufacturer: Manufacturer, summary: DiscoverySyncSummary) -> None:
+            self._execute_claimed_workflow(
+                manufacturer,
+                summary,
+                add_cidrs=add_cidrs,
+                add_fqdns=add_fqdns,
+                scan_cidrs=scan_cidrs,
+                scan_fqdns=scan_fqdns,
+                max_hosts=max_hosts,
             )
+
+        outcome = DiscoveryClaimedRun(self.claim_service).run(
+            manufacturer_id,
+            operation=SYNC_OPERATION,
+            work=synchronize,
+            work_failure_reason=SYNC_FAILURE_REASON,
+        )
+        return self._to_result(manufacturer_id, outcome)
+
+    def _to_result(self, manufacturer_id: int, outcome: ClaimedRunOutcome) -> dict[str, Any]:
+        """Map a lifecycle outcome to the stable task-result mapping, broadcasting on success."""
+        summary = outcome.summary
+        if outcome.status is ClaimedRunStatus.NOT_FOUND:
+            summary.record_error(f"Manufacturer {manufacturer_id} not found")
+        elif outcome.status is ClaimedRunStatus.CLAIM_FAILED:
             summary.record_error(CLAIM_FAILURE_REASON)
-            return summary.model_dump()
-        if claim is None:
+        elif outcome.status is ClaimedRunStatus.BUSY:
             summary.record_error(
                 f"Discovery synchronization already running for manufacturer {manufacturer_id}"
             )
-            return summary.model_dump()
-
-        manufacturer, job = claim
-        return self._run_claimed(
-            manufacturer,
-            job,
-            summary,
-            add_cidrs=add_cidrs,
-            add_fqdns=add_fqdns,
-            scan_cidrs=scan_cidrs,
-            scan_fqdns=scan_fqdns,
-            max_hosts=max_hosts,
-        )
-
-    def _run_claimed(
-        self,
-        manufacturer: Manufacturer,
-        job: DiscoveryJob,
-        summary: DiscoverySyncSummary,
-        *,
-        add_cidrs: list[str] | None,
-        add_fqdns: list[str] | None,
-        scan_cidrs: bool,
-        scan_fqdns: bool,
-        max_hosts: int,
-    ) -> dict[str, Any]:
-        """Execute one synchronization after its database claim transaction has closed."""
-        workflow_completed = False
-        if self._record_current_activation_state(manufacturer, summary):
-            try:
-                self._execute_claimed_workflow(
-                    manufacturer,
-                    summary,
-                    add_cidrs=add_cidrs,
-                    add_fqdns=add_fqdns,
-                    scan_cidrs=scan_cidrs,
-                    scan_fqdns=scan_fqdns,
-                    max_hosts=max_hosts,
-                )
-                workflow_completed = True
-            except Exception as exc:
-                logger.exception(
-                    "Discovery synchronization failed for %s",
-                    manufacturer.code,
-                    exc_info=sanitized_exception_info(exc),
-                )
-                summary.record_error(SYNC_FAILURE_REASON)
-
-        try:
-            claim_finalized = self.claim_service.finalize(job, summary)
-        except Exception as exc:
-            logger.exception(
-                "Could not finalize discovery synchronization for %s",
-                manufacturer.code,
-                exc_info=sanitized_exception_info(exc),
-            )
+        elif outcome.status is ClaimedRunStatus.FINALIZE_FAILED:
             summary.record_error(FINALIZATION_FAILURE_REASON)
-            return summary.model_dump()
-        if not claim_finalized:
+        elif outcome.status is ClaimedRunStatus.CLAIM_EXPIRED:
             summary.record_error("Discovery synchronization claim expired before finalization")
-            return summary.model_dump()
-        if workflow_completed:
-            self.broadcast_results(manufacturer)
+        elif outcome.work_completed and outcome.manufacturer is not None:
+            self.broadcast_results(outcome.manufacturer)
         return summary.model_dump()
-
-    @staticmethod
-    def _record_current_activation_state(
-        manufacturer: Manufacturer,
-        summary: DiscoverySyncSummary,
-    ) -> bool:
-        """Fail closed and record a stable reason when current activation cannot permit work."""
-        try:
-            manufacturer_active = ManufacturerActivationService.is_active(manufacturer.pk)
-        except Exception as exc:
-            logger.exception(
-                "Could not revalidate manufacturer ID %s before discovery synchronization",
-                manufacturer.pk,
-                exc_info=sanitized_exception_info(exc),
-            )
-            summary.record_error(MANUFACTURER_STATUS_CHECK_FAILURE_REASON)
-            return False
-        if manufacturer_active:
-            return True
-
-        logger.info(
-            "Discovery synchronization stopped for inactive manufacturer ID %s",
-            manufacturer.pk,
-        )
-        summary.record_error(MANUFACTURER_INACTIVE_REASON)
-        return False
 
     def _execute_claimed_workflow(
         self,

@@ -24,7 +24,8 @@ from micboard.services.sync.discovery_configuration_service import (
     SUPPORTED_MODELS_CONFIG_KEY,
     DiscoveryConfigurationService,
 )
-from micboard.services.sync.discovery_sync_service import CLAIM_FAILURE_REASON, DiscoverySyncService
+from micboard.services.sync.discovery_run_lifecycle import CLAIM_FAILURE_REASON
+from micboard.services.sync.discovery_sync_service import DiscoverySyncService
 from tests.factories.discovery import DiscoveryJobFactory, ManufacturerFactory
 
 pytestmark = pytest.mark.django_db

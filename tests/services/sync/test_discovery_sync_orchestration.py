@@ -21,13 +21,15 @@ from micboard.services.sync.discovery_dtos import (
     DiscoveryScanSourcePage,
     DiscoverySyncSummary,
 )
-from micboard.services.sync.discovery_sync_service import (
+from micboard.services.sync.discovery_run_lifecycle import (
     CLAIM_FAILURE_REASON,
-    CONFIG_ENTRIES_INCOMPLETE_REASON,
     FINALIZATION_FAILURE_REASON,
-    INVENTORY_SOURCES_INCOMPLETE_REASON,
     MANUFACTURER_INACTIVE_REASON,
     MANUFACTURER_STATUS_CHECK_FAILURE_REASON,
+)
+from micboard.services.sync.discovery_sync_service import (
+    CONFIG_ENTRIES_INCOMPLETE_REASON,
+    INVENTORY_SOURCES_INCOMPLETE_REASON,
     SCAN_SOURCES_INCOMPLETE_REASON,
     SUPPORTED_MODELS_INCOMPLETE_REASON,
     SYNC_FAILURE_REASON,
@@ -109,13 +111,13 @@ def test_run_reports_claim_backend_failure_without_starting_work() -> None:
             "claim",
             side_effect=RuntimeError("database unavailable"),
         ),
-        patch.object(service, "_run_claimed") as run_claimed,
+        patch.object(service, "_execute_claimed_workflow") as workflow,
     ):
         result = service.run(manufacturer.pk)
 
     assert result["status"] == "failed"
     assert result["errors"] == [CLAIM_FAILURE_REASON]
-    run_claimed.assert_not_called()
+    workflow.assert_not_called()
 
 
 def test_run_coordinates_services_and_finalizes_successful_job() -> None:
@@ -518,7 +520,7 @@ def test_run_finalizes_when_post_claim_activation_check_fails() -> None:
 
     with (
         patch(
-            "micboard.services.sync.discovery_sync_service.ManufacturerActivationService.is_active",
+            "micboard.services.sync.discovery_run_lifecycle.ManufacturerActivationService.is_active",
             side_effect=RuntimeError("database unavailable"),
         ),
         patch(
