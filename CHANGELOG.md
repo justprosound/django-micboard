@@ -7,6 +7,14 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.28.2] - 2026-10-28
+
+### Changed
+
+- Enforce strict generic annotations and scoped mypy import boundaries.
+
+- Load the active manufacturer for charger polling, API health and realtime subscription tasks through `ManufacturerActivationService.get_active`.
+
 ## [2026.10.28.1] - 2026-10-28
 
 ### Added
