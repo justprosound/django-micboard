@@ -7,6 +7,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.28.3] - 2026-10-28
+
+### Changed
+
+- Share one claimed-run lifecycle between discovery reconciliation and discovery synchronization.
+
 ## [2026.10.28.2] - 2026-10-28
 
 ### Changed
