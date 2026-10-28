@@ -10,60 +10,20 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from micboard.services.common.base.plugin import build_manufacturer_plugin
-from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager, HardwareStatus
-from micboard.services.deduplication.identity_index import DeviceIdentityIndex
-from micboard.services.deduplication.identity_mutation_lock import (
-    DeviceIdentityMutationLockService,
-)
-from micboard.services.deduplication.tracking import log_device_movement
-from micboard.services.hardware.wireless_chassis_persistence_service import (
-    WirelessChassisPersistenceService,
-)
-from micboard.services.sync.discovery_trigger_service import coalesce_discovery_scheduling
+from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
+from micboard.services.sync.device_update_service import DeviceUpdatePlugin
 from micboard.services.sync.polling_dtos import (
     ManufacturerPollLimits,
     ManufacturerSyncResult,
     VendorInventoryBatch,
 )
 from micboard.utils.exception_logging import sanitized_exception_info
-from micboard.utils.mac_address import canonicalize_mac_address
 
 if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
-    from micboard.models.hardware.wireless_chassis import WirelessChassis
     from micboard.services.core.hardware import NormalizedChassis
-    from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 
 logger = logging.getLogger(__name__)
-
-
-def _persist_moved_chassis(
-    *,
-    chassis: WirelessChassis,
-    payload: NormalizedChassis,
-    identity_index: DeviceIdentityIndex | None,
-) -> None:
-    """Persist an address move and keep the batch identity index current."""
-    old_ip = str(chassis.ip) if chassis.ip else None
-    WirelessChassisPersistenceService.update_from_normalized(
-        chassis=chassis,
-        payload=payload,
-        set_ip=True,
-    )
-    new_ip = str(chassis.ip) if chassis.ip else None
-    if old_ip != new_ip:
-        log_device_movement(
-            device=chassis,
-            old_ip=old_ip,
-            new_ip=new_ip,
-            detected_by="manufacturer_sync",
-            reason="Manufacturer synchronization detected an address change",
-        )
-    if identity_index is not None and old_ip is not None:
-        identity_index.move_ip(chassis, old_ip=old_ip)
-    HardwareLifecycleManager().bring_responding_online(
-        chassis, reason="Device responding during manufacturer synchronization"
-    )
 
 
 class ManufacturerSyncService:
@@ -175,8 +135,6 @@ class ManufacturerSyncService:
             not wireless units, and `errors` carries the redacted failure messages.
         """
         from micboard.models.discovery.manufacturer import Manufacturer
-        from micboard.services.deduplication.check import check_device
-        from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 
         limits = ManufacturerPollLimits.from_settings()
 
@@ -245,14 +203,14 @@ class ManufacturerSyncService:
                     device_limit=limits.max_devices,
                 )
 
-            persisted_counts = ManufacturerSyncService._persist_normalized_devices(
+            # A poll never reconciles absent chassis today, so it ingests as a partial inventory.
+            ingest = ChassisIngestService.ingest(
                 normalized_devices,
                 manufacturer=manufacturer,
-                check_device=check_device,
-                identity_index_class=DeviceIdentityIndex,
-                force=force,
+                mode=IngestMode.PARTIAL_EVENT,
+                require_active=not force,
             )
-            if persisted_counts is None:
+            if ingest.manufacturer_inactive:
                 return ManufacturerSyncResult(
                     success=False,
                     errors=[
@@ -261,12 +219,18 @@ class ManufacturerSyncService:
                     devices_examined=len(inventory.devices),
                     device_limit=limits.max_devices,
                 )
-            created_count, updated_count = persisted_counts
 
             return ManufacturerSyncResult(
-                success=True,
-                devices_added=created_count,
-                devices_updated=updated_count,
+                success=not ingest.failed,
+                errors=(
+                    [
+                        f"Device synchronization failed for {ingest.failed} device(s); details redacted."
+                    ]
+                    if ingest.failed
+                    else []
+                ),
+                devices_added=ingest.created,
+                devices_updated=ingest.updated,
                 devices_examined=len(inventory.devices),
                 device_limit=limits.max_devices,
             )
@@ -284,112 +248,8 @@ class ManufacturerSyncService:
             )
 
     @staticmethod
-    def _persist_normalized_devices(
-        normalized_devices: Any,
-        *,
-        manufacturer: Any,
-        check_device: Any,
-        identity_index_class: Any,
-        force: bool = False,
-    ) -> tuple[int, int] | None:
-        """Serialize identity reads and writes across manufacturer pollers."""
-        created_count = 0
-        updated_count = 0
-        with DeviceIdentityMutationLockService.acquire(
-            manufacturer=manufacturer
-        ) as locked_manufacturer:
-            if not force and not locked_manufacturer.is_active:
-                logger.info(
-                    "Manufacturer synchronization stopped after deactivation for ID %s",
-                    locked_manufacturer.pk,
-                )
-                return None
-            identity_index = identity_index_class.build(
-                normalized_devices,
-                manufacturer=locked_manufacturer,
-            )
-            with coalesce_discovery_scheduling():
-                for payload in normalized_devices:
-                    outcome = ManufacturerSyncService._sync_normalized_device(
-                        payload,
-                        locked_manufacturer,
-                        check_device,
-                        identity_index=identity_index,
-                    )
-                    if outcome == "created":
-                        created_count += 1
-                    elif outcome == "updated":
-                        updated_count += 1
-        return created_count, updated_count
-
-    @staticmethod
-    def _sync_normalized_device(
-        payload: Any,
-        manufacturer: Any,
-        check_device: Any,
-        *,
-        identity_index: DeviceIdentityIndex | None = None,
-    ) -> str | None:
-        """Persist one normalized device and return its sync outcome."""
-        deduplication_kwargs = {
-            "serial_number": payload.serial_number or None,
-            "mac_address": canonicalize_mac_address(payload.mac_address) or None,
-            "ip": payload.ip,
-            "api_device_id": payload.api_device_id,
-            "manufacturer": manufacturer,
-        }
-        if identity_index is not None:
-            deduplication_kwargs["identity_index"] = identity_index
-        dedup_result = check_device(
-            **deduplication_kwargs,
-        )
-        if dedup_result.is_conflict:
-            return None
-
-        existing_device = dedup_result.existing_device
-        if existing_device is not None and existing_device.manufacturer_id != manufacturer.pk:
-            logger.warning(
-                "Rejected cross-manufacturer synchronization candidate "
-                "(device_id=%s, existing_manufacturer_id=%s, new_manufacturer_id=%s)",
-                existing_device.pk,
-                existing_device.manufacturer_id,
-                manufacturer.pk,
-            )
-            return None
-
-        if dedup_result.is_moved and existing_device:
-            _persist_moved_chassis(
-                chassis=existing_device,
-                payload=payload,
-                identity_index=identity_index,
-            )
-            return "updated"
-
-        if dedup_result.is_duplicate and existing_device:
-            existing = existing_device
-            WirelessChassisPersistenceService.update_from_normalized(
-                chassis=existing,
-                payload=payload,
-            )
-            HardwareLifecycleManager().bring_responding_online(
-                existing, reason="Device responding during manufacturer synchronization"
-            )
-            return "updated"
-
-        if dedup_result.is_new:
-            chassis = WirelessChassisPersistenceService.create_from_normalized(
-                payload=payload,
-                manufacturer=manufacturer,
-                initial_status=HardwareStatus.ONLINE,
-            )
-            if identity_index is not None:
-                identity_index.add(chassis)
-            return "created"
-        return None
-
-    @staticmethod
     def _normalize_devices(
-        api_devices: Iterable[dict[str, Any]], plugin: Any
+        api_devices: Iterable[dict[str, Any]], plugin: DeviceUpdatePlugin
     ) -> list[NormalizedChassis]:
         """Normalize raw API device payloads, keeping only devices with an address."""
         normalized: list[NormalizedChassis] = []

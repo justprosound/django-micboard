@@ -1,6 +1,5 @@
 """Focused coverage for polling and realtime device persistence boundaries."""
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,86 +9,72 @@ from micboard.integrations.shure.normalizer import SHURE_NORMALIZER
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis, NormalizedUnit
-from micboard.services.hardware.wireless_chassis_persistence_service import (
-    WirelessChassisPersistenceService,
-)
+from micboard.services.sync.chassis_ingest import IngestMode
 from micboard.services.sync.device_update_service import DeviceUpdateService
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
 
 
+def _plugin(*payloads: NormalizedChassis | Exception | None) -> MagicMock:
+    plugin = MagicMock()
+    plugin.normalize_device.side_effect = list(payloads)
+    plugin.get_device_channels.return_value = []
+    plugin.normalize_channels.return_value = []
+    return plugin
+
+
+@pytest.mark.django_db
 def test_realtime_update_does_not_reconcile_missing_chassis() -> None:
     """One realtime event cannot mark sibling chassis offline."""
-    manufacturer = MagicMock()
-    plugin = MagicMock()
-    plugin.normalize_device.return_value = NormalizedChassis(api_device_id="device-1")
-    plugin.get_device_channels.return_value = []
+    manufacturer = ManufacturerFactory()
+    sibling = WirelessChassisFactory(manufacturer=manufacturer, status="online")
 
-    with (
-        patch.object(
-            WirelessChassisPersistenceService,
-            "upsert",
-            return_value=(SimpleNamespace(pk=11), True),
-        ),
-        patch.object(DeviceUpdateService, "_reconcile_chassis_lifecycle"),
-        patch.object(DeviceUpdateService, "mark_offline_receivers") as mark_offline,
-    ):
-        updated = DeviceUpdateService.update_models_from_api_data(
-            api_data=[{"id": "device-1"}],
-            manufacturer=manufacturer,
-            plugin=plugin,
-        )
-
-    assert updated == 1
-    mark_offline.assert_not_called()
-
-
-def test_authoritative_snapshot_reconciles_only_missing_chassis() -> None:
-    """Full snapshots pass their persisted chassis identifiers to reconciliation."""
-    manufacturer = MagicMock()
-    plugin = MagicMock()
-    plugin.normalize_device.return_value = NormalizedChassis(api_device_id="device-2")
-    plugin.get_device_channels.return_value = []
-
-    with (
-        patch.object(
-            WirelessChassisPersistenceService,
-            "upsert",
-            return_value=(SimpleNamespace(pk=22), True),
-        ),
-        patch.object(DeviceUpdateService, "_reconcile_chassis_lifecycle"),
-        patch.object(DeviceUpdateService, "mark_offline_receivers") as mark_offline,
-    ):
-        updated = DeviceUpdateService.update_models_from_api_data(
-            api_data=[{"id": "device-2"}],
-            manufacturer=manufacturer,
-            plugin=plugin,
-            authoritative_snapshot=True,
-        )
-
-    assert updated == 1
-    mark_offline.assert_called_once_with(
+    updated = DeviceUpdateService.update_models_from_api_data(
+        api_data=[{"id": "device-1"}],
         manufacturer=manufacturer,
-        active_chassis_ids=[22],
+        plugin=_plugin(NormalizedChassis(api_device_id="device-1", ip="192.0.2.31")),
     )
 
+    sibling.refresh_from_db()
+    assert updated == 1
+    assert sibling.status == "online"
 
+
+@pytest.mark.django_db
+def test_authoritative_snapshot_reconciles_only_missing_chassis() -> None:
+    """Full snapshots mark only the chassis they omit offline."""
+    manufacturer = ManufacturerFactory()
+    missing = WirelessChassisFactory(manufacturer=manufacturer, status="online")
+
+    updated = DeviceUpdateService.update_models_from_api_data(
+        api_data=[{"id": "device-2"}],
+        manufacturer=manufacturer,
+        plugin=_plugin(NormalizedChassis(api_device_id="device-2", ip="192.0.2.32")),
+        mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+    )
+
+    missing.refresh_from_db()
+    assert updated == 1
+    assert missing.status == "offline"
+    assert WirelessChassis.objects.get(api_device_id="device-2").status == "online"
+
+
+@pytest.mark.django_db
 def test_normalization_failure_redacts_raw_device_identifier_and_exception() -> None:
     """A normalization failure cannot disclose raw payload identifiers or exception details."""
-    plugin = MagicMock()
     secret = "malformed-payload-secret"
-    plugin.normalize_device.side_effect = ValueError(secret)
+    plugin = _plugin(ValueError(secret))
 
     with patch("micboard.services.sync.device_update_service.logger") as logger:
         updated = DeviceUpdateService.update_models_from_api_data(
             api_data=[{"id": "raw-device-3"}],
-            manufacturer=MagicMock(),
+            manufacturer=ManufacturerFactory(),
             plugin=plugin,
         )
 
     assert updated == 0
     assert logger.exception.call_args.args == (
-        "Error updating vendor device at snapshot position %s",
+        "Error normalizing vendor device at snapshot position %s",
         1,
     )
     assert "raw-device-3" not in str(logger.exception.call_args)
@@ -155,44 +140,36 @@ def test_existing_discovered_chassis_reaches_online_through_valid_transitions() 
     assert chassis.is_online is True
 
 
+@pytest.mark.django_db
 def test_incomplete_authoritative_snapshot_never_marks_devices_offline() -> None:
-    manufacturer = MagicMock(code="vendor")
-    plugin = MagicMock()
-    plugin.normalize_device.side_effect = [
-        NormalizedChassis(api_device_id="device-1"),
-        ValueError("malformed payload"),
-    ]
-    plugin.get_device_channels.return_value = []
+    """A snapshot with an unnormalizable payload cannot read as an outage."""
+    manufacturer = ManufacturerFactory()
+    missing = WirelessChassisFactory(manufacturer=manufacturer, status="online")
 
-    with (
-        patch.object(
-            WirelessChassisPersistenceService,
-            "upsert",
-            return_value=(SimpleNamespace(pk=11), True),
+    updated = DeviceUpdateService.update_models_from_api_data(
+        api_data=[{"id": "device-1"}, {"id": "device-2"}],
+        manufacturer=manufacturer,
+        plugin=_plugin(
+            NormalizedChassis(api_device_id="device-1", ip="192.0.2.33"),
+            ValueError("malformed payload"),
         ),
-        patch.object(DeviceUpdateService, "_reconcile_chassis_lifecycle"),
-        patch.object(DeviceUpdateService, "mark_offline_receivers") as mark_offline,
-    ):
-        updated = DeviceUpdateService.update_models_from_api_data(
-            api_data=[{"id": "device-1"}, {"id": "device-2"}],
-            manufacturer=manufacturer,
-            plugin=plugin,
-            authoritative_snapshot=True,
-        )
+        mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+    )
 
+    missing.refresh_from_db()
     assert updated == 1
-    mark_offline.assert_not_called()
+    assert missing.status == "online"
 
 
+@pytest.mark.django_db
 def test_unnormalizable_payloads_are_contained() -> None:
     """A payload the integration cannot normalize never reaches chassis persistence."""
-    plugin = MagicMock()
-    plugin.normalize_device.return_value = None
+    plugin = _plugin(None)
 
     assert (
         DeviceUpdateService.update_models_from_api_data(
             api_data=[{"id": "empty"}],
-            manufacturer=MagicMock(code="vendor"),
+            manufacturer=ManufacturerFactory(),
             plugin=plugin,
         )
         == 0
@@ -291,29 +268,6 @@ def test_retired_chassis_is_not_revived_by_a_realtime_update() -> None:
     assert (updated, chassis.status) == (0, "retired")
 
 
-def test_chassis_persistence_logs_only_database_identifiers() -> None:
-    """Realtime persistence logs cannot expose vendor names or device identifiers."""
-    private_identity = "private-vendor-device-identity"
-    chassis = MagicMock(status="online", pk=17)
-    manufacturer = SimpleNamespace(code=private_identity, pk=9)
-    with (
-        patch("micboard.services.core.hardware_lifecycle.HardwareLifecycleManager"),
-        patch("micboard.services.sync.device_update_service.logger") as logger,
-    ):
-        DeviceUpdateService._reconcile_chassis_lifecycle(
-            chassis=chassis,
-            created=True,
-            manufacturer=manufacturer,
-        )
-
-    assert logger.info.call_args.args == (
-        "Created wireless chassis %s for manufacturer %s",
-        chassis.pk,
-        manufacturer.pk,
-    )
-    assert private_identity not in str(logger.method_calls)
-
-
 def test_derived_unit_slot_resolves_collisions_deterministically() -> None:
     """Generated slots advance until they no longer collide with existing units."""
     channel = MagicMock()
@@ -331,43 +285,3 @@ def test_derived_unit_slot_resolves_collisions_deterministically() -> None:
 
     assert 0 <= slot < 10000
     assert occupied.exists.call_count == 2
-
-
-def test_offline_reconciliation_continues_after_one_lifecycle_failure() -> None:
-    """One bad chassis cannot stop sibling offline alerts from being evaluated."""
-    first = SimpleNamespace(pk=1)
-    second = SimpleNamespace(pk=2)
-    offline_queryset = MagicMock()
-    offline_queryset.exists.return_value = True
-    offline_queryset.__iter__.return_value = iter([first, second])
-    initial_queryset = MagicMock()
-    initial_queryset.exclude.return_value = offline_queryset
-    unit = object()
-    refreshed = SimpleNamespace(field_units=MagicMock())
-    refreshed.field_units.all.return_value = [unit]
-    refreshed_queryset = MagicMock()
-    refreshed_queryset.prefetch_related.return_value = [refreshed]
-    lifecycle = MagicMock()
-    lifecycle.mark_offline.side_effect = [None, RuntimeError("transition failed")]
-    manufacturer = MagicMock(code="vendor", name="Vendor")
-
-    with (
-        patch.object(
-            WirelessChassis.objects,
-            "filter",
-            side_effect=[initial_queryset, refreshed_queryset],
-        ),
-        patch(
-            "micboard.services.core.hardware_lifecycle.HardwareLifecycleManager",
-            return_value=lifecycle,
-        ),
-        patch(
-            "micboard.services.sync.device_update_service.alert_manager.check_hardware_offline_alerts"
-        ) as alerts,
-    ):
-        DeviceUpdateService.mark_offline_receivers(
-            manufacturer=manufacturer,
-            active_chassis_ids=[99],
-        )
-
-    alerts.assert_called_once_with(unit)

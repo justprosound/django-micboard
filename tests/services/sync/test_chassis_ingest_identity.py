@@ -57,17 +57,6 @@ def _realtime(manufacturer: Any, devices: list[dict[str, Any]]) -> None:
 
 PATHS: list[Callable[[Any, list[dict[str, Any]]], None]] = [_poll, _realtime]
 
-# Characterization (#460): realtime and API-server updates upsert by API id alone, so they
-# create a second chassis for hardware the poll path recognises. #461 removes this marker.
-REALTIME_DUPLICATES = pytest.mark.xfail(
-    strict=True,
-    reason="realtime ingest does not match serial, MAC or foreign ownership",
-)
-PATHS_WITH_REALTIME_DUPLICATES = [
-    pytest.param(_poll, id="poll"),
-    pytest.param(_realtime, id="realtime", marks=REALTIME_DUPLICATES),
-]
-
 
 @pytest.fixture
 def known() -> WirelessChassis:
@@ -82,7 +71,7 @@ def known() -> WirelessChassis:
     )
 
 
-@pytest.mark.parametrize("path", PATHS_WITH_REALTIME_DUPLICATES)
+@pytest.mark.parametrize("path", PATHS, ids=["poll", "realtime"])
 @pytest.mark.parametrize(
     "identity",
     [
@@ -130,7 +119,7 @@ def test_known_api_id_at_a_new_address_moves_the_chassis(
     assert known.ip == MOVED_IP
 
 
-@pytest.mark.parametrize("path", PATHS_WITH_REALTIME_DUPLICATES)
+@pytest.mark.parametrize("path", PATHS, ids=["poll", "realtime"])
 @pytest.mark.parametrize(
     "identity",
     [{"serial_number": "serial-known"}, {"mac_address": KNOWN_MAC}],
