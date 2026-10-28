@@ -7,7 +7,6 @@ from typing import Any
 
 from asgiref.sync import sync_to_async
 
-from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.common.base.plugin import RealtimeTransport, build_manufacturer_plugin
 from micboard.services.manufacturer.activation_service import ManufacturerActivationService
@@ -29,9 +28,8 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
     caller: an integration streams over exactly one of them, or over none at all.
     """
     try:
-        try:
-            manufacturer = Manufacturer.objects.get(pk=manufacturer_id, is_active=True)
-        except Manufacturer.DoesNotExist:
+        manufacturer = ManufacturerActivationService.get_active(manufacturer_id)
+        if manufacturer is None:
             logger.error(
                 "Manufacturer with ID %s not found or inactive for realtime subscriptions",
                 manufacturer_id,
