@@ -12,10 +12,9 @@ from typing import Any, TypeVar
 from django.core.cache import caches
 from django.core.cache.backends.base import BaseCache
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from asgiref.sync import sync_to_async
-from pydantic import ValidationError
 
 from micboard.exceptions import SubscriptionLeaseLostError
 from micboard.services.realtime.subscription_dtos import (
@@ -31,6 +30,12 @@ from micboard.services.realtime.subscription_dtos import (
     SubscriptionSelectionCursor,
 )
 from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.fair_page_cursor import (
+    fair_page,
+    model_cursor,
+    read_cursor,
+    write_cursor,
+)
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -38,6 +43,11 @@ logger = logging.getLogger(__name__)
 SUBSCRIPTION_LEASE_SECONDS = 60
 SUBSCRIPTION_LEASE_REFRESH_SECONDS = 15
 SUBSCRIPTION_SELECTION_CURSOR_SECONDS = 30 * 24 * 60 * 60
+_SELECTION_CURSOR = model_cursor(
+    "realtime subscription selection cursor",
+    timeout=SUBSCRIPTION_SELECTION_CURSOR_SECONDS,
+    model=SubscriptionSelectionCursor,
+)
 
 SubscriptionItem = TypeVar("SubscriptionItem")
 SubscriptionModel = TypeVar("SubscriptionModel", bound=models.Model)
@@ -84,7 +94,7 @@ class RealtimeSubscriptionSupervisor:
         scope: str | int,
     ) -> RealtimeSubscriptionLease | None:
         """Acquire the singleton lease for a transport and manufacturer scope."""
-        cache_alias = micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default")
+        cache_alias = cls._cache_alias()
         cache_key = f"micboard:realtime-supervisor:v1:{transport}:{scope}"
         token = secrets.token_urlsafe(24)
 
@@ -149,15 +159,19 @@ class RealtimeSubscriptionSupervisor:
         """Select one bounded circular inventory window without materializing its tail."""
         bounded_limit = min(max(limit, 1), HARD_MAX_SUBSCRIPTION_DEVICES)
         cursor_key = cls._selection_cursor_key(transport=transport, scope=scope)
-        cursor = cls._read_selection_cursor(cursor_key)
-        selected = list(queryset.filter(pk__gt=cursor.after_id).order_by("pk")[:bounded_limit])
-        remaining = bounded_limit - len(selected)
-        if remaining and cursor.after_id:
-            selected.extend(queryset.filter(pk__lte=cursor.after_id).order_by("pk")[:remaining])
+        cache_alias = cls._cache_alias()
+        cursor = read_cursor(_SELECTION_CURSOR, cursor_key, cache_alias=cache_alias)
+        selected, _truncated = fair_page(
+            queryset,
+            after=Q(pk__gt=cursor.after_id),
+            limit=bounded_limit,
+        )
         if selected:
-            cls._write_selection_cursor(
+            write_cursor(
+                _SELECTION_CURSOR,
                 cursor_key,
                 SubscriptionSelectionCursor(after_id=int(selected[-1].pk)),
+                cache_alias=cache_alias,
             )
         return selected
 
@@ -293,40 +307,8 @@ class RealtimeSubscriptionSupervisor:
         return f"micboard:realtime-selection-cursor:v1:{transport}:{scope}"
 
     @staticmethod
-    def _read_selection_cursor(cursor_key: str) -> SubscriptionSelectionCursor:
-        """Return the cached subscription selection cursor, or a fresh cursor if unreadable."""
-        cache_alias = micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default")
-        try:
-            cached_value = caches[cache_alias].get(cursor_key)
-            if cached_value is None:
-                return SubscriptionSelectionCursor()
-            return SubscriptionSelectionCursor.model_validate(cached_value)
-        except ValidationError, TypeError, ValueError:
-            return SubscriptionSelectionCursor()
-        except Exception as exc:
-            logger.exception(
-                "Could not read realtime subscription selection cursor",
-                exc_info=sanitized_exception_info(exc),
-            )
-            return SubscriptionSelectionCursor()
-
-    @staticmethod
-    def _write_selection_cursor(
-        cursor_key: str,
-        cursor: SubscriptionSelectionCursor,
-    ) -> None:
-        cache_alias = micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default")
-        try:
-            caches[cache_alias].set(
-                cursor_key,
-                cursor.model_dump(),
-                timeout=SUBSCRIPTION_SELECTION_CURSOR_SECONDS,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Could not persist realtime subscription selection cursor",
-                exc_info=sanitized_exception_info(exc),
-            )
+    def _cache_alias() -> str:
+        return str(micboard_settings.get("MICBOARD_REALTIME_CACHE_ALIAS", "default"))
 
 
 def _bounded_positive_setting(name: str, *, default: int, hard_limit: int) -> int:

@@ -1,5 +1,6 @@
 """The fair-page cursor: durable, fail-open rotation over a bounded, ordered page."""
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from django.core.cache import caches
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.services.shared import fair_page_cursor
 from micboard.services.shared.fair_page_cursor import (
+    CursorSpec,
     clear_cursor,
     fair_page,
     fair_page_rows,
@@ -77,7 +79,11 @@ def test_cache_alias_selects_the_backend() -> None:
         (model_cursor("model", timeout=TIMEOUT, model=_State), _State()),
     ],
 )
-def test_cache_outage_is_fail_open_and_redacted(spec, fresh, caplog) -> None:
+def test_cache_outage_is_fail_open_and_redacted(
+    spec: CursorSpec[Any],
+    fresh: object,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     secret = "redis://private-credential"
     backend = MagicMock()
     backend.get.side_effect = RuntimeError(secret)
@@ -109,7 +115,11 @@ def test_cache_outage_is_fail_open_and_redacted(spec, fresh, caplog) -> None:
         (model_cursor("model", timeout=TIMEOUT, model=_State), "junk", _State()),
     ],
 )
-def test_invalid_cached_value_resets_to_a_fresh_cursor(spec, invalid, fresh) -> None:
+def test_invalid_cached_value_resets_to_a_fresh_cursor(
+    spec: CursorSpec[Any],
+    invalid: object,
+    fresh: object,
+) -> None:
     key = "fair-page-invalid"
     caches["default"].set(key, invalid)
     try:

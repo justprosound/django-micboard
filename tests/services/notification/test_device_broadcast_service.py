@@ -125,57 +125,6 @@ def test_stale_cursor_restarts_from_the_first_live_row() -> None:
     assert payload["snapshot_id"] != "stale"
 
 
-@pytest.mark.parametrize("cached_value", ["invalid", {"after_id": -1, "snapshot_id": "bad"}])
-def test_invalid_cursor_values_fail_safe(cached_value: object) -> None:
-    """Malformed shared-cache state is ignored without suppressing the broadcast."""
-    manufacturer = ManufacturerFactory(code="invalid-cursor")
-    WirelessChassisFactory(manufacturer=manufacturer)
-    with (
-        patch(
-            "micboard.services.notification.device_broadcast_service.cache.get",
-            return_value=cached_value,
-        ),
-        patch("micboard.services.notification.device_broadcast_service.cache.set"),
-        patch.object(BroadcastService, "broadcast_device_update"),
-    ):
-        result = DeviceSnapshotBroadcastService.broadcast(
-            manufacturer=manufacturer,
-            namespace="invalid",
-            max_devices=1,
-            chunk_size=1,
-        )
-
-    assert result.rows_sent == 1
-
-
-def test_cache_outage_does_not_disclose_details_or_suppress_broadcast(caplog) -> None:
-    """Cursor storage is optional and its exception text is redacted."""
-    manufacturer = ManufacturerFactory(code="cache-outage")
-    WirelessChassisFactory(manufacturer=manufacturer)
-    secret = "redis://private-credential"
-    with (
-        patch(
-            "micboard.services.notification.device_broadcast_service.cache.get",
-            side_effect=RuntimeError(secret),
-        ),
-        patch(
-            "micboard.services.notification.device_broadcast_service.cache.set",
-            side_effect=RuntimeError(secret),
-        ),
-        patch.object(BroadcastService, "broadcast_device_update") as broadcast,
-    ):
-        result = DeviceSnapshotBroadcastService.broadcast(
-            manufacturer=manufacturer,
-            namespace="outage",
-            max_devices=1,
-            chunk_size=1,
-        )
-
-    assert result.rows_sent == 1
-    broadcast.assert_called_once()
-    assert secret not in caplog.text
-
-
 def test_projection_serialization_bounds_private_address_types() -> None:
     """Nullable addresses retain the stable browser payload shape."""
     assert (
