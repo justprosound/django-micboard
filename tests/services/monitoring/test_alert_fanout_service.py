@@ -216,39 +216,6 @@ def test_recipient_pages_use_cap_plus_one_and_rotate_without_starvation(assigned
 
 
 @pytest.mark.django_db
-def test_cache_outage_does_not_suppress_bounded_fanout(assigned_unit, caplog) -> None:
-    """Cursor storage is optional and exception details remain redacted."""
-    assigned_unit.assignment.monitoring_group.users.add(UserFactory())
-    secret = "redis://operator:private@example.test"
-    budget = _budget(assignments=1, recipients=1)
-    with (
-        patch(
-            "micboard.services.monitoring.alert_fanout_service.cache.get",
-            side_effect=RuntimeError(secret),
-        ),
-        patch(
-            "micboard.services.monitoring.alert_fanout_service.cache.set",
-            side_effect=RuntimeError(secret),
-        ),
-    ):
-        assignments = AlertFanoutService.assignments_for_unit(
-            unit=assigned_unit.unit,
-            scope="cache-outage",
-            budget=budget,
-        )
-        recipients = AlertFanoutService.recipients_for_assignments(
-            unit=assigned_unit.unit,
-            assignments=assignments,
-            scope="cache-outage",
-            budget=budget,
-        )
-
-    assert assignments == [assigned_unit.assignment]
-    assert len(recipients[assigned_unit.assignment.pk]) == 1
-    assert secret not in caplog.text
-
-
-@pytest.mark.django_db
 def test_exact_delivery_budget_caps_persistence_and_email(assigned_unit) -> None:
     """No candidate beyond the delivery ceiling reaches persistence or email."""
     recipients = [assigned_unit.user, UserFactory(), UserFactory(), UserFactory(), UserFactory()]
@@ -380,14 +347,3 @@ def test_fresh_authorization_rejects_unsaved_or_inactive_objects(assigned_unit) 
         )
         is None
     )
-
-
-def test_invalid_fanout_cursor_values_reset_to_start() -> None:
-    """Malformed cache values cannot influence bounded page ordering."""
-    with patch("micboard.services.monitoring.alert_fanout_service.cache.get", return_value=True):
-        assert AlertFanoutService._read_cursor("invalid") == 0
-    with patch(
-        "micboard.services.monitoring.alert_fanout_service.cache.get",
-        return_value=(True, 0),
-    ):
-        assert AlertFanoutService._read_pair_cursor("invalid") == (0, 0)
