@@ -26,7 +26,7 @@ class ActivityLog(models.Model):
     ACTIVITY_ALERT = "alert"
     ACTIVITY_COMPLIANCE = "compliance"
 
-    ACTIVITY_CHOICES: ClassVar[tuple] = (
+    ACTIVITY_CHOICES: ClassVar[tuple[tuple[str, str], ...]] = (
         (ACTIVITY_CRUD, "CRUD Operation"),
         (ACTIVITY_SERVICE, "Service Activity"),
         (ACTIVITY_SYNC, "Device Sync"),
@@ -47,7 +47,7 @@ class ActivityLog(models.Model):
     FAILURE = "failure"
     WARNING = "warning"
 
-    OPERATION_CHOICES: ClassVar[tuple] = (
+    OPERATION_CHOICES: ClassVar[tuple[tuple[str, str], ...]] = (
         (CREATE, "Create"),
         (READ, "Read"),
         (UPDATE, "Update"),

@@ -3,16 +3,21 @@
 Provides organization and campus management in Django admin.
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin
-from django.db.models import QuerySet
+from django.db.models import Model, QuerySet
 from django.http import HttpRequest
 
 from micboard.services.settings.settings_service import settings as micboard_settings
 
+if TYPE_CHECKING:
+    _SuperuserOnlyAdmin = admin.ModelAdmin[Model]
+else:
+    _SuperuserOnlyAdmin = admin.ModelAdmin
 
-class SuperuserOnlyAdmin(admin.ModelAdmin):
+
+class SuperuserOnlyAdmin(_SuperuserOnlyAdmin):
     """Reserve tenant-boundary administration for platform superusers."""
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[Any]:

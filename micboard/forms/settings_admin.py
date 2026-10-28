@@ -1,6 +1,6 @@
 """Forms used by the standard Django settings administration."""
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from django import forms
 from django.apps import apps
@@ -14,6 +14,17 @@ from micboard.services.settings.presentation_service import settings_presentatio
 from micboard.services.settings.visibility_service import settings_visibility
 from micboard.settings.scope_policy import matches_definition_scope
 
+if TYPE_CHECKING:
+    _SettingDefinitionModelForm = ModelForm[SettingDefinition]
+    _SettingValueModelForm = ModelForm[Setting]
+    _SettingDefinitionChoiceField = forms.ModelChoiceField[SettingDefinition]
+    _SiteChoiceField = forms.ModelChoiceField[Site]
+else:
+    _SettingDefinitionModelForm = ModelForm
+    _SettingValueModelForm = ModelForm
+    _SettingDefinitionChoiceField = forms.ModelChoiceField
+    _SiteChoiceField = forms.ModelChoiceField
+
 
 def _scope_for_user(user: Any | None) -> SettingsVisibilityScope:
     """Return unrestricted scope for trusted non-request form callers."""
@@ -22,7 +33,7 @@ def _scope_for_user(user: Any | None) -> SettingsVisibilityScope:
     return settings_visibility.for_management_user(user=user)
 
 
-class SettingDefinitionForm(ModelForm):
+class SettingDefinitionForm(_SettingDefinitionModelForm):
     """Validate setting definitions while keeping sensitive defaults write-only."""
 
     class Meta:
@@ -70,7 +81,7 @@ class SettingDefinitionForm(ModelForm):
         return cleaned_data
 
 
-class SettingValueForm(ModelForm):
+class SettingValueForm(_SettingValueModelForm):
     """Validate setting values against their type and authorized target scope."""
 
     class Meta:
@@ -110,7 +121,7 @@ class SettingValueForm(ModelForm):
 
     def _scope_target_fields(self) -> None:
         """Replace raw tenant IDs with choices from the user's exact scope."""
-        definition_selector = cast(forms.ModelChoiceField, self.fields["definition"])
+        definition_selector = cast(_SettingDefinitionChoiceField, self.fields["definition"])
         definitions = SettingDefinition.objects.filter(is_active=True)
         if self.instance.definition_id is not None:
             definitions = SettingDefinition.objects.filter(
@@ -134,7 +145,7 @@ class SettingValueForm(ModelForm):
             label="Organization",
         )
 
-        site_selector = cast(forms.ModelChoiceField, self.fields["site"])
+        site_selector = cast(_SiteChoiceField, self.fields["site"])
         sites = Site.objects.all()
         if self.visibility_scope.site_ids is not None:
             sites = sites.filter(pk__in=self.visibility_scope.site_ids)

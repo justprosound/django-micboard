@@ -1,6 +1,6 @@
 """Relationship-safe forms for standalone RF hardware administration."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django import forms
 from django.core.exceptions import ValidationError
@@ -8,8 +8,15 @@ from django.core.exceptions import ValidationError
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.rf_coordination.rf_channel import RFChannel
 
+if TYPE_CHECKING:
+    _RFChannelModelForm = forms.ModelForm[RFChannel]
+    _WirelessUnitModelForm = forms.ModelForm[WirelessUnit]
+else:
+    _RFChannelModelForm = forms.ModelForm
+    _WirelessUnitModelForm = forms.ModelForm
 
-class RFChannelAdminForm(forms.ModelForm):
+
+class RFChannelAdminForm(_RFChannelModelForm):
     """Reject active units paired with a different chassis."""
 
     class Meta:
@@ -30,7 +37,7 @@ class RFChannelAdminForm(forms.ModelForm):
         return cleaned_data
 
 
-class WirelessUnitAdminForm(forms.ModelForm):
+class WirelessUnitAdminForm(_WirelessUnitModelForm):
     """Reject RF resources owned by a different chassis."""
 
     class Meta:

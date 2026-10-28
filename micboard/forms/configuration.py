@@ -1,6 +1,6 @@
 """Forms for manufacturer configuration JSON."""
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 
 from django import forms
 
@@ -10,8 +10,13 @@ from micboard.services.manufacturer.secret_redaction import (
     restore_redacted_secrets,
 )
 
+if TYPE_CHECKING:
+    _ManufacturerConfigurationForm = forms.ModelForm[ManufacturerConfiguration]
+else:
+    _ManufacturerConfigurationForm = forms.ModelForm
 
-class ManufacturerConfigurationForm(forms.ModelForm):
+
+class ManufacturerConfigurationForm(_ManufacturerConfigurationForm):
     """Edit configuration JSON without disclosing stored credentials."""
 
     config = forms.JSONField(required=False, widget=forms.Textarea)
@@ -25,8 +30,8 @@ class ManufacturerConfigurationForm(forms.ModelForm):
         if self.instance.pk:
             self.initial["config"] = redact_secrets(self.instance.config)
 
-    def clean_config(self) -> dict:
+    def clean_config(self) -> Any:
         """Preserve secrets represented by unchanged redaction placeholders."""
         config = self.cleaned_data.get("config") or {}
         original = self.instance.config if self.instance.pk else {}
-        return cast(dict[Any, Any], restore_redacted_secrets(config, original))
+        return restore_redacted_secrets(config, original)

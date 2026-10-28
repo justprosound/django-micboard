@@ -1,7 +1,7 @@
 """Assignment views for performer-device binding."""
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -27,6 +27,11 @@ from micboard.services.shared.visibility import visible_to
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    _AssignmentListView = ListView[PerformerAssignment]
+else:
+    _AssignmentListView = ListView
 
 ALERT_OPTIONS = (
     ("alert_on_battery_low", "Battery low"),
@@ -76,7 +81,7 @@ def _optional_form_value(
     return form.cleaned_data[field_name] if field_name in form.data else None
 
 
-class AssignmentListView(LoginRequiredMixin, ListView):
+class AssignmentListView(LoginRequiredMixin, _AssignmentListView):
     """List all performer assignments."""
 
     model = PerformerAssignment

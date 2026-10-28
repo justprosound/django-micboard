@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rest_framework import permissions
 from rest_framework.viewsets import ReadOnlyModelViewSet
@@ -13,8 +13,17 @@ from micboard.serializers.v1.hardware import (
 )
 from micboard.services.shared.visibility import visible_to
 
+if TYPE_CHECKING:
+    _WirelessChassisViewSet = ReadOnlyModelViewSet[WirelessChassis]
+    _WirelessUnitViewSet = ReadOnlyModelViewSet[WirelessUnit]
+    _RFChannelViewSet = ReadOnlyModelViewSet[RFChannel]
+else:
+    _WirelessChassisViewSet = ReadOnlyModelViewSet
+    _WirelessUnitViewSet = ReadOnlyModelViewSet
+    _RFChannelViewSet = ReadOnlyModelViewSet
 
-class WirelessChassisViewSet(ReadOnlyModelViewSet):
+
+class WirelessChassisViewSet(_WirelessChassisViewSet):
     """Read-only viewset for WirelessChassis."""
 
     serializer_class = WirelessChassisSerializer
@@ -28,7 +37,7 @@ class WirelessChassisViewSet(ReadOnlyModelViewSet):
         return visible_to(WirelessChassis, user=user)
 
 
-class WirelessUnitViewSet(ReadOnlyModelViewSet):
+class WirelessUnitViewSet(_WirelessUnitViewSet):
     """Read-only viewset for WirelessUnit."""
 
     serializer_class = WirelessUnitSerializer
@@ -42,7 +51,7 @@ class WirelessUnitViewSet(ReadOnlyModelViewSet):
         return visible_to(WirelessUnit, user=user)
 
 
-class RFChannelViewSet(ReadOnlyModelViewSet):
+class RFChannelViewSet(_RFChannelViewSet):
     """Read-only viewset for RFChannel."""
 
     serializer_class = RFChannelSerializer

@@ -1,6 +1,6 @@
 """Kiosk/display wall views for stage and charger monitoring displays."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import QuerySet
@@ -54,8 +54,18 @@ class KioskAuthView(View):
         return JsonResponse({"status": "error", "message": "Kiosk not found"}, status=404)
 
 
+if TYPE_CHECKING:
+    _DisplayWallListView = ListView[DisplayWall]
+    _DisplayWallDetailView = DetailView[DisplayWall]
+    _WallSectionListView = ListView[WallSection]
+else:
+    _DisplayWallListView = ListView
+    _DisplayWallDetailView = DetailView
+    _WallSectionListView = ListView
+
+
 @method_decorator(login_required, name="dispatch")
-class DisplayWallListView(ListView):
+class DisplayWallListView(_DisplayWallListView):
     """List all display walls for administrator."""
 
     model = DisplayWall
@@ -78,7 +88,7 @@ class DisplayWallListView(ListView):
 
 
 @method_decorator(login_required, name="dispatch")
-class DisplayWallDetailView(DetailView):
+class DisplayWallDetailView(_DisplayWallDetailView):
     """Show display wall details and health."""
 
     model = DisplayWall
@@ -91,7 +101,7 @@ class DisplayWallDetailView(DetailView):
 
 
 @method_decorator(login_required, name="dispatch")
-class WallSectionListView(ListView):
+class WallSectionListView(_WallSectionListView):
     """List wall sections for a display wall."""
 
     model = WallSection

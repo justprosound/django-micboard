@@ -1,12 +1,19 @@
 """Admin configuration for display walls and kiosks."""
 
+from typing import TYPE_CHECKING, Any
+
 from django.contrib import admin
 
 from micboard.admin.mixins import MicboardModelAdmin, TenantScopedAdminInlineMixin
 from micboard.models.hardware.display_wall import DisplayWall, WallSection
 
+if TYPE_CHECKING:
+    _WallSectionTabularInline = admin.TabularInline[WallSection, Any]
+else:
+    _WallSectionTabularInline = admin.TabularInline
 
-class WallSectionInline(TenantScopedAdminInlineMixin, admin.TabularInline):
+
+class WallSectionInline(TenantScopedAdminInlineMixin, _WallSectionTabularInline):
     """Inline admin for wall sections."""
 
     model = WallSection

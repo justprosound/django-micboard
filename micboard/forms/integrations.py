@@ -1,11 +1,18 @@
 """Forms for credential-bearing manufacturer integrations."""
 
+from typing import TYPE_CHECKING
+
 from django import forms
 
 from micboard.models.integrations import ManufacturerAPIServer
 
+if TYPE_CHECKING:
+    _ManufacturerAPIServerForm = forms.ModelForm[ManufacturerAPIServer]
+else:
+    _ManufacturerAPIServerForm = forms.ModelForm
 
-class ManufacturerAPIServerForm(forms.ModelForm):
+
+class ManufacturerAPIServerForm(_ManufacturerAPIServerForm):
     """Accept replacement credentials without rendering stored secrets."""
 
     base_url = forms.URLField(assume_scheme="https")

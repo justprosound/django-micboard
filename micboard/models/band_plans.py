@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 # Load band plan specifications from fixture
-def _load_band_plans() -> dict[str, dict[str, dict]]:
+def _load_band_plans() -> dict[str, dict[str, dict[str, Any]]]:
     """Load band plan specifications from YAML fixture."""
     if not HAS_YAML:
         logger.warning("PyYAML not installed; band plan specifications are unavailable")
@@ -47,10 +47,10 @@ def _load_band_plans() -> dict[str, dict[str, dict]]:
 
 
 # Band plan specifications by manufacturer
-BAND_PLAN_SPECIFICATIONS: dict[str, dict[str, dict]] = _load_band_plans()
+BAND_PLAN_SPECIFICATIONS: dict[str, dict[str, dict[str, Any]]] = _load_band_plans()
 
 
-def get_band_plan(*, manufacturer: str | None, band_plan_key: str | None) -> dict | None:
+def get_band_plan(*, manufacturer: str | None, band_plan_key: str | None) -> dict[str, Any] | None:
     """Look up band plan specifications by manufacturer and band plan key.
 
     Args:
@@ -92,7 +92,7 @@ def get_available_band_plans(*, manufacturer: str | None) -> list[tuple[str, str
     return [(key, plan["name"]) for key, plan in BAND_PLAN_SPECIFICATIONS[mfg_lower].items()]
 
 
-def parse_band_plan_from_name(*, name: str) -> dict | None:
+def parse_band_plan_from_name(*, name: str) -> dict[str, float] | None:
     """Parse frequency range from a band plan name string.
 
     Attempts to extract min/max frequencies from common name patterns like:
@@ -134,7 +134,7 @@ def _extract_freq_range(val: str) -> tuple[float, float] | None:
     return float(m.group(1)), float(m.group(2))
 
 
-def _find_plan_by_code(band_plans: dict[str, dict], api_band_value: str) -> str | None:
+def _find_plan_by_code(band_plans: dict[str, dict[str, Any]], api_band_value: str) -> str | None:
     code = _extract_band_code(api_band_value)
     if not code:
         return None
@@ -144,7 +144,9 @@ def _find_plan_by_code(band_plans: dict[str, dict], api_band_value: str) -> str 
     return None
 
 
-def _find_plan_by_frequency_range(band_plans: dict[str, dict], api_band_value: str) -> str | None:
+def _find_plan_by_frequency_range(
+    band_plans: dict[str, dict[str, Any]], api_band_value: str
+) -> str | None:
     frequency_range = _extract_freq_range(api_band_value)
     if not frequency_range:
         return None
@@ -155,7 +157,9 @@ def _find_plan_by_frequency_range(band_plans: dict[str, dict], api_band_value: s
     return None
 
 
-def _find_plan_by_partial_key(band_plans: dict[str, dict], api_band_value: str) -> str | None:
+def _find_plan_by_partial_key(
+    band_plans: dict[str, dict[str, Any]], api_band_value: str
+) -> str | None:
     normalized_value = _normalize_band_key(api_band_value)
     for registry_key, plan_data in band_plans.items():
         if normalized_value in registry_key or registry_key in normalized_value:

@@ -741,28 +741,28 @@ Performers (talent/device users) are represented by the Performer model.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L15)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L20)
 
 Profile extending standard User for technicians and administrators.
 
 Technicians and admins monitor and manage performer assignments and
 wireless devices within their assigned MonitoringGroups.
 
-#### `get_monitoring_groups() -> models.QuerySet`
+#### `get_monitoring_groups() -> models.QuerySet[MonitoringGroup]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L81)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L86)
 
 Get all monitoring groups this user is a member of.
 
-#### `get_accessible_performers() -> models.QuerySet`
+#### `get_accessible_performers() -> models.QuerySet[Performer]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L85)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L90)
 
 Get all performers accessible through user's monitoring groups.
 
-#### `get_accessible_devices() -> models.QuerySet`
+#### `get_accessible_devices() -> models.QuerySet[WirelessUnit]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L96)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L101)
 
 Get all wireless units accessible through user's monitoring groups.
 
@@ -846,7 +846,7 @@ Loads band plan specifications from fixtures/band_plans.yaml.
 Each band plan defines a frequency range, region, and name for wireless
 microphone systems.
 
-### `get_band_plan(manufacturer: str | None, band_plan_key: str | None) -> dict | None`
+### `get_band_plan(manufacturer: str | None, band_plan_key: str | None) -> dict[str, Any] | None`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L53)
 
@@ -859,8 +859,8 @@ Look up band plan specifications by manufacturer and band plan key.
 
 **Returns:**
 
-- `dict | None` — Band plan dict with keys: name, min_mhz, max_mhz, region
-- `dict | None` — None if not found
+- `dict[str, Any] | None` — Band plan dict with keys: name, min_mhz, max_mhz, region
+- `dict[str, Any] | None` — None if not found
 
 ### `get_available_band_plans(manufacturer: str | None) -> list[tuple[str, str]]`
 
@@ -877,7 +877,7 @@ Get list of available band plans for a manufacturer.
 - `list[tuple[str, str]]` — List of (key, name) tuples for all available band plans
 - `list[tuple[str, str]]` — Empty list if manufacturer not found
 
-### `parse_band_plan_from_name(name: str) -> dict | None`
+### `parse_band_plan_from_name(name: str) -> dict[str, float] | None`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L95)
 
@@ -894,12 +894,12 @@ Attempts to extract min/max frequencies from common name patterns like:
 
 **Returns:**
 
-- `dict | None` — Dict with 'min_mhz' and 'max_mhz' if parsing successful
-- `dict | None` — None if unable to parse
+- `dict[str, float] | None` — Dict with 'min_mhz' and 'max_mhz' if parsing successful
+- `dict[str, float] | None` — None if unable to parse
 
 ### `detect_band_plan_from_api_string(api_band_value: str | None, manufacturer: str | None = 'shure') -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L166)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L170)
 
 Detect and return band plan name from API frequencyBand string.
 
@@ -909,7 +909,7 @@ frequency-range match, and partial string match.
 
 ### `get_band_plan_from_model_code(manufacturer: str | None, model: str | None) -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L198)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L202)
 
 Get default band plan for a device model based on manufacturer specs.
 
@@ -941,7 +941,7 @@ Each device is characterized by:
 
 Supported Manufacturers: Shure, Sennheiser, Wisycom, ULBACO, etc.
 
-### `get_device_spec(manufacturer: str | None, model: str | None) -> dict | None`
+### `get_device_spec(manufacturer: str | None, model: str | None) -> dict[str, Any] | None`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L62)
 
@@ -954,8 +954,8 @@ Look up device specifications by manufacturer and model.
 
 **Returns:**
 
-- `dict | None` — Spec dict with keys: channels, role, dante, name, models
-- `dict | None` — None if not found
+- `dict[str, Any] | None` — Spec dict with keys: channels, role, dante, name, models
+- `dict[str, Any] | None` — None if not found
 
 ### `get_channel_count(manufacturer: str | None, model: str | None) -> int`
 
@@ -1023,7 +1023,7 @@ Manage multiple API servers per manufacturer across different locations.
 
 Validate API server configuration.
 
-#### `to_config_dict() -> dict`
+#### `to_config_dict() -> dict[str, str | bool]`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L80)
 

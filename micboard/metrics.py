@@ -137,7 +137,7 @@ class MetricsCollector:
         }
 
 
-def track_service_metrics(func: Callable) -> Callable:
+def track_service_metrics[**P, R](func: Callable[P, R]) -> Callable[P, R]:
     """Decorator to track service method metrics.
 
     Example:

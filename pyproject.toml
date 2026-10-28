@@ -424,9 +424,24 @@ plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 python_version = "3.14"
 exclude = ["^build/", "^dist/", "^tests/"]
 strict = true
-disallow_any_generics = false
-ignore_missing_imports = true
+disallow_any_generics = true
 show_error_codes = true
+
+[[tool.mypy.overrides]]
+# These dependencies do not ship typed packages or compatible stub distributions.
+module = [
+    "adminsortable2.admin",
+    "atheris",
+    "huey.contrib.djhuey",
+    "huey.exceptions",
+    "import_export.admin",
+    "rangefilter.filters",
+    "simple_history.admin",
+    "unfold.admin",
+    "unfold.contrib.filters.admin",
+    "unfold.contrib.import_export.forms",
+]
+ignore_missing_imports = true
 
 [tool.django-stubs]
 django_settings_module = "tests.settings"
