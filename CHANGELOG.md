@@ -7,6 +7,18 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.28.1] - 2026-10-28
+
+### Added
+
+- `audit_mac_formats` management command, a read-only census of stored chassis MAC address formats that prints totals only.
+
+### Changed
+
+- Remove redundant `from __future__ import annotations` imports repo-wide and ban them with ruff `TID251`, since Python 3.14 evaluates annotations lazily.
+
+- Move the chassis API-refresh dispatch policy (batch limit, queue or in-process, synchronous threshold) from the admin into `request_selected_chassis_refresh`.
+
 ## [2026.10.28.0] - 2026-10-28
 
 ### Changed
