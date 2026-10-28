@@ -160,7 +160,7 @@ def test_selection_cursor_rotates_bounded_windows_across_runs(
             scope=manufacturer.pk,
             limit=2,
         )
-    with django_assert_num_queries(1):
+    with django_assert_num_queries(2):
         third = RealtimeSubscriptionSupervisor.select_fair_queryset_batch(
             queryset=queryset,
             transport=transport,

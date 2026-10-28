@@ -11,8 +11,8 @@ from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.settings.settings_service import settings as micboard_settings
 from micboard.services.shared.fair_page_cursor import (
-    fair_page,
-    fair_page_rows,
+    fair_composite_page,
+    fair_composite_rows,
     pair_cursor,
     position_cursor,
     read_cursor,
@@ -197,7 +197,7 @@ class AlertFanoutService:
     ) -> tuple[list[_ModelT], bool]:
         """Read at most ``limit + 1`` rows and rotate deterministically by primary key."""
         cursor = read_cursor(_ASSIGNMENT_CURSOR, cursor_key)
-        selected, truncated = fair_page(queryset, after=Q(pk__gt=cursor), limit=limit)
+        selected, truncated = fair_composite_page(queryset, after=Q(pk__gt=cursor), limit=limit)
         if selected:
             write_cursor(_ASSIGNMENT_CURSOR, cursor_key, selected[-1].pk)
         return selected, truncated
@@ -224,7 +224,7 @@ class AlertFanoutService:
             pk=assignment_cursor,
             monitoring_group__users__pk__gt=user_cursor,
         )
-        rows, truncated = fair_page_rows(
+        rows, truncated = fair_composite_rows(
             queryset,
             after=after_cursor,
             order_by=("pk", "monitoring_group__users__pk"),

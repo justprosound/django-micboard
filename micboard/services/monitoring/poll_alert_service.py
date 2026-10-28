@@ -3,8 +3,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
-
 from pydantic import Field
 
 from micboard.models.hardware.wireless_unit import WirelessUnit
@@ -68,7 +66,7 @@ class PollAlertService:
             performer_assignments__monitoring_group__is_active=True,
             performer_assignments__monitoring_group__users__is_active=True,
         ).distinct()
-        bounded_units, truncated = fair_page(candidates, after=Q(pk__gt=cursor), limit=limit)
+        bounded_units, truncated = fair_page(candidates, after_pk=cursor, limit=limit)
 
         failed = 0
         scanned = 0

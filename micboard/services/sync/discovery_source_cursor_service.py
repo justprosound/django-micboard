@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from hashlib import blake2s
 from typing import Any, NamedTuple
 
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 
 from micboard.discovery.limits import clamp_candidate_limit
 from micboard.models.discovery.manufacturer import Manufacturer
@@ -53,7 +53,7 @@ class DiscoverySourceCursorService:
         cursor = read_cursor(_SOURCE_CURSOR, cursor_key)
         selected, truncated = fair_page_rows(
             source.queryset,
-            after=Q(pk__gt=cursor),
+            after_pk=cursor,
             fields=("pk", source.value_field),
             limit=page_limit,
         )

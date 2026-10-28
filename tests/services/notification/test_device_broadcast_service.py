@@ -1,6 +1,6 @@
 """Bounded, resumable device projection broadcast contracts."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
 
@@ -140,3 +140,27 @@ def test_projection_serialization_bounds_private_address_types() -> None:
         )["ip"]
         is None
     )
+
+
+def test_cache_outage_does_not_suppress_broadcast(caplog) -> None:
+    """Cursor storage is optional and its exception text is redacted."""
+    manufacturer = ManufacturerFactory(code="cache-outage")
+    WirelessChassisFactory(manufacturer=manufacturer)
+    secret = "redis://private-credential"
+    handler = MagicMock()
+    handler.__getitem__.return_value.get.side_effect = RuntimeError(secret)
+    handler.__getitem__.return_value.set.side_effect = RuntimeError(secret)
+    with (
+        patch("micboard.services.shared.fair_page_cursor.caches", handler),
+        patch.object(BroadcastService, "broadcast_device_update") as broadcast,
+    ):
+        result = DeviceSnapshotBroadcastService.broadcast(
+            manufacturer=manufacturer,
+            namespace="outage",
+            max_devices=1,
+            chunk_size=1,
+        )
+
+    assert result.rows_sent == 1
+    broadcast.assert_called_once()
+    assert secret not in caplog.text

@@ -14,6 +14,8 @@ from micboard.services.shared import fair_page_cursor
 from micboard.services.shared.fair_page_cursor import (
     CursorSpec,
     clear_cursor,
+    fair_composite_page,
+    fair_composite_rows,
     fair_page,
     fair_page_rows,
     flag_cursor,
@@ -23,6 +25,7 @@ from micboard.services.shared.fair_page_cursor import (
     read_cursor,
     write_cursor,
 )
+from tests.factories.hardware import WirelessChassisFactory
 
 TIMEOUT = 60
 
@@ -153,7 +156,7 @@ def test_page_rotates_circularly_by_primary_key() -> None:
     seen: list[list[str]] = []
     truncations: list[bool] = []
     for _ in range(4):
-        page, truncated = fair_page(queryset, after=Q(pk__gt=cursor), limit=2)
+        page, truncated = fair_page(queryset, after_pk=cursor, limit=2)
         seen.append(_codes(page))
         truncations.append(truncated)
         cursor = page[-1].pk
@@ -172,12 +175,52 @@ def test_page_is_bounded_and_reports_completeness() -> None:
     rows = _manufacturers(3)
     queryset = Manufacturer.objects.filter(pk__in=[row.pk for row in rows])
 
-    page, truncated = fair_page(queryset, after=Q(pk__gt=rows[0].pk), limit=3)
+    page, truncated = fair_page(queryset, after_pk=rows[0].pk, limit=3)
 
     assert _codes(page) == ["fair-1", "fair-2", "fair-0"]
     assert truncated is False
-    assert fair_page(queryset, after=Q(pk__gt=0), limit=0) == ([], True)
-    assert fair_page(queryset.none(), after=Q(pk__gt=0), limit=2) == ([], False)
+    assert fair_page(queryset, after_pk=0, limit=0) == ([], True)
+    assert fair_page(queryset.none(), after_pk=0, limit=2) == ([], False)
+
+
+@pytest.mark.django_db
+def test_page_resumes_after_the_cursor_row_is_deleted() -> None:
+    rows = _manufacturers(4)
+    queryset = Manufacturer.objects.filter(pk__in=[row.pk for row in rows])
+    cursor = rows[1].pk
+    rows[1].delete()
+
+    page, truncated = fair_page(queryset, after_pk=cursor, limit=2)
+    assert _codes(page) == ["fair-2", "fair-3"]
+    assert truncated is True
+
+    page, truncated = fair_page(queryset, after_pk=rows[3].pk + 100, limit=2)
+    assert _codes(page) == ["fair-0", "fair-2"]
+    assert truncated is True
+
+
+@pytest.mark.django_db
+def test_page_over_a_joined_distinct_queryset_does_not_repeat_rows(
+    django_assert_num_queries,
+) -> None:
+    rows = _manufacturers(3)
+    for row in rows:
+        WirelessChassisFactory(manufacturer=row)
+        WirelessChassisFactory(manufacturer=row)
+    queryset = Manufacturer.objects.filter(
+        pk__in=[row.pk for row in rows],
+        wirelesschassis__isnull=False,
+    ).distinct()
+
+    with django_assert_num_queries(1):
+        page, truncated = fair_page(queryset, after_pk=0, limit=2)
+    assert _codes(page) == ["fair-0", "fair-1"]
+    assert truncated is True
+
+    with django_assert_num_queries(2):
+        page, truncated = fair_page(queryset, after_pk=rows[1].pk, limit=3)
+    assert _codes(page) == ["fair-2", "fair-0", "fair-1"]
+    assert truncated is False
 
 
 @pytest.mark.django_db
@@ -187,10 +230,40 @@ def test_page_rows_project_requested_fields_in_rotation_order() -> None:
 
     page, truncated = fair_page_rows(
         queryset,
-        after=Q(pk__gt=rows[1].pk),
+        after_pk=rows[1].pk,
         fields=("pk", "code"),
         limit=2,
     )
 
     assert page == [(rows[2].pk, "fair-2"), (rows[0].pk, "fair-0")]
     assert truncated is True
+
+
+@pytest.mark.django_db
+def test_composite_rows_rotate_past_a_two_part_position() -> None:
+    rows = _manufacturers(3)
+    queryset = Manufacturer.objects.filter(pk__in=[row.pk for row in rows])
+    after = Q(pk__gt=rows[1].pk) | Q(pk=rows[1].pk, name__gt="Fair 1")
+
+    page, truncated = fair_composite_rows(
+        queryset,
+        after=after,
+        order_by=("pk", "name"),
+        fields=("pk", "name"),
+        limit=2,
+    )
+
+    assert page == [(rows[2].pk, "Fair 2"), (rows[0].pk, "Fair 0")]
+    assert truncated is True
+
+
+@pytest.mark.django_db
+def test_composite_page_rotates_instances_in_one_query(django_assert_num_queries) -> None:
+    rows = _manufacturers(3)
+    queryset = Manufacturer.objects.filter(pk__in=[row.pk for row in rows])
+
+    with django_assert_num_queries(1):
+        page, truncated = fair_composite_page(queryset, after=Q(pk__gt=rows[1].pk), limit=3)
+
+    assert _codes(page) == ["fair-2", "fair-0", "fair-1"]
+    assert truncated is False

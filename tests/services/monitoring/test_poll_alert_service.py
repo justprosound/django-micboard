@@ -1,6 +1,6 @@
 """Coverage for fair, bounded post-poll alert evaluation."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
 from django.test import override_settings
@@ -115,6 +115,32 @@ def test_alert_scan_isolates_and_redacts_unit_failures(caplog) -> None:
     assert transmitter.call_args.args == (units[1],)
     assert secret not in caplog.text
     assert "RuntimeError" in caplog.text
+
+
+@pytest.mark.django_db
+def test_alert_scan_continues_when_cursor_cache_fails(caplog) -> None:
+    """Cache outages cannot suppress bounded alert evaluation, even in the per-unit finally."""
+    unit = _assigned_units(1)[0]
+    secret = "cache-password"
+    handler = MagicMock()
+    handler.__getitem__.return_value.get.side_effect = RuntimeError(secret)
+    handler.__getitem__.return_value.set.side_effect = RuntimeError(secret)
+    with (
+        patch("micboard.services.shared.fair_page_cursor.caches", handler),
+        patch(
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_hardware_offline_alerts"
+        ) as offline,
+        patch(
+            "micboard.services.monitoring.poll_alert_service.alert_manager.check_wireless_unit_alerts"
+        ),
+    ):
+        result = PollAlertService.evaluate_manufacturer(unit.manufacturer)
+
+    offline.assert_called_once()
+    assert offline.call_args.args == (unit,)
+    assert result.scanned == 1
+    assert handler.__getitem__.return_value.set.call_count == 2
+    assert secret not in caplog.text
 
 
 @pytest.mark.django_db

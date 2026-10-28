@@ -12,7 +12,7 @@ from typing import Any, TypeVar
 from django.core.cache import caches
 from django.core.cache.backends.base import BaseCache
 from django.db import models
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 
 from asgiref.sync import sync_to_async
 
@@ -163,7 +163,7 @@ class RealtimeSubscriptionSupervisor:
         cursor = read_cursor(_SELECTION_CURSOR, cursor_key, cache_alias=cache_alias)
         selected, _truncated = fair_page(
             queryset,
-            after=Q(pk__gt=cursor.after_id),
+            after_pk=cursor.after_id,
             limit=bounded_limit,
         )
         if selected:

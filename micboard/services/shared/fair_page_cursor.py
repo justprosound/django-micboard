@@ -158,13 +158,63 @@ def clear_cursor(
         )
 
 
-def _circular[ModelT: models.Model](
+def _window(
+    queryset: QuerySet[Any],
+    *,
+    after_pk: int,
+    limit: int,
+    fields: Sequence[str] | None,
+) -> tuple[list[Any], bool]:
+    """Read the rows after ``after_pk``, then wrap to the start only if the page is short.
+
+    Each read is a ``pk`` range ordered by ``pk`` with a ``limit + 1`` sentinel, so the database
+    can stop early on the primary-key index instead of ordering the whole queryset.
+    """
+
+    def read(rows: QuerySet[Any], count: int) -> list[Any]:
+        ordered = rows.order_by("pk")
+        if fields is not None:
+            ordered = ordered.values_list(*fields)
+        return list(ordered[:count])
+
+    head = read(queryset.filter(pk__gt=after_pk), limit + 1)
+    if len(head) > limit:
+        return head[:limit], True
+    if after_pk <= 0:
+        return head, False
+    remaining = limit - len(head)
+    tail = read(queryset.filter(pk__lte=after_pk), remaining + 1)
+    return [*head, *tail[:remaining]], len(tail) > remaining
+
+
+def fair_page[ModelT: models.Model](
+    queryset: QuerySet[ModelT],
+    *,
+    after_pk: int,
+    limit: int,
+) -> tuple[list[ModelT], bool]:
+    """Return at most ``limit`` rows circularly ordered by pk after ``after_pk``, and whether more remain."""
+    return _window(queryset, after_pk=after_pk, limit=limit, fields=None)
+
+
+def fair_page_rows(
+    queryset: QuerySet[Any],
+    *,
+    after_pk: int,
+    fields: Sequence[str],
+    limit: int,
+) -> tuple[list[tuple[Any, ...]], bool]:
+    """Like ``fair_page`` but projects ``fields`` into tuples."""
+    return _window(queryset, after_pk=after_pk, limit=limit, fields=fields)
+
+
+def _bucketed[ModelT: models.Model](
     queryset: QuerySet[ModelT],
     *,
     after: Q,
     order_by: Sequence[str],
 ) -> QuerySet[ModelT]:
-    """Order rows after the cursor first, then the rows at or before it."""
+    """Order the rows past ``after`` first and the rest second, in one query."""
     return cast(
         QuerySet[ModelT],
         queryset.annotate(
@@ -179,32 +229,32 @@ def _circular[ModelT: models.Model](
     )
 
 
-def fair_page[ModelT: models.Model](
+def fair_composite_page[ModelT: models.Model](
     queryset: QuerySet[ModelT],
     *,
     after: Q,
-    limit: int,
     order_by: Sequence[str] = ("pk",),
+    limit: int,
 ) -> tuple[list[ModelT], bool]:
-    """Return at most ``limit`` rows, circularly ordered from ``after``, and whether more remain.
+    """Page a small, already-narrowed queryset in one query, whatever ``after`` expresses.
 
-    Reads ``limit + 1`` rows so the overflow sentinel proves truncation without a count.
+    A computed bucket cannot use a primary-key range, so reserve this for querysets bounded by
+    an index on their own (one unit's assignments) and for composite positions a single pk range
+    cannot express. Use ``fair_page`` for large or joined inventories.
     """
-    rows = list(_circular(queryset, after=after, order_by=order_by)[: limit + 1])
+    rows = list(_bucketed(queryset, after=after, order_by=order_by)[: limit + 1])
     return rows[:limit], len(rows) > limit
 
 
-def fair_page_rows(
+def fair_composite_rows(
     queryset: QuerySet[Any],
     *,
     after: Q,
+    order_by: Sequence[str],
     fields: Sequence[str],
     limit: int,
-    order_by: Sequence[str] = ("pk",),
 ) -> tuple[list[tuple[Any, ...]], bool]:
-    """Like ``fair_page`` but projects ``fields`` into tuples, in the same rotation order."""
-    rows = cast(
-        list[tuple[Any, ...]],
-        list(_circular(queryset, after=after, order_by=order_by).values_list(*fields)[: limit + 1]),
-    )
+    """Like ``fair_composite_page`` but projects ``fields`` into tuples."""
+    ordered = _bucketed(queryset, after=after, order_by=order_by)
+    rows = cast(list[tuple[Any, ...]], list(ordered.values_list(*fields)[: limit + 1]))
     return rows[:limit], len(rows) > limit
