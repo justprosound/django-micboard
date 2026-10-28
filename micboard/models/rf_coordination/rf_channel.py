@@ -6,8 +6,6 @@ Each RF channel represents an RF communication path with direction awareness:
   - bidirectional: Both directions (hybrid systems like Sennheiser Spectera)
 """
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.db import models

@@ -1,7 +1,5 @@
 """Factories for database-backed setting definitions and values."""
 
-from __future__ import annotations
-
 import factory
 
 from micboard.models.settings.registry import Setting, SettingDefinition

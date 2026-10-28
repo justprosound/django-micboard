@@ -1,7 +1,5 @@
 """Shared policy for tenant-wide read and mutation access decisions."""
 
-from __future__ import annotations
-
 from typing import Any, Final
 
 from django.db import models

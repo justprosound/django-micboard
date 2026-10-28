@@ -364,6 +364,7 @@ select = [
   "G",   # Logging format: lazy %-style arguments only
   "LOG", # Logging misuse
   "DTZ", # Timezone-aware datetimes
+  "TID251", # Banned APIs (see flake8-tidy-imports below)
   "D102", # Missing docstring in public method
   "D103", # Missing docstring in public function
   "PLR0912", # Too many branches
@@ -383,6 +384,9 @@ ignore = [
 "*/migrations/*.py" = ["ALL"]
 "example_project/*.py" = ["S105", "S106"]
 "tests/*.py" = ["S106", "D102", "D103"]  # Test credentials and test helper docstrings.
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"__future__.annotations".msg = "Python 3.14 evaluates annotations lazily; drop the import."
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

@@ -1,7 +1,5 @@
 """One normalized chassis shape, read the same way by every persistence path."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, patch
 
 import pytest

@@ -1,7 +1,5 @@
 """Shure System API vocabulary for the shared device normalizer."""
 
-from __future__ import annotations
-
 from micboard.services.common.base.device_normalizer import VendorDeviceNormalizer
 
 SHURE_NORMALIZER = VendorDeviceNormalizer(

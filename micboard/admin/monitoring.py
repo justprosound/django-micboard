@@ -6,8 +6,6 @@ This module provides Django admin interfaces for managing monitoring groups,
 locations, and system configuration.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -24,6 +22,7 @@ from micboard.admin.mixins import MicboardModelAdmin
 from micboard.models.discovery.registry import DiscoveredDevice, MicboardConfig
 from micboard.models.locations.structure import Location
 from micboard.models.monitoring.group import MonitoringGroup
+from micboard.services.sync.device_promotion_service import DevicePromotionService
 from micboard.services.sync.discovered_device_service import (
     can_promote_device_to_chassis,
     get_device_communication_protocol,
@@ -32,7 +31,7 @@ from micboard.services.sync.discovered_device_service import (
 )
 
 if TYPE_CHECKING:
-    from micboard.models.hardware.wireless_chassis import WirelessChassis
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -226,16 +225,13 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         if not self._has_promotion_permission(request, discovered):
             raise PermissionDenied
 
-        # Call the promotion service
-        success, message, chassis = self._promote_to_chassis(discovered)
+        success, message, chassis = DevicePromotionService().promote_and_retire(discovered)
 
         if success and chassis is not None:
             messages.success(
                 request,
                 f"✅ Successfully promoted {discovered.ip} to managed chassis: {chassis}",
             )
-            # Optionally delete the discovered device entry
-            discovered.delete()
             return redirect(f"/admin/micboard/wirelesschassis/{chassis.pk}/change/")
         else:
             messages.error(request, f"❌ Failed to promote device: {message}")
@@ -272,14 +268,14 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
         if not self._has_promotion_permission(request):
             raise PermissionDenied
 
+        promotion = DevicePromotionService()
         promoted_count = 0
         failed_count = 0
 
         for discovered in queryset:
-            success, message, _chassis = self._promote_to_chassis(discovered)
+            success, message, _chassis = promotion.promote_and_retire(discovered)
             if success:
                 promoted_count += 1
-                discovered.delete()  # Clean up after promotion
             else:
                 failed_count += 1
                 logger.warning(
@@ -317,15 +313,6 @@ class DiscoveredDeviceAdmin(MicboardModelAdmin):
             f"claimed discovery reconciliation for {result.scheduled_manufacturers} "
             "manufacturer(s).",
         )
-
-    def _promote_to_chassis(
-        self, discovered: DiscoveredDevice
-    ) -> tuple[bool, str, WirelessChassis | None]:
-        """Delegate promotion to DevicePromotionService to keep admin thin and testable."""
-        from micboard.services.sync.device_promotion_service import DevicePromotionService
-
-        service = DevicePromotionService()
-        return service.promote_discovered_device(discovered)
 
     def _has_promotion_permission(self, request: Any, obj: Any = None) -> bool:
         """Require every permission needed by the promotion transaction."""

@@ -1,7 +1,5 @@
 """Forms for credential-bearing manufacturer integrations."""
 
-from __future__ import annotations
-
 from django import forms
 
 from micboard.models.integrations import ManufacturerAPIServer

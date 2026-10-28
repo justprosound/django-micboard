@@ -1,7 +1,5 @@
 """Charger polling cache adapter contracts."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 

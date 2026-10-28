@@ -1,7 +1,5 @@
 """Tenant-scoped alert-history page and statistics projections."""
 
-from __future__ import annotations
-
 from typing import Any
 from urllib.parse import urlencode
 

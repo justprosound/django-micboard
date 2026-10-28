@@ -1,7 +1,5 @@
 """Tests for deterministic source-distribution normalization."""
 
-from __future__ import annotations
-
 import gzip
 import io
 import tarfile

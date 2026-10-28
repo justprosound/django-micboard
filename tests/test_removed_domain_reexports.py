@@ -1,7 +1,5 @@
 """Keep domain packages free of convenience and compatibility exports."""
 
-from __future__ import annotations
-
 import importlib
 
 import pytest

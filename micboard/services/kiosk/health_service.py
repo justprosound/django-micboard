@@ -1,7 +1,5 @@
 """Bounded, tenant-scoped health projections for display walls."""
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, cast
 

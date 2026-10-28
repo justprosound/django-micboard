@@ -5,8 +5,6 @@ connection tracking, and redaction — with the vendor stream and the database m
 Both transports run through the same code, so each behaviour is asserted once.
 """
 
-from __future__ import annotations
-
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, call

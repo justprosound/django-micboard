@@ -1,7 +1,5 @@
 """Security, fairness, and hard-budget contracts for alert fanout."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.contrib.auth.models import AnonymousUser

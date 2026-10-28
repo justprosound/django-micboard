@@ -1,7 +1,5 @@
 """Internal registry implementation for typed, explicitly scoped settings."""
 
-from __future__ import annotations
-
 import secrets
 from typing import Any, Protocol
 

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import ipaddress
 import logging
 from collections.abc import Iterable

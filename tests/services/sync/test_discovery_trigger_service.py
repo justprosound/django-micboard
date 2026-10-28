@@ -1,7 +1,5 @@
 """Discovery trigger transaction and shared-cache contracts."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 import pytest

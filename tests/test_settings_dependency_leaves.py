@@ -1,7 +1,5 @@
 """Regression coverage for dependency-free settings policy modules."""
 
-from __future__ import annotations
-
 import ast
 import inspect
 from types import ModuleType

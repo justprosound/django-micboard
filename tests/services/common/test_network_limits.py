@@ -1,7 +1,5 @@
 """Configuration contracts for bounded vendor network consumption."""
 
-from __future__ import annotations
-
 from django.test import override_settings
 
 from micboard.services.common.network_limits import (

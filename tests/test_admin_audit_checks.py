@@ -1,7 +1,5 @@
 """Behavioral contracts for admin-audit DTOs and model-level checks."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock

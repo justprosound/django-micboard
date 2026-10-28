@@ -1,7 +1,5 @@
 """Batch conflict policy for discovery approval."""
 
-from __future__ import annotations
-
 from django.core.exceptions import ValidationError
 
 from micboard.models.discovery.discovery_queue import DiscoveryQueue

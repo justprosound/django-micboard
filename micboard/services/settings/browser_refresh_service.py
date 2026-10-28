@@ -9,8 +9,6 @@ host-configuration seam the rest of Micboard uses and clamping the result to the
 that already govern stored kiosk refresh rates.
 """
 
-from __future__ import annotations
-
 from typing import Any, Final
 
 from micboard.services.settings.settings_service import settings as micboard_settings

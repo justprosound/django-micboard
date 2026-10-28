@@ -1,7 +1,5 @@
 """Discovery claim leasing and persisted vendor configuration contracts."""
 
-from __future__ import annotations
-
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch

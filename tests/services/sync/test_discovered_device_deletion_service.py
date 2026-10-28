@@ -1,7 +1,5 @@
 """Transactional staged-device deletion and discovery reconciliation contracts."""
 
-from __future__ import annotations
-
 from typing import cast
 from unittest.mock import call, patch
 

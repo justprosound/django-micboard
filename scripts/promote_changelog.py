@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Promote unreleased changelog notes into a versioned release section."""
 
-from __future__ import annotations
-
 import argparse
 from dataclasses import dataclass
 from pathlib import Path

@@ -1,7 +1,5 @@
 """Metrics behavior and failure-path coverage."""
 
-from __future__ import annotations
-
 import logging
 from datetime import UTC, datetime
 from unittest.mock import Mock

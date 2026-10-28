@@ -1,7 +1,5 @@
 """Behavioral coverage for audit maintenance commands."""
 
-from __future__ import annotations
-
 from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import Mock

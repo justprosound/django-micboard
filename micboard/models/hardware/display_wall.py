@@ -1,7 +1,5 @@
 """Display wall and kiosk models for stage/monitor display management."""
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.core.exceptions import ValidationError

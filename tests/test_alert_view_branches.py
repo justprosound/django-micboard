@@ -1,7 +1,5 @@
 """Focused access, filtering, and mutation coverage for alert views."""
 
-from __future__ import annotations
-
 from unittest.mock import MagicMock, patch
 
 from django.http import Http404, HttpResponse

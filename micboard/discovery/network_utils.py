@@ -1,7 +1,5 @@
 """Utilities for network discovery: CIDR expansion and FQDN resolution."""
 
-from __future__ import annotations
-
 # no concurrency imports required for non-probing utilities
 import ipaddress
 import socket

@@ -1,7 +1,5 @@
 """Public data-transfer objects for manufacturer API health summaries."""
 
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator

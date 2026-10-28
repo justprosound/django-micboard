@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Detect internal import cycles and enforce Micboard dependency direction."""
 
-from __future__ import annotations
-
 import argparse
 import ast
 import sys

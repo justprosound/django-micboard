@@ -3,8 +3,6 @@
 This module provides Django admin interfaces for managing wireless audio hardware.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any, ClassVar
 
@@ -29,7 +27,6 @@ from micboard.services.hardware.wireless_chassis_persistence_service import (
 )
 
 logger = logging.getLogger(__name__)
-MAX_SYNCHRONOUS_REFRESH = 25
 
 
 @admin.register(WirelessChassis)
@@ -270,83 +267,70 @@ class WirelessChassisAdmin(MicboardModelAdmin):
             "● Offline",
         )
 
-    @admin.action(permissions=["change"], description="Mark selected chassis as online")
-    def mark_online(self, request: Any, queryset: Any) -> None:
-        """Mark selected chassis as online."""
+    def _set_online(self, request: Any, queryset: Any, *, online: bool) -> None:
+        """Record the selected chassis as online or offline and report the count."""
         from micboard.services.core.hardware_sync import HardwareSyncService
 
         updated = 0
         for chassis in queryset:
-            HardwareSyncService.sync_hardware_status(obj=chassis, online=True)
+            HardwareSyncService.sync_hardware_status(obj=chassis, online=online)
             updated += 1
-        self.message_user(request, f"{updated} chassis marked as online.")
+        state = "online" if online else "offline"
+        self.message_user(request, f"{updated} chassis marked as {state}.")
+
+    @admin.action(permissions=["change"], description="Mark selected chassis as online")
+    def mark_online(self, request: Any, queryset: Any) -> None:
+        """Mark selected chassis as online."""
+        self._set_online(request, queryset, online=True)
 
     @admin.action(permissions=["change"], description="Mark selected chassis as offline")
     def mark_offline(self, request: Any, queryset: Any) -> None:
         """Mark selected chassis as offline."""
-        from micboard.services.core.hardware_sync import HardwareSyncService
-
-        updated = 0
-        for chassis in queryset:
-            HardwareSyncService.sync_hardware_status(obj=chassis, online=False)
-            updated += 1
-        self.message_user(request, f"{updated} chassis marked as offline.")
+        self._set_online(request, queryset, online=False)
 
     @admin.action(permissions=["change"], description="Sync selected chassis from API")
     def sync_from_api(self, request: Any, queryset: Any) -> None:
         """Sync exactly the tenant-scoped chassis selected by the operator."""
         from micboard.services.hardware.chassis_refresh_service import (
             MAX_CHASSIS_REFRESH_BATCH,
-            ChassisRefreshService,
+            MAX_SYNCHRONOUS_REFRESH,
         )
-        from micboard.tasks.sync.polling import refresh_selected_chassis
-        from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
+        from micboard.tasks.sync.polling import request_selected_chassis_refresh
 
-        using = queryset.db
-        chassis_ids = list(
-            queryset.order_by("pk").values_list("pk", flat=True)[: MAX_CHASSIS_REFRESH_BATCH + 1]
+        result = request_selected_chassis_refresh(
+            queryset=queryset,
+            actor_id=request.user.pk,
         )
-        if not chassis_ids:
+        if result.outcome == "empty":
             self.message_user(request, "No chassis selected.", level=messages.WARNING)
-            return
-        if len(chassis_ids) > MAX_CHASSIS_REFRESH_BATCH:
+        elif result.outcome == "oversized":
             self.message_user(
                 request,
                 f"Select at most {MAX_CHASSIS_REFRESH_BATCH} chassis per API refresh.",
                 level=messages.ERROR,
             )
-            return
-        if huey_is_configured():
-            enqueue_huey_task(
-                refresh_selected_chassis,
-                chassis_ids,
-                request.user.pk,
-                using=using,
-            )
+        elif result.outcome == "queued":
             self.message_user(
                 request,
-                f"Queued {len(chassis_ids)} chassis for API refresh.",
+                f"Queued {result.selected_count} chassis for API refresh.",
                 level=messages.SUCCESS,
             )
-            return
-        if len(chassis_ids) > MAX_SYNCHRONOUS_REFRESH:
+        elif result.outcome == "needs_queue":
             self.message_user(
                 request,
                 "Native Huey must be configured to refresh more than "
                 f"{MAX_SYNCHRONOUS_REFRESH} chassis at once.",
                 level=messages.ERROR,
             )
-            return
-
-        result = ChassisRefreshService.refresh(queryset=queryset.filter(pk__in=chassis_ids))
-        if result.synced_count:
-            self.message_user(request, f"{result.synced_count} chassis synced from API.")
-        if result.failed_count:
-            self.message_user(
-                request,
-                f"{result.failed_count} chassis could not be synced. Check logs for details.",
-                level="warning",
-            )
+        else:
+            if result.synced_count:
+                self.message_user(request, f"{result.synced_count} chassis synced from API.")
+            if result.failed_count:
+                self.message_user(
+                    request,
+                    f"{result.failed_count} chassis could not be synced. Check logs for details.",
+                    level="warning",
+                )
 
     @admin.display(description="Band Plan")
     def band_plan_display(self, obj: Any) -> Any:

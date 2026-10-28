@@ -4,8 +4,6 @@ Handles activity logging, log archiving (CSV/Parquet), and chunked pruning
 of stale records based on retention policies.
 """
 
-from __future__ import annotations
-
 import csv
 import json
 import logging

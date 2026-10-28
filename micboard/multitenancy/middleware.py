@@ -6,8 +6,6 @@ Attaches organization context to requests based on:
 3. Subdomain mapping (optional)
 """
 
-from __future__ import annotations
-
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, cast
 

@@ -1,7 +1,5 @@
 """Data-transfer objects for tenant-aware settings presentation."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from pydantic import Field, model_validator

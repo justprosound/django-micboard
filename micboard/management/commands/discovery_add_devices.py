@@ -1,7 +1,5 @@
 """Submit validated IP addresses to a manufacturer's discovery workflow."""
 
-from __future__ import annotations
-
 import ipaddress
 import re
 from itertools import islice

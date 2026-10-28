@@ -1,7 +1,5 @@
 """Bulk identity index for bounded manufacturer synchronization."""
 
-from __future__ import annotations
-
 from collections.abc import Hashable, Iterator
 from dataclasses import dataclass, field
 from itertools import islice

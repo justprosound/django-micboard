@@ -3,8 +3,6 @@
 Split from configuration_and_logging.py — logging-only admin classes.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.contrib import admin

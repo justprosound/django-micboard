@@ -1,7 +1,5 @@
 """Focused behavior tests for maintenance and monitoring task wrappers."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, patch
 
 from micboard.services.chargers.polling_dtos import ChargerPollResult

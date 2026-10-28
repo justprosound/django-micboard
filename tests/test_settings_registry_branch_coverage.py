@@ -1,7 +1,5 @@
 """Branch contracts for the settings registry cache and scope resolver."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import Mock
 

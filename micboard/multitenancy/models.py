@@ -4,8 +4,6 @@ These models are only active when MICBOARD_MSP_ENABLED = True.
 They provide organization and campus hierarchy for multi-tenant scenarios.
 """
 
-from __future__ import annotations
-
 from django.conf import settings
 from django.contrib.sites.models import Site
 from django.db import models

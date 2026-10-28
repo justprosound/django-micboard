@@ -1,7 +1,5 @@
 """Query and projection contracts for the charger dashboard."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.template.loader import render_to_string

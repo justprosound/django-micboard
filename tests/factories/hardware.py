@@ -1,7 +1,5 @@
 """Factories for hardware and integration inventory models."""
 
-from __future__ import annotations
-
 import factory
 
 from micboard.models.hardware.charger import Charger, ChargerSlot

@@ -5,8 +5,6 @@ Handles side effects that must occur after a chassis is saved or deleted:
 - Removing deleted IPs from manufacturer discovery lists
 """
 
-from __future__ import annotations
-
 import logging
 
 from django.db import DEFAULT_DB_ALIAS

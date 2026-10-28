@@ -6,8 +6,6 @@ both: it asks the plugin which transport it speaks, leases that transport, selec
 chassis window, and hands each chassis back to the plugin to connect.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 

@@ -15,8 +15,6 @@ Setting the time to live to zero restores per-frame re-reading for deployments t
 revocation to take effect on the very next frame and can afford the queries.
 """
 
-from __future__ import annotations
-
 import math
 import time
 from collections.abc import Awaitable, Callable

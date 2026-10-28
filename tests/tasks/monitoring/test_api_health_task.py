@@ -1,7 +1,5 @@
 """Secret-safe publication contracts for manufacturer API-health tasks."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, patch
 
 from micboard.services.shared.api_health import API_HEALTH_AGGREGATE_CACHE_KEY

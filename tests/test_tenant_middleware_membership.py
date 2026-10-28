@@ -5,8 +5,6 @@ outlive a membership. Each is honoured only while an active membership, or unres
 access, still covers it.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Any
 

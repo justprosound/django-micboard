@@ -1,7 +1,5 @@
 """Fresh manufacturer activation checks for queued and long-lived work."""
 
-from __future__ import annotations
-
 from micboard.models.discovery.manufacturer import Manufacturer
 
 

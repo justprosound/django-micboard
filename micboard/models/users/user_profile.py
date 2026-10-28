@@ -4,8 +4,6 @@ Extends standard User with role and monitoring preferences.
 Performers (talent/device users) are represented by the Performer model.
 """
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.contrib.auth import get_user_model

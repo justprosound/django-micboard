@@ -10,8 +10,6 @@ Tracks battery levels, RF quality, link quality, and device state.
 Links to WirelessChassis base unit and RFChannel for RF path tracking.
 """
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.db import models

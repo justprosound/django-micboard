@@ -3,8 +3,6 @@
 This module provides Django admin interfaces for managing device discovery configurations and jobs.
 """
 
-from __future__ import annotations
-
 from django.contrib import admin
 
 from micboard.admin.mixins import MicboardModelAdmin

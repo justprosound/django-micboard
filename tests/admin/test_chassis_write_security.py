@@ -1,7 +1,5 @@
 """Request-level tenant security regressions for chassis admin writes."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 from django.contrib.auth.models import User

@@ -5,8 +5,6 @@ password change. The demo signs every visitor in as one shared read-only account
 visitor could otherwise lock everyone out until the next redeploy.
 """
 
-from __future__ import annotations
-
 import importlib
 
 import pytest

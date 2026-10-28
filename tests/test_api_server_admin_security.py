@@ -1,7 +1,5 @@
 """Security coverage for credential-bearing manufacturer API servers."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 

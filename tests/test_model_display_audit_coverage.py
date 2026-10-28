@@ -1,7 +1,5 @@
 """Model display, validation, audit, and relation-query contracts."""
 
-from __future__ import annotations
-
 from datetime import time, timedelta
 from unittest.mock import patch
 

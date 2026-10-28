@@ -4,8 +4,6 @@ Writes device data from manufacturer APIs to the local database,
 handling normalization, deduplication, chassis creation and updates.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterable
 from datetime import datetime

@@ -1,7 +1,5 @@
 """One bounded realtime subscription run, for whichever transport an integration speaks."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from functools import partial

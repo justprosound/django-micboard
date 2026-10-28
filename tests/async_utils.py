@@ -1,7 +1,5 @@
 """Event-loop helpers for real async database regression tests."""
 
-from __future__ import annotations
-
 import asyncio
 from collections.abc import Awaitable
 

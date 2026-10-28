@@ -1,7 +1,5 @@
 """Device import normalization and server isolation contracts."""
 
-from __future__ import annotations
-
 from contextlib import contextmanager
 from unittest.mock import Mock, call
 

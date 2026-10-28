@@ -4,8 +4,6 @@ Provides email sending functionality for alerts and system notifications
 using Django's built-in email system.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, cast
 

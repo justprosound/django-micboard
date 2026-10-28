@@ -4,8 +4,6 @@ Provides a clean interface for accessing device specifications from the registry
 without embedding lookup logic in models.
 """
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING

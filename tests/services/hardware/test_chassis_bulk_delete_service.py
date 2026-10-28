@@ -5,8 +5,6 @@ affected manufacturer, and suppress the per-row delete hooks that reconciliation
 All of that is a side effect, so none of it may happen before the request is authorized.
 """
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import Mock, patch
 

@@ -25,8 +25,6 @@ MSP                       Superusers with cross-organization view see every tena
 Anonymous and inactive accounts see nothing.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any

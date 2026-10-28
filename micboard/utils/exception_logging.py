@@ -1,7 +1,5 @@
 """Secret-safe exception metadata for application logs."""
 
-from __future__ import annotations
-
 from types import TracebackType
 
 

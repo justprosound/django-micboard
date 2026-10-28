@@ -22,13 +22,13 @@ Charger and charger slot models for wireless equipment charging and storage.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L12)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L10)
 
 Charger unit for field wireless devices (bodypacks, handheld, IEM receivers).
 
 #### `save(*args: Any, **kwargs: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L128)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L126)
 
 Keep the IP-ownership check and row write in one transaction.
 
@@ -36,7 +36,7 @@ Keep the IP-ownership check and row write in one transaction.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L136)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/charger.py#L134)
 
 Individual charging slot on a charger unit.
 
@@ -53,7 +53,7 @@ Display wall and kiosk models for stage/monitor display management.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L19)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L17)
 
 Physical display kiosk/screen showing stage/charger status.
 
@@ -64,7 +64,7 @@ backstage display, FOH position).
 
 #### `clean() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L128)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L126)
 
 Reject refresh rates that can storm clients or overflow browser timers.
 
@@ -72,7 +72,7 @@ Reject refresh rates that can storm clients or overflow browser timers.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L149)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/display_wall.py#L147)
 
 Section of a display wall assigned to show charger performers.
 
@@ -133,7 +133,7 @@ Architecture & Future-Proofing Notes:
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L56)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L54)
 
 BASE STATION/RACK UNIT for wireless audio systems (receiver/transmitter/transceiver).
 
@@ -150,19 +150,19 @@ RFChannel represents RF communication channels/slots on this chassis.
 
 #### `save(*args: Any, **kwargs: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L312)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L310)
 
 Keep the IP-ownership check and row write in one transaction.
 
 #### `delete(*args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L319)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L317)
 
 Keep delete receivers and the row deletion in one transaction.
 
 #### `get_expected_channel_count() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L326)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_chassis.py#L324)
 
 Get expected number of channels based on device model.
 
@@ -185,7 +185,7 @@ Links to WirelessChassis base unit and RFChannel for RF path tracking.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L22)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/hardware/wireless_unit.py#L20)
 
 Field-side wireless audio device (bodypack, handheld, IEM receiver, etc.).
 
@@ -203,7 +203,7 @@ Monitoring model domain.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/alert.py#L14)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/alert.py#L12)
 
 Global alert preferences per user.
 
@@ -211,7 +211,7 @@ Device-specific preferences override these defaults.
 
 #### `is_quiet_hours(current_time: time | None = None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/alert.py#L94)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/alert.py#L92)
 
 Check if current time is within quiet hours.
 
@@ -219,7 +219,7 @@ Check if current time is within quiet hours.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/alert.py#L111)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/alert.py#L109)
 
 Stores alert history for auditing and tracking.
 
@@ -236,7 +236,7 @@ Contains:
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/group.py#L16)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/group.py#L14)
 
 Represents a group of users who monitor specific devices together.
 
@@ -246,7 +246,7 @@ Useful for organizing teams (e.g., "Theater Tech Team", "Conference Room A Staff
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/group.py#L60)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/group.py#L58)
 
 Intermediary model for MonitoringGroup and Location, specifying access scope.
 
@@ -260,7 +260,7 @@ Performer model for device users assigned to wireless units.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L13)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L11)
 
 Represents a performer/talent with assigned wireless devices.
 
@@ -270,13 +270,13 @@ monitor and manage the devices.
 
 #### `get_assigned_units() -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L92)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L90)
 
 Get all wireless units assigned to this performer.
 
 #### `get_monitoring_groups() -> QuerySet[Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L101)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer.py#L99)
 
 Get all monitoring groups that manage this performer.
 
@@ -290,7 +290,7 @@ Performer assignment model linking performers to wireless units.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L15)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/monitoring/performer_assignment.py#L13)
 
 Assignment of a performer to a wireless unit.
 
@@ -321,7 +321,7 @@ Optional multi-tenancy support:
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L19)
 
 Represents a physical building.
 
@@ -332,7 +332,7 @@ Multi-tenancy support:
 
 #### `clean() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L80)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L78)
 
 Require a campus to belong to the selected organization.
 
@@ -340,7 +340,7 @@ Require a campus to belong to the selected organization.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L101)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L99)
 
 Represents a room within a building.
 
@@ -348,7 +348,7 @@ Represents a room within a building.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L124)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L122)
 
 Represents a specific point of interest within a building and room.
 
@@ -370,25 +370,25 @@ Settings registry models for database-backed configuration.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L17)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L15)
 
 Defines a setting that can be configured by admins.
 
 #### `clean() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L97)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L95)
 
 Validate defaults and preserve the contract of stored overrides.
 
 #### `parse_value(raw_value: str) -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L158)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L156)
 
 Parse raw string value according to setting type.
 
 #### `serialize_value(value: Any) -> str`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L179)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L177)
 
 Serialize value to string for storage.
 
@@ -396,25 +396,25 @@ Serialize value to string for storage.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L188)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L186)
 
 Actual setting values, scoped by organization/site/manufacturer.
 
 #### `get_parsed_value() -> Any`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L301)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L299)
 
 Get the parsed value according to definition type.
 
 #### `clean() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L305)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L303)
 
 Require one target matching the definition's declared scope.
 
 #### `set_value(value: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L318)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/settings/registry.py#L316)
 
 Set value and automatically serialize.
 
@@ -434,7 +434,7 @@ API health monitoring and logging models.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/telemetry/health.py#L11)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/telemetry/health.py#L9)
 
 Logs API availability and health status for manufacturers.
 
@@ -448,7 +448,7 @@ Wireless unit session and sample models for telemetry tracking.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/telemetry/sessions.py#L11)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/telemetry/sessions.py#L9)
 
 Represents a period where a wireless unit is considered active.
 
@@ -456,7 +456,7 @@ Represents a period where a wireless unit is considered active.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/telemetry/sessions.py#L45)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/telemetry/sessions.py#L43)
 
 A single data point captured during a wireless unit session.
 
@@ -482,7 +482,7 @@ Allows admin to:
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/configuration.py#L17)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/configuration.py#L15)
 
 Configuration for a manufacturer service.
 
@@ -491,7 +491,7 @@ Replaces environment variables and settings.py configuration.
 
 #### `clean() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/configuration.py#L89)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/configuration.py#L87)
 
 Validate before saving.
 
@@ -505,7 +505,7 @@ Discovery queue and device movement tracking.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/discovery_queue.py#L11)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/discovery_queue.py#L9)
 
 Staging area for discovered devices awaiting admin approval before import.
 
@@ -515,7 +515,7 @@ Implements the "Do you want to import these discovered items?" workflow.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/discovery_queue.py#L157)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/discovery_queue.py#L155)
 
 Tracks when devices change IP addresses or physical locations.
 
@@ -531,7 +531,7 @@ Manufacturer model for device vendor registry.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/manufacturer.py#L10)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/manufacturer.py#L8)
 
 Represents a device manufacturer with audit logging.
 
@@ -545,7 +545,7 @@ Discovery job and configuration models.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L10)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L8)
 
 Global configuration settings.
 
@@ -553,7 +553,7 @@ Global configuration settings.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L34)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L32)
 
 CIDR ranges to be used for discovery scans.
 
@@ -561,7 +561,7 @@ CIDR ranges to be used for discovery scans.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L54)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L52)
 
 FQDN patterns or hostnames to resolve for discovery.
 
@@ -569,7 +569,7 @@ FQDN patterns or hostnames to resolve for discovery.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L74)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L72)
 
 Records an on-demand or automatic discovery job run.
 
@@ -577,7 +577,7 @@ Records an on-demand or automatic discovery job run.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L107)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/discovery/registry.py#L105)
 
 Represents a device discovered on the network but not yet configured.
 
@@ -601,7 +601,7 @@ Models for tracking real-time connections and subscriptions.
 
 Bases: `models.QuerySet['RealTimeConnection']`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L13)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L11)
 
 Every state a realtime connection can be moved into, defined once.
 
@@ -611,7 +611,7 @@ into different spellings of the same state.
 
 #### `mark_connecting() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L19)
 
 Record that a connection attempt is in progress.
 
@@ -619,13 +619,13 @@ The error history is deliberately preserved: a reconnect is not yet a success.
 
 #### `mark_connected() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L28)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L26)
 
 Record an established connection and clear every trace of the last failure.
 
 #### `record_message() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L42)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L40)
 
 Record message activity, establishing a connection that was still pending.
 
@@ -634,25 +634,25 @@ the `status="connected"` filter as well, counting one row twice.
 
 #### `mark_error(error_message: str) -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L56)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L54)
 
 Record one redacted transport error, counting consecutive failures.
 
 #### `mark_disconnected() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L67)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L65)
 
 Record an unintentional loss of the connection.
 
 #### `mark_stopped() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L72)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L70)
 
 Record an intentional connection stop.
 
 #### `reset_errors() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L77)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L75)
 
 Clear a stale error count without claiming the connection is back.
 
@@ -660,7 +660,7 @@ Clear a stale error count without claiming the connection is back.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L82)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/realtime/connection.py#L80)
 
 Tracks real-time connections (SSE/WebSocket) for wireless chassis.
 
@@ -683,7 +683,7 @@ and compliance rules for specific locations.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/compliance.py#L14)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/compliance.py#L12)
 
 Regulatory body or region governing RF spectrum usage (e.g., FCC, ETSI).
 
@@ -691,7 +691,7 @@ Regulatory body or region governing RF spectrum usage (e.g., FCC, ETSI).
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/compliance.py#L52)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/compliance.py#L50)
 
 Specific frequency band within a regulatory domain.
 
@@ -699,7 +699,7 @@ Specific frequency band within a regulatory domain.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/compliance.py#L128)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/compliance.py#L126)
 
 Geo-fenced area with specific frequency exclusions (e.g., near TV towers).
 
@@ -718,7 +718,7 @@ RFChannel model for directional RF communication channels on a wireless chassis.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L18)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/rf_coordination/rf_channel.py#L16)
 
 Represents a directional RF communication channel on a wireless chassis.
 
@@ -741,7 +741,7 @@ Performers (talent/device users) are represented by the Performer model.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L17)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L15)
 
 Profile extending standard User for technicians and administrators.
 
@@ -750,19 +750,19 @@ wireless devices within their assigned MonitoringGroups.
 
 #### `get_monitoring_groups() -> models.QuerySet`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L83)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L81)
 
 Get all monitoring groups this user is a member of.
 
 #### `get_accessible_performers() -> models.QuerySet`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L87)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L85)
 
 Get all performers accessible through user's monitoring groups.
 
 #### `get_accessible_devices() -> models.QuerySet`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L98)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/users/user_profile.py#L96)
 
 Get all wireless units accessible through user's monitoring groups.
 
@@ -802,7 +802,7 @@ Tracks all CRUD operations, service syncs, and system events.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/audit/activity_log.py#L16)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/audit/activity_log.py#L14)
 
 Comprehensive activity log for all system operations.
 
@@ -812,13 +812,13 @@ Tracks CRUD operations, service sync events, and system activities.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/audit/activity_log.py#L195)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/audit/activity_log.py#L193)
 
 Detailed log of service synchronization events.
 
 #### `duration_seconds() -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/audit/activity_log.py#L275)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/audit/activity_log.py#L273)
 
 Get sync duration in seconds.
 
@@ -832,7 +832,7 @@ Audit log for configuration changes.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/audit/configuration_log.py#L11)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/audit/configuration_log.py#L9)
 
 Audit log for configuration changes.
 
@@ -848,7 +848,7 @@ microphone systems.
 
 ### `get_band_plan(manufacturer: str | None, band_plan_key: str | None) -> dict | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L55)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L53)
 
 Look up band plan specifications by manufacturer and band plan key.
 
@@ -864,7 +864,7 @@ Look up band plan specifications by manufacturer and band plan key.
 
 ### `get_available_band_plans(manufacturer: str | None) -> list[tuple[str, str]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L77)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L75)
 
 Get list of available band plans for a manufacturer.
 
@@ -879,7 +879,7 @@ Get list of available band plans for a manufacturer.
 
 ### `parse_band_plan_from_name(name: str) -> dict | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L97)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L95)
 
 Parse frequency range from a band plan name string.
 
@@ -899,7 +899,7 @@ Attempts to extract min/max frequencies from common name patterns like:
 
 ### `detect_band_plan_from_api_string(api_band_value: str | None, manufacturer: str | None = 'shure') -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L168)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L166)
 
 Detect and return band plan name from API frequencyBand string.
 
@@ -909,7 +909,7 @@ frequency-range match, and partial string match.
 
 ### `get_band_plan_from_model_code(manufacturer: str | None, model: str | None) -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L200)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/band_plans.py#L198)
 
 Get default band plan for a device model based on manufacturer specs.
 
@@ -943,7 +943,7 @@ Supported Manufacturers: Shure, Sennheiser, Wisycom, ULBACO, etc.
 
 ### `get_device_spec(manufacturer: str | None, model: str | None) -> dict | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L64)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L62)
 
 Look up device specifications by manufacturer and model.
 
@@ -959,7 +959,7 @@ Look up device specifications by manufacturer and model.
 
 ### `get_channel_count(manufacturer: str | None, model: str | None) -> int`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L94)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L92)
 
 Get channel count for a device.
 
@@ -974,7 +974,7 @@ Get channel count for a device.
 
 ### `get_device_role(manufacturer: str | None, model: str | None) -> str`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L116)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L114)
 
 Get device role/type.
 
@@ -990,7 +990,7 @@ Get device role/type.
 
 ### `get_dante_support(manufacturer: str | None, model: str | None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L136)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/device_specs.py#L134)
 
 Check if device supports Dante audio networking.
 
@@ -1013,19 +1013,19 @@ Integration models for managing external manufacturer API connections.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L9)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L7)
 
 Manage multiple API servers per manufacturer across different locations.
 
 #### `clean() -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L77)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L75)
 
 Validate API server configuration.
 
 #### `to_config_dict() -> dict`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L82)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L80)
 
 Convert to configuration dict format for API client initialization.
 
@@ -1033,7 +1033,7 @@ Convert to configuration dict format for API client initialization.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L93)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/integrations.py#L91)
 
 Track field unit accessories like lav mics, packs, IEM earbuds, etc.
 
@@ -1052,13 +1052,13 @@ Base classes for all models to support:
 
 Bases: `Protocol`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L23)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L21)
 
 Structural tenant identifier accepted by queryset filters.
 
 ### `tenant_lookups(model: type[models.Model]) -> tuple[str, str | None] | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L106)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L104)
 
 Return the organization and campus lookups that reach ``model``'s tenant owner.
 
@@ -1066,13 +1066,13 @@ Returns None when the model has no reviewed ownership path; callers must fail cl
 
 ### `site_lookup(model: type[models.Model]) -> str | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L124)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L122)
 
 Return the lookup that reaches ``model``'s Django Site, or None when it has none.
 
 ### `membership_filter(model: type[models.Model], memberships: Sequence[tuple[int, int | None]]) -> Q | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L138)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L136)
 
 Return a filter matching rows owned by any of the given memberships.
 
@@ -1083,7 +1083,7 @@ given, or every membership is campus-limited and the model has no campus to chec
 
 Bases: `models.QuerySet[_ModelT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L165)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L163)
 
 Base QuerySet with the canonical tenant and site filters.
 
@@ -1092,19 +1092,19 @@ Deciding which rows a user may see is not this queryset's job; ask
 
 #### `supports_membership_scope() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L172)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L170)
 
 Return whether this model has an explicit tenant ownership path.
 
 #### `for_site(site_id: int | None = None) -> TenantOptimizedQuerySet[_ModelT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L176)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L174)
 
 Filter by Django Site (multi-site mode).
 
 #### `for_memberships(memberships: Sequence[tuple[int, int | None]]) -> TenantOptimizedQuerySet[_ModelT]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L188)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/base_managers.py#L186)
 
 Filter through explicit organization/campus membership identifiers.
 
@@ -1116,6 +1116,6 @@ Migration-stable model mixins.
 
 ### `DiscoveryTriggerMixin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/mixins.py#L6)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/mixins.py#L4)
 
 Migration-stable marker retained for historical model state loading.

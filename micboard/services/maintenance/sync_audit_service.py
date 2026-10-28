@@ -1,7 +1,5 @@
 """Bounded audit persistence for manufacturer polling runs."""
 
-from __future__ import annotations
-
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal

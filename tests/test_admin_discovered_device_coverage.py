@@ -1,7 +1,5 @@
 """Coverage for discovered-device admin workflows."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -192,18 +190,23 @@ def test_discovered_device_admin_urls_and_promote_view_outcomes() -> None:
     with (
         patch.object(model_admin, "get_object", return_value=discovered),
         patch.object(model_admin, "_has_promotion_permission", return_value=True),
-        patch.object(model_admin, "_promote_to_chassis", return_value=(True, "ok", chassis)),
+        patch(
+            "micboard.services.sync.device_promotion_service.DevicePromotionService.promote_and_retire",
+            return_value=(True, "ok", chassis),
+        ),
         patch.object(monitoring.messages, "success"),
         patch.object(monitoring, "redirect", return_value=HttpResponse(status=302)) as redirect,
     ):
         model_admin.promote_device_view(request, 1)
-    discovered.delete.assert_called_once()
     assert "wirelesschassis/8" in redirect.call_args.args[0]
 
     with (
         patch.object(model_admin, "get_object", return_value=discovered),
         patch.object(model_admin, "_has_promotion_permission", return_value=True),
-        patch.object(model_admin, "_promote_to_chassis", return_value=(False, "failed", None)),
+        patch(
+            "micboard.services.sync.device_promotion_service.DevicePromotionService.promote_and_retire",
+            return_value=(False, "failed", None),
+        ),
         patch.object(monitoring.messages, "error") as error,
         patch.object(monitoring, "redirect", return_value=HttpResponse(status=302)),
     ):
@@ -235,16 +238,14 @@ def test_discovered_device_refresh_and_bulk_promotion_actions_report_each_outcom
     bad = _discovered(ip="192.0.2.2")
     with (
         patch.object(model_admin, "_has_promotion_permission", return_value=True),
-        patch.object(
-            model_admin,
-            "_promote_to_chassis",
+        patch(
+            "micboard.services.sync.device_promotion_service.DevicePromotionService.promote_and_retire",
             side_effect=[(True, "ok", object()), (False, "failed", None)],
         ),
         patch.object(monitoring.messages, "success") as success,
         patch.object(monitoring.messages, "warning") as warning,
     ):
         model_admin.promote_to_chassis_action(request, [good, bad])
-    good.delete.assert_called_once()
     success.assert_called_once()
     warning.assert_called_once()
 
@@ -311,12 +312,6 @@ def test_discovered_device_delete_reports_empty_selection() -> None:
 def test_discovered_device_promotion_service_and_permission_contract() -> None:
     model_admin = _admin(monitoring.DiscoveredDeviceAdmin, DiscoveredDevice)
     discovered = _discovered()
-    with patch(
-        "micboard.services.sync.device_promotion_service.DevicePromotionService.promote_discovered_device",
-        return_value=(True, "ok", object()),
-    ) as promote:
-        assert model_admin._promote_to_chassis(discovered)[0] is True
-    promote.assert_called_once_with(discovered)
     request = _request()
     with (
         patch.object(model_admin, "has_change_permission", return_value=True),

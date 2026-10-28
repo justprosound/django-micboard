@@ -1,7 +1,5 @@
 """Focused coverage for row-scoped manufacturer imports."""
 
-from __future__ import annotations
-
 from unittest.mock import MagicMock, call, patch
 
 from django.test import override_settings

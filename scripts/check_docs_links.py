@@ -8,8 +8,6 @@ were never copied, and fragments that point at headings which no longer exist. E
 are not requested, so the check is hermetic and safe to run offline in CI.
 """
 
-from __future__ import annotations
-
 import re
 from html.parser import HTMLParser
 from pathlib import Path

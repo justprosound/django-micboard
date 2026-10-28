@@ -8,8 +8,6 @@ Optional multi-tenancy support:
 - MICBOARD_MSP_ENABLED: Uses indexed organization and campus identifiers on Building
 """
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.apps import apps

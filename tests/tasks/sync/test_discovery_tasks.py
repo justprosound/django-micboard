@@ -1,7 +1,5 @@
 """Coverage for thin Huey boundaries and their discovery execution service."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import Mock, call, patch

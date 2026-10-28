@@ -1,7 +1,5 @@
 """Regression coverage for hosts that replace Django's default user model."""
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys

@@ -1,7 +1,5 @@
 """Dependency-leaf access to host-owned Micboard deployment controls."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.conf import settings as django_settings

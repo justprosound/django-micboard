@@ -1,7 +1,5 @@
 """Tenant-routing coverage for realtime event producers."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 

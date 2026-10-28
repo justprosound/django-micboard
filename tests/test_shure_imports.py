@@ -1,7 +1,5 @@
 """Import-boundary tests for the pluggable Shure integration."""
 
-from __future__ import annotations
-
 import importlib
 
 
