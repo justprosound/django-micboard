@@ -71,6 +71,8 @@ Validate options, run the service, and render its typed report.
 Management command that counts stored chassis MAC formats.
 
 Prints totals only, never an address, so the output is safe to paste into a public issue.
+Only ``WirelessChassis`` stores MAC addresses (``mac_address`` and ``mac_address_secondary``);
+chargers and discovery records have no MAC field.
 
 > **Usage:**
 > uv run --no-sync python manage.py audit_mac_formats
@@ -79,13 +81,13 @@ Prints totals only, never an address, so the output is safe to paste into a publ
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_mac_formats.py#L16)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_mac_formats.py#L19)
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_mac_formats.py#L19)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/audit_mac_formats.py#L22)
 
-Print the per-format totals.
+Print the per-format totals for each stored MAC column.
 
 ## `micboard.management.commands.audit_regulatory_coverage`
 

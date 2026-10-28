@@ -1,33 +1,45 @@
 """Read-only census of how chassis MAC addresses are stored."""
 
+from collections.abc import Iterable
+
 from django.db import DEFAULT_DB_ALIAS
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.hardware.dtos import MacFormatAuditResult
-from micboard.utils.mac_address import canonicalize_mac_address
+from micboard.services.hardware.dtos import MacFormatAuditResult, MacFormatCounts
+from micboard.utils.mac_address import canonicalize_mac_address, mac_address_query_variants
 
 
 class MacFormatAuditService:
     """Count stored MACs by format without retaining or exposing any address."""
 
-    @staticmethod
-    def audit(*, using: str = DEFAULT_DB_ALIAS) -> MacFormatAuditResult:
-        """Classify every chassis MAC as canonical, legacy, invalid, or blank."""
-        counts = {"canonical": 0, "legacy": 0, "invalid": 0, "blank": 0}
-        stored = (
-            WirelessChassis._default_manager.using(using)
-            .values_list("mac_address", flat=True)
-            .iterator(chunk_size=2000)
+    @classmethod
+    def audit(cls, *, using: str = DEFAULT_DB_ALIAS) -> MacFormatAuditResult:
+        """Classify the primary and secondary chassis MAC columns."""
+        manager = WirelessChassis._default_manager.using(using)
+        return MacFormatAuditResult(
+            primary=cls._count(manager.values_list("mac_address", flat=True).iterator(2000)),
+            secondary=cls._count(
+                manager.values_list("mac_address_secondary", flat=True).iterator(2000)
+            ),
         )
+
+    @staticmethod
+    def _count(stored: Iterable[str | None]) -> MacFormatCounts:
+        """Bucket each value.
+
+        ``legacy`` means a form that ``mac_address_query_variants`` still matches; a valid
+        address outside those variants (mixed case, padding) is ``unmatched``.
+        """
+        counts = {"canonical": 0, "legacy": 0, "unmatched": 0, "invalid": 0, "blank": 0}
         for value in stored:
             if value is None or not value.strip():
                 counts["blank"] += 1
-                continue
-            canonical = canonicalize_mac_address(value)
-            if canonical is None:
+            elif canonicalize_mac_address(value) is None:
                 counts["invalid"] += 1
-            elif canonical == value:
+            elif value == canonicalize_mac_address(value):
                 counts["canonical"] += 1
-            else:
+            elif value in mac_address_query_variants(value):
                 counts["legacy"] += 1
-        return MacFormatAuditResult(total=sum(counts.values()), **counts)
+            else:
+                counts["unmatched"] += 1
+        return MacFormatCounts(total=sum(counts.values()), **counts)

@@ -39,14 +39,22 @@ class ChassisRefreshRequestResult(PydanticBaseDTO):
     failed_count: int = 0
 
 
-class MacFormatAuditResult(PydanticBaseDTO):
-    """Totals of stored chassis MAC addresses by format; never the addresses."""
+class MacFormatCounts(PydanticBaseDTO):
+    """Totals of one stored MAC column by format; never the addresses."""
 
     total: int
     canonical: int
     legacy: int
+    unmatched: int
     invalid: int
     blank: int
+
+
+class MacFormatAuditResult(PydanticBaseDTO):
+    """Format totals for each MAC column stored on a chassis."""
+
+    primary: MacFormatCounts
+    secondary: MacFormatCounts
 
 
 class ChassisBulkDeleteResult(PydanticBaseDTO):
