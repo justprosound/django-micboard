@@ -225,14 +225,22 @@ class HardwareLifecycleManager:
         provisioning. Raises ``RuntimeError`` if the graph refuses a step, so callers
         never carry on as if the chassis were online.
         """
-        if chassis.status in _RESPONSE_KEEPS_STATUS:
-            return
-        if chassis.status == HardwareStatus.DISCOVERED and not self.transition_device(
-            chassis, HardwareStatus.PROVISIONING, reason=reason
-        ):
-            raise RuntimeError(f"Could not provision wireless chassis {chassis.pk}")
-        if not self.transition_device(chassis, HardwareStatus.ONLINE, reason=reason):
-            raise RuntimeError(f"Could not mark wireless chassis {chassis.pk} online")
+        using = chassis._state.db or DEFAULT_DB_ALIAS
+        with transaction.atomic(using=using):
+            # Judge the locked row, not the caller's possibly stale copy; both steps share
+            # this transaction so a refused second step rolls back the first.
+            locked = (
+                type(chassis)._default_manager.using(using).select_for_update().get(pk=chassis.pk)
+            )
+            if locked.status in _RESPONSE_KEEPS_STATUS:
+                chassis.refresh_from_db(fields=["status"])
+                return
+            if locked.status == HardwareStatus.DISCOVERED and not self.transition_device(
+                chassis, HardwareStatus.PROVISIONING, reason=reason
+            ):
+                raise RuntimeError(f"Could not provision wireless chassis {chassis.pk}")
+            if not self.transition_device(chassis, HardwareStatus.ONLINE, reason=reason):
+                raise RuntimeError(f"Could not mark wireless chassis {chassis.pk} online")
         chassis.refresh_from_db(fields=["status", "is_online", "last_online_at", "last_seen"])
 
     def mark_offline(

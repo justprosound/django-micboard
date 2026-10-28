@@ -153,13 +153,13 @@ never carry on as if the chassis were online.
 
 #### `mark_offline(device: WirelessChassis | WirelessUnit, reason: str = 'Not responding') -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L238)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L246)
 
 Mark device as offline.
 
 ### `map_api_state_to_status(api_state: str, current_status: str) -> str`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L245)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L253)
 
 Map manufacturer API state to HardwareStatus.
 

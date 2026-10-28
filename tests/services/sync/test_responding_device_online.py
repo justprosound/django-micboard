@@ -111,3 +111,25 @@ def test_lifecycle_refuses_to_revive_a_retired_chassis() -> None:
 
     chassis.refresh_from_db()
     assert chassis.status == "retired"
+
+
+def test_guard_judges_the_locked_row_not_a_stale_offline_copy() -> None:
+    """A copy that still says offline cannot pull a chassis out of maintenance."""
+    chassis = WirelessChassisFactory(status="offline")
+    WirelessChassis.objects.filter(pk=chassis.pk).update(status="maintenance")
+
+    HardwareLifecycleManager().bring_responding_online(chassis, reason="test")
+
+    chassis.refresh_from_db()
+    assert chassis.status == "maintenance"
+
+
+def test_stale_discovered_copy_of_an_online_row_is_left_online() -> None:
+    """A stale discovered copy does not replay provisioning over an online row."""
+    chassis = WirelessChassisFactory(status="discovered")
+    WirelessChassis.objects.filter(pk=chassis.pk).update(status="online")
+
+    HardwareLifecycleManager().bring_responding_online(chassis, reason="test")
+
+    assert chassis.status == "online"
+    assert WirelessChassis.objects.get(pk=chassis.pk).status == "online"

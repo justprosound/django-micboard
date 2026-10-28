@@ -938,6 +938,7 @@ def test_indexed_move_refreshes_the_batch_ip_identity() -> None:
     with (
         patch.object(WirelessChassisPersistenceService, "update_from_normalized", update),
         patch("micboard.services.manufacturer.sync.log_device_movement"),
+        patch.object(HardwareLifecycleManager, "bring_responding_online"),
     ):
         result = ManufacturerSyncService._sync_normalized_device(
             _payload(ip="192.0.2.141"),
