@@ -15,6 +15,7 @@ from micboard.services.hardware.wireless_chassis_persistence_service import (
 )
 from micboard.services.sync.device_update_service import DeviceUpdateService
 from tests.factories.discovery import ManufacturerFactory
+from tests.factories.hardware import WirelessChassisFactory
 
 
 def test_realtime_update_does_not_reconcile_missing_chassis() -> None:
@@ -268,36 +269,26 @@ def test_device_without_embedded_channels_uses_the_channel_endpoint() -> None:
     plugin.normalize_channels.assert_called_once_with(raw_channels)
 
 
-@pytest.mark.parametrize(
-    ("status", "transition_result", "mark_online_result", "message"),
-    [
-        ("discovered", False, True, "Could not provision"),
-        ("offline", True, False, "Could not mark"),
-    ],
-)
-def test_existing_chassis_lifecycle_failures_abort_updates(
-    status: str,
-    transition_result: bool,
-    mark_online_result: bool,
-    message: str,
-) -> None:
-    """Polling never bypasses a rejected chassis lifecycle transition."""
-    chassis = MagicMock(status=status, pk=17)
-    lifecycle = MagicMock()
-    lifecycle.transition_device.return_value = transition_result
-    lifecycle.mark_online.return_value = mark_online_result
-    with (
-        patch(
-            "micboard.services.core.hardware_lifecycle.HardwareLifecycleManager",
-            return_value=lifecycle,
-        ),
-        pytest.raises(RuntimeError, match=message),
-    ):
-        DeviceUpdateService._reconcile_chassis_lifecycle(
-            chassis=chassis,
-            created=False,
-            manufacturer=MagicMock(code="vendor"),
-        )
+@pytest.mark.django_db
+def test_retired_chassis_is_not_revived_by_a_realtime_update() -> None:
+    """Realtime persistence never bypasses a rejected lifecycle move."""
+    chassis = WirelessChassisFactory(status="retired", api_device_id="retired-device")
+    plugin = MagicMock()
+    plugin.normalize_device.return_value = NormalizedChassis(
+        api_device_id="retired-device",
+        ip=str(chassis.ip),
+    )
+    plugin.get_device_channels.return_value = []
+    plugin.normalize_channels.return_value = []
+
+    updated = DeviceUpdateService.update_models_from_api_data(
+        api_data=[{"id": "retired-device"}],
+        manufacturer=chassis.manufacturer,
+        plugin=plugin,
+    )
+
+    chassis.refresh_from_db()
+    assert (updated, chassis.status) == (0, "retired")
 
 
 def test_chassis_persistence_logs_only_database_identifiers() -> None:

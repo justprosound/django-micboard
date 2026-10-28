@@ -74,6 +74,10 @@ _GRAPHS: dict[DeviceKind, dict[str, frozenset[str]]] = {
 }
 
 
+# A responding device in one of these states is left exactly as it is.
+_RESPONSE_KEEPS_STATUS = frozenset({_S.ONLINE, _S.DEGRADED, _S.MAINTENANCE})
+
+
 def allowed_transitions(kind: DeviceKind, from_status: str) -> frozenset[str]:
     """Return the statuses a device may move to from ``from_status``."""
     return _GRAPHS[kind].get(from_status, frozenset())
@@ -216,6 +220,24 @@ class HardwareLifecycleManager:
             reason="Device responding to polls",
             metadata=health_data,
         )
+
+    def bring_responding_online(self, chassis: WirelessChassis, *, reason: str) -> None:
+        """Bring a chassis that just answered the vendor API to online.
+
+        Degraded and maintenance are deliberate states a poll must not overwrite, and
+        an online chassis needs nothing. A discovered chassis passes through
+        provisioning. Raises ``RuntimeError`` if the graph refuses a step, so callers
+        never carry on as if the chassis were online.
+        """
+        if chassis.status in _RESPONSE_KEEPS_STATUS:
+            return
+        if chassis.status == HardwareStatus.DISCOVERED and not self.transition_device(
+            chassis, HardwareStatus.PROVISIONING, reason=reason
+        ):
+            raise RuntimeError(f"Could not provision wireless chassis {chassis.pk}")
+        if not self.transition_device(chassis, HardwareStatus.ONLINE, reason=reason):
+            raise RuntimeError(f"Could not mark wireless chassis {chassis.pk} online")
+        chassis.refresh_from_db(fields=["status", "is_online", "last_online_at", "last_seen"])
 
     def mark_offline(
         self, device: WirelessChassis | WirelessUnit, *, reason: str = "Not responding"

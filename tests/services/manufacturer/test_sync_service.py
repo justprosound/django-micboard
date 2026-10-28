@@ -10,6 +10,7 @@ import pytest
 
 from micboard.models.discovery.discovery_queue import DeviceMovementLog
 from micboard.services.core.hardware import NormalizedChassis
+from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 from micboard.services.deduplication.check import check_device
 from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 from micboard.services.deduplication.result import DeduplicationResult
@@ -734,7 +735,7 @@ def test_normalization_skips_unnormalizable_and_unaddressed_devices() -> None:
             ),
             "updated",
             False,
-            False,
+            True,
         ),
         (
             SimpleNamespace(
@@ -778,10 +779,7 @@ def test_sync_normalized_device_applies_deduplication_outcome(
     reconcile_status = Mock()
     monkeypatch.setattr(WirelessChassisPersistenceService, "update_from_normalized", update)
     monkeypatch.setattr(WirelessChassisPersistenceService, "create_from_normalized", create)
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync._transition_responding_chassis_online",
-        reconcile_status,
-    )
+    monkeypatch.setattr(HardwareLifecycleManager, "bring_responding_online", reconcile_status)
 
     result = ManufacturerSyncService._sync_normalized_device(
         payload,
