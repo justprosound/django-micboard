@@ -7,6 +7,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.28.0] - 2026-10-28
+
+### Changed
+
+- Promote a discovered device and delete its staged row through `DevicePromotionService.promote_and_retire`; the admin no longer repeats the step.
+
 ## [2026.10.27.0] - 2026-10-27
 
 ### Changed
