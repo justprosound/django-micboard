@@ -155,7 +155,7 @@ Core services in `micboard/services/`:
 - `hardware/chassis_lifecycle_service.py`: Chassis save transitions and committed side effects
 - `hardware/chassis_regulatory_service.py`: Band-plan detection, enrichment, and coverage
 - `core/hardware.py`: Hardware query and synchronization facade
-- `core/hardware_sync.py`: Hardware status and channel synchronization
+- `core/hardware_sync.py`: RF channel synchronization
 - `sync/polling_api.py`: Direct API polling
 - `sync/discovery_service.py`: Device discovery
 - `monitoring/alerts.py`: Alert management

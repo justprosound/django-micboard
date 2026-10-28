@@ -57,7 +57,7 @@ def test_disallowed_move_is_reported_to_the_operator_not_raised(
     assert chassis.status == status
     flashed = _flashed(request)
     assert any(level == messages.WARNING and str(chassis.pk) in text for level, text in flashed)
-    assert any("0 chassis" in text for _level, text in flashed)
+    assert not any("marked as" in text for _level, text in flashed)
 
 
 @pytest.mark.parametrize(

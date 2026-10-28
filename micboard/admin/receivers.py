@@ -282,7 +282,8 @@ class WirelessChassisAdmin(MicboardModelAdmin):
                 f"and cannot be marked {state}.",
                 level=messages.WARNING,
             )
-        self.message_user(request, f"{result.updated} chassis marked as {state}.")
+        if result.updated:
+            self.message_user(request, f"{result.updated} chassis marked as {state}.")
 
     @admin.action(permissions=["change"], description="Mark selected chassis as online")
     def mark_online(self, request: Any, queryset: Any) -> None:
