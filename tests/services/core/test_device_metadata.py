@@ -1,7 +1,5 @@
 """Manufacturer-specific discovered-device metadata contracts."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 
 import pytest

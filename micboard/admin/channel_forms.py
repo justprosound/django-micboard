@@ -1,7 +1,5 @@
 """Relationship-safe forms for standalone RF hardware administration."""
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any
 
 from django import forms

@@ -1,7 +1,5 @@
 """Tenant-scoped, paginated chassis browsing."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.core.paginator import Paginator

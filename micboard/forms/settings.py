@@ -1,7 +1,5 @@
 """Forms for bulk configuration of settings."""
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any, cast
 
 from django import forms

@@ -1,7 +1,5 @@
 """Factories for the physical location hierarchy."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import factory

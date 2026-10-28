@@ -4,8 +4,6 @@ Provides regulatory domain resolution, band plan coverage checking, and status
 reporting for wireless chassis, separated from the model layer per ADR-002.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING, Any
 

@@ -3,8 +3,6 @@
 Provides write operations that synchronize hardware state from external sources.
 """
 
-from __future__ import annotations
-
 import logging
 
 from django.db import DEFAULT_DB_ALIAS

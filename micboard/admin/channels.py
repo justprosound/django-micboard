@@ -4,8 +4,6 @@ This module provides Django admin interfaces for managing wireless audio RF
 channels and field units.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.contrib import admin

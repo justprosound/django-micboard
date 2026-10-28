@@ -1,7 +1,5 @@
 """Typed workload budgets for alert fanout."""
 
-from __future__ import annotations
-
 from pydantic import Field
 
 from micboard.services.settings.settings_service import settings as micboard_settings

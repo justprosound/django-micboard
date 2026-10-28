@@ -10,8 +10,6 @@ Each device is characterized by:
 Supported Manufacturers: Shure, Sennheiser, Wisycom, ULBACO, etc.
 """
 
-from __future__ import annotations
-
 import importlib.resources
 import logging
 from typing import Any

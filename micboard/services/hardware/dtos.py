@@ -3,10 +3,8 @@
 All DTOs inherit from PydanticBaseDTO for consistent configuration.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -30,6 +28,15 @@ class ChassisRefreshResult(PydanticBaseDTO):
     failed_count: int
     denied: bool = False
     truncated: bool = False
+
+
+class ChassisRefreshRequestResult(PydanticBaseDTO):
+    """How an operator-selected refresh was dispatched, or why it was not."""
+
+    outcome: Literal["empty", "oversized", "queued", "needs_queue", "refreshed"]
+    selected_count: int = 0
+    synced_count: int = 0
+    failed_count: int = 0
 
 
 class ChassisBulkDeleteResult(PydanticBaseDTO):

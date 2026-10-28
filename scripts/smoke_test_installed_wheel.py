@@ -2,8 +2,6 @@
 # ruff: noqa: S106, T201
 """Smoke-test django-micboard from an installed wheel, outside the source tree."""
 
-from __future__ import annotations
-
 import importlib
 from importlib.resources import files
 from pathlib import Path

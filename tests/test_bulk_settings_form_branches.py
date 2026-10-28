@@ -1,7 +1,5 @@
 """Focused scope, field, validation, and persistence coverage for bulk settings forms."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch

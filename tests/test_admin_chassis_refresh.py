@@ -1,15 +1,16 @@
 """Admin dispatch coverage for bounded selected-chassis refreshes."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 from django.contrib.admin.sites import AdminSite
 
-from micboard.admin.receivers import MAX_SYNCHRONOUS_REFRESH, WirelessChassisAdmin
+from micboard.admin.receivers import WirelessChassisAdmin
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.hardware.chassis_refresh_service import MAX_CHASSIS_REFRESH_BATCH
+from micboard.services.hardware.chassis_refresh_service import (
+    MAX_CHASSIS_REFRESH_BATCH,
+    MAX_SYNCHRONOUS_REFRESH,
+)
 from micboard.services.hardware.dtos import ChassisRefreshResult
 from micboard.tasks.sync.polling import refresh_selected_chassis
 

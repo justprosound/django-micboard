@@ -1,7 +1,5 @@
 """Discovery job finalization and notification publication contracts."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.test import override_settings

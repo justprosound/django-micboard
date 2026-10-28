@@ -1,7 +1,5 @@
 """Regression coverage for ORM work inside hardware event loops."""
 
-from __future__ import annotations
-
 import threading
 from collections.abc import Awaitable, Callable
 from typing import Any, cast

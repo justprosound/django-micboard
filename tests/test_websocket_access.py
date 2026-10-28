@@ -1,7 +1,5 @@
 """Access-control tests for the browser WebSocket consumer."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 from unittest.mock import AsyncMock, call

@@ -1,7 +1,5 @@
 """Focused band-plan presentation and mapping coverage for the chassis admin form."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from micboard.admin.forms import WirelessChassisAdminForm

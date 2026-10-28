@@ -1,6 +1,4 @@
 # file: micboard/models/monitoring/alert.py
-from __future__ import annotations
-
 from datetime import time, timedelta
 from typing import ClassVar
 

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import pkgutil
 from typing import TYPE_CHECKING, Any

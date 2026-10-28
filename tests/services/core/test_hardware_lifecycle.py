@@ -1,7 +1,5 @@
 """Service tests for hardware lifecycle state transitions."""
 
-from __future__ import annotations
-
 from unittest.mock import Mock, patch
 
 from django.utils import timezone

@@ -1,7 +1,5 @@
 """Collect bounded candidate sources for full discovery synchronization."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from typing import Literal
 

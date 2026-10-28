@@ -1,7 +1,5 @@
 """Discovery task dispatch and bounded batch-submission contracts."""
 
-from __future__ import annotations
-
 from unittest.mock import MagicMock, patch
 
 import pytest

@@ -5,8 +5,6 @@ transition has one definition, so a row reached through the admin changelist end
 same state as a row reached by the subscription runner.
 """
 
-from __future__ import annotations
-
 from datetime import timedelta
 
 from django.utils import timezone

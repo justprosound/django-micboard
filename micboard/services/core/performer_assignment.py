@@ -3,8 +3,6 @@
 Handles assignment lifecycle, state transitions, and lookup helpers.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Collection
 from typing import Any, cast

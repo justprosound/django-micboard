@@ -1,7 +1,5 @@
 """Data transfer objects for the demonstration dataset seeder."""
 
-from __future__ import annotations
-
 from micboard.services.shared.base_dto import PydanticBaseDTO
 
 

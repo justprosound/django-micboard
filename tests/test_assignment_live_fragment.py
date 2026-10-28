@@ -1,7 +1,5 @@
 """Assignment full-page and count-free live-fragment query contracts."""
 
-from __future__ import annotations
-
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test.utils import CaptureQueriesContext

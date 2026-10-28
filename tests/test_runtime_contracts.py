@@ -1,7 +1,5 @@
 """Regression tests for runtime contracts caught by strict mypy checks."""
 
-from __future__ import annotations
-
 import asyncio
 from datetime import timedelta
 from io import StringIO

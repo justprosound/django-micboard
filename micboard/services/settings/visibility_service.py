@@ -1,7 +1,5 @@
 """Tenant visibility policy for stored setting overrides."""
 
-from __future__ import annotations
-
 from typing import Any, cast
 
 from django.apps import apps

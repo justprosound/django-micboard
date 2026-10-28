@@ -1,7 +1,5 @@
 """Tenant route resolution for realtime event producers."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterable, Mapping
 from typing import Any

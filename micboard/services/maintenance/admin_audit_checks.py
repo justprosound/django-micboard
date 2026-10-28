@@ -1,7 +1,5 @@
 """Model-level checks used by the Django admin audit service."""
 
-from __future__ import annotations
-
 import logging
 import re
 from collections import Counter

@@ -1,7 +1,5 @@
 """Coverage for RF channel, wireless-unit, and charger admin behavior."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any

@@ -1,7 +1,6 @@
 """Health-related background tasks for the micboard app."""
 
 # Health-related background tasks for the micboard app.
-from __future__ import annotations
 
 import logging
 

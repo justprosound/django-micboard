@@ -1,7 +1,5 @@
 """Discovered-device lifecycle policy contracts."""
 
-from __future__ import annotations
-
 import pytest
 
 from micboard.models.discovery.registry import DiscoveredDevice

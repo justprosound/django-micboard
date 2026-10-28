@@ -1,7 +1,5 @@
 """SSE client for Sennheiser SSCv2 subscriptions."""
 
-from __future__ import annotations
-
 import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable

@@ -3,8 +3,6 @@
 This module provides WebSocket consumers for broadcasting device updates to connected clients.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from typing import Any

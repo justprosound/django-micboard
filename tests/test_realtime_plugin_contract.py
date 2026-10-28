@@ -5,8 +5,6 @@ declares the transport and owns the connection. Nothing outside the integration 
 knows how a vendor's stream is opened.
 """
 
-from __future__ import annotations
-
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock

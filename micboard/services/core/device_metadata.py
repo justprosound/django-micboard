@@ -4,8 +4,6 @@ Provides strategy pattern for accessing manufacturer-specific metadata from
 DiscoveredDevice models without hardcoding assumptions about metadata structure.
 """
 
-from __future__ import annotations
-
 import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any

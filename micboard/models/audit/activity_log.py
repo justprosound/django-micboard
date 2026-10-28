@@ -3,8 +3,6 @@
 Tracks all CRUD operations, service syncs, and system events.
 """
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.conf import settings

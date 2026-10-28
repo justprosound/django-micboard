@@ -1,7 +1,5 @@
 """Coverage for staged-device refresh service boundaries."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, Mock, patch

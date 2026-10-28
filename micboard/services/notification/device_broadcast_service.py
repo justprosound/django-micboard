@@ -1,7 +1,5 @@
 """Bounded, resumable realtime projection broadcasts."""
 
-from __future__ import annotations
-
 import logging
 import secrets
 from collections.abc import Iterator, Mapping, Sequence

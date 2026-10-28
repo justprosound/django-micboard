@@ -1,7 +1,5 @@
 """Regression coverage for frequently refreshed monitoring views."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model

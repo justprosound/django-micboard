@@ -1,7 +1,5 @@
 """Pure policy helpers for exact settings scopes."""
 
-from __future__ import annotations
-
 from typing import Literal
 
 type SettingsScope = Literal["global", "organization", "site", "manufacturer"]

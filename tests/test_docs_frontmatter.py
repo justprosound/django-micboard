@@ -5,8 +5,6 @@ renders that field as the page heading, so a page that also kept its Markdown ``
 would render the title twice, and a page with no title cannot be rendered at all.
 """
 
-from __future__ import annotations
-
 from scripts.check_docs_frontmatter import (
     iter_docs,
     problems,

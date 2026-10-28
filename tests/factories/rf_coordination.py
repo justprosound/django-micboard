@@ -1,7 +1,5 @@
 """Factories for RF coordination and regulatory models."""
 
-from __future__ import annotations
-
 import factory
 
 from micboard.models.rf_coordination.compliance import (

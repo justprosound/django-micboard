@@ -4,8 +4,6 @@ This module provides Sennheiser-specific exceptions that inherit from
 the common exception hierarchy while maintaining their distinct identities.
 """
 
-from __future__ import annotations
-
 from micboard.exceptions import APIError, APIRateLimitError
 
 

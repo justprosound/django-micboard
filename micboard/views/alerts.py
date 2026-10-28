@@ -3,8 +3,6 @@
 Provides functions for creating and managing alerts based on device conditions.
 """
 
-from __future__ import annotations
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpRequest, HttpResponse

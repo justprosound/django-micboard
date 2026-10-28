@@ -1,7 +1,5 @@
 """Focused coverage for polling and realtime device persistence boundaries."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 

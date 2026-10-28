@@ -1,7 +1,5 @@
 """Discovery job and configuration models."""
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.db import models

@@ -4,8 +4,6 @@ Validates and applies manufacturer-specific configuration settings
 using the plugin architecture.
 """
 
-from __future__ import annotations
-
 import logging
 
 from micboard.models.discovery.configuration import ManufacturerConfiguration

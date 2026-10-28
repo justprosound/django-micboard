@@ -1,7 +1,5 @@
 """App configuration for multitenancy module."""
 
-from __future__ import annotations
-
 from django.apps import AppConfig
 
 

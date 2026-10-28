@@ -4,8 +4,6 @@ This command pushes DiscoveredDevice IPs from Django to manufacturer APIs (like 
 and then pulls device data back to Django. Django Micboard is the "source of truth" for device IPs.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.core.management.base import BaseCommand

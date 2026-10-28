@@ -4,8 +4,6 @@ This module defines the AppConfig for the Micboard reusable app, including
 default settings, signal registration, and startup configuration validation.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

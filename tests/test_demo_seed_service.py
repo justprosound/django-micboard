@@ -6,8 +6,6 @@ read-only account is security-relevant: it must be able to open the admin and ch
 nothing.
 """
 
-from __future__ import annotations
-
 from datetime import timedelta
 
 from django.apps import apps

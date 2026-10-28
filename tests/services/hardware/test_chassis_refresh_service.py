@@ -1,7 +1,5 @@
 """Selected chassis refresh service regressions."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.contrib.auth.models import Permission

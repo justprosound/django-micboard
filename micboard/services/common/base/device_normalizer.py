@@ -6,8 +6,6 @@ vocabulary: which raw type strings name which family, and what to call a family 
 payload carries no model name.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass

@@ -1,7 +1,5 @@
 """Shared model graph helpers for request-level admin smoke tests."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 

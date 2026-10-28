@@ -1,7 +1,5 @@
 """Role-aware tenant mutation policy regressions for Django admin."""
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import patch
 

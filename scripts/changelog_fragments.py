@@ -2,8 +2,6 @@
 # ruff: noqa: S603, S607
 """Validate and assemble per-pull-request changelog fragments."""
 
-from __future__ import annotations
-
 import argparse
 import re
 import subprocess

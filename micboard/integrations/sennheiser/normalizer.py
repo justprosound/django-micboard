@@ -1,7 +1,5 @@
 """Sennheiser SSCv2 vocabulary for the shared device normalizer."""
 
-from __future__ import annotations
-
 from micboard.services.common.base.device_normalizer import VendorDeviceNormalizer
 
 SENNHEISER_NORMALIZER = VendorDeviceNormalizer(

@@ -1,7 +1,5 @@
 """Bounded service-layer workflow for charger dashboard snapshots."""
 
-from __future__ import annotations
-
 import hashlib
 import logging
 from collections.abc import Iterable, Mapping, Sequence

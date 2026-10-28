@@ -1,7 +1,5 @@
 """User profile preference operations."""
 
-from __future__ import annotations
-
 from typing import Any
 
 from django.core.exceptions import ValidationError

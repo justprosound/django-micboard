@@ -1,7 +1,5 @@
 """Discovered-device promotion orchestration contracts."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -349,3 +347,30 @@ def test_new_promotion_creates_from_the_normalized_device(
 
     assert result == (True, "Created new managed chassis", created)
     create.assert_called_once_with(payload=device, manufacturer=discovered.manufacturer)
+
+
+def test_a_successful_promotion_retires_the_staged_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The staged row is deleted exactly when a chassis was produced."""
+    discovered = Mock()
+    chassis = object()
+    service = DevicePromotionService()
+    monkeypatch.setattr(
+        service, "promote_discovered_device", Mock(return_value=(True, "ok", chassis))
+    )
+
+    assert service.promote_and_retire(discovered) == (True, "ok", chassis)
+    discovered.delete.assert_called_once_with()
+
+
+def test_a_failed_promotion_keeps_the_staged_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed promotion leaves the staged row for another attempt."""
+    discovered = Mock()
+    service = DevicePromotionService()
+    monkeypatch.setattr(
+        service, "promote_discovered_device", Mock(return_value=(False, "no", None))
+    )
+
+    assert service.promote_and_retire(discovered) == (False, "no", None)
+    discovered.delete.assert_not_called()

@@ -1,7 +1,5 @@
 """Read services for wireless-chassis admin projections."""
 
-from __future__ import annotations
-
 from collections import defaultdict
 from typing import Any, Final
 

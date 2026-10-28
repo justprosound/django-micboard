@@ -1,7 +1,5 @@
 """Factories for discovery-domain models."""
 
-from __future__ import annotations
-
 import factory
 
 from micboard.models.discovery.configuration import ManufacturerConfiguration

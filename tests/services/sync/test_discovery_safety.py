@@ -1,7 +1,5 @@
 """Failure-safety contracts for discovery desired-state reconciliation."""
 
-from __future__ import annotations
-
 import socket
 from unittest.mock import MagicMock, patch
 

@@ -1,7 +1,5 @@
 """Admin configuration for display walls and kiosks."""
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any
 
 from django.contrib import admin

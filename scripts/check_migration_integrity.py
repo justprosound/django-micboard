@@ -2,8 +2,6 @@
 # ruff: noqa: S603, S607, T201
 """Reject edits to migration history and validate newly generated migrations."""
 
-from __future__ import annotations
-
 import os
 import re
 import subprocess

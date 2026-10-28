@@ -1,7 +1,5 @@
 """Regression coverage for Micboard's optional-app dependency boundary."""
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys

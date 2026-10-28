@@ -1,7 +1,5 @@
 """Atomic approval workflow for staged discovery queue entries."""
 
-from __future__ import annotations
-
 from typing import Any, cast
 
 from django.core.exceptions import PermissionDenied, ValidationError

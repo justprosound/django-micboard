@@ -1,7 +1,5 @@
 """Page-number normalization for the alert browse service."""
 
-from __future__ import annotations
-
 import pytest
 
 from micboard.services.monitoring.alert_browse_service import AlertBrowseService

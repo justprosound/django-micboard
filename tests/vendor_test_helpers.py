@@ -1,7 +1,5 @@
 """Shared deterministic doubles for built-in vendor integration tests."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import Mock
 

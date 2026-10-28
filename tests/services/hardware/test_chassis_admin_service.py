@@ -1,7 +1,5 @@
 """Query and projection contracts for wireless-chassis admin reads."""
 
-from __future__ import annotations
-
 import pytest
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis

@@ -1,7 +1,5 @@
 """Prevent deprecated model-to-service delegation APIs from returning."""
 
-from __future__ import annotations
-
 import micboard.services.hardware as hardware_services
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.rf_coordination.rf_channel import RFChannel

@@ -1,16 +1,17 @@
 """Native Huey task entry points for manufacturer polling."""
 
 # Polling-related background tasks for the micboard app.
-from __future__ import annotations
 
 import logging
 from typing import Any
 
 from django.core.exceptions import PermissionDenied
+from django.db.models import QuerySet
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.integrations import ManufacturerAPIServer
+from micboard.services.hardware.dtos import ChassisRefreshRequestResult
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,41 @@ def poll_api_server_device(
             exc_info=sanitized_exception_info(exc),
         )
     return None
+
+
+def request_selected_chassis_refresh(
+    *,
+    queryset: QuerySet[WirelessChassis],
+    actor_id: int,
+) -> ChassisRefreshRequestResult:
+    """Queue a bounded selection, or refresh it in-process when it is small enough."""
+    from micboard.services.hardware.chassis_refresh_service import (
+        MAX_CHASSIS_REFRESH_BATCH,
+        MAX_SYNCHRONOUS_REFRESH,
+        ChassisRefreshService,
+    )
+    from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
+
+    chassis_ids = list(
+        queryset.order_by("pk").values_list("pk", flat=True)[: MAX_CHASSIS_REFRESH_BATCH + 1]
+    )
+    if not chassis_ids:
+        return ChassisRefreshRequestResult(outcome="empty")
+    if len(chassis_ids) > MAX_CHASSIS_REFRESH_BATCH:
+        return ChassisRefreshRequestResult(outcome="oversized")
+    if huey_is_configured():
+        enqueue_huey_task(refresh_selected_chassis, chassis_ids, actor_id, using=queryset.db)
+        return ChassisRefreshRequestResult(outcome="queued", selected_count=len(chassis_ids))
+    if len(chassis_ids) > MAX_SYNCHRONOUS_REFRESH:
+        return ChassisRefreshRequestResult(outcome="needs_queue")
+
+    result = ChassisRefreshService.refresh(queryset=queryset.filter(pk__in=chassis_ids))
+    return ChassisRefreshRequestResult(
+        outcome="refreshed",
+        selected_count=len(chassis_ids),
+        synced_count=result.synced_count,
+        failed_count=result.failed_count,
+    )
 
 
 def refresh_selected_chassis(

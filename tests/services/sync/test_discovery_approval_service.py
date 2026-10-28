@@ -1,7 +1,5 @@
 """Behavioral coverage for atomic discovery queue approval."""
 
-from __future__ import annotations
-
 from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied, ValidationError
 

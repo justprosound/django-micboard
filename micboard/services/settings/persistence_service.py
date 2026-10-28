@@ -1,7 +1,5 @@
 """Authorized persistence for database-backed setting overrides."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

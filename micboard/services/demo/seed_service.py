@@ -10,8 +10,6 @@ reads as months stale, and the read-only account's password has to come from the
 environment rather than a committed hash.
 """
 
-from __future__ import annotations
-
 from datetime import timedelta
 from typing import Any, ClassVar
 

@@ -1,7 +1,5 @@
 """Behavioral branch coverage for small domain service modules."""
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 

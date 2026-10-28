@@ -1,7 +1,5 @@
 """Data transfer objects for integration services."""
 
-from __future__ import annotations
-
 from pydantic import Field
 
 from micboard.services.shared.base_dto import PydanticBaseDTO

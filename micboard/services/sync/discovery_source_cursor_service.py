@@ -1,7 +1,5 @@
 """Fair shared-cache cursors for bounded local discovery sources."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Sequence
 from hashlib import blake2s

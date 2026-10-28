@@ -1,7 +1,5 @@
 """Validated target plan for one locked discovery approval batch."""
 
-from __future__ import annotations
-
 from micboard.models.discovery.discovery_queue import DiscoveryQueue
 from micboard.models.hardware.charger import Charger
 from micboard.services.shared.base_dto import PydanticBaseDTO

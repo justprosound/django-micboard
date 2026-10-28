@@ -1,7 +1,5 @@
 """Contract tests for the project model-factory catalog."""
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys

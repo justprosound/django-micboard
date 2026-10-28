@@ -1,7 +1,5 @@
 """Architecture contracts for the canonical settings interface."""
 
-from __future__ import annotations
-
 import ast
 from pathlib import Path
 

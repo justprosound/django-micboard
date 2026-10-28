@@ -1,7 +1,5 @@
 """Tenant-scope contracts for alert recipients."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 from django.test import override_settings

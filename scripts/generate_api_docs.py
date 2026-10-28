@@ -8,8 +8,6 @@ to ``docs/api/reference/`` so that ``just docs`` stays a single-step build; rege
 it with ``just docs-api`` whenever the documented modules change.
 """
 
-from __future__ import annotations
-
 import argparse
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass

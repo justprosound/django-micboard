@@ -5,8 +5,6 @@ what the poll actually did. The manufacturer inventory sync persists chassis; wi
 are written by the realtime and managed-device paths, not by this one.
 """
 
-from __future__ import annotations
-
 from io import StringIO
 from unittest.mock import Mock
 

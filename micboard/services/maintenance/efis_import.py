@@ -5,8 +5,6 @@ Fetches live regulatory application ranges from the official CEPT EFIS API
 applications (PMSE / radio microphones / ALD) into `FrequencyBand` records.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 from collections.abc import Sequence

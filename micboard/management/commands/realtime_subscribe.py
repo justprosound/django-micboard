@@ -1,7 +1,5 @@
 """Start the bounded realtime subscription supervisor from the command line."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

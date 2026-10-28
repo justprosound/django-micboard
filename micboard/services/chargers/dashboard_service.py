@@ -1,7 +1,5 @@
 """Tenant-scoped charger-dashboard projection service."""
 
-from __future__ import annotations
-
 from typing import Any, cast
 
 from django.db.models import Prefetch

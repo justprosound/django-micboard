@@ -1,7 +1,5 @@
 """Security regressions for authenticated manufacturer transports."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 from types import SimpleNamespace

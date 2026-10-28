@@ -1,7 +1,5 @@
 """Tenant-preserving refresh workflow for selected wireless chassis."""
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterable
 from itertools import islice
@@ -28,6 +26,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MAX_CHASSIS_REFRESH_BATCH = 100
+MAX_SYNCHRONOUS_REFRESH = 25
 
 
 class ChassisRefreshService:

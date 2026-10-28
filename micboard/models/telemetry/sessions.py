@@ -1,7 +1,5 @@
 """Wireless unit session and sample models for telemetry tracking."""
 
-from __future__ import annotations
-
 from typing import ClassVar
 
 from django.db import models
