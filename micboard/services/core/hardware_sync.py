@@ -1,4 +1,4 @@
-"""Hardware sync operations for status, battery, and channel management.
+"""Hardware sync operations for channel management.
 
 Provides write operations that synchronize hardware state from external sources.
 """
@@ -8,21 +8,11 @@ import logging
 from django.db import DEFAULT_DB_ALIAS
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.models.hardware.wireless_unit import WirelessUnit
 
 logger = logging.getLogger(__name__)
 
 
 class HardwareSyncService:
-    @staticmethod
-    def sync_hardware_status(*, obj: WirelessChassis | WirelessUnit, online: bool) -> None:
-        """Update hardware online status.
-
-        Uses direct status update - lifecycle hooks handle timestamps, audit, broadcast.
-        """
-        obj.status = "online" if online else "offline"
-        obj.save(update_fields=["status"])
-
     @staticmethod
     def ensure_channel_count(
         *,

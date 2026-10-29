@@ -164,19 +164,6 @@ def test_wireless_chassis_display_summary_changelist_and_status_paths() -> None:
     assert "Offline" in model_admin.status_indicator(SimpleNamespace(is_online=False))
 
 
-def test_wireless_chassis_online_offline_actions_delegate_sync_service() -> None:
-    model_admin = _admin(receivers.WirelessChassisAdmin, WirelessChassis)
-    model_admin.message_user = Mock()
-    chassis = [object(), object()]
-    with patch(
-        "micboard.services.core.hardware_sync.HardwareSyncService.sync_hardware_status"
-    ) as sync:
-        model_admin.mark_online(_request(), chassis)
-        model_admin.mark_offline(_request(), chassis)
-    assert sync.call_count == 4
-    assert model_admin.message_user.call_count == 2
-
-
 def _sync_queryset(ids: list[int]) -> MagicMock:
     queryset = MagicMock(db="replica")
     queryset.order_by.return_value.values_list.return_value = ids

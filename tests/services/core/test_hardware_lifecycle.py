@@ -1,5 +1,6 @@
 """Service tests for hardware lifecycle state transitions."""
 
+import re
 from unittest.mock import Mock, patch
 
 from django.utils import timezone
@@ -8,8 +9,11 @@ import pytest
 
 from micboard.models.audit.activity_log import ActivityLog
 from micboard.services.core.hardware_lifecycle import (
+    DeviceKind,
     HardwareLifecycleManager,
     HardwareStatus,
+    ensure_valid_transition,
+    is_valid_transition,
     map_api_state_to_status,
 )
 from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
@@ -171,3 +175,69 @@ def test_api_state_mapping_preserves_current_state_for_unknown_vendor_values(
 ) -> None:
     """Map documented states without inventing semantics for vendor extensions."""
     assert map_api_state_to_status(api_state, current_status) == expected
+
+
+_CHASSIS_MOVES: dict[str, set[str]] = {
+    "discovered": {"provisioning", "offline", "retired"},
+    "provisioning": {"online", "offline", "discovered"},
+    "online": {"degraded", "offline", "maintenance"},
+    "degraded": {"online", "offline", "maintenance"},
+    "offline": {"online", "degraded", "maintenance", "retired"},
+    "maintenance": {"online", "offline", "retired"},
+    "retired": set(),
+}
+_UNIT_MOVES: dict[str, set[str]] = {
+    **_CHASSIS_MOVES,
+    "online": {"degraded", "idle", "offline", "maintenance"},
+    "degraded": {"online", "idle", "offline", "maintenance"},
+    "idle": {"online", "offline", "maintenance", "retired"},
+    "offline": {"online", "degraded", "idle", "maintenance", "retired"},
+}
+
+
+@pytest.mark.parametrize(
+    ("kind", "moves"),
+    [(DeviceKind.CHASSIS, _CHASSIS_MOVES), (DeviceKind.UNIT, _UNIT_MOVES)],
+)
+def test_status_graph_allows_exactly_the_documented_moves(
+    kind: DeviceKind,
+    moves: dict[str, set[str]],
+) -> None:
+    """Every ordered status pair is allowed or refused exactly as the graph documents."""
+    statuses = set(_UNIT_MOVES)
+    for from_status in statuses:
+        for to_status in statuses:
+            expected = from_status == to_status or to_status in moves.get(from_status, set())
+            assert is_valid_transition(kind, from_status, to_status) is expected
+
+
+def test_chassis_graph_has_no_idle_state() -> None:
+    """Only units idle; a chassis cannot enter or leave idle."""
+    assert not is_valid_transition(DeviceKind.CHASSIS, "online", "idle")
+    assert is_valid_transition(DeviceKind.UNIT, "online", "idle")
+
+
+def test_ensure_valid_transition_names_the_allowed_moves() -> None:
+    """Refusals carry the from/to pair and the moves that would have been allowed."""
+    with pytest.raises(
+        ValueError,
+        match=re.escape("discovered → online. Allowed: offline, provisioning, retired"),
+    ):
+        ensure_valid_transition(DeviceKind.CHASSIS, "discovered", "online")
+    with pytest.raises(ValueError, match=re.escape("none (terminal state)")):
+        ensure_valid_transition(DeviceKind.CHASSIS, "retired", "online")
+    ensure_valid_transition(DeviceKind.CHASSIS, "online", "online")
+
+
+@pytest.mark.django_db
+def test_manager_applies_the_unit_graph_to_units_and_the_chassis_graph_to_chassis() -> None:
+    """The manager picks the graph from the device it is given."""
+    unit = WirelessUnitFactory(status="online")
+    chassis = WirelessChassisFactory(status="online")
+    manager = HardwareLifecycleManager()
+
+    assert manager.transition_device(unit, HardwareStatus.IDLE) is True
+    assert manager.transition_device(chassis, HardwareStatus.IDLE) is False
+    unit.refresh_from_db()
+    chassis.refresh_from_db()
+    assert (unit.status, chassis.status) == ("idle", "online")

@@ -22,6 +22,7 @@ from micboard.services.hardware.chassis_admin_service import (
     ChassisAdminService,
 )
 from micboard.services.hardware.chassis_bulk_delete_service import ChassisBulkDeleteService
+from micboard.services.hardware.chassis_status_admin_service import ChassisStatusAdminService
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
@@ -271,15 +272,18 @@ class WirelessChassisAdmin(MicboardModelAdmin):
         )
 
     def _set_online(self, request: Any, queryset: Any, *, online: bool) -> None:
-        """Record the selected chassis as online or offline and report the count."""
-        from micboard.services.core.hardware_sync import HardwareSyncService
-
-        updated = 0
-        for chassis in queryset:
-            HardwareSyncService.sync_hardware_status(obj=chassis, online=online)
-            updated += 1
+        """Move the selected chassis online or offline and report each refusal."""
+        result = ChassisStatusAdminService.set_online(queryset=queryset, online=online)
         state = "online" if online else "offline"
-        self.message_user(request, f"{updated} chassis marked as {state}.")
+        for refused in result.refused:
+            self.message_user(
+                request,
+                f"Chassis {refused.name} (#{refused.id}) is {refused.status} "
+                f"and cannot be marked {state}.",
+                level=messages.WARNING,
+            )
+        if result.updated:
+            self.message_user(request, f"{result.updated} chassis marked as {state}.")
 
     @admin.action(permissions=["change"], description="Mark selected chassis as online")
     def mark_online(self, request: Any, queryset: Any) -> None:

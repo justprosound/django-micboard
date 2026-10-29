@@ -68,12 +68,12 @@ Handles all device state transitions, validation, and bi-directional sync
 with manufacturer APIs. Replaces signal-based state management with direct,
 testable method calls.
 
-> **State Transitions:**
-> DISCOVERED → PROVISIONING → ONLINE
->                           ↓
->                      DEGRADED → MAINTENANCE
->                           ↓
->                      OFFLINE → RETIRED
+State Transitions (the allowed graph lives in this module; nothing else copies it):
+    DISCOVERED → PROVISIONING → ONLINE
+                              ↓
+                         DEGRADED → MAINTENANCE
+                              ↓
+                         OFFLINE → RETIRED
 
 ### `HardwareStatus`
 
@@ -83,9 +83,41 @@ Bases: `StrEnum`
 
 Device lifecycle states.
 
+### `DeviceKind`
+
+Bases: `StrEnum`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L42)
+
+Which status graph a device follows.
+
+### `allowed_transitions(kind: DeviceKind, from_status: str) -> frozenset[str]`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L77)
+
+Return the statuses a device may move to from ``from_status``.
+
+### `is_valid_transition(kind: DeviceKind, from_status: str, to_status: str) -> bool`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L82)
+
+Check a status move; staying put is always allowed.
+
+### `ensure_valid_transition(kind: DeviceKind, from_status: str, to_status: str) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L87)
+
+Raise ``ValueError`` unless the move is allowed.
+
+### `device_kind(device: WirelessChassis | WirelessUnit) -> DeviceKind`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L98)
+
+Return which graph governs ``device``.
+
 ### `HardwareLifecycleManager`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L41)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L103)
 
 Centralized manager for device lifecycle operations.
 
@@ -98,25 +130,36 @@ Does NOT use signals for state management (signals only for broadcasts).
 
 #### `transition_device(device: WirelessChassis | WirelessUnit, to_status: str, reason: str = '', metadata: dict[str, Any] | None = None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L88)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L114)
 
 Transition a device on the database that supplied the instance.
 
 #### `mark_online(device: WirelessChassis | WirelessUnit, health_data: dict[str, Any] | None = None) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L180)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L206)
 
 Mark device as online/operational.
 
+#### `bring_responding_online(chassis: WirelessChassis, reason: str) -> None`
+
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L220)
+
+Bring a chassis that just answered the vendor API to online.
+
+Degraded and maintenance are deliberate states a poll must not overwrite, and
+an online chassis needs nothing. A discovered chassis passes through
+provisioning. Raises ``RuntimeError`` if the graph refuses a step, so callers
+never carry on as if the chassis were online.
+
 #### `mark_offline(device: WirelessChassis | WirelessUnit, reason: str = 'Not responding') -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L194)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L246)
 
 Mark device as offline.
 
 ### `map_api_state_to_status(api_state: str, current_status: str) -> str`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L209)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_lifecycle.py#L253)
 
 Map manufacturer API state to HardwareStatus.
 
@@ -124,25 +167,17 @@ Map manufacturer API state to HardwareStatus.
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py)
 
-Hardware sync operations for status, battery, and channel management.
+Hardware sync operations for channel management.
 
 Provides write operations that synchronize hardware state from external sources.
 
 ### `HardwareSyncService`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L16)
-
-#### `sync_hardware_status(obj: WirelessChassis | WirelessUnit, online: bool) -> None`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L17)
-
-Update hardware online status.
-
-Uses direct status update - lifecycle hooks handle timestamps, audit, broadcast.
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L15)
 
 #### `ensure_channel_count(chassis: WirelessChassis, using: str = DEFAULT_DB_ALIAS) -> tuple[int, int]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L26)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/core/hardware_sync.py#L16)
 
 Ensure RFChannel rows for a chassis match its model capacity.
 

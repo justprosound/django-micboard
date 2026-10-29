@@ -44,3 +44,18 @@ class HardwareSummaryChannel(PydanticBaseDTO):
 
     channel_number: int
     unit_type: str | None
+
+
+class RefusedChassisStatusChange(PydanticBaseDTO):
+    """One chassis whose current status does not allow the requested move."""
+
+    id: int
+    name: str
+    status: str
+
+
+class ChassisStatusChangeResult(PydanticBaseDTO):
+    """Outcome of marking a selection of chassis online or offline."""
+
+    updated: int
+    refused: list[RefusedChassisStatusChange]

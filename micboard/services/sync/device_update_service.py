@@ -135,31 +135,21 @@ class DeviceUpdateService:
         """Log one upsert and restore the expected operational lifecycle state."""
         from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 
-        lifecycle = HardwareLifecycleManager()
         if created:
             logger.info(
                 "Created wireless chassis %s for manufacturer %s",
                 chassis.pk,
                 manufacturer.pk,
             )
-        else:
-            logger.debug(
-                "Updated wireless chassis %s for manufacturer %s",
-                chassis.pk,
-                manufacturer.pk,
-            )
-            if chassis.status not in {"online", "degraded", "maintenance"}:
-                if chassis.status == "discovered" and not lifecycle.transition_device(
-                    chassis,
-                    "provisioning",
-                    reason="Device responding to polls",
-                ):
-                    raise RuntimeError(f"Could not provision wireless chassis {chassis.pk}")
-                if not lifecycle.mark_online(chassis):
-                    raise RuntimeError(f"Could not mark wireless chassis {chassis.pk} online")
-                chassis.refresh_from_db(
-                    fields=["status", "is_online", "last_online_at", "last_seen"]
-                )
+            return
+        logger.debug(
+            "Updated wireless chassis %s for manufacturer %s",
+            chassis.pk,
+            manufacturer.pk,
+        )
+        HardwareLifecycleManager().bring_responding_online(
+            chassis, reason="Device responding to polls"
+        )
 
     @classmethod
     def _update_channel_and_unit(

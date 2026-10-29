@@ -37,32 +37,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _transition_responding_chassis_online(
-    chassis: WirelessChassis,
-    *,
-    manufacturer: Manufacturer,
-) -> None:
-    """Move a responding chassis online through valid lifecycle transitions."""
-    if chassis.status == HardwareStatus.ONLINE:
-        return
-
-    lifecycle = HardwareLifecycleManager()
-    if chassis.status == HardwareStatus.DISCOVERED and not lifecycle.transition_device(
-        chassis,
-        HardwareStatus.PROVISIONING,
-        reason="Device responding during manufacturer synchronization",
-    ):
-        raise RuntimeError(f"Could not provision wireless chassis {chassis.pk}")
-    if not lifecycle.mark_online(chassis):
-        raise RuntimeError(f"Could not mark wireless chassis {chassis.pk} online")
-    chassis.refresh_from_db(fields=["status", "is_online", "last_online_at", "last_seen"])
-
-
 def _persist_moved_chassis(
     *,
     chassis: WirelessChassis,
     payload: NormalizedChassis,
-    manufacturer: Manufacturer,
     identity_index: DeviceIdentityIndex | None,
 ) -> None:
     """Persist an address move and keep the batch identity index current."""
@@ -83,9 +61,8 @@ def _persist_moved_chassis(
         )
     if identity_index is not None and old_ip is not None:
         identity_index.move_ip(chassis, old_ip=old_ip)
-    _transition_responding_chassis_online(
-        chassis,
-        manufacturer=manufacturer,
+    HardwareLifecycleManager().bring_responding_online(
+        chassis, reason="Device responding during manufacturer synchronization"
     )
 
 
@@ -384,7 +361,6 @@ class ManufacturerSyncService:
             _persist_moved_chassis(
                 chassis=existing_device,
                 payload=payload,
-                manufacturer=manufacturer,
                 identity_index=identity_index,
             )
             return "updated"
@@ -395,11 +371,9 @@ class ManufacturerSyncService:
                 chassis=existing,
                 payload=payload,
             )
-            if existing.status not in {HardwareStatus.DEGRADED, HardwareStatus.MAINTENANCE}:
-                _transition_responding_chassis_online(
-                    existing,
-                    manufacturer=manufacturer,
-                )
+            HardwareLifecycleManager().bring_responding_online(
+                existing, reason="Device responding during manufacturer synchronization"
+            )
             return "updated"
 
         if dedup_result.is_new:
