@@ -197,15 +197,16 @@ class ManufacturerSyncService:
                     inventory_complete=False,
                 )
 
-            normalized_devices = ManufacturerSyncService._normalize_devices(
-                inventory.devices,
-                plugin,
+            normalized_devices, unnormalizable, unaddressed = (
+                ManufacturerSyncService._normalize_devices(inventory.devices, plugin)
             )
 
             if not normalized_devices:
-                return ManufacturerSyncResult(
-                    success=True,
-                    devices_examined=len(inventory.devices),
+                return ManufacturerSyncService._ingest_outcome(
+                    None,
+                    examined=len(inventory.devices),
+                    unnormalizable=unnormalizable,
+                    unaddressed=unaddressed,
                     device_limit=limits.max_devices,
                 )
 
@@ -229,7 +230,8 @@ class ManufacturerSyncService:
             return ManufacturerSyncService._ingest_outcome(
                 ingest,
                 examined=len(inventory.devices),
-                unaddressed=len(inventory.devices) - len(normalized_devices),
+                unnormalizable=unnormalizable,
+                unaddressed=unaddressed,
                 device_limit=limits.max_devices,
             )
 
@@ -247,30 +249,39 @@ class ManufacturerSyncService:
 
     @staticmethod
     def _ingest_outcome(
-        ingest: ChassisIngestResult,
+        ingest: ChassisIngestResult | None,
         *,
         examined: int,
+        unnormalizable: int,
         unaddressed: int,
         device_limit: int,
     ) -> ManufacturerSyncResult:
         """Report every examined device as persisted, skipped, rejected or failed."""
-        skipped = ingest.skipped + unaddressed
+        created = updated = failed = rejected = ingest_skipped = 0
+        if ingest is not None:
+            created, updated = ingest.created, ingest.updated
+            failed, rejected, ingest_skipped = ingest.failed, ingest.rejected, ingest.skipped
+        skipped = ingest_skipped + unnormalizable + unaddressed
         errors: list[str] = []
-        if ingest.failed:
+        if failed:
             errors.append(
-                f"Device synchronization failed for {ingest.failed} device(s); details redacted."
+                f"Device synchronization failed for {failed} device(s); details redacted."
             )
-        if ingest.rejected:
-            errors.append(f"{ingest.rejected} device(s) were rejected for an identity conflict.")
-        if skipped:
-            errors.append(f"{skipped} device(s) were skipped for lacking an address.")
+        if rejected:
+            errors.append(f"{rejected} device(s) were rejected for an identity conflict.")
+        if unnormalizable:
+            errors.append(f"{unnormalizable} device(s) were skipped for failing normalization.")
+        if unaddressed:
+            errors.append(f"{unaddressed} device(s) were skipped for lacking an address.")
+        if ingest_skipped:
+            errors.append(f"{ingest_skipped} device(s) were skipped during ingest.")
         return ManufacturerSyncResult(
             success=not errors,
             errors=errors,
-            devices_added=ingest.created,
-            devices_updated=ingest.updated,
+            devices_added=created,
+            devices_updated=updated,
             devices_skipped=skipped,
-            devices_rejected=ingest.rejected,
+            devices_rejected=rejected,
             devices_examined=examined,
             device_limit=device_limit,
         )
@@ -278,11 +289,20 @@ class ManufacturerSyncService:
     @staticmethod
     def _normalize_devices(
         api_devices: Iterable[dict[str, Any]], plugin: DeviceUpdatePlugin
-    ) -> list[NormalizedChassis]:
-        """Normalize raw API device payloads, keeping only devices with an address."""
+    ) -> tuple[list[NormalizedChassis], int, int]:
+        """Normalize raw payloads, keeping addressed devices and counting both drop causes.
+
+        Returns the addressed devices, the count that failed normalization and the count
+        that normalized without an address.
+        """
         normalized: list[NormalizedChassis] = []
+        unnormalizable = unaddressed = 0
         for raw in api_devices:
             payload = plugin.normalize_device(raw)
-            if payload is not None and payload.ip:
+            if payload is None:
+                unnormalizable += 1
+            elif not payload.ip:
+                unaddressed += 1
+            else:
                 normalized.append(payload)
-        return normalized
+        return normalized, unnormalizable, unaddressed
