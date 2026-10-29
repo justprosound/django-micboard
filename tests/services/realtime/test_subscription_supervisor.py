@@ -1,7 +1,7 @@
 """Regression coverage for bounded realtime subscription supervision."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 from django.core.cache import caches
@@ -22,7 +22,6 @@ from micboard.services.realtime.subscription_dtos import (
     HARD_MAX_SUBSCRIPTION_RECONNECT_DELAY_SECONDS,
     HARD_MAX_SUBSCRIPTION_ROTATION_SECONDS,
     SubscriptionLimits,
-    SubscriptionSelectionCursor,
 )
 from micboard.services.realtime.subscription_supervisor import (
     RealtimeSubscriptionLease,
@@ -187,35 +186,6 @@ def test_selection_returns_empty_bounded_window_for_empty_inventory() -> None:
     )
 
     assert selected == []
-
-
-def test_selection_cursor_cache_failures_are_safe_and_redacted(monkeypatch, caplog) -> None:
-    """Cursor cache outages fall back to the first window without leaking backend details."""
-    secret = "redis://private-realtime-credential"
-    cache = Mock()
-    cache.get.side_effect = RuntimeError(secret)
-    cache.set.side_effect = RuntimeError(secret)
-    cache_handler = MagicMock()
-    cache_handler.__getitem__.return_value = cache
-    monkeypatch.setattr(supervisor_module, "caches", cache_handler)
-
-    cursor = RealtimeSubscriptionSupervisor._read_selection_cursor("cursor")
-    RealtimeSubscriptionSupervisor._write_selection_cursor(
-        "cursor",
-        SubscriptionSelectionCursor(after_id=1),
-    )
-
-    assert cursor.after_id == 0
-    assert secret not in caplog.text
-
-
-def test_invalid_cached_selection_cursor_restarts_from_zero() -> None:
-    """Malformed shared state cannot suppress eligible inventory."""
-    cursor_key = f"invalid-realtime-cursor-{uuid4()}"
-    caches["default"].set(cursor_key, {"after_id": -1})
-
-    assert RealtimeSubscriptionSupervisor._read_selection_cursor(cursor_key).after_id == 0
-    caches["default"].delete(cursor_key)
 
 
 def test_supervisor_caps_device_count_and_concurrency() -> None:

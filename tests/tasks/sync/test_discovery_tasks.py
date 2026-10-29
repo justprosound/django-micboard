@@ -14,10 +14,10 @@ from micboard.services.sync.discovery_dtos import (
     DiscoveryReconciliationResult,
     DiscoverySourceReconciliation,
 )
-from micboard.services.sync.discovery_execution_service import (
+from micboard.services.sync.discovery_execution_service import DiscoveryExecutionService
+from micboard.services.sync.discovery_run_lifecycle import (
     MANUFACTURER_INACTIVE_REASON,
     MANUFACTURER_STATUS_CHECK_FAILURE_REASON,
-    DiscoveryExecutionService,
 )
 from micboard.tasks.sync import discovery as discovery_tasks
 from tests.factories.discovery import DiscoveryJobFactory, ManufacturerFactory
@@ -27,8 +27,7 @@ from tests.factories.discovery import DiscoveryJobFactory, ManufacturerFactory
 def active_manufacturer_boundary(monkeypatch) -> None:
     """Keep unit doubles active unless a test exercises stale-work rejection."""
     monkeypatch.setattr(
-        "micboard.services.sync.discovery_execution_service."
-        "ManufacturerActivationService.is_active",
+        "micboard.services.sync.discovery_run_lifecycle.ManufacturerActivationService.is_active",
         Mock(return_value=True),
     )
 
@@ -54,7 +53,7 @@ def test_run_manufacturer_reconciles_with_bounded_scan_size() -> None:
     )
     with (
         patch(
-            "micboard.services.sync.discovery_execution_service.DiscoverySyncClaimService",
+            "micboard.services.sync.discovery_run_lifecycle.DiscoverySyncClaimService",
             return_value=claim_service,
         ),
         patch(
@@ -91,7 +90,7 @@ def test_run_manufacturer_reconciles_with_bounded_scan_size() -> None:
 def test_run_manufacturer_contains_failures(failure: object) -> None:
     side_effect = Manufacturer.DoesNotExist() if failure == "missing" else failure
     with patch(
-        "micboard.services.sync.discovery_execution_service.DiscoverySyncClaimService"
+        "micboard.services.sync.discovery_run_lifecycle.DiscoverySyncClaimService"
     ) as claim_service_class:
         claim_service_class.return_value.claim.side_effect = side_effect
         outcome = DiscoveryExecutionService.run_manufacturer(
@@ -117,7 +116,7 @@ def test_run_manufacturer_finalizes_failed_reconciliation() -> None:
 
     with (
         patch(
-            "micboard.services.sync.discovery_execution_service.DiscoverySyncClaimService",
+            "micboard.services.sync.discovery_run_lifecycle.DiscoverySyncClaimService",
             return_value=claim_service,
         ),
         patch(
@@ -148,14 +147,13 @@ def test_run_manufacturer_finalizes_without_outbound_work_after_deactivation(
     )
     candidate_service = Mock()
     monkeypatch.setattr(
-        "micboard.services.sync.discovery_execution_service."
-        "ManufacturerActivationService.is_active",
+        "micboard.services.sync.discovery_run_lifecycle.ManufacturerActivationService.is_active",
         Mock(return_value=False),
     )
 
     with (
         patch(
-            "micboard.services.sync.discovery_execution_service.DiscoverySyncClaimService",
+            "micboard.services.sync.discovery_run_lifecycle.DiscoverySyncClaimService",
             return_value=claim_service,
         ),
         patch(
@@ -185,14 +183,13 @@ def test_run_manufacturer_finalizes_when_activation_recheck_fails(monkeypatch) -
     )
     candidate_service = Mock()
     monkeypatch.setattr(
-        "micboard.services.sync.discovery_execution_service."
-        "ManufacturerActivationService.is_active",
+        "micboard.services.sync.discovery_run_lifecycle.ManufacturerActivationService.is_active",
         Mock(side_effect=RuntimeError("database unavailable")),
     )
 
     with (
         patch(
-            "micboard.services.sync.discovery_execution_service.DiscoverySyncClaimService",
+            "micboard.services.sync.discovery_run_lifecycle.DiscoverySyncClaimService",
             return_value=claim_service,
         ),
         patch(
@@ -233,7 +230,7 @@ def test_run_manufacturer_records_contained_vendor_write_failure() -> None:
 
     with (
         patch(
-            "micboard.services.sync.discovery_execution_service.DiscoverySyncClaimService",
+            "micboard.services.sync.discovery_run_lifecycle.DiscoverySyncClaimService",
             return_value=claim_service,
         ),
         patch(
@@ -267,7 +264,7 @@ def test_run_manufacturer_contains_finalize_failures(finalize_result: object) ->
 
     with (
         patch(
-            "micboard.services.sync.discovery_execution_service.DiscoverySyncClaimService",
+            "micboard.services.sync.discovery_run_lifecycle.DiscoverySyncClaimService",
             return_value=claim_service,
         ),
         patch("micboard.services.sync.discovery_execution_service.DiscoveryService"),

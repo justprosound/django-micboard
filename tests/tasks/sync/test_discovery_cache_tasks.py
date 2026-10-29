@@ -16,8 +16,7 @@ def active_manufacturer_boundary(monkeypatch: pytest.MonkeyPatch) -> Mock:
     """Keep unit doubles active unless a test exercises post-reconciliation revocation."""
     activation_check = Mock(return_value=True)
     monkeypatch.setattr(
-        "micboard.services.sync.discovery_execution_service."
-        "ManufacturerActivationService.is_active",
+        "micboard.services.sync.discovery_run_lifecycle.ManufacturerActivationService.is_active",
         activation_check,
     )
     return activation_check

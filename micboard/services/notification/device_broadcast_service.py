@@ -1,15 +1,11 @@
 """Bounded, resumable realtime projection broadcasts."""
 
-import logging
 import secrets
 from collections.abc import Iterator, Mapping, Sequence
 from itertools import islice
 from typing import TYPE_CHECKING, Any
 
-from django.core.cache import cache
 from django.utils import timezone
-
-from pydantic import ValidationError
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.notification.broadcast_service import BroadcastService
@@ -18,14 +14,17 @@ from micboard.services.notification.device_broadcast_dtos import (
     DeviceBroadcastCursor,
     DeviceBroadcastResult,
 )
-from micboard.utils.exception_logging import sanitized_exception_info
+from micboard.services.shared.fair_page_cursor import model_cursor, read_cursor, write_cursor
 
 if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
 
-logger = logging.getLogger(__name__)
-
 DEVICE_BROADCAST_CURSOR_TIMEOUT_SECONDS = 7 * 24 * 60 * 60
+_BROADCAST_CURSOR = model_cursor(
+    "device broadcast cursor",
+    timeout=DEVICE_BROADCAST_CURSOR_TIMEOUT_SECONDS,
+    model=DeviceBroadcastCursor,
+)
 DEVICE_BROADCAST_FIELDS = ("id", "api_device_id", "name", "ip", "status", "model")
 
 
@@ -45,7 +44,10 @@ class DeviceSnapshotBroadcastService:
         """Send one resumable, hard-bounded projection batch."""
         max_devices = min(max(max_devices, 1), MAX_DEVICE_BROADCAST_ROWS)
         chunk_size = min(max(chunk_size, 1), max_devices)
-        state = cls._read_cursor(manufacturer.pk, namespace=namespace)
+        state = read_cursor(
+            _BROADCAST_CURSOR,
+            cls._cursor_key(manufacturer.pk, namespace=namespace),
+        )
         rows, state = cls._load_rows(
             manufacturer=manufacturer,
             statuses=statuses,
@@ -78,10 +80,10 @@ class DeviceSnapshotBroadcastService:
             )
             chunks_sent += 1
 
-        cls._write_cursor(
-            manufacturer.pk,
-            namespace=namespace,
-            state=DeviceBroadcastCursor(
+        write_cursor(
+            _BROADCAST_CURSOR,
+            cls._cursor_key(manufacturer.pk, namespace=namespace),
+            DeviceBroadcastCursor(
                 after_id=next_cursor,
                 snapshot_id=snapshot_id if next_cursor else "",
             ),
@@ -143,42 +145,3 @@ class DeviceSnapshotBroadcastService:
     @staticmethod
     def _cursor_key(manufacturer_id: int, *, namespace: str) -> str:
         return f"micboard:device-broadcast-cursor:v1:{namespace}:{manufacturer_id}"
-
-    @classmethod
-    def _read_cursor(cls, manufacturer_id: int, *, namespace: str) -> DeviceBroadcastCursor:
-        """Return the cached broadcast cursor for a manufacturer, or a fresh cursor if unreadable."""
-        try:
-            value = cache.get(cls._cursor_key(manufacturer_id, namespace=namespace))
-            if value is None:
-                return DeviceBroadcastCursor()
-            return DeviceBroadcastCursor.model_validate(value)
-        except ValidationError, TypeError, ValueError:
-            return DeviceBroadcastCursor()
-        except Exception as exc:
-            logger.exception(
-                "Could not read device broadcast cursor for manufacturer %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
-            )
-            return DeviceBroadcastCursor()
-
-    @classmethod
-    def _write_cursor(
-        cls,
-        manufacturer_id: int,
-        *,
-        namespace: str,
-        state: DeviceBroadcastCursor,
-    ) -> None:
-        try:
-            cache.set(
-                cls._cursor_key(manufacturer_id, namespace=namespace),
-                state.model_dump(),
-                timeout=DEVICE_BROADCAST_CURSOR_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Could not persist device broadcast cursor for manufacturer %s",
-                manufacturer_id,
-                exc_info=sanitized_exception_info(exc),
-            )

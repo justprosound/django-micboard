@@ -1,23 +1,32 @@
 """Bounded, fair, and authorization-aware alert fanout queries."""
 
-import logging
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.db import models
-from django.db.models import Case, IntegerField, Q, QuerySet, Value, When
+from django.db.models import Q, QuerySet
 
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.monitoring.performer_assignment import PerformerAssignment
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.settings.settings_service import settings as micboard_settings
+from micboard.services.shared.fair_page_cursor import (
+    fair_composite_page,
+    fair_composite_rows,
+    pair_cursor,
+    position_cursor,
+    read_cursor,
+    write_cursor,
+)
 from micboard.services.shared.visibility import visible_to
-from micboard.utils.exception_logging import sanitized_exception_info
-
-logger = logging.getLogger(__name__)
 
 ALERT_FANOUT_CURSOR_TIMEOUT_SECONDS = 7 * 24 * 60 * 60
+_ASSIGNMENT_CURSOR = position_cursor(
+    "alert fanout cursor", timeout=ALERT_FANOUT_CURSOR_TIMEOUT_SECONDS
+)
+_RECIPIENT_CURSOR = pair_cursor(
+    "alert recipient cursor", timeout=ALERT_FANOUT_CURSOR_TIMEOUT_SECONDS
+)
 
 _ModelT = TypeVar("_ModelT", bound=models.Model)
 
@@ -187,24 +196,10 @@ class AlertFanoutService:
         cursor_key: str,
     ) -> tuple[list[_ModelT], bool]:
         """Read at most ``limit + 1`` rows and rotate deterministically by primary key."""
-        cursor = cls._read_cursor(cursor_key)
-        page = cast(
-            list[_ModelT],
-            list(
-                queryset.annotate(
-                    _alert_cursor_bucket=Case(
-                        When(pk__gt=cursor, then=Value(0)),
-                        default=Value(1),
-                        output_field=IntegerField(),
-                    )
-                ).order_by("_alert_cursor_bucket", "pk")[: limit + 1]
-            ),
-        )
-        selected = page[:limit]
-        truncated = len(page) > limit
-
+        cursor = read_cursor(_ASSIGNMENT_CURSOR, cursor_key)
+        selected, truncated = fair_composite_page(queryset, after=Q(pk__gt=cursor), limit=limit)
         if selected:
-            cls._write_cursor(cursor_key, selected[-1].pk)
+            write_cursor(_ASSIGNMENT_CURSOR, cursor_key, selected[-1].pk)
         return selected, truncated
 
     @staticmethod
@@ -224,88 +219,19 @@ class AlertFanoutService:
         cursor_key: str,
     ) -> tuple[list[tuple[int, int]], bool]:
         """Return one circular, lexicographically ordered assignment-recipient page."""
-        assignment_cursor, user_cursor = cls._read_pair_cursor(cursor_key)
+        assignment_cursor, user_cursor = read_cursor(_RECIPIENT_CURSOR, cursor_key)
         after_cursor = Q(pk__gt=assignment_cursor) | Q(
             pk=assignment_cursor,
             monitoring_group__users__pk__gt=user_cursor,
         )
-        page = cast(
-            list[tuple[int, int]],
-            list(
-                queryset.annotate(
-                    _alert_cursor_bucket=Case(
-                        When(after_cursor, then=Value(0)),
-                        default=Value(1),
-                        output_field=IntegerField(),
-                    )
-                )
-                .order_by(
-                    "_alert_cursor_bucket",
-                    "pk",
-                    "monitoring_group__users__pk",
-                )
-                .values_list("pk", "monitoring_group__users__pk")[: limit + 1]
-            ),
+        rows, truncated = fair_composite_rows(
+            queryset,
+            after=after_cursor,
+            order_by=("pk", "monitoring_group__users__pk"),
+            fields=("pk", "monitoring_group__users__pk"),
+            limit=limit,
         )
-        selected = page[:limit]
+        selected = [(int(assignment_id), int(user_id)) for assignment_id, user_id in rows]
         if selected:
-            cls._write_pair_cursor(cursor_key, selected[-1])
-        return selected, len(page) > limit
-
-    @staticmethod
-    def _read_cursor(key: str) -> int:
-        """Read a cursor while keeping alert evaluation available during cache outages."""
-        try:
-            value = cache.get(key, 0)
-        except Exception as exc:
-            logger.exception(
-                "Could not read an alert fanout cursor",
-                exc_info=sanitized_exception_info(exc),
-            )
-            return 0
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            return 0
-        return int(value)
-
-    @staticmethod
-    def _write_cursor(key: str, value: int) -> None:
-        """Persist a cursor without making alert delivery cache-dependent."""
-        try:
-            cache.set(key, value, timeout=ALERT_FANOUT_CURSOR_TIMEOUT_SECONDS)
-        except Exception as exc:
-            logger.exception(
-                "Could not persist an alert fanout cursor",
-                exc_info=sanitized_exception_info(exc),
-            )
-
-    @staticmethod
-    def _read_pair_cursor(key: str) -> tuple[int, int]:
-        """Read a validated composite cursor without making fanout cache-dependent."""
-        try:
-            value = cache.get(key, (0, 0))
-        except Exception as exc:
-            logger.exception(
-                "Could not read an alert recipient cursor",
-                exc_info=sanitized_exception_info(exc),
-            )
-            return 0, 0
-        if (
-            not isinstance(value, tuple)
-            or len(value) != 2
-            or any(
-                isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in value
-            )
-        ):
-            return 0, 0
-        return value
-
-    @staticmethod
-    def _write_pair_cursor(key: str, value: tuple[int, int]) -> None:
-        """Persist a composite recipient cursor while tolerating cache outages."""
-        try:
-            cache.set(key, value, timeout=ALERT_FANOUT_CURSOR_TIMEOUT_SECONDS)
-        except Exception as exc:
-            logger.exception(
-                "Could not persist an alert recipient cursor",
-                exc_info=sanitized_exception_info(exc),
-            )
+            write_cursor(_RECIPIENT_CURSOR, cursor_key, selected[-1])
+        return selected, truncated

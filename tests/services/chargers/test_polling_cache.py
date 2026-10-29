@@ -9,6 +9,7 @@ from micboard.services.chargers.polling_dtos import (
     ChargerPollingCursor,
     ChargerStationSnapshot,
 )
+from tests.cache_backend import patched_cache_backend
 
 
 def _manufacturer() -> SimpleNamespace:
@@ -29,7 +30,7 @@ def test_cache_keys_and_cursor_round_trip_are_owned_by_adapter() -> None:
         "stations": [_station().model_dump()],
     }
 
-    with patch("micboard.services.chargers.polling_cache.cache", backend):
+    with patched_cache_backend(backend):
         cursor = ChargerPollingCacheAdapter.read_cursor(manufacturer)
         ChargerPollingCacheAdapter.write_cursor(manufacturer, cursor)
         ChargerPollingCacheAdapter.publish_snapshot(manufacturer, cursor.stations)
@@ -58,7 +59,7 @@ def test_cache_backend_failures_are_contained_and_redacted(caplog) -> None:
     cursor = ChargerPollingCursor(next_offset=0, inventory_size=0, stations=[])
 
     with (
-        patch("micboard.services.chargers.polling_cache.cache", backend),
+        patched_cache_backend(backend),
         caplog.at_level("ERROR"),
     ):
         recovered = ChargerPollingCacheAdapter.read_cursor(manufacturer)

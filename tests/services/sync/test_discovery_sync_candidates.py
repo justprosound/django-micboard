@@ -169,43 +169,7 @@ def test_inventory_shared_cap_rotates_source_priority_and_each_page_wraps() -> N
     assert not any(page.sources_complete for page in [*one_item_pages, *later_pages])
 
 
-def test_inventory_pagination_fails_open_during_cache_outage(caplog) -> None:
-    manufacturer = ManufacturerFactory()
-    WirelessChassisFactory(manufacturer=manufacturer, ip="192.0.2.80")
-    WirelessChassisFactory(manufacturer=manufacturer, ip="192.0.2.81")
-    DiscoveredDeviceFactory(manufacturer=manufacturer, ip="192.0.2.82")
-    secret = "cache-credential"
-
-    with (
-        patch(
-            "micboard.services.sync.discovery_source_cursor_service.cache.get",
-            side_effect=RuntimeError(secret),
-        ),
-        patch(
-            "micboard.services.sync.discovery_source_cursor_service.cache.set",
-            side_effect=RuntimeError(secret),
-        ),
-    ):
-        page = DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=2)
-
-    assert page.candidates == ["192.0.2.80", "192.0.2.82"]
-    assert page.sources_complete is False
-    assert secret not in caplog.text
-
-
-def test_inventory_pagination_resets_invalid_cursor_and_handles_empty_sources() -> None:
-    manufacturer = ManufacturerFactory()
-    WirelessChassisFactory(manufacturer=manufacturer, ip="192.0.2.90")
-
-    with patch(
-        "micboard.services.sync.discovery_source_cursor_service.cache.get",
-        return_value=True,
-    ):
-        page = DiscoveryCandidateSourceService.collect_inventory_candidates(manufacturer, limit=2)
-
-    assert page.candidates == ["192.0.2.90"]
-    assert page.sources_complete is True
-
+def test_inventory_pagination_handles_empty_sources() -> None:
     empty_manufacturer = ManufacturerFactory()
     empty_page = DiscoveryCandidateSourceService.collect_inventory_candidates(
         empty_manufacturer,

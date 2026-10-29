@@ -7,6 +7,18 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.28.4] - 2026-10-28
+
+### Changed
+
+- Share one fair-page cursor module (`micboard.services.shared.fair_page_cursor`) across alert fanout, poll alerts, realtime subscription selection, discovery source cursors, device broadcasts and charger polling, replacing their private cache cursor and rotating-page code.
+
+## [2026.10.28.3] - 2026-10-28
+
+### Changed
+
+- Share one claimed-run lifecycle between discovery reconciliation and discovery synchronization.
+
 ## [2026.10.28.2] - 2026-10-28
 
 ### Changed

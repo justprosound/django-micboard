@@ -129,30 +129,6 @@ def test_collect_local_candidates_rotates_bounded_pages_and_wraps() -> None:
     assert not any((first_complete, second_complete, third_complete, fourth_complete))
 
 
-def test_collect_local_candidates_fails_open_when_cursor_cache_is_unavailable(caplog) -> None:
-    manufacturer = _manufacturer()
-    WirelessChassisFactory(manufacturer=manufacturer, ip="192.0.2.13")
-    WirelessChassisFactory(manufacturer=manufacturer, ip="192.0.2.14")
-    WirelessChassisFactory(manufacturer=manufacturer, ip="192.0.2.15")
-    secret = "redis-password"
-
-    with (
-        patch(
-            "micboard.services.sync.discovery_source_cursor_service.cache.get",
-            side_effect=RuntimeError(secret),
-        ),
-        patch(
-            "micboard.services.sync.discovery_source_cursor_service.cache.set",
-            side_effect=RuntimeError(secret),
-        ),
-    ):
-        candidates, complete = collect_local_candidates(manufacturer, limit=2)
-
-    assert candidates == ["192.0.2.13", "192.0.2.14"]
-    assert complete is False
-    assert secret not in caplog.text
-
-
 def test_zero_budget_does_not_materialize_local_or_network_sources() -> None:
     manufacturer = _manufacturer()
     WirelessChassisFactory(manufacturer=manufacturer, ip="192.0.2.20")
