@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.29.0] - 2026-10-29
+
+### Changed
+
+- Own the chassis and unit status graph and the responding-device-online route in the hardware lifecycle module, so the poll sync and realtime update share one path and one degraded/maintenance guard.
+
+### Fixed
+
+- Mark selected chassis online or offline from the admin through the status lifecycle, reporting each chassis whose status does not allow the move instead of raising a server error.
+
 ## [2026.10.28.4] - 2026-10-28
 
 ### Changed
