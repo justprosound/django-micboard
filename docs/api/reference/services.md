@@ -1027,17 +1027,20 @@ Base interface for all manufacturer plugins.
 
 Retrieve a list of all devices associated with or discovered by this plugin.
 
+A client that drops part of a response returns a `DeviceInventory` with
+`complete=False`, so a poll never reads the shortfall as absent chassis.
+
 ### `ManufacturerPlugin`
 
 Bases: `BasePlugin`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L114)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L118)
 
 Extended plugin interface specifically for manufacturer hardware integrations.
 
 #### `async subscribe_to_chassis(chassis: WirelessChassis, callback: Callable[[dict[str, Any]], Awaitable[None]]) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L127)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L131)
 
 Open this integration's stream for one chassis and await its updates.
 
@@ -1046,19 +1049,19 @@ runner owns leasing, inventory selection, connection tracking, and persistence.
 
 #### `get_device_channels(device_id: str) -> list[dict[str, Any]]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L140)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L144)
 
 Retrieve all channels associated with a specific device identifier.
 
 #### `get_client() -> BaseAPIClient`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L145)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L149)
 
 Get an instance of the configured API client for this manufacturer.
 
 #### `normalize_device(api_data: dict[str, Any]) -> NormalizedChassis | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L150)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L154)
 
 Normalize one raw device payload, or return None when it is unusable.
 
@@ -1067,7 +1070,7 @@ Channels are included when the payload embeds them.
 
 #### `normalize_channels(api_channels: list[dict[str, Any]]) -> list[NormalizedChannel]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L159)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L163)
 
 Normalize the channel list returned by `get_device_channels`.
 
@@ -1075,37 +1078,37 @@ Persistence uses this for devices whose payload embeds no channels.
 
 #### `get_device(device_id: str) -> dict[str, Any] | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L167)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L171)
 
 Fetch details for a single device by its identifier.
 
 #### `is_healthy() -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L172)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L176)
 
 Check if the plugin and its underlying integrations are currently healthy.
 
 #### `check_health() -> dict[str, Any]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L177)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L181)
 
 Perform a detailed health check and return the results as a dictionary.
 
 #### `add_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L182)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L186)
 
 Add a list of IP addresses to the plugin's discovery targets.
 
 #### `get_discovery_ips() -> list[str]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L187)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L191)
 
 Retrieve the list of currently configured discovery IP addresses.
 
 #### `remove_discovery_ips(ips: list[str]) -> bool`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L192)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/plugin.py#L196)
 
 Remove a list of IP addresses from the plugin's discovery targets.
 

@@ -1,10 +1,7 @@
 """A completed poll takes a chassis the vendor no longer reports offline, once, with one alert."""
 
-from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
-
-from django.utils import timezone
 
 import pytest
 
@@ -13,69 +10,13 @@ from micboard.models.monitoring.alert import Alert
 from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.manufacturer.sync import ManufacturerSyncService
 from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
-from tests.factories.base import UserFactory
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
-from tests.factories.monitoring import PerformerAssignmentFactory
 from tests.fake_vendor import FakeVendorPlugin, use_vendor
 
 pytestmark = pytest.mark.django_db
 
 PRESENT = NormalizedChassis(api_device_id="present", ip="192.0.2.10", serial_number="present-1")
-
-
-def _watched_chassis(*, last_seen: datetime, last_online_at: datetime) -> SimpleNamespace:
-    """An online chassis whose online unit is watched by a user who wants offline alerts."""
-    manufacturer = ManufacturerFactory(code="vendor")
-    present = WirelessChassisFactory(
-        manufacturer=manufacturer,
-        api_device_id="present",
-        serial_number="present-1",
-        ip="192.0.2.10",
-        status="online",
-    )
-    chassis = WirelessChassisFactory(
-        manufacturer=manufacturer,
-        api_device_id="dropped",
-        serial_number="dropped-1",
-        ip="192.0.2.11",
-        status="online",
-        max_channels=1,
-    )
-    WirelessChassis.objects.filter(pk=chassis.pk).update(
-        last_seen=last_seen, last_online_at=last_online_at
-    )
-    unit = WirelessUnitFactory(
-        base_chassis=chassis,
-        manufacturer=manufacturer,
-        assigned_resource=chassis.rf_channels.get(channel_number=1),
-        slot=1,
-        status="online",
-    )
-    assignment = PerformerAssignmentFactory(wireless_unit=unit, alert_on_hardware_offline=True)
-    user = UserFactory()
-    assignment.monitoring_group.users.add(user)
-    return SimpleNamespace(
-        manufacturer=manufacturer, present=present, chassis=chassis, unit=unit, user=user
-    )
-
-
-@pytest.fixture
-def watched() -> SimpleNamespace:
-    """The chassis last seen and last online at known times."""
-    now = timezone.now()
-    return _watched_chassis(
-        last_seen=now - timedelta(minutes=3), last_online_at=now - timedelta(days=2)
-    )
-
-
-@pytest.fixture(autouse=True)
-def no_email() -> Mock:
-    """Alert delivery sends mail; these tests assert on the persisted alert."""
-    with patch(
-        "micboard.services.monitoring.alert_delivery_service.email_service.send_alert_notification"
-    ) as send:
-        yield send
 
 
 def test_a_chassis_dropped_from_a_complete_snapshot_alerts_although_its_unit_status_is_online(
@@ -267,3 +208,66 @@ def test_another_manufacturers_chassis_is_never_taken_offline_by_this_poll(
     foreign_chassis.refresh_from_db()
     assert result.devices_rejected == 1
     assert foreign_chassis.status == "online"
+
+
+@pytest.mark.parametrize("status", ["retired", "maintenance", "discovered"])
+def test_chassis_outside_the_responding_statuses_are_untouched_and_not_alerted(
+    watched: SimpleNamespace, status: str
+) -> None:
+    """Only a chassis that was up can go offline; deliberate states are left alone."""
+    WirelessChassis.objects.filter(pk=watched.chassis.pk).update(status=status)
+
+    ChassisIngestService.ingest(
+        [PRESENT],
+        manufacturer=watched.manufacturer,
+        mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+    )
+
+    watched.chassis.refresh_from_db()
+    assert watched.chassis.status == status
+    assert not Alert.objects.exists()
+
+
+def test_a_dropped_chassis_without_units_goes_offline_with_its_log_line_and_no_alert(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With no unit to alert for, the transition and the log line are the whole outcome."""
+    manufacturer = ManufacturerFactory(code="unitless-vendor")
+    chassis = WirelessChassisFactory(manufacturer=manufacturer, status="online", ip="192.0.2.30")
+
+    with caplog.at_level("WARNING", logger="micboard.services.sync.chassis_ingest"):
+        result = ChassisIngestService.ingest(
+            [PRESENT],
+            manufacturer=manufacturer,
+            mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+        )
+
+    chassis.refresh_from_db()
+    assert (chassis.status, result.marked_offline) == ("offline", 1)
+    assert any(getattr(r, "event.action", "") == "chassis_offline" for r in caplog.records)
+    assert not Alert.objects.exists()
+
+
+def test_one_alert_budget_covers_every_chassis_a_run_takes_offline() -> None:
+    """A large legitimate drop shares one delivery cap instead of one per chassis."""
+    manufacturer = ManufacturerFactory(code="budget-vendor")
+    for number in range(3):
+        WirelessUnitFactory(
+            base_chassis=WirelessChassisFactory(
+                manufacturer=manufacturer, status="online", ip=f"192.0.2.{40 + number}"
+            ),
+            manufacturer=manufacturer,
+            status="online",
+        )
+
+    with patch(
+        "micboard.services.sync.chassis_ingest.alert_manager.check_hardware_offline_alerts"
+    ) as alerts:
+        ChassisIngestService.ingest(
+            [PRESENT],
+            manufacturer=manufacturer,
+            mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+        )
+
+    assert alerts.call_count == 3
+    assert len({id(call.kwargs["budget"]) for call in alerts.call_args_list}) == 1
