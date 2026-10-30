@@ -107,7 +107,11 @@ class BasePlugin(ABC):
 
     @abstractmethod
     def get_devices(self) -> list[dict[str, Any]]:
-        """Retrieve a list of all devices associated with or discovered by this plugin."""
+        """Retrieve a list of all devices associated with or discovered by this plugin.
+
+        A client that drops part of a response returns a `DeviceInventory` with
+        `complete=False`, so a poll never reads the shortfall as absent chassis.
+        """
         raise NotImplementedError()
 
 

@@ -8,6 +8,7 @@ MAC, address or API id) is matched, moved or rejected the same way whichever pat
 import logging
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
@@ -28,7 +29,8 @@ from micboard.services.deduplication.tracking import log_device_movement
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
-from micboard.services.monitoring.alerts import alert_manager
+from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
+from micboard.services.monitoring.alerts import ChassisOfflineNotice, alert_manager
 from micboard.services.sync.discovery_trigger_service import coalesce_discovery_scheduling
 from micboard.utils.exception_logging import sanitized_exception_info
 from micboard.utils.mac_address import canonicalize_mac_address
@@ -82,6 +84,7 @@ class ChassisIngestResult:
     skipped: int = 0
     rejected: int = 0
     manufacturer_inactive: bool = False
+    marked_offline: int = 0
 
     @property
     def created(self) -> int:
@@ -158,7 +161,7 @@ class ChassisIngestService:
                     manufacturer.code,
                 )
             else:
-                cls._mark_absent_offline(
+                result.marked_offline = cls._mark_absent_offline(
                     manufacturer=manufacturer,
                     present_ids={entry.chassis.pk for entry in result.ingested} | protected_ids,
                 )
@@ -302,32 +305,67 @@ class ChassisIngestService:
         *,
         manufacturer: Manufacturer,
         present_ids: Collection[int],
-    ) -> None:
-        """Mark chassis missing from an authoritative snapshot offline and raise their alerts."""
-        absent = WirelessChassis.objects.filter(
-            manufacturer=manufacturer,
-            status__in=RESPONDING_STATUSES,
-        ).exclude(id__in=present_ids)
+    ) -> int:
+        """Mark chassis missing from an authoritative snapshot offline and raise their alerts.
+
+        Returns the number of chassis marked offline.
+        """
+        absent_ids = list(
+            WirelessChassis.objects.filter(
+                manufacturer=manufacturer,
+                status__in=RESPONDING_STATUSES,
+            )
+            .exclude(id__in=present_ids)
+            .values_list("pk", flat=True)
+        )
         lifecycle = HardwareLifecycleManager()
-        marked: list[int] = []
-        for chassis in absent:
+        notices: dict[int, ChassisOfflineNotice] = {}
+        for chassis_id in absent_ids:
             try:
-                lifecycle.mark_offline(chassis, reason="Device not found in API poll")
-                marked.append(chassis.pk)
+                with transaction.atomic():
+                    # Read under the row lock, so a concurrent update cannot leave the times
+                    # stale. The offline transition stamps `last_seen`, so read them first.
+                    chassis = WirelessChassis.objects.select_for_update().get(pk=chassis_id)
+                    notice = ChassisOfflineNotice(
+                        last_seen=chassis.last_seen, last_online_at=chassis.last_online_at
+                    )
+                    transitioned = chassis.status in RESPONDING_STATUSES and lifecycle.mark_offline(
+                        chassis, reason="Device not found in API poll"
+                    )
             except Exception as exc:
                 logger.exception(
                     "Error marking wireless chassis %s offline",
-                    chassis.pk,
+                    chassis_id,
                     exc_info=sanitized_exception_info(exc),
                 )
-        if not marked:
-            return
-        logger.warning(
-            "Marked %d chassis offline for manufacturer %s",
-            len(marked),
-            manufacturer.pk,
-        )
-        offline = WirelessChassis.objects.filter(pk__in=marked).prefetch_related("field_units")
+                continue
+            if not transitioned:
+                continue
+            notices[chassis_id] = notice
+            logger.warning(
+                "Wireless chassis %s absent from the complete inventory of manufacturer %s, "
+                "marked offline (%s)",
+                chassis_id,
+                manufacturer.pk,
+                notice.describe(),
+                extra={
+                    "event.action": "chassis_offline",
+                    "micboard.chassis.id": chassis_id,
+                    "micboard.chassis.last_seen": _iso(notice.last_seen),
+                    "micboard.chassis.last_online_at": _iso(notice.last_online_at),
+                },
+            )
+        if not notices:
+            return 0
+        budget = AlertFanoutBudget.from_settings()
+        offline = WirelessChassis.objects.filter(pk__in=notices).prefetch_related("field_units")
         for chassis in offline:
             for unit in chassis.field_units.all():
-                alert_manager.check_hardware_offline_alerts(unit)
+                alert_manager.check_hardware_offline_alerts(
+                    unit, budget=budget, chassis_offline=notices[chassis.pk]
+                )
+        return len(notices)
+
+
+def _iso(moment: datetime | None) -> str | None:
+    return moment.isoformat() if moment is not None else None

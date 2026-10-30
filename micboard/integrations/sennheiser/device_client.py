@@ -2,6 +2,7 @@ import logging
 from typing import Any, cast
 
 from micboard.services.common.base.client import BaseAPIClient
+from micboard.services.common.base.inventory import DeviceInventory
 from micboard.services.common.base.rate_limiter import rate_limit
 
 from .exceptions import SennheiserAPIError
@@ -16,10 +17,19 @@ class SennheiserDeviceClient:
         """Create device client using the provided API client."""
         self.api_client = api_client
 
-    def get_devices(self) -> list[dict[str, Any]]:
-        """Get list of all devices from Sennheiser SSCv2 API."""
+    def get_devices(self) -> DeviceInventory:
+        """Get list of all devices from Sennheiser SSCv2 API.
+
+        The inventory is marked incomplete when the response is not a list or holds an item
+        that is not a device, so the poll never reads the shortfall as absent chassis.
+        """
         result = self.api_client._make_request("GET", "/api/devices")
-        return cast(list[dict[str, Any]], result) if result is not None else []
+        if result is None:
+            return DeviceInventory()
+        if not isinstance(result, list):
+            return DeviceInventory(complete=False)
+        devices = [device for device in result if isinstance(device, dict)]
+        return DeviceInventory(devices, complete=len(devices) == len(result))
 
     @rate_limit(calls_per_second=5.0)
     def get_supported_device_models(self) -> list[str]:

@@ -182,6 +182,8 @@ class ManufacturerSyncService:
 
         try:
             api_devices = plugin.get_devices() or ()
+            # A client that dropped part of the response says so on the list it returns.
+            source_complete = getattr(api_devices, "complete", True)
             inventory = VendorInventoryBatch.consume(
                 api_devices,
                 device_limit=limits.max_devices,
@@ -211,11 +213,15 @@ class ManufacturerSyncService:
                     device_limit=limits.max_devices,
                 )
 
-            # A poll never reconciles absent chassis today, so it ingests as a partial inventory.
             ingest = ChassisIngestService.ingest(
                 normalized_devices,
                 manufacturer=manufacturer,
-                mode=IngestMode.PARTIAL_EVENT,
+                mode=ManufacturerSyncService._ingest_mode(
+                    manufacturer,
+                    source_complete=source_complete,
+                    unnormalizable=unnormalizable,
+                    unaddressed=unaddressed,
+                ),
                 require_active=not force,
             )
             if ingest.manufacturer_inactive:
@@ -249,6 +255,31 @@ class ManufacturerSyncService:
             )
 
     @staticmethod
+    def _ingest_mode(
+        manufacturer: Manufacturer,
+        *,
+        source_complete: bool,
+        unnormalizable: int,
+        unaddressed: int,
+    ) -> IngestMode:
+        """Reconcile absent chassis only when the poll read the vendor's whole inventory.
+
+        A fetch that failed raised before this point, a truncated one was refused, and an
+        empty one never reaches ingest. What is left is a complete inventory unless the
+        client dropped part of the response or a device was dropped before ingest: its
+        identity is unknown, so it might be the chassis that looks absent.
+        """
+        if not source_complete or unnormalizable or unaddressed:
+            logger.warning(
+                "Skipped offline reconciliation for manufacturer %s because the inventory "
+                "was not fully read (%d device(s) dropped before ingest)",
+                manufacturer.pk,
+                unnormalizable + unaddressed,
+            )
+            return IngestMode.PARTIAL_EVENT
+        return IngestMode.AUTHORITATIVE_SNAPSHOT
+
+    @staticmethod
     def _ingest_outcome(
         ingest: ChassisIngestResult | None,
         *,
@@ -258,9 +289,10 @@ class ManufacturerSyncService:
         device_limit: int,
     ) -> ManufacturerSyncResult:
         """Report every examined device as persisted, skipped, rejected or failed."""
-        created = updated = failed = rejected = ingest_skipped = 0
+        created = updated = failed = rejected = ingest_skipped = removed = 0
         if ingest is not None:
             created, updated = ingest.created, ingest.updated
+            removed = ingest.marked_offline
             failed, rejected, ingest_skipped = ingest.failed, ingest.rejected, ingest.skipped
         skipped = ingest_skipped + unnormalizable + unaddressed
         errors: list[str] = []
@@ -281,6 +313,7 @@ class ManufacturerSyncService:
             errors=errors,
             devices_added=created,
             devices_updated=updated,
+            devices_removed=removed,
             devices_skipped=skipped,
             devices_rejected=rejected,
             devices_examined=examined,
