@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from django.core.management.base import BaseCommand, CommandParser
+from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
@@ -67,9 +67,7 @@ class Command(BaseCommand):
                 manufacturer.pk,
                 exc_info=sanitized_exception_info(exc),
             )
-            self.stderr.write(self.style.ERROR("Realtime subscription failed; details redacted"))
-            return
+            raise CommandError("Realtime subscription failed; details redacted") from None
         if outcome is RealtimeRunOutcome.FAILED:
-            self.stderr.write(self.style.ERROR(f"Realtime run ended: {outcome.value}"))
-        else:
-            self.stdout.write(f"Realtime run ended: {outcome.value}")
+            raise CommandError(f"Realtime run ended: {outcome.value}")
+        self.stdout.write(f"Realtime run ended: {outcome.value}")

@@ -10,6 +10,9 @@ from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from django.core.management import call_command
+from django.core.management.base import CommandError
+
 import pytest
 
 from micboard.management.commands import realtime_subscribe as command_module
@@ -92,13 +95,12 @@ def test_subscription_command_redacts_runner_failures(monkeypatch, caplog) -> No
         "run_realtime_subscriptions",
         Mock(side_effect=RuntimeError(secret)),
     )
-    errors = StringIO()
 
-    command_module.Command(stderr=errors).handle(manufacturer="sennheiser", device=None)
+    with pytest.raises(CommandError, match="details redacted") as raised:
+        command_module.Command().handle(manufacturer="sennheiser", device=None)
 
-    assert secret not in errors.getvalue()
+    assert secret not in str(raised.value)
     assert secret not in caplog.text
-    assert "details redacted" in errors.getvalue()
 
 
 def test_subscription_command_reports_operator_interrupts(monkeypatch) -> None:
@@ -119,25 +121,32 @@ def test_subscription_command_reports_operator_interrupts(monkeypatch) -> None:
     assert "Realtime subscriptions stopped by user" in output.getvalue()
 
 
-@pytest.mark.parametrize(
-    ("outcome", "stream"),
-    [
-        (RealtimeRunOutcome.COMPLETED, "stdout"),
-        (RealtimeRunOutcome.LEASE_HELD, "stdout"),
-        (RealtimeRunOutcome.FAILED, "stderr"),
-    ],
-)
-def test_subscription_command_reports_how_the_run_ended(monkeypatch, outcome, stream) -> None:
+@pytest.mark.parametrize("outcome", [RealtimeRunOutcome.COMPLETED, RealtimeRunOutcome.LEASE_HELD])
+def test_subscription_command_exits_cleanly_when_the_run_did_not_fail(monkeypatch, outcome) -> None:
     monkeypatch.setattr(
         command_module.Manufacturer.objects,
         "get",
         Mock(return_value=SimpleNamespace(pk=12, code="shure")),
     )
     monkeypatch.setattr(command_module, "run_realtime_subscriptions", Mock(return_value=outcome))
-    streams = {"stdout": StringIO(), "stderr": StringIO()}
+    output = StringIO()
 
-    command_module.Command(**streams).handle(manufacturer="shure", device=None)
+    call_command("realtime_subscribe", manufacturer="shure", stdout=output)
 
-    assert f"Realtime run ended: {outcome.value}" in streams[stream].getvalue()
-    other = "stderr" if stream == "stdout" else "stdout"
-    assert streams[other].getvalue() == ""
+    assert f"Realtime run ended: {outcome.value}" in output.getvalue()
+
+
+def test_subscription_command_exits_non_zero_when_the_run_failed(monkeypatch) -> None:
+    monkeypatch.setattr(
+        command_module.Manufacturer.objects,
+        "get",
+        Mock(return_value=SimpleNamespace(pk=12, code="shure")),
+    )
+    monkeypatch.setattr(
+        command_module,
+        "run_realtime_subscriptions",
+        Mock(return_value=RealtimeRunOutcome.FAILED),
+    )
+
+    with pytest.raises(CommandError, match="Realtime run ended: failed"):
+        call_command("realtime_subscribe", manufacturer="shure")
