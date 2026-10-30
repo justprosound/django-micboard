@@ -86,14 +86,10 @@ class ChassisRefreshService:
 
             from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 
-            lifecycle = HardwareLifecycleManager()
-            if chassis.status == "discovered":
-                lifecycle.transition_device(
-                    chassis,
-                    "provisioning",
-                    reason="Selected chassis refreshed from manufacturer API",
-                )
-            lifecycle.mark_online(chassis, health_data=device.model_dump(exclude={"channels"}))
+            # A refused move raises, rolling the refresh back; refresh() counts it failed.
+            HardwareLifecycleManager().bring_responding_online(
+                chassis, reason="Selected chassis refreshed from manufacturer API"
+            )
         return True
 
     @classmethod
