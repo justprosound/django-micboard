@@ -210,11 +210,12 @@ class ManufacturerSyncService:
                     device_limit=limits.max_devices,
                 )
 
-            # A poll never reconciles absent chassis today, so it ingests as a partial inventory.
             ingest = ChassisIngestService.ingest(
                 normalized_devices,
                 manufacturer=manufacturer,
-                mode=IngestMode.PARTIAL_EVENT,
+                mode=ManufacturerSyncService._ingest_mode(
+                    manufacturer, unnormalizable=unnormalizable, unaddressed=unaddressed
+                ),
                 require_active=not force,
             )
             if ingest.manufacturer_inactive:
@@ -246,6 +247,27 @@ class ManufacturerSyncService:
                 errors=[f"Device synchronization failed ({type(exc).__name__}); details redacted."],
                 device_limit=limits.max_devices,
             )
+
+    @staticmethod
+    def _ingest_mode(
+        manufacturer: Manufacturer, *, unnormalizable: int, unaddressed: int
+    ) -> IngestMode:
+        """Reconcile absent chassis only when the poll read the vendor's whole inventory.
+
+        A fetch that failed raised before this point, a truncated one was refused, and an
+        empty one never reaches ingest. What is left is a complete inventory unless a device
+        was dropped before ingest: its identity is unknown, so it might be the chassis that
+        looks absent.
+        """
+        if unnormalizable or unaddressed:
+            logger.warning(
+                "Skipped offline reconciliation for manufacturer %s because %d device(s) "
+                "could not be read",
+                manufacturer.pk,
+                unnormalizable + unaddressed,
+            )
+            return IngestMode.PARTIAL_EVENT
+        return IngestMode.AUTHORITATIVE_SNAPSHOT
 
     @staticmethod
     def _ingest_outcome(

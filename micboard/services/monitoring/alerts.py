@@ -4,6 +4,8 @@ Provides functions for creating and managing alerts based on device conditions.
 """
 
 import logging
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from django.contrib.auth.models import AnonymousUser, User
@@ -32,6 +34,25 @@ def get_alerts_for_user(user: User | AnonymousUser) -> QuerySet[Alert]:
     if user.is_superuser:
         return tenant_alerts
     return tenant_alerts.filter(user_id=user.pk)
+
+
+@dataclass(frozen=True, slots=True)
+class ChassisOfflineNotice:
+    """A chassis just went offline, and when it was last discoverable before that."""
+
+    last_seen: datetime | None
+    last_online_at: datetime | None
+
+    def describe(self) -> str:
+        """Return both times in the form an alert message and a log line carry."""
+        return (
+            f"last seen {_format_moment(self.last_seen)}, "
+            f"last online {_format_moment(self.last_online_at)}"
+        )
+
+
+def _format_moment(moment: datetime | None) -> str:
+    return moment.isoformat() if moment is not None else "never"
 
 
 class AlertManager:
@@ -92,13 +113,18 @@ class AlertManager:
         unit: WirelessUnit,
         *,
         budget: AlertFanoutBudget | None = None,
+        chassis_offline: ChassisOfflineNotice | None = None,
     ) -> None:
         """Check if wireless unit is offline and create alerts.
 
         Args:
             unit: WirelessUnit instance to check
+            budget: Fan-out budget shared across one evaluation run
+            chassis_offline: Set by the caller that just took the unit's chassis offline. The
+                unit's own status still says online then, so it alerts anyway, and the alert
+                records when the chassis was last seen and last online.
         """
-        if unit.status == "online":
+        if unit.status == "online" and chassis_offline is None:
             return
 
         run_budget = budget or AlertFanoutBudget.from_settings()
@@ -115,6 +141,17 @@ class AlertManager:
             budget=run_budget,
         )
         snapshot = self._get_unit_snapshot(unit)
+        message = f"Device offline: {unit.name}"
+        if chassis_offline is not None:
+            snapshot["chassis_last_seen"] = (
+                chassis_offline.last_seen.isoformat() if chassis_offline.last_seen else None
+            )
+            snapshot["chassis_last_online_at"] = (
+                chassis_offline.last_online_at.isoformat()
+                if chassis_offline.last_online_at
+                else None
+            )
+            message = f"{message} ({chassis_offline.describe()})"
         for assignment in assignments:
             for user in recipients_by_assignment.get(assignment.pk, []):
                 AlertDeliveryService.create_alert(
@@ -122,7 +159,7 @@ class AlertManager:
                     user=user,
                     performer_assignment=assignment,
                     alert_type="hardware_offline",
-                    message=f"Device offline: {unit.name}",
+                    message=message,
                     unit_data=snapshot,
                     budget=run_budget,
                 )

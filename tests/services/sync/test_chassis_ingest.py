@@ -340,7 +340,8 @@ def test_snapshot_reconciliation_continues_after_one_lifecycle_failure() -> None
 
     second.refresh_from_db()
     assert second.status == "offline"
-    alerts.assert_called_once_with(unit)
+    alerts.assert_called_once()
+    assert alerts.call_args.args == (unit,)
 
 
 def test_a_move_whose_lifecycle_transition_fails_leaves_the_identity_index_unchanged() -> None:
@@ -448,7 +449,8 @@ def test_a_snapshot_alerts_only_for_chassis_it_marked_offline() -> None:
     ) as alerts:
         _ingest(manufacturer, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
 
-    alerts.assert_called_once_with(unit)
+    alerts.assert_called_once()
+    assert alerts.call_args.args == (unit,)
 
 
 def test_ingest_counts_skipped_and_rejected_payloads() -> None:

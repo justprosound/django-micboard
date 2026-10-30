@@ -8,6 +8,7 @@ MAC, address or API id) is matched, moved or rejected the same way whichever pat
 import logging
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
@@ -24,7 +25,7 @@ from micboard.services.deduplication.tracking import log_device_movement
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
-from micboard.services.monitoring.alerts import alert_manager
+from micboard.services.monitoring.alerts import ChassisOfflineNotice, alert_manager
 from micboard.services.sync.discovery_trigger_service import coalesce_discovery_scheduling
 from micboard.utils.exception_logging import sanitized_exception_info
 from micboard.utils.mac_address import canonicalize_mac_address
@@ -305,25 +306,49 @@ class ChassisIngestService:
             status__in={"online", "degraded", "provisioning"},
         ).exclude(id__in=present_ids)
         lifecycle = HardwareLifecycleManager()
-        marked: list[int] = []
+        marked: list[tuple[int, ChassisOfflineNotice]] = []
         for chassis in absent:
+            # The offline transition stamps `last_seen`, so read both times first.
+            notice = ChassisOfflineNotice(
+                last_seen=chassis.last_seen, last_online_at=chassis.last_online_at
+            )
             try:
-                lifecycle.mark_offline(chassis, reason="Device not found in API poll")
-                marked.append(chassis.pk)
+                transitioned = lifecycle.mark_offline(
+                    chassis, reason="Device not found in API poll"
+                )
             except Exception as exc:
                 logger.exception(
                     "Error marking wireless chassis %s offline",
                     chassis.pk,
                     exc_info=sanitized_exception_info(exc),
                 )
+                continue
+            if not transitioned:
+                continue
+            marked.append((chassis.pk, notice))
+            logger.warning(
+                "Wireless chassis %s absent from the complete inventory of manufacturer %s, "
+                "marked offline (%s)",
+                chassis.pk,
+                manufacturer.pk,
+                notice.describe(),
+                extra={
+                    "event.action": "chassis_offline",
+                    "micboard.chassis.id": chassis.pk,
+                    "micboard.chassis.last_seen": _iso(notice.last_seen),
+                    "micboard.chassis.last_online_at": _iso(notice.last_online_at),
+                },
+            )
         if not marked:
             return
-        logger.warning(
-            "Marked %d chassis offline for manufacturer %s",
-            len(marked),
-            manufacturer.pk,
-        )
-        offline = WirelessChassis.objects.filter(pk__in=marked).prefetch_related("field_units")
+        notices = dict(marked)
+        offline = WirelessChassis.objects.filter(pk__in=notices).prefetch_related("field_units")
         for chassis in offline:
             for unit in chassis.field_units.all():
-                alert_manager.check_hardware_offline_alerts(unit)
+                alert_manager.check_hardware_offline_alerts(
+                    unit, chassis_offline=notices[chassis.pk]
+                )
+
+
+def _iso(moment: datetime | None) -> str | None:
+    return moment.isoformat() if moment is not None else None
