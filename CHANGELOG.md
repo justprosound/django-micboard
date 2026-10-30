@@ -7,6 +7,18 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.30.2] - 2026-10-30
+
+### Changed
+
+- Make a realtime run return a `RealtimeRunOutcome` that distinguishes an unavailable manufacturer, an integration without a stream, no eligible chassis, a held lease, an empty selection, a completed run and a failure. The `realtime_subscribe` command prints it and the Huey task logs it and returns it. The command exits non-zero when the run failed, and zero for every other outcome.
+
+- Make a completed poll reconcile the manufacturer's inventory, so a chassis the vendor no longer reports goes offline once, with one offline alert and a log line that both record when the chassis was last seen and last online, and the poll result counts those chassis in `devices_removed`. A failed, truncated, empty or partly unreadable inventory never marks a chassis offline. The Shure and Sennheiser device clients now return a `DeviceInventory` that says when they had to drop part of a response.
+
+### Tests
+
+- Pin the behaviour of a realtime run through its entry point with a fake plugin and real rows, replacing tests that patched the runner's internals.
+
 ## [2026.10.30.1] - 2026-10-30
 
 ### Changed
