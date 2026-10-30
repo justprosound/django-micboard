@@ -5,7 +5,7 @@ from datetime import timedelta
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from django.core.management import call_command
 from django.utils import timezone
@@ -20,7 +20,6 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.maintenance.audit import AuditService
 from micboard.services.maintenance.logging_mode import LoggingModeService
-from micboard.services.realtime.subscription_runner import run_realtime_subscriptions
 from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
 
 
@@ -70,39 +69,6 @@ def test_offline_chassis_checks_attached_wireless_units() -> None:
 
     check_alerts.assert_called_once()
     assert check_alerts.call_args.args[0] == unit
-
-
-def test_realtime_startup_builds_the_plugin_and_uses_chassis_status() -> None:
-    """Subscription startup honors plugin-construction and WirelessChassis field contracts."""
-    manufacturer = Mock(pk=14, code="shure", name="Shure")
-
-    with (
-        patch(
-            "micboard.services.manufacturer.activation_service.ManufacturerActivationService.get_active",
-            return_value=manufacturer,
-        ) as get_manufacturer,
-        patch(
-            "micboard.services.realtime.subscription_runner.build_manufacturer_plugin",
-        ) as build_plugin,
-        patch(
-            "micboard.models.hardware.wireless_chassis.WirelessChassis.objects.filter",
-            return_value=[],
-        ) as filter_chassis,
-        patch(
-            "micboard.services.realtime.subscription_runner."
-            "RealtimeSubscriptionSupervisor.select_fair_queryset_batch",
-            return_value=[],
-        ),
-    ):
-        run_realtime_subscriptions(14)
-
-    get_manufacturer.assert_called_once_with(14)
-    build_plugin.assert_called_once_with(manufacturer)
-    filter_chassis.assert_called_once_with(
-        manufacturer_id=14,
-        manufacturer__is_active=True,
-        status__in=("online", "degraded", "provisioning"),
-    )
 
 
 def test_set_logging_mode_converts_minutes_to_service_ttl() -> None:

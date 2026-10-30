@@ -372,19 +372,19 @@ Start the bounded realtime subscription supervisor from the command line.
 
 Bases: `BaseCommand`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L16)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L19)
 
 Thin foreground adapter for the realtime subscription runner.
 
 #### `add_arguments(parser: CommandParser) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L21)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L24)
 
 Register the manufacturer and optional single-device selectors.
 
 #### `handle(*args: Any, **options: Any) -> None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L35)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/management/commands/realtime_subscribe.py#L38)
 
 Resolve the manufacturer and run the singleton supervisor for its transport.
 
