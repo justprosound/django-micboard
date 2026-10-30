@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from micboard.services.common.base.plugin import build_manufacturer_plugin
+from micboard.services.core.hardware_lifecycle import RESPONDING_STATUSES
 from micboard.services.sync.chassis_ingest import (
     ChassisIngestResult,
     ChassisIngestService,
@@ -64,7 +65,7 @@ class ManufacturerSyncService:
                 namespace="poll",
                 max_devices=limits.max_devices,
                 chunk_size=limits.broadcast_chunk_size,
-                statuses=["online", "degraded", "provisioning"],
+                statuses=sorted(RESPONDING_STATUSES),
             )
         except Exception as exc:
             logger.exception(

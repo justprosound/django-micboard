@@ -41,29 +41,24 @@ class ImportService:
         server_id: str | None,
     ) -> None:
         """Apply an imported status through valid lifecycle transitions."""
-        transition_statuses = [target_status]
-        if (
-            chassis.status == HardwareStatus.DISCOVERED.value
-            and target_status == HardwareStatus.ONLINE.value
-        ):
-            transition_statuses.insert(0, HardwareStatus.PROVISIONING.value)
-
         lifecycle = HardwareLifecycleManager()
-        metadata = {
-            "source": "import",
-            "server_id": server_id,
-            "target_status": target_status,
-        }
-        for next_status in transition_statuses:
-            if lifecycle.transition_device(
-                chassis,
-                next_status,
-                reason="Device state received during import",
-                metadata=metadata,
-            ):
-                continue
+        reason = "Device state received during import"
+        if target_status == HardwareStatus.ONLINE.value:
+            # Raises RuntimeError when the lifecycle refuses, so the import rolls back.
+            lifecycle.bring_responding_online(chassis, reason=reason)
+            return
+        if not lifecycle.transition_device(
+            chassis,
+            target_status,
+            reason=reason,
+            metadata={
+                "source": "import",
+                "server_id": server_id,
+                "target_status": target_status,
+            },
+        ):
             raise RuntimeError(
-                f"Lifecycle rejected imported status transition to {next_status!r} "
+                f"Lifecycle rejected imported status transition to {target_status!r} "
                 f"for chassis {chassis.pk}"
             )
 

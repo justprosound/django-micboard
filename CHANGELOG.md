@@ -7,6 +7,21 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.30.1] - 2026-10-30
+
+### Changed
+
+- Chassis refresh and import bring a responding chassis online through the lifecycle's single responded intent. One responding-status set is now shared by the lifecycle, chassis ingest and manufacturer sync.
+
+### Fixed
+
+- A forced chassis refresh or an online import no longer moves a chassis out of maintenance.
+- Degraded chassis are now kept on refresh and import, the same rule as a poll; previously they were moved to online.
+
+### Docs
+
+- Record in `.out-of-scope/` why the discovery approval modules stay separate, so later reviews do not re-propose merging them.
+
 ## [2026.10.30.0] - 2026-10-30
 
 ### Changed
