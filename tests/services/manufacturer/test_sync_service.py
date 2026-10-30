@@ -8,12 +8,10 @@ from django.test import override_settings
 
 import pytest
 
-from micboard.models.discovery.discovery_queue import DeviceMovementLog
+from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware import NormalizedChassis
-from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
 from micboard.services.deduplication.check import check_device
 from micboard.services.deduplication.identity_index import DeviceIdentityIndex
-from micboard.services.deduplication.result import DeduplicationResult
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
@@ -27,6 +25,7 @@ from micboard.services.sync.polling_dtos import (
 )
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
+from tests.fake_vendor import FakeVendorPlugin, use_vendor
 
 pytestmark = pytest.mark.django_db
 
@@ -108,24 +107,14 @@ def test_sync_rechecks_activation_under_lock_after_vendor_request(
 ) -> None:
     """Deactivation during vendor I/O prevents every subsequent inventory mutation."""
     manufacturer = ManufacturerFactory(code="vendor")
-    plugin = Mock()
 
-    def deactivate_during_request() -> list[dict[str, str]]:
+    def deactivate_during_request() -> None:
         type(manufacturer).objects.filter(pk=manufacturer.pk).update(is_active=False)
-        return [{"id": "raw"}]
 
-    plugin.get_devices.side_effect = deactivate_during_request
-    persist = Mock(return_value="created")
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
-        Mock(return_value=plugin),
+    use_vendor(
+        monkeypatch,
+        FakeVendorPlugin([_payload()], before_get_devices=deactivate_during_request),
     )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_normalize_devices",
-        Mock(return_value=[_payload()]),
-    )
-    monkeypatch.setattr(ManufacturerSyncService, "_sync_normalized_device", persist)
 
     result = ManufacturerSyncService.sync_devices_for_manufacturer(
         manufacturer_code=manufacturer.code,
@@ -136,7 +125,7 @@ def test_sync_rechecks_activation_under_lock_after_vendor_request(
         errors=["Manufacturer became inactive during polling; no devices were synchronized."],
         devices_examined=1,
     )
-    persist.assert_not_called()
+    assert not WirelessChassis.objects.exists()
 
 
 def test_forced_sync_preserves_explicit_override_after_vendor_request(
@@ -144,24 +133,14 @@ def test_forced_sync_preserves_explicit_override_after_vendor_request(
 ) -> None:
     """Only an explicit operator force can persist after mid-request deactivation."""
     manufacturer = ManufacturerFactory(code="vendor")
-    plugin = Mock()
 
-    def deactivate_during_request() -> list[dict[str, str]]:
+    def deactivate_during_request() -> None:
         type(manufacturer).objects.filter(pk=manufacturer.pk).update(is_active=False)
-        return [{"id": "raw"}]
 
-    plugin.get_devices.side_effect = deactivate_during_request
-    persist = Mock(return_value="created")
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
-        Mock(return_value=plugin),
+    use_vendor(
+        monkeypatch,
+        FakeVendorPlugin([_payload()], before_get_devices=deactivate_during_request),
     )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_normalize_devices",
-        Mock(return_value=[_payload()]),
-    )
-    monkeypatch.setattr(ManufacturerSyncService, "_sync_normalized_device", persist)
 
     result = ManufacturerSyncService.sync_devices_for_manufacturer(
         manufacturer_code=manufacturer.code,
@@ -169,27 +148,48 @@ def test_forced_sync_preserves_explicit_override_after_vendor_request(
     )
 
     assert result == _result(devices_added=1, devices_examined=1)
-    persist.assert_called_once()
+    assert WirelessChassis.objects.filter(manufacturer=manufacturer).count() == 1
 
 
 def test_sync_counts_created_and_updated_outcomes(monkeypatch: pytest.MonkeyPatch) -> None:
     """Only persisted create and update outcomes contribute to the summary."""
-    ManufacturerFactory(code="vendor")
-    plugin = Mock()
-    plugin.get_devices.return_value = [{"id": "raw"}]
-    payloads = [_payload(), _payload(api_device_id="device-2"), _payload(api_device_id="device-3")]
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
-        Mock(return_value=plugin),
+    manufacturer = ManufacturerFactory(code="vendor")
+    other = ManufacturerFactory(code="other-vendor")
+    WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="device-1",
+        serial_number="serial-1",
+        mac_address="00:11:22:33:44:55",
+        ip="192.0.2.100",
     )
-    monkeypatch.setattr(ManufacturerSyncService, "_normalize_devices", Mock(return_value=payloads))
-    persist = Mock(side_effect=["created", "updated", None])
-    monkeypatch.setattr(ManufacturerSyncService, "_sync_normalized_device", persist)
+    WirelessChassisFactory(manufacturer=other, serial_number="foreign-serial", ip="192.0.2.199")
+    payloads = [
+        _payload(),
+        _payload(
+            api_device_id="device-2",
+            serial_number="serial-2",
+            mac_address="00:11:22:33:44:66",
+            ip="192.0.2.101",
+        ),
+        _payload(
+            api_device_id="device-3",
+            serial_number="foreign-serial",
+            mac_address="00:11:22:33:44:77",
+            ip="192.0.2.102",
+        ),
+    ]
+    use_vendor(monkeypatch, FakeVendorPlugin(payloads))
 
     result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
 
-    assert result == _result(devices_added=1, devices_updated=1, devices_examined=1)
-    assert persist.call_count == 3
+    assert result == _result(
+        success=False,
+        errors=["1 device(s) were rejected for an identity conflict."],
+        devices_added=1,
+        devices_updated=1,
+        devices_rejected=1,
+        devices_examined=3,
+    )
 
 
 @override_settings(MICBOARD_POLL_MAX_DEVICES=2)
@@ -309,116 +309,6 @@ def test_bulk_identity_index_chunks_reads_below_backend_parameter_limits(
         DeviceIdentityIndex.build(payloads, manufacturer=manufacturer)
 
 
-def test_persistence_locks_before_rebuilding_identity_index(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The DB-backed global lock closes the identity-index/write race window."""
-    from micboard.models.discovery.manufacturer import Manufacturer
-
-    manufacturer = ManufacturerFactory(code="serialized-vendor")
-    payload = _payload()
-    events: list[str] = []
-    ordered_queryset = Mock()
-    ordered_queryset.first.side_effect = lambda: events.append("sentinel-locked") or manufacturer
-    lock_queryset = Mock()
-    lock_queryset.only.return_value.order_by.return_value = ordered_queryset
-    lock_queryset.get.side_effect = lambda **_kwargs: events.append("target-locked") or manufacturer
-    select_for_update = Mock(return_value=lock_queryset)
-    monkeypatch.setattr(Manufacturer.objects, "select_for_update", select_for_update)
-
-    identity_index = object()
-    identity_index_class = Mock()
-
-    def build_index(*_args: object, **_kwargs: object) -> object:
-        assert connection.in_atomic_block is True
-        assert events == ["sentinel-locked", "target-locked"]
-        events.append("indexed")
-        return identity_index
-
-    identity_index_class.build.side_effect = build_index
-
-    def persist(*_args: object, **kwargs: object) -> str:
-        assert connection.in_atomic_block is True
-        assert events == ["sentinel-locked", "target-locked", "indexed"]
-        assert kwargs["identity_index"] is identity_index
-        events.append("written")
-        return "created"
-
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_sync_normalized_device",
-        Mock(side_effect=persist),
-    )
-
-    result = ManufacturerSyncService._persist_normalized_devices(
-        [payload],
-        manufacturer=manufacturer,
-        check_device=Mock(),
-        identity_index_class=identity_index_class,
-    )
-
-    assert result == (1, 0)
-    assert events == ["sentinel-locked", "target-locked", "indexed", "written"]
-    assert select_for_update.call_count == 2
-    lock_queryset.only.assert_called_once_with("pk")
-    lock_queryset.only.return_value.order_by.assert_called_once_with("pk")
-    lock_queryset.get.assert_called_once_with(pk=manufacturer.pk)
-
-
-def test_persistence_rolls_back_earlier_mutation_when_later_payload_fails(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Every poll mutation branch shares one atomic identity-lock transaction."""
-    from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-    manufacturer = ManufacturerFactory(code="rollback-vendor")
-    payloads = [_payload(), _payload(api_device_id="device-2", ip="192.0.2.101")]
-
-    def persist(payload: NormalizedChassis, *_args: object, **_kwargs: object) -> str:
-        if payload.api_device_id == "device-2":
-            raise RuntimeError("simulated later write failure")
-        WirelessChassisFactory(
-            manufacturer=manufacturer,
-            api_device_id=payload.api_device_id,
-            ip=payload.ip,
-        )
-        return "created"
-
-    monkeypatch.setattr(ManufacturerSyncService, "_sync_normalized_device", persist)
-    identity_index_class = Mock()
-    identity_index_class.build.return_value = object()
-
-    with pytest.raises(RuntimeError, match="later write failure"):
-        ManufacturerSyncService._persist_normalized_devices(
-            payloads,
-            manufacturer=manufacturer,
-            check_device=Mock(),
-            identity_index_class=identity_index_class,
-        )
-
-    assert not WirelessChassis.objects.filter(
-        manufacturer=manufacturer,
-        api_device_id="device-1",
-    ).exists()
-
-
-def test_persistence_refuses_to_write_without_a_lock_sentinel() -> None:
-    """An absent row is never mistaken for a database-backed serialization lock."""
-    from micboard.models.discovery.manufacturer import Manufacturer
-
-    identity_index_class = Mock()
-
-    with pytest.raises(Manufacturer.DoesNotExist, match="identity mutation lock is unavailable"):
-        ManufacturerSyncService._persist_normalized_devices(
-            [_payload()],
-            manufacturer=SimpleNamespace(pk=404),
-            check_device=Mock(),
-            identity_index_class=identity_index_class,
-        )
-
-    identity_index_class.build.assert_not_called()
-
-
 def test_bulk_identity_index_preserves_priority_and_tracks_batch_creates() -> None:
     """Indexed lookups retain serial-first semantics and expose new rows to later payloads."""
     manufacturer = ManufacturerFactory(code="vendor")
@@ -505,23 +395,18 @@ def test_sync_does_not_rehome_cross_vendor_identity_at_changed_ip(
         ip="192.0.2.202",
         name="Incoming chassis",
     )
-    plugin = Mock()
-    plugin.get_devices.return_value = [{"id": payload.api_device_id}]
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
-        Mock(return_value=plugin),
-    )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_normalize_devices",
-        Mock(return_value=[payload]),
-    )
+    use_vendor(monkeypatch, FakeVendorPlugin([payload]))
 
     result = ManufacturerSyncService.sync_devices_for_manufacturer(
         manufacturer_code=incoming_manufacturer.code,
     )
 
-    assert result == _result(devices_examined=1)
+    assert result == _result(
+        success=False,
+        errors=["1 device(s) were rejected for an identity conflict."],
+        devices_rejected=1,
+        devices_examined=1,
+    )
     chassis.refresh_from_db()
     assert chassis.manufacturer == existing_manufacturer
     assert chassis.ip == "192.0.2.201"
@@ -557,56 +442,22 @@ def test_sync_rejects_foreign_mac_hidden_behind_same_vendor_serial(
         ip="192.0.2.213",
         name="Untrusted update",
     )
-    plugin = Mock()
-    plugin.get_devices.return_value = [{"id": payload.api_device_id}]
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
-        Mock(return_value=plugin),
-    )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_normalize_devices",
-        Mock(return_value=[payload]),
-    )
+    use_vendor(monkeypatch, FakeVendorPlugin([payload]))
 
     result = ManufacturerSyncService.sync_devices_for_manufacturer(
         manufacturer_code=incoming_manufacturer.code,
     )
 
-    assert result == _result(devices_examined=1)
+    assert result == _result(
+        success=False,
+        errors=["1 device(s) were rejected for an identity conflict."],
+        devices_rejected=1,
+        devices_examined=1,
+    )
     serial_owner.refresh_from_db()
     assert str(serial_owner.ip) == "192.0.2.211"
     assert serial_owner.name == "Protected serial owner"
     assert serial_owner.status == "offline"
-
-
-def test_sync_rejects_foreign_existing_device_even_if_deduplication_misclassifies_it() -> None:
-    """Persistence boundary does not trust a moved result that crosses manufacturers."""
-    existing_manufacturer = ManufacturerFactory(code="existing-defense-owner")
-    incoming_manufacturer = ManufacturerFactory(code="incoming-defense-owner")
-    chassis = WirelessChassisFactory(
-        manufacturer=existing_manufacturer,
-        ip="192.0.2.203",
-        name="Protected chassis",
-        status="offline",
-    )
-    dedup_result = DeduplicationResult.moved(
-        chassis,
-        conflict_type="ip_changed",
-    )
-
-    outcome = ManufacturerSyncService._sync_normalized_device(
-        _payload(ip="192.0.2.204", name="Attacker-controlled name"),
-        incoming_manufacturer,
-        Mock(return_value=dedup_result),
-    )
-
-    assert outcome is None
-    chassis.refresh_from_db()
-    assert chassis.manufacturer == existing_manufacturer
-    assert chassis.ip == "192.0.2.203"
-    assert chassis.name == "Protected chassis"
-    assert chassis.status == "offline"
 
 
 def test_bulk_identity_index_tracks_ipv6_moves_and_ambiguous_values() -> None:
@@ -677,279 +528,33 @@ def test_sync_contains_manufacturer_api_failures(monkeypatch: pytest.MonkeyPatch
     assert secret not in str(result)
 
 
-def test_normalization_skips_unnormalizable_and_unaddressed_devices() -> None:
-    """Only normalized devices with an address reach persistence."""
-    plugin = Mock()
-    complete = NormalizedChassis(api_device_id="complete", ip="192.0.2.110")
-    plugin.normalize_device.side_effect = [
-        None,
-        NormalizedChassis(api_device_id="missing-address"),
-        complete,
-    ]
-
-    result = ManufacturerSyncService._normalize_devices([{}, {}, {}], plugin)
-
-    assert result == [complete]
-
-
-@pytest.mark.parametrize(
-    ("dedup", "expected", "update_ip", "reconciles_existing_status"),
-    [
-        (SimpleNamespace(is_conflict=True), None, False, False),
-        (
-            SimpleNamespace(
-                is_conflict=False,
-                is_moved=True,
-                is_duplicate=False,
-                is_new=False,
-                existing_device=SimpleNamespace(
-                    status="offline",
-                    manufacturer_id=1,
-                    pk=1,
-                    ip="192.0.2.99",
-                ),
-            ),
-            "updated",
-            True,
-            True,
-        ),
-        (
-            SimpleNamespace(
-                is_conflict=False,
-                is_moved=False,
-                is_duplicate=True,
-                is_new=False,
-                existing_device=SimpleNamespace(status="discovered", manufacturer_id=1, pk=1),
-            ),
-            "updated",
-            False,
-            True,
-        ),
-        (
-            SimpleNamespace(
-                is_conflict=False,
-                is_moved=False,
-                is_duplicate=True,
-                is_new=False,
-                existing_device=SimpleNamespace(status="maintenance", manufacturer_id=1, pk=1),
-            ),
-            "updated",
-            False,
-            True,
-        ),
-        (
-            SimpleNamespace(
-                is_conflict=False,
-                is_moved=False,
-                is_duplicate=False,
-                is_new=True,
-                existing_device=None,
-            ),
-            "created",
-            False,
-            False,
-        ),
-        (
-            SimpleNamespace(
-                is_conflict=False,
-                is_moved=False,
-                is_duplicate=False,
-                is_new=False,
-                existing_device=None,
-            ),
-            None,
-            False,
-            False,
-        ),
-    ],
-)
-def test_sync_normalized_device_applies_deduplication_outcome(
-    dedup: SimpleNamespace,
-    expected: str | None,
-    update_ip: bool,
-    reconciles_existing_status: bool,
+def test_poll_reports_unnormalizable_and_unaddressed_devices_as_skipped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Deduplication state controls whether a chassis is skipped, updated, or created."""
-    payload = _payload()
-    manufacturer = SimpleNamespace(pk=1)
-    check_device = Mock(return_value=dedup)
-    update = Mock()
-    create = Mock(return_value=SimpleNamespace(status="offline"))
-    reconcile_status = Mock()
-    monkeypatch.setattr(WirelessChassisPersistenceService, "update_from_normalized", update)
-    monkeypatch.setattr(WirelessChassisPersistenceService, "create_from_normalized", create)
-    monkeypatch.setattr(HardwareLifecycleManager, "bring_responding_online", reconcile_status)
-
-    result = ManufacturerSyncService._sync_normalized_device(
-        payload,
-        manufacturer,
-        check_device,
-    )
-
-    assert result == expected
-    check_device.assert_called_once_with(
-        serial_number=payload.serial_number,
-        mac_address=payload.mac_address,
-        ip=payload.ip,
-        api_device_id=payload.api_device_id,
-        manufacturer=manufacturer,
-    )
-    if update_ip:
-        update.assert_called_once_with(
-            chassis=dedup.existing_device,
-            payload=payload,
-            set_ip=True,
-        )
-    elif expected == "updated":
-        update.assert_called_once_with(chassis=dedup.existing_device, payload=payload)
-    else:
-        update.assert_not_called()
-    assert reconcile_status.called is reconciles_existing_status
-    if expected == "created":
-        assert create.call_args.kwargs["initial_status"] == "online"
-
-
-def test_new_sync_chassis_is_created_in_its_final_online_state() -> None:
-    """A responding new device avoids an invalid discovered-to-online follow-up save."""
-    manufacturer = ManufacturerFactory(code="new-online-vendor")
-    payload = _payload(
-        api_device_id="new-online-device",
-        serial_number="new-online-serial",
-        ip="192.0.2.151",
-    )
-
-    result = ManufacturerSyncService._sync_normalized_device(
-        payload,
-        manufacturer,
-        Mock(return_value=DeduplicationResult.new()),
-    )
-
-    chassis = manufacturer.wirelesschassis_set.get(api_device_id=payload.api_device_id)
-    assert result == "created"
-    assert chassis.status == "online"
-    assert chassis.is_online is True
-    assert chassis.last_online_at is not None
-
-
-def test_moved_sync_device_records_address_audit_inside_persistence_flow() -> None:
-    """A durable identity address change writes one explicit movement record."""
-    manufacturer = ManufacturerFactory(code="movement-audit-vendor")
-    chassis = WirelessChassisFactory(
-        manufacturer=manufacturer,
-        api_device_id="movement-device",
-        serial_number="movement-serial",
-        ip="192.0.2.160",
-        status="online",
-    )
-    payload = _payload(
-        api_device_id=chassis.api_device_id,
-        serial_number=chassis.serial_number,
-        ip="192.0.2.161",
-    )
-
-    result = ManufacturerSyncService._sync_normalized_device(
-        payload,
-        manufacturer,
-        Mock(
-            return_value=DeduplicationResult.moved(
-                chassis,
-                conflict_type="ip_changed",
-            )
+    """Only normalized devices with an address are persisted, and the rest are counted."""
+    ManufacturerFactory(code="vendor")
+    use_vendor(
+        monkeypatch,
+        FakeVendorPlugin(
+            [
+                None,
+                NormalizedChassis(api_device_id="missing-address"),
+                NormalizedChassis(api_device_id="complete", ip="192.0.2.110"),
+            ]
         ),
     )
 
-    chassis.refresh_from_db()
-    movement = DeviceMovementLog.objects.get(device=chassis)
-    assert result == "updated"
-    assert str(chassis.ip) == "192.0.2.161"
-    assert str(movement.old_ip) == "192.0.2.160"
-    assert str(movement.new_ip) == "192.0.2.161"
-    assert movement.detected_by == "manufacturer_sync"
+    result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
 
-
-def test_duplicate_discovered_chassis_transitions_through_provisioning() -> None:
-    """A known discovered device reaches online through both legal lifecycle steps."""
-    manufacturer = ManufacturerFactory(code="duplicate-online-vendor")
-    chassis = WirelessChassisFactory(
-        manufacturer=manufacturer,
-        api_device_id="duplicate-online-device",
-        serial_number="duplicate-online-serial",
-        ip="192.0.2.152",
-        status="discovered",
-    )
-    payload = _payload(
-        api_device_id=chassis.api_device_id,
-        serial_number=chassis.serial_number,
-        ip=str(chassis.ip),
-    )
-
-    result = ManufacturerSyncService._sync_normalized_device(
-        payload,
-        manufacturer,
-        Mock(return_value=DeduplicationResult.duplicate(chassis)),
-    )
-
-    chassis.refresh_from_db()
-    assert result == "updated"
-    assert chassis.status == "online"
-    assert chassis.is_online is True
-    assert chassis.last_online_at is not None
-
-
-def test_deduplication_omits_blank_optional_identities() -> None:
-    """Blank serial and MAC fields are sent as absent deduplication keys."""
-    check_device = Mock(
-        return_value=SimpleNamespace(
-            is_conflict=True,
-        )
-    )
-
-    ManufacturerSyncService._sync_normalized_device(
-        _payload(serial_number="", mac_address=""),
-        object(),
-        check_device,
-    )
-
-    assert check_device.call_args.kwargs["serial_number"] is None
-    assert check_device.call_args.kwargs["mac_address"] is None
-
-
-def test_indexed_move_refreshes_the_batch_ip_identity() -> None:
-    """Later payloads in the locked batch see a chassis at its updated address."""
-    chassis = SimpleNamespace(
-        pk=1,
-        manufacturer_id=1,
-        ip="192.0.2.140",
-        status="online",
-    )
-    dedup = SimpleNamespace(
-        is_conflict=False,
-        is_moved=True,
-        is_duplicate=False,
-        is_new=False,
-        existing_device=chassis,
-    )
-    identity_index = Mock()
-    update = Mock(
-        side_effect=lambda *, chassis, payload, **_kwargs: setattr(chassis, "ip", payload.ip)
-    )
-
-    with (
-        patch.object(WirelessChassisPersistenceService, "update_from_normalized", update),
-        patch("micboard.services.manufacturer.sync.log_device_movement"),
-        patch.object(HardwareLifecycleManager, "bring_responding_online"),
-    ):
-        result = ManufacturerSyncService._sync_normalized_device(
-            _payload(ip="192.0.2.141"),
-            SimpleNamespace(pk=1),
-            Mock(return_value=dedup),
-            identity_index=identity_index,
-        )
-
-    assert result == "updated"
-    identity_index.move_ip.assert_called_once_with(chassis, old_ip="192.0.2.140")
-    assert chassis.ip == "192.0.2.141"
+    assert result.devices_added == 1
+    assert result.devices_skipped == 2
+    assert result.devices_examined == 3
+    assert result.success is False
+    assert result.errors == [
+        "1 device(s) were skipped for failing normalization.",
+        "1 device(s) were skipped for lacking an address.",
+    ]
+    assert WirelessChassis.objects.filter(api_device_id="complete").exists()
 
 
 @pytest.mark.parametrize(
@@ -1117,26 +722,13 @@ def test_a_poll_that_deactivates_mid_run_still_records_its_audit(
     from micboard.models.audit.activity_log import ServiceSyncLog
 
     manufacturer = ManufacturerFactory(code="vendor")
-    plugin = Mock()
 
-    def deactivate_during_request() -> list[dict[str, str]]:
+    def deactivate_during_request() -> None:
         type(manufacturer).objects.filter(pk=manufacturer.pk).update(is_active=False)
-        return [{"id": "raw"}]
 
-    plugin.get_devices.side_effect = deactivate_during_request
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
-        Mock(return_value=plugin),
-    )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_normalize_devices",
-        Mock(return_value=[_payload()]),
-    )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_sync_normalized_device",
-        Mock(return_value="created"),
+    use_vendor(
+        monkeypatch,
+        FakeVendorPlugin([_payload()], before_get_devices=deactivate_during_request),
     )
 
     result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
@@ -1176,3 +768,38 @@ def test_a_plugin_initialization_failure_is_not_reported_as_a_missing_plugin(
 
     assert not result.success
     assert result.errors != ["Plugin not found: vendor"]
+
+
+def test_a_poll_with_one_rejected_device_still_broadcasts_the_rows_that_committed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One persistently bad device cannot silence the broadcast of every other one."""
+    ManufacturerFactory(code="vendor")
+    other = ManufacturerFactory(code="other-vendor")
+    WirelessChassisFactory(manufacturer=other, serial_number="foreign-serial", ip="192.0.2.199")
+    use_vendor(
+        monkeypatch,
+        FakeVendorPlugin(
+            [
+                _payload(),
+                _payload(
+                    api_device_id="device-3",
+                    serial_number="foreign-serial",
+                    mac_address="00:11:22:33:44:77",
+                    ip="192.0.2.102",
+                ),
+            ]
+        ),
+    )
+    broadcast = Mock(return_value=None)
+    monkeypatch.setattr(
+        "micboard.services.notification.device_broadcast_service."
+        "DeviceSnapshotBroadcastService.broadcast",
+        broadcast,
+    )
+
+    result = ManufacturerSyncService.sync_devices_for_manufacturer(manufacturer_code="vendor")
+
+    assert result.success is False
+    assert result.devices_added == 1
+    broadcast.assert_called_once()

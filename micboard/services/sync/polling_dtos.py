@@ -68,6 +68,8 @@ class ManufacturerSyncResult(PydanticBaseDTO):
     devices_added: int = Field(default=0, ge=0)
     devices_updated: int = Field(default=0, ge=0)
     devices_removed: int = Field(default=0, ge=0)
+    devices_skipped: int = Field(default=0, ge=0)
+    devices_rejected: int = Field(default=0, ge=0)
     errors: list[str] = Field(default_factory=list)
     devices_examined: int = Field(default=0, ge=0, le=HARD_MAX_POLL_DEVICES + 1)
     device_limit: int = Field(ge=1, le=HARD_MAX_POLL_DEVICES)

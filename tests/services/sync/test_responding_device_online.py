@@ -1,18 +1,17 @@
 """A responding chassis reaches online through one lifecycle, from poll and realtime alike."""
 
 from collections.abc import Callable
-from unittest.mock import MagicMock, Mock
 
 import pytest
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
-from micboard.services.deduplication.result import DeduplicationResult
-from micboard.services.manufacturer.sync import ManufacturerSyncService
+from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
 from micboard.services.sync.device_update_service import DeviceUpdateService
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
+from tests.fake_vendor import FakeVendorPlugin
 
 pytestmark = pytest.mark.django_db
 
@@ -28,41 +27,39 @@ RESPONDING_OUTCOMES = [
 
 
 def _poll_duplicate(chassis: WirelessChassis) -> None:
-    ManufacturerSyncService._sync_normalized_device(
-        NormalizedChassis(
-            api_device_id=chassis.api_device_id,
-            serial_number=chassis.serial_number,
-            ip=str(chassis.ip),
-            mac_address="00:11:22:33:44:55",
-        ),
-        chassis.manufacturer,
-        Mock(return_value=DeduplicationResult.duplicate(chassis)),
+    ChassisIngestService.ingest(
+        [
+            NormalizedChassis(
+                api_device_id=chassis.api_device_id,
+                serial_number=chassis.serial_number,
+                ip=str(chassis.ip),
+            )
+        ],
+        manufacturer=chassis.manufacturer,
+        mode=IngestMode.PARTIAL_EVENT,
     )
 
 
 def _poll_moved(chassis: WirelessChassis) -> None:
-    ManufacturerSyncService._sync_normalized_device(
-        NormalizedChassis(
-            api_device_id=chassis.api_device_id,
-            serial_number=chassis.serial_number,
-            ip="192.0.2.250",
-            mac_address="00:11:22:33:44:55",
-        ),
-        chassis.manufacturer,
-        Mock(return_value=DeduplicationResult.moved(chassis, conflict_type="ip_changed")),
+    ChassisIngestService.ingest(
+        [
+            NormalizedChassis(
+                api_device_id=chassis.api_device_id,
+                serial_number=chassis.serial_number,
+                ip="192.0.2.250",
+            )
+        ],
+        manufacturer=chassis.manufacturer,
+        mode=IngestMode.PARTIAL_EVENT,
     )
 
 
 def _realtime(chassis: WirelessChassis) -> None:
-    plugin = MagicMock()
-    plugin.normalize_device.return_value = NormalizedChassis(
-        api_device_id=chassis.api_device_id,
-        ip=str(chassis.ip),
+    plugin = FakeVendorPlugin(
+        [NormalizedChassis(api_device_id=chassis.api_device_id, ip=str(chassis.ip))]
     )
-    plugin.get_device_channels.return_value = []
-    plugin.normalize_channels.return_value = []
     DeviceUpdateService.update_models_from_api_data(
-        api_data=[{"id": chassis.api_device_id}],
+        api_data=plugin.raw_devices,
         manufacturer=chassis.manufacturer,
         plugin=plugin,
     )

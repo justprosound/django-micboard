@@ -1,22 +1,18 @@
-"""Persist normalized polling and realtime device updates."""
+"""Persist realtime and API-server device updates with their channels and units."""
 
 import hashlib
 import logging
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any, Protocol
-
-from django.utils import timezone
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.rf_coordination.rf_channel import RFChannel
 from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis, NormalizedUnit
-from micboard.services.hardware.dtos import WirelessChassisWrite
-from micboard.services.hardware.wireless_chassis_persistence_service import (
-    WirelessChassisPersistenceService,
-)
 from micboard.services.monitoring.alerts import alert_manager
+from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestedChassis, IngestMode
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -38,8 +34,23 @@ class DeviceUpdatePlugin(Protocol):
         raise NotImplementedError
 
 
+@dataclass(frozen=True, slots=True)
+class DeviceUpdateResult:
+    """What one device update persisted and what it could not."""
+
+    persisted: int = 0
+    skipped: int = 0
+    rejected: int = 0
+    failed: int = 0
+
+    @property
+    def dropped(self) -> int:
+        """Number of payloads that were not persisted."""
+        return self.skipped + self.rejected + self.failed
+
+
 class DeviceUpdateService:
-    """Persist device snapshots without coupling entry points to task modules."""
+    """Persist realtime and API-server device updates, with their channels and units."""
 
     @classmethod
     def update_models_from_api_data(
@@ -48,108 +59,86 @@ class DeviceUpdateService:
         api_data: Iterable[dict[str, Any]],
         manufacturer: Manufacturer,
         plugin: DeviceUpdatePlugin,
-        authoritative_snapshot: bool = False,
-    ) -> int:
-        """Persist raw API data and return the number of updated chassis.
+        mode: IngestMode = IngestMode.PARTIAL_EVENT,
+    ) -> DeviceUpdateResult:
+        """Persist raw API data and report what was persisted and what was dropped.
 
-        Realtime events are partial by default and therefore never mark devices
-        absent from one event offline. Full polling snapshots opt into that
-        reconciliation with ``authoritative_snapshot=True``.
+        Realtime events are partial by default and therefore never mark devices absent
+        from one event offline. A complete snapshot opts into that reconciliation with
+        `IngestMode.AUTHORITATIVE_SNAPSHOT`, unless a payload could not be normalized.
         """
-        updated_count = 0
-        active_chassis_ids: list[int] = []
-        snapshot_failed = False
-
+        payloads: list[NormalizedChassis] = []
+        normalization_failed = 0
         for device_index, device_data in enumerate(api_data, start=1):
             try:
-                device = plugin.normalize_device(device_data)
-                if device is None:
-                    snapshot_failed = True
-                    continue
-
-                api_device_id = device.api_device_id
-                write_values: dict[str, Any] = {
-                    "ip": device.ip,
-                    "name": device.name,
-                    "firmware_version": device.firmware_version,
-                    "last_seen": timezone.now(),
-                }
-                # Realtime events often omit the model; an empty one must not erase a known model.
-                if device.model:
-                    write_values["model"] = device.model
-                defaults = WirelessChassisWrite(**write_values)
-                chassis, created = WirelessChassisPersistenceService.upsert(
-                    manufacturer=manufacturer,
-                    api_device_id=api_device_id,
-                    defaults=defaults,
-                    create_defaults=defaults.model_copy(update={"status": "online"}),
-                )
-                cls._reconcile_chassis_lifecycle(
-                    chassis=chassis,
-                    created=created,
-                    manufacturer=manufacturer,
-                )
-                if chassis.pk is None:  # pragma: no cover - persistence contract guard
-                    raise ValueError("Persisted wireless chassis is missing its primary key")
-                active_chassis_ids.append(chassis.pk)
-
-                channels = device.channels or plugin.normalize_channels(
-                    plugin.get_device_channels(api_device_id)
-                )
-                for channel in channels:
-                    if channel.unit is not None:
-                        cls._update_channel_and_unit(
-                            chassis=chassis,
-                            channel_number=channel.number,
-                            unit_data=channel.unit,
-                            api_device_id=api_device_id,
-                        )
-                updated_count += 1
+                payload = plugin.normalize_device(device_data)
             except Exception as exc:
-                snapshot_failed = True
                 logger.exception(
-                    "Error updating vendor device at snapshot position %s",
+                    "Error normalizing vendor device at snapshot position %s",
                     device_index,
                     exc_info=sanitized_exception_info(exc),
                 )
+                payload = None
+            if payload is None:
+                normalization_failed += 1
+                continue
+            payloads.append(payload)
 
-        if authoritative_snapshot and not snapshot_failed:
-            cls.mark_offline_receivers(
-                manufacturer=manufacturer,
-                active_chassis_ids=active_chassis_ids,
-            )
-        elif authoritative_snapshot:
+        if normalization_failed and mode is IngestMode.AUTHORITATIVE_SNAPSHOT:
             logger.warning(
                 "Skipped offline reconciliation for %s because the snapshot was incomplete",
                 manufacturer.code,
             )
-        return updated_count
+            mode = IngestMode.PARTIAL_EVENT
 
-    @staticmethod
-    def _reconcile_chassis_lifecycle(
-        *,
-        chassis: WirelessChassis,
-        created: bool,
-        manufacturer: Manufacturer,
-    ) -> None:
-        """Log one upsert and restore the expected operational lifecycle state."""
-        from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
-
-        if created:
-            logger.info(
-                "Created wireless chassis %s for manufacturer %s",
-                chassis.pk,
+        result = ChassisIngestService.ingest(
+            payloads,
+            manufacturer=manufacturer,
+            mode=mode,
+            require_active=False,
+        )
+        for entry in result.ingested:
+            cls._persist_channels(entry, plugin)
+        outcome = DeviceUpdateResult(
+            persisted=len(result.ingested),
+            skipped=result.skipped,
+            rejected=result.rejected,
+            failed=result.failed + normalization_failed,
+        )
+        if outcome.dropped:
+            logger.warning(
+                "Device update for manufacturer ID %s dropped %d payload(s): "
+                "%d skipped, %d rejected, %d failed",
                 manufacturer.pk,
+                outcome.dropped,
+                outcome.skipped,
+                outcome.rejected,
+                outcome.failed,
             )
-            return
-        logger.debug(
-            "Updated wireless chassis %s for manufacturer %s",
-            chassis.pk,
-            manufacturer.pk,
-        )
-        HardwareLifecycleManager().bring_responding_online(
-            chassis, reason="Device responding to polls"
-        )
+        return outcome
+
+    @classmethod
+    def _persist_channels(cls, entry: IngestedChassis, plugin: DeviceUpdatePlugin) -> None:
+        """Persist the channels and units one ingested payload reported."""
+        api_device_id = entry.payload.api_device_id
+        try:
+            channels = entry.payload.channels or plugin.normalize_channels(
+                plugin.get_device_channels(api_device_id)
+            )
+            for channel in channels:
+                if channel.unit is not None:
+                    cls._update_channel_and_unit(
+                        chassis=entry.chassis,
+                        channel_number=channel.number,
+                        unit_data=channel.unit,
+                        api_device_id=api_device_id,
+                    )
+        except Exception as exc:
+            logger.exception(
+                "Error updating channels for wireless chassis %s",
+                entry.chassis.pk,
+                exc_info=sanitized_exception_info(exc),
+            )
 
     @classmethod
     def _update_channel_and_unit(
@@ -230,47 +219,3 @@ class DeviceUpdateService:
             slot = (slot + 1) % 10000
         logger.info("Assigned slot %d for RF channel %s", slot, channel.pk)
         return slot
-
-    @staticmethod
-    def mark_offline_receivers(
-        *,
-        manufacturer: Manufacturer,
-        active_chassis_ids: Iterable[int],
-    ) -> None:
-        """Mark chassis missing from an authoritative snapshot offline."""
-        from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
-
-        offline_chassis = WirelessChassis.objects.filter(
-            manufacturer=manufacturer,
-            status__in={"online", "degraded", "provisioning"},
-        ).exclude(id__in=active_chassis_ids)
-        if not offline_chassis.exists():
-            return
-
-        lifecycle = HardwareLifecycleManager()
-        offline_count = 0
-        for chassis in offline_chassis:
-            try:
-                lifecycle.mark_offline(chassis, reason="Device not found in API poll")
-                offline_count += 1
-            except Exception as exc:
-                logger.exception(
-                    "Error marking wireless chassis %s offline",
-                    chassis.pk,
-                    exc_info=sanitized_exception_info(exc),
-                )
-
-        if not offline_count:
-            return
-        logger.warning(
-            "Marked %d chassis offline for manufacturer %s",
-            offline_count,
-            manufacturer.pk,
-        )
-        refreshed_chassis = WirelessChassis.objects.filter(
-            manufacturer=manufacturer,
-            status="offline",
-        ).prefetch_related("field_units")
-        for chassis in refreshed_chassis:
-            for unit in chassis.field_units.all():
-                alert_manager.check_hardware_offline_alerts(unit)

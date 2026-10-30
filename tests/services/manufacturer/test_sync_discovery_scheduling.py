@@ -1,6 +1,6 @@
 """Discovery scheduling contracts for manufacturer inventory persistence."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -11,6 +11,7 @@ from micboard.services.sync.discovery_trigger_service import (
     schedule_discovery_on_commit,
 )
 from tests.factories.discovery import ManufacturerFactory
+from tests.fake_vendor import FakeVendorPlugin
 
 
 def _payload(number: int) -> NormalizedChassis:
@@ -40,18 +41,12 @@ def test_hundred_device_sync_registers_one_discovery_dispatch(
     """Autocommit-style row saves collapse into one post-batch reconciliation."""
     manufacturer = ManufacturerFactory(code="batch-vendor")
     payloads = [_payload(number) for number in range(100)]
-    plugin = Mock()
-    plugin.get_devices.return_value = [{"id": payload.api_device_id} for payload in payloads]
+    plugin = FakeVendorPlugin(payloads)
 
     with (
         patch(
             "micboard.services.manufacturer.sync.build_manufacturer_plugin",
             return_value=plugin,
-        ),
-        patch.object(
-            ManufacturerSyncService,
-            "_normalize_devices",
-            return_value=payloads,
         ),
         patch(
             "micboard.services.core.hardware_post_save_hooks."

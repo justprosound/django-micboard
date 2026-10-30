@@ -16,6 +16,8 @@ from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.manufacturer.sync import ManufacturerSyncService
 from micboard.services.sync.polling_dtos import ManufacturerSyncResult
 from tests.factories.discovery import ManufacturerFactory
+from tests.factories.hardware import WirelessChassisFactory
+from tests.fake_vendor import FakeVendorPlugin, use_vendor
 
 pytestmark = pytest.mark.django_db
 
@@ -31,26 +33,17 @@ def _poll(
     Only the vendor boundary is substituted: plugin construction and inventory
     normalisation. Persistence, auditing, broadcasting, and reporting are the real thing.
     """
-    ManufacturerFactory(code="vendor", name="Vendor")
-    devices = [{"id": f"raw-{index}"} for index in range(created + updated)]
-    plugin = Mock()
-    plugin.get_devices.return_value = devices
-
-    outcomes = ["created"] * created + ["updated"] * updated
-    monkeypatch.setattr(
-        "micboard.services.manufacturer.sync.build_manufacturer_plugin",
-        Mock(return_value=plugin),
-    )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_normalize_devices",
-        Mock(return_value=[_payload(api_device_id=f"device-{i}") for i in range(len(devices))]),
-    )
-    monkeypatch.setattr(
-        ManufacturerSyncService,
-        "_sync_normalized_device",
-        Mock(side_effect=outcomes),
-    )
+    manufacturer = ManufacturerFactory(code="vendor", name="Vendor")
+    payloads = [_payload_at(index) for index in range(created + updated)]
+    for payload in payloads[created:]:
+        WirelessChassisFactory(
+            manufacturer=manufacturer,
+            api_device_id=payload.api_device_id,
+            serial_number=payload.serial_number,
+            mac_address=payload.mac_address,
+            ip=payload.ip,
+        )
+    use_vendor(monkeypatch, FakeVendorPlugin(payloads))
     monkeypatch.setattr(
         "micboard.services.notification.device_broadcast_service."
         "DeviceSnapshotBroadcastService.broadcast",
@@ -90,6 +83,16 @@ def test_a_poll_records_its_created_count_in_the_audit_row(
     assert row.updated_count == 3
     assert row.device_count == 5
     assert row.details["created_count"] == 2
+
+
+def _payload_at(index: int) -> NormalizedChassis:
+    """Build the vendor payload for the nth distinct chassis."""
+    return _payload(
+        api_device_id=f"device-{index}",
+        ip=f"192.0.2.{100 + index}",
+        serial_number=f"serial-{index}",
+        mac_address=f"00:11:22:33:44:{index:02x}",
+    )
 
 
 def _payload(**overrides: object) -> NormalizedChassis:

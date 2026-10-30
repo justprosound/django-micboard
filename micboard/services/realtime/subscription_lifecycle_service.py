@@ -97,7 +97,7 @@ class RealtimeSubscriptionLifecycleService:
                 return
 
             api_device_id = device.api_device_id
-            updated_count = await sync_to_async(
+            update = await sync_to_async(
                 DeviceUpdateService.update_models_from_api_data,
                 thread_sensitive=True,
             )(
@@ -105,6 +105,16 @@ class RealtimeSubscriptionLifecycleService:
                 manufacturer=manufacturer,
                 plugin=plugin,
             )
+            if update.dropped:
+                logger.warning(
+                    "Dropped %s update for manufacturer ID %s: %d skipped, %d rejected, %d failed",
+                    transport_label,
+                    manufacturer_id,
+                    update.skipped,
+                    update.rejected,
+                    update.failed,
+                )
+            updated_count = update.persisted
             if updated_count <= 0:
                 logger.debug(
                     "No persisted updates from %s for manufacturer ID %s",
