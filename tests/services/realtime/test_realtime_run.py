@@ -8,6 +8,7 @@ which the supervisor notices when it reloads the next window.
 """
 
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 from typing import Any
 from unittest.mock import Mock
@@ -394,3 +395,27 @@ def test_logs_name_models_by_id_and_exclude_vendor_detail(
     ):
         assert sentinel not in caplog.text
     assert f"chassis ID {chassis.pk}" in caplog.text
+
+
+def test_cancellation_after_the_row_is_marked_connecting_still_closes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cancellation can land before the run holds the row it has already marked connecting."""
+    manufacturer = ManufacturerFactory(code="vendor")
+    chassis = WirelessChassisFactory(manufacturer=manufacturer, status="online")
+    get_or_create = RealTimeConnection.objects.get_or_create
+
+    def mark_connecting_then_cancel(*args: Any, **kwargs: Any) -> Any:
+        connection, _created = get_or_create(*args, **kwargs)
+        RealTimeConnection.objects.filter(pk=connection.pk).mark_connecting()
+        raise asyncio.CancelledError
+
+    plugin = _FakePlugin(manufacturer)
+    _use(monkeypatch, plugin)
+    monkeypatch.setattr(RealTimeConnection.objects, "get_or_create", mark_connecting_then_cancel)
+
+    with contextlib.suppress(asyncio.CancelledError):
+        run_realtime_subscriptions(manufacturer.pk)
+
+    assert plugin.subscribed == []
+    assert RealTimeConnection.objects.get(chassis=chassis).status == "stopped"
