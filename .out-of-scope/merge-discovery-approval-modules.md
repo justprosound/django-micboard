@@ -17,7 +17,8 @@ A merge was evaluated in #467 and rejected on evidence:
   hardening and typing sweeps touched all of them.
 - **Coupling is clean.** The imports form a strict DAG with no cycles. The batch policy's
   seven dicts are instance-local to one batch and order-independent. The one real ordering
-  dependency (lock queue rows, then addresses, then inventory in primary-key order) lives in
+  dependency (lock queue rows and manufacturers by primary key, then canonical IP addresses,
+  then chassis and chargers by primary key) lives in
   `DiscoveryApprovalService.approve()` and has a test for it.
 - **Tests are already at the interface.** The only production caller is the admin, and most of
   the cluster's tests cross only `DiscoveryApprovalService`.
