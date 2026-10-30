@@ -7,7 +7,10 @@ from django.core.management.base import BaseCommand, CommandParser
 
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.realtime.subscription_runner import run_realtime_subscriptions
+from micboard.services.realtime.subscription_runner import (
+    RealtimeRunOutcome,
+    run_realtime_subscriptions,
+)
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
@@ -54,9 +57,10 @@ class Command(BaseCommand):
                 return
 
         try:
-            run_realtime_subscriptions(manufacturer.pk, chassis_id=chassis_id)
+            outcome = run_realtime_subscriptions(manufacturer.pk, chassis_id=chassis_id)
         except KeyboardInterrupt:
             self.stdout.write("Realtime subscriptions stopped by user")
+            return
         except Exception as exc:
             logger.exception(
                 "Realtime subscription command failed for manufacturer %s",
@@ -64,3 +68,8 @@ class Command(BaseCommand):
                 exc_info=sanitized_exception_info(exc),
             )
             self.stderr.write(self.style.ERROR("Realtime subscription failed; details redacted"))
+            return
+        if outcome is RealtimeRunOutcome.FAILED:
+            self.stderr.write(self.style.ERROR(f"Realtime run ended: {outcome.value}"))
+        else:
+            self.stdout.write(f"Realtime run ended: {outcome.value}")

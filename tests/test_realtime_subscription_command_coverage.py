@@ -13,6 +13,7 @@ from unittest.mock import Mock
 import pytest
 
 from micboard.management.commands import realtime_subscribe as command_module
+from micboard.services.realtime.subscription_runner import RealtimeRunOutcome
 
 
 def test_subscription_command_argument_contract() -> None:
@@ -39,7 +40,7 @@ def test_subscription_command_rejects_missing_manufacturer(monkeypatch) -> None:
 def test_subscription_command_resolves_device_and_calls_the_runner(monkeypatch, code) -> None:
     """Any integration reaches the same runner, which reads the transport off its plugin."""
     manufacturer = SimpleNamespace(pk=7, code=code)
-    run = Mock()
+    run = Mock(return_value=RealtimeRunOutcome.COMPLETED)
     monkeypatch.setattr(
         command_module.Manufacturer.objects,
         "get",
@@ -116,3 +117,27 @@ def test_subscription_command_reports_operator_interrupts(monkeypatch) -> None:
     command_module.Command(stdout=output).handle(manufacturer="shure", device=None)
 
     assert "Realtime subscriptions stopped by user" in output.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("outcome", "stream"),
+    [
+        (RealtimeRunOutcome.COMPLETED, "stdout"),
+        (RealtimeRunOutcome.LEASE_HELD, "stdout"),
+        (RealtimeRunOutcome.FAILED, "stderr"),
+    ],
+)
+def test_subscription_command_reports_how_the_run_ended(monkeypatch, outcome, stream) -> None:
+    monkeypatch.setattr(
+        command_module.Manufacturer.objects,
+        "get",
+        Mock(return_value=SimpleNamespace(pk=12, code="shure")),
+    )
+    monkeypatch.setattr(command_module, "run_realtime_subscriptions", Mock(return_value=outcome))
+    streams = {"stdout": StringIO(), "stderr": StringIO()}
+
+    command_module.Command(**streams).handle(manufacturer="shure", device=None)
+
+    assert f"Realtime run ended: {outcome.value}" in streams[stream].getvalue()
+    other = "stderr" if stream == "stdout" else "stdout"
+    assert streams[other].getvalue() == ""

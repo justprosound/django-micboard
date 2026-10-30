@@ -20,13 +20,18 @@ from asgiref.sync import sync_to_async
 from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.realtime.connection import RealTimeConnection
-from micboard.services.realtime.subscription_runner import run_realtime_subscriptions
+from micboard.services.realtime.subscription_runner import (
+    RealtimeRunOutcome,
+    run_realtime_subscriptions,
+)
 from micboard.services.realtime.subscription_supervisor import RealtimeSubscriptionSupervisor
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
+# Built at runtime so a traceback quoting the raising line cannot contain the sentinel.
+TRANSPORT_SECRET = "secret transport " + "credential"
 _PLUGIN_BUILDER = "micboard.services.realtime.subscription_runner.build_manufacturer_plugin"
 
 
@@ -44,11 +49,18 @@ class _FakePlugin:
         self.realtime_transport = transport
         self.subscribed: list[int] = []
         self._stream = stream
+        self._callback: Callable[[dict[str, Any]], Awaitable[None]] | None = None
 
     async def subscribe_to_chassis(self, chassis: WirelessChassis, callback: Any) -> None:
         self.subscribed.append(chassis.pk)
+        self._callback = callback
         if self._stream is not None:
             await self._stream(self, chassis)
+
+    async def deliver(self, data: dict[str, Any]) -> None:
+        """Push one update through the callback the run handed to the stream."""
+        assert self._callback is not None
+        await self._callback(data)
 
     async def deactivate_manufacturer(self) -> None:
         """End the run: the supervisor stops rotating once the manufacturer is inactive."""
@@ -87,7 +99,9 @@ def test_an_inactive_manufacturer_is_not_streamed(monkeypatch: pytest.MonkeyPatc
     WirelessChassisFactory(manufacturer=manufacturer, status="online")
     build = _use(monkeypatch, _FakePlugin(manufacturer))
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.MANUFACTURER_UNAVAILABLE
 
     build.assert_not_called()
     assert RealTimeConnection.objects.count() == 0
@@ -98,7 +112,9 @@ def test_a_missing_manufacturer_is_not_streamed(monkeypatch: pytest.MonkeyPatch)
     manufacturer = ManufacturerFactory(code="vendor")
     build = _use(monkeypatch, _FakePlugin(manufacturer))
 
-    run_realtime_subscriptions(manufacturer.pk + 1000)
+    outcome = run_realtime_subscriptions(manufacturer.pk + 1000)
+
+    assert outcome is RealtimeRunOutcome.MANUFACTURER_UNAVAILABLE
 
     build.assert_not_called()
     assert RealTimeConnection.objects.count() == 0
@@ -112,7 +128,9 @@ def test_an_integration_that_does_not_stream_takes_no_lease(
     plugin = _FakePlugin(manufacturer, transport=None)
     _use(monkeypatch, plugin)
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.NO_REALTIME_STREAM
 
     assert plugin.subscribed == []
     assert RealTimeConnection.objects.count() == 0
@@ -127,7 +145,9 @@ def test_no_eligible_chassis_takes_no_lease(monkeypatch: pytest.MonkeyPatch) -> 
     plugin = _FakePlugin(manufacturer)
     _use(monkeypatch, plugin)
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.NO_ELIGIBLE_CHASSIS
 
     assert plugin.subscribed == []
     assert RealTimeConnection.objects.count() == 0
@@ -141,7 +161,9 @@ def test_a_held_lease_means_no_chassis_is_streamed(monkeypatch: pytest.MonkeyPat
     _use(monkeypatch, plugin)
     assert RealtimeSubscriptionSupervisor.acquire(transport="sse", scope=manufacturer.pk)
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.LEASE_HELD
 
     assert plugin.subscribed == []
     assert RealTimeConnection.objects.count() == 0
@@ -164,7 +186,9 @@ def test_a_window_that_empties_after_the_lease_is_taken_streams_nothing(
 
     monkeypatch.setattr(RealtimeSubscriptionSupervisor, "acquire", acquire_then_lose_the_chassis)
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.EMPTY_SELECTION
 
     assert plugin.subscribed == []
     assert RealTimeConnection.objects.count() == 0
@@ -191,7 +215,9 @@ def test_a_normal_run_streams_each_chassis_and_leaves_its_connection_stopped(
     plugin = _FakePlugin(manufacturer, transport="websocket", stream=stream)
     _use(monkeypatch, plugin)
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.COMPLETED
 
     assert sorted(plugin.subscribed) == sorted([first.pk, second.pk])
     assert streamed_while == {first.pk: "connecting", second.pk: "connecting"}
@@ -211,7 +237,9 @@ def test_a_selected_chassis_narrows_the_run_to_that_chassis(
     plugin = _FakePlugin(manufacturer, stream=_end_after_streaming)
     _use(monkeypatch, plugin)
 
-    run_realtime_subscriptions(manufacturer.pk, chassis_id=chosen.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk, chassis_id=chosen.pk)
+
+    assert outcome is RealtimeRunOutcome.COMPLETED
 
     assert plugin.subscribed == [chosen.pk]
 
@@ -230,9 +258,13 @@ def test_a_stream_that_fails_marks_only_its_own_connection_as_an_error(
 
     _use(monkeypatch, _FakePlugin(manufacturer, stream=stream))
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
 
-    assert RealTimeConnection.objects.get(chassis=first).status == "error"
+    assert outcome is RealtimeRunOutcome.COMPLETED
+
+    failed = RealTimeConnection.objects.get(chassis=first)
+    assert failed.status == "error"
+    assert failed.error_message == "sse subscription failed: RuntimeError"
     assert RealTimeConnection.objects.get(chassis=second).status == "stopped"
 
 
@@ -243,7 +275,9 @@ def test_an_unexpected_crash_is_contained_and_redacted(
     WirelessChassisFactory(manufacturer=manufacturer, status="online")
     monkeypatch.setattr(_PLUGIN_BUILDER, Mock(side_effect=RuntimeError("private-detail")))
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.FAILED
 
     assert "private-detail" not in caplog.text
     assert f"manufacturer ID {manufacturer.pk}" in caplog.text
@@ -271,7 +305,92 @@ def test_cancelling_a_chassis_while_it_connects_leaves_its_connection_stopped(
 
     _use(monkeypatch, _FakePlugin(manufacturer, stream=stream))
 
-    run_realtime_subscriptions(manufacturer.pk)
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.COMPLETED
 
     assert seen[0] == "connecting"
     assert RealTimeConnection.objects.get(chassis=chassis).status == "stopped"
+
+
+def test_an_update_from_the_stream_is_recorded_against_its_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manufacturer = ManufacturerFactory(code="vendor")
+    chassis = WirelessChassisFactory(manufacturer=manufacturer, status="online")
+    normalized: list[dict[str, Any]] = []
+
+    async def stream(plugin: _FakePlugin, streaming: WirelessChassis) -> None:
+        await plugin.deliver({"id": "device-1"})
+        await plugin.deactivate_manufacturer()
+
+    plugin = _FakePlugin(manufacturer, stream=stream)
+    plugin.normalize_device = lambda data: normalized.append(data)  # type: ignore[attr-defined]
+    _use(monkeypatch, plugin)
+
+    outcome = run_realtime_subscriptions(manufacturer.pk)
+
+    assert outcome is RealtimeRunOutcome.COMPLETED
+    assert normalized == [{"id": "device-1"}]
+    assert RealTimeConnection.objects.get(chassis=chassis).last_message_at is not None
+
+
+def test_a_connection_streamed_over_another_transport_is_retargeted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manufacturer = ManufacturerFactory(code="vendor")
+    chassis = WirelessChassisFactory(manufacturer=manufacturer, status="online")
+    RealTimeConnection.objects.create(chassis=chassis, connection_type="sse")
+    _use(monkeypatch, _FakePlugin(manufacturer, transport="websocket", stream=_end_after_streaming))
+
+    run_realtime_subscriptions(manufacturer.pk)
+
+    assert RealTimeConnection.objects.get(chassis=chassis).connection_type == "websocket"
+
+
+def test_a_chassis_whose_manufacturer_deactivates_mid_round_is_not_streamed(
+    monkeypatch: pytest.MonkeyPatch, settings: Any
+) -> None:
+    """Activation is rechecked before each stream, so queued chassis stop with the manufacturer."""
+    settings.MICBOARD_REALTIME_MAX_CONCURRENCY = 1
+    manufacturer = ManufacturerFactory(code="vendor")
+    first = WirelessChassisFactory(manufacturer=manufacturer, status="online")
+    second = WirelessChassisFactory(manufacturer=manufacturer, status="online")
+    plugin = _FakePlugin(manufacturer, stream=_end_after_streaming)
+    _use(monkeypatch, plugin)
+
+    run_realtime_subscriptions(manufacturer.pk)
+
+    assert plugin.subscribed == [first.pk]
+    assert RealTimeConnection.objects.get(chassis=second).status == "stopped"
+
+
+def test_logs_name_models_by_id_and_exclude_vendor_detail(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    manufacturer = ManufacturerFactory(code="secret-vendor-code", name="secret vendor name")
+    chassis = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        status="online",
+        name="secret chassis name",
+        api_device_id="secret-device-id",
+    )
+    caplog.set_level("DEBUG")
+
+    async def stream(plugin: _FakePlugin, streaming: WirelessChassis) -> None:
+        await plugin.deactivate_manufacturer()
+        raise RuntimeError(TRANSPORT_SECRET)
+
+    _use(monkeypatch, _FakePlugin(manufacturer, stream=stream))
+
+    run_realtime_subscriptions(manufacturer.pk)
+
+    for sentinel in (
+        "secret-vendor-code",
+        "secret vendor name",
+        "secret chassis name",
+        "secret-device-id",
+        TRANSPORT_SECRET,
+    ):
+        assert sentinel not in caplog.text
+    assert f"chassis ID {chassis.pk}" in caplog.text

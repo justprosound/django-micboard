@@ -2,8 +2,11 @@
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from micboard.services.chargers.polling_dtos import ChargerPollResult
 from micboard.services.realtime.health_dtos import RealtimeConnectionHealthResult
+from micboard.services.realtime.subscription_runner import RealtimeRunOutcome
 from micboard.tasks.maintenance import charger as charger_tasks
 from micboard.tasks.monitoring import health as health_tasks
 from micboard.tasks.monitoring import realtime as realtime_tasks
@@ -11,10 +14,28 @@ from micboard.tasks.monitoring import realtime as realtime_tasks
 
 def test_realtime_subscription_task_delegates_only_persisted_ids() -> None:
     """The realtime queue seam passes no vendor-controlled device identifier."""
-    with patch.object(realtime_tasks, "run_realtime_subscriptions") as run:
-        realtime_tasks.start_realtime_subscriptions(7, 17)
+    with patch.object(
+        realtime_tasks,
+        "run_realtime_subscriptions",
+        return_value=RealtimeRunOutcome.LEASE_HELD,
+    ) as run:
+        result = realtime_tasks.start_realtime_subscriptions(7, 17)
 
     run.assert_called_once_with(7, chassis_id=17)
+    assert result == "lease_held"
+
+
+def test_realtime_subscription_task_logs_the_outcome(caplog: pytest.LogCaptureFixture) -> None:
+    """The queue records how the run ended, not just that it returned."""
+    caplog.set_level("INFO", logger=realtime_tasks.logger.name)
+    with patch.object(
+        realtime_tasks,
+        "run_realtime_subscriptions",
+        return_value=RealtimeRunOutcome.FAILED,
+    ):
+        realtime_tasks.start_realtime_subscriptions(7)
+
+    assert "manufacturer ID 7 ended: failed" in caplog.text
 
 
 def test_realtime_health_task_serializes_bounded_service_result() -> None:

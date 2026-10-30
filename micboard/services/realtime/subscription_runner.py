@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from enum import StrEnum
 from functools import partial
 from typing import Any
 
@@ -21,11 +22,33 @@ from micboard.utils.exception_logging import sanitized_exception_info
 logger = logging.getLogger(__name__)
 
 
-def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None = None) -> None:
+class RealtimeRunOutcome(StrEnum):
+    """How one realtime run ended, so a caller can report it without reading the logs."""
+
+    MANUFACTURER_UNAVAILABLE = "manufacturer_unavailable"
+    """The manufacturer is missing or inactive, so no plugin was built."""
+    NO_REALTIME_STREAM = "no_realtime_stream"
+    """The integration does not stream realtime updates."""
+    NO_ELIGIBLE_CHASSIS = "no_eligible_chassis"
+    """Nothing was eligible, so no lease was taken."""
+    LEASE_HELD = "lease_held"
+    """Another supervisor already holds this transport's lease."""
+    EMPTY_SELECTION = "empty_selection"
+    """The lease was taken but the chassis window came back empty."""
+    COMPLETED = "completed"
+    """The supervisor ran and stopped."""
+    FAILED = "failed"
+    """An unexpected error ended the run; its detail is in the logs."""
+
+
+def run_realtime_subscriptions(
+    manufacturer_id: int, *, chassis_id: int | None = None
+) -> RealtimeRunOutcome:
     """Run the singleton, bounded realtime supervisor for one manufacturer.
 
     The transport is read from the manufacturer's integration rather than chosen by the
-    caller: an integration streams over exactly one of them, or over none at all.
+    caller: an integration streams over exactly one of them, or over none at all. Failures
+    are contained and reported as `RealtimeRunOutcome.FAILED`, never raised.
     """
     try:
         manufacturer = ManufacturerActivationService.get_active(manufacturer_id)
@@ -34,7 +57,7 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
                 "Manufacturer with ID %s not found or inactive for realtime subscriptions",
                 manufacturer_id,
             )
-            return
+            return RealtimeRunOutcome.MANUFACTURER_UNAVAILABLE
 
         plugin = build_manufacturer_plugin(manufacturer)
         transport: RealtimeTransport | None = plugin.realtime_transport
@@ -43,7 +66,7 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
                 "The integration for manufacturer ID %s does not stream realtime updates",
                 manufacturer_id,
             )
-            return
+            return RealtimeRunOutcome.NO_REALTIME_STREAM
 
         # Check for work before taking the lease. A lease expires rather than being released,
         # so acquiring one for an empty inventory blocks the next run for its whole timeout.
@@ -56,7 +79,7 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
                 transport,
                 manufacturer_id,
             )
-            return
+            return RealtimeRunOutcome.NO_ELIGIBLE_CHASSIS
 
         limits = RealtimeSubscriptionSupervisor.limits()
         lease = RealtimeSubscriptionSupervisor.acquire(transport=transport, scope=manufacturer_id)
@@ -66,7 +89,7 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
                 transport,
                 manufacturer_id,
             )
-            return
+            return RealtimeRunOutcome.LEASE_HELD
 
         def select() -> list[WirelessChassis]:
             return RealtimeSubscriptionLifecycleService.select_chassis(
@@ -83,7 +106,7 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
                 transport,
                 manufacturer_id,
             )
-            return
+            return RealtimeRunOutcome.EMPTY_SELECTION
 
         async def reload_selection() -> list[WirelessChassis]:
             manufacturer_active = await sync_to_async(
@@ -110,6 +133,7 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
                 reload_items=reload_selection,
             )
         )
+        return RealtimeRunOutcome.COMPLETED
 
     except Exception as exc:
         logger.exception(
@@ -117,6 +141,7 @@ def run_realtime_subscriptions(manufacturer_id: int, *, chassis_id: int | None =
             manufacturer_id,
             exc_info=sanitized_exception_info(exc),
         )
+        return RealtimeRunOutcome.FAILED
 
 
 def _close_tracking(chassis: WirelessChassis, connection: Any) -> None:
