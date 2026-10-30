@@ -83,6 +83,48 @@ def test_refresh_persists_details_and_online_lifecycle(monkeypatch: pytest.Monke
     assert chassis.last_seen <= timezone.now()
 
 
+@pytest.mark.parametrize("kept_status", ["maintenance", "degraded"])
+def test_refresh_keeps_deliberate_status_of_a_responding_chassis(
+    monkeypatch: pytest.MonkeyPatch,
+    kept_status: str,
+) -> None:
+    """An operator-forced refresh persists details but never overrides a deliberate status."""
+    chassis = WirelessChassisFactory(status=kept_status)
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
+
+    result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
+
+    chassis.refresh_from_db()
+    assert result.synced_count == 1
+    assert chassis.status == kept_status
+    assert chassis.name == f"Refreshed {chassis.api_device_id}"
+
+
+def test_refresh_counts_a_refused_lifecycle_move_as_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refused online move rolls the refresh back instead of reporting success."""
+    chassis = WirelessChassisFactory(status="offline", name="Original")
+    monkeypatch.setattr(
+        "micboard.services.common.base.plugin.get_manufacturer_plugin",
+        lambda _code: _Plugin,
+    )
+    monkeypatch.setattr(
+        "micboard.services.core.hardware_lifecycle.HardwareLifecycleManager.transition_device",
+        lambda *_args, **_kwargs: False,
+    )
+
+    result = ChassisRefreshService.refresh(queryset=WirelessChassis.objects.filter(pk=chassis.pk))
+
+    chassis.refresh_from_db()
+    assert (result.synced_count, result.failed_count) == (0, 1)
+    assert chassis.status == "offline"
+    assert chassis.name == "Original"
+
+
 @pytest.mark.django_db(transaction=True)
 def test_refresh_does_not_hold_database_transaction_during_network_call(
     monkeypatch: pytest.MonkeyPatch,

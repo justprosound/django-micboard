@@ -70,8 +70,12 @@ _GRAPHS: dict[DeviceKind, dict[str, frozenset[str]]] = {
 }
 
 
-# A responding device in one of these states is left exactly as it is.
-_RESPONSE_KEEPS_STATUS = frozenset({_S.ONLINE, _S.DEGRADED, _S.MAINTENANCE})
+# The statuses of a chassis that is answering: the single definition ingest, sync and
+# the lifecycle share.
+RESPONDING_STATUSES = frozenset({_S.PROVISIONING, _S.ONLINE, _S.DEGRADED})
+# A responding chassis in one of these states is left exactly as it is: it is already
+# answering, or an operator put it in maintenance on purpose.
+_RESPONSE_KEEPS_STATUS = (RESPONDING_STATUSES - {_S.PROVISIONING}) | {_S.MAINTENANCE}
 
 
 def allowed_transitions(kind: DeviceKind, from_status: str) -> frozenset[str]:
