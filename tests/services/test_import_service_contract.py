@@ -190,53 +190,34 @@ def test_import_skips_lifecycle_write_when_status_is_unchanged(
     assert chassis.model == "Updated Model"
 
 
-def test_import_reconciles_discovered_device_through_provisioning(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("initial_status", "expected_status"),
+    [("discovered", "online"), ("maintenance", "maintenance"), ("degraded", "degraded")],
+)
+def test_import_of_a_responding_device_goes_through_the_responded_intent(
+    initial_status: str,
+    expected_status: str,
 ) -> None:
-    """Online imports traverse the required provisioning lifecycle state."""
+    """An online import brings discovered chassis online and keeps deliberate statuses."""
     manufacturer = ManufacturerFactory()
     chassis = WirelessChassisFactory(
         manufacturer=manufacturer,
-        serial_number="newly-online",
-        status="discovered",
-    )
-    lifecycle = HardwareLifecycleManager()
-    manager = Mock()
-    manager.transition_device.side_effect = lifecycle.transition_device
-    lifecycle_factory = Mock(return_value=manager)
-    monkeypatch.setattr(
-        "micboard.services.import_service.HardwareLifecycleManager",
-        lifecycle_factory,
+        serial_number=f"import-{initial_status}",
+        status=initial_status,
     )
 
     assert ImportService().import_device(
         {
             "serial": chassis.serial_number,
-            "ip": "192.0.2.198",
-            "id": "newly-online-api-id",
+            "ip": chassis.ip,
+            "id": chassis.api_device_id,
             "state": "ONLINE",
         },
         manufacturer,
-        server_id="primary",
     ) == (False, True)
 
-    transition_arguments = {
-        "reason": "Device state received during import",
-        "metadata": {
-            "source": "import",
-            "server_id": "primary",
-            "target_status": "online",
-        },
-    }
-    assert manager.transition_device.call_args_list == [
-        call(chassis, "provisioning", **transition_arguments),
-        call(chassis, "online", **transition_arguments),
-    ]
-    lifecycle_factory.assert_called_once_with()
     chassis.refresh_from_db()
-    assert chassis.status == "online"
-    assert chassis.is_online is True
-    assert str(chassis.ip) == "192.0.2.198"
+    assert chassis.status == expected_status
 
 
 def test_import_rolls_back_when_lifecycle_rejects_a_transition(
@@ -250,21 +231,16 @@ def test_import_rolls_back_when_lifecycle_rejects_a_transition(
         model="Original Model",
         status="discovered",
     )
-    lifecycle = HardwareLifecycleManager()
-    manager = Mock()
+    real_transition = HardwareLifecycleManager.transition_device
 
-    def reject_online(device, to_status: str, **kwargs) -> bool:
+    def reject_online(self, device, to_status: str, **kwargs) -> bool:
         if to_status == "online":
             return False
-        return lifecycle.transition_device(device, to_status, **kwargs)
+        return real_transition(self, device, to_status, **kwargs)
 
-    manager.transition_device.side_effect = reject_online
-    monkeypatch.setattr(
-        "micboard.services.import_service.HardwareLifecycleManager",
-        Mock(return_value=manager),
-    )
+    monkeypatch.setattr(HardwareLifecycleManager, "transition_device", reject_online)
 
-    with pytest.raises(RuntimeError, match="rejected imported status transition to 'online'"):
+    with pytest.raises(RuntimeError, match="Could not mark wireless chassis"):
         ImportService().import_device(
             {
                 "serial": chassis.serial_number,

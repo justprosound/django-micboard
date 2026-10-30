@@ -14,7 +14,11 @@ from typing import TYPE_CHECKING, Literal
 from django.db import transaction
 
 from micboard.models.hardware.wireless_chassis import WirelessChassis
-from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager, HardwareStatus
+from micboard.services.core.hardware_lifecycle import (
+    RESPONDING_STATUSES,
+    HardwareLifecycleManager,
+    HardwareStatus,
+)
 from micboard.services.deduplication.check import check_device
 from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 from micboard.services.deduplication.identity_mutation_lock import (
@@ -302,7 +306,7 @@ class ChassisIngestService:
         """Mark chassis missing from an authoritative snapshot offline and raise their alerts."""
         absent = WirelessChassis.objects.filter(
             manufacturer=manufacturer,
-            status__in={"online", "degraded", "provisioning"},
+            status__in=RESPONDING_STATUSES,
         ).exclude(id__in=present_ids)
         lifecycle = HardwareLifecycleManager()
         marked: list[int] = []
