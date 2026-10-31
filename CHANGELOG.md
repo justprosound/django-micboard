@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.31.1] - 2026-10-31
+
+### Changed
+
+- Make ingest normalize each raw vendor payload once and own the address backfill, drop counting and reconcile decision, so poll, realtime and API-server updates differ only in mode. An address-less device takes the address of the chassis its API id names on the poll as well as on realtime, and a normalizer that raises is counted and contained on both. Offline reconciliation is withheld when a device could not be normalized or identified, or when no device was read at all.
+
+### Tests
+
+- Cover address-less devices, normalizer failures and single normalization through the poll, realtime and device-update entry points with a fake plugin and real rows.
+
 ## [2026.10.31.0] - 2026-10-31
 
 ### Security
