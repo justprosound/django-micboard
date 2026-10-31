@@ -7,6 +7,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.10.31.0] - 2026-10-31
+
+### Security
+
+- Bump the locked `pyasn1` from 0.6.4 to 0.6.5, which fixes four quadratic-time denial-of-service advisories in BER, CER and DER decoding.
+
 ## [2026.10.30.2] - 2026-10-30
 
 ### Changed
