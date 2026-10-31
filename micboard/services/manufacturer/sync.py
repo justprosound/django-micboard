@@ -282,7 +282,7 @@ class ManufacturerSyncService:
         if unnormalizable:
             errors.append(f"{unnormalizable} device(s) were skipped for failing normalization.")
         if skipped:
-            errors.append(f"{skipped} device(s) were skipped for lacking an address.")
+            errors.append(f"{skipped} device(s) were skipped without an address to create from.")
         return ManufacturerSyncResult(
             success=not errors,
             errors=errors,

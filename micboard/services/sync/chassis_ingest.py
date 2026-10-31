@@ -122,7 +122,7 @@ class ChassisIngestService:
         An address-less payload takes the address of the chassis its API id names, or is
         skipped. One payload that cannot be persisted is counted in `failed` and does not
         stop the rest. An authoritative snapshot only marks absent chassis offline when
-        every device was read: none failed, none could not be normalized, and none was
+        at least one device was read and every one was read: none failed, none could not be normalized, and none was
         skipped without naming a chassis, because such a device might be the one that
         looks absent. It never marks a chassis that a skipped or rejected payload still
         names, so neither a partial failure nor a refused payload reads as an outage.
@@ -171,7 +171,12 @@ class ChassisIngestService:
 
         if mode is IngestMode.AUTHORITATIVE_SNAPSHOT:
             unread = result.failed + result.unnormalizable + result.unidentified
-            if unread:
+            if not payloads and not unread:
+                logger.warning(
+                    "Skipped offline reconciliation for manufacturer %s because no device was read",
+                    manufacturer.pk,
+                )
+            elif unread:
                 logger.warning(
                     "Skipped offline reconciliation for manufacturer %s because %d device(s) "
                     "were not fully read",

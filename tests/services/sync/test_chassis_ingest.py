@@ -337,7 +337,11 @@ def test_snapshot_reconciliation_continues_after_one_lifecycle_failure() -> None
             "micboard.services.sync.chassis_ingest.alert_manager.check_hardware_offline_alerts"
         ) as alerts,
     ):
-        _ingest(manufacturer, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
+        _ingest(
+            manufacturer,
+            _payload(api_device_id="live", serial_number="live", ip="192.0.2.199"),
+            mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+        )
 
     second.refresh_from_db()
     assert second.status == "offline"
@@ -448,7 +452,11 @@ def test_a_snapshot_alerts_only_for_chassis_it_marked_offline() -> None:
     with patch(
         "micboard.services.sync.chassis_ingest.alert_manager.check_hardware_offline_alerts"
     ) as alerts:
-        _ingest(manufacturer, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
+        _ingest(
+            manufacturer,
+            _payload(api_device_id="live", serial_number="live", ip="192.0.2.199"),
+            mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+        )
 
     alerts.assert_called_once()
     assert alerts.call_args.args == (unit,)
@@ -468,3 +476,14 @@ def test_ingest_counts_skipped_and_rejected_payloads() -> None:
     )
 
     assert (result.created, result.skipped, result.rejected, result.failed) == (1, 1, 1, 0)
+
+
+def test_an_authoritative_snapshot_that_read_no_device_marks_nothing_offline() -> None:
+    """An empty read cannot be told from a swallowed bad response, so it never reconciles."""
+    manufacturer = ManufacturerFactory(code="empty-read-vendor")
+    chassis = WirelessChassisFactory(manufacturer=manufacturer, status="online", ip="192.0.2.90")
+
+    result = _ingest(manufacturer, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
+
+    chassis.refresh_from_db()
+    assert (result.marked_offline, chassis.status) == (0, "online")

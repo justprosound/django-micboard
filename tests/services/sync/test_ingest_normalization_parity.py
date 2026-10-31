@@ -1,6 +1,7 @@
 """Ingest normalizes each raw payload once, so poll and realtime differ only in mode."""
 
 import asyncio
+from unittest.mock import Mock
 
 import pytest
 
@@ -8,6 +9,7 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.manufacturer.sync import ManufacturerSyncService
+from micboard.services.notification.broadcast_service import BroadcastService
 from micboard.services.realtime.subscription_lifecycle_service import (
     RealtimeSubscriptionLifecycleService,
 )
@@ -39,20 +41,16 @@ def _poll(monkeypatch: pytest.MonkeyPatch, plugin: FakeVendorPlugin) -> None:
     assert result is not None
 
 
-def _realtime(monkeypatch: pytest.MonkeyPatch, plugin: FakeVendorPlugin) -> None:
-    monkeypatch.setattr(
-        RealtimeSubscriptionLifecycleService, "_broadcast_update_async", _noop_broadcast
-    )
+def _realtime(monkeypatch: pytest.MonkeyPatch, plugin: FakeVendorPlugin) -> Mock:
+    broadcast = Mock()
+    monkeypatch.setattr(BroadcastService, "broadcast_device_update", broadcast)
     plugin.manufacturer = Manufacturer.objects.get(code="vendor")  # type: ignore[attr-defined]
     asyncio.run(
         RealtimeSubscriptionLifecycleService.process_update(
             plugin=plugin, data=plugin.raw_devices[0], transport="sse"
         )
     )
-
-
-async def _noop_broadcast(**_kwargs: object) -> None:
-    return None
+    return broadcast
 
 
 @pytest.fixture
@@ -221,3 +219,35 @@ def test_a_device_update_normalizes_each_payload_once() -> None:
     assert plugin.normalized_positions == [0, 1]
     assert update.persisted == 2
     assert update.persisted_api_device_ids == ("one", "two")
+
+
+def test_a_batch_reports_only_the_ids_it_persisted_when_another_device_is_skipped() -> None:
+    """A skipped address-less device is not among the persisted ids a caller broadcasts."""
+    manufacturer = ManufacturerFactory(code="vendor")
+    plugin = FakeVendorPlugin(
+        [
+            NormalizedChassis(api_device_id="stranger"),
+            NormalizedChassis(api_device_id="two", ip="192.0.2.73"),
+        ]
+    )
+
+    update = DeviceUpdateService.update_models_from_api_data(
+        api_data=plugin.raw_devices, manufacturer=manufacturer, plugin=plugin
+    )
+
+    assert (update.persisted, update.skipped) == (1, 1)
+    assert update.persisted_api_device_ids == ("two",)
+
+
+def test_realtime_broadcasts_the_chassis_the_event_persisted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The broadcast carries the persisted chassis, resolved from the ingest result."""
+    ManufacturerFactory(code="vendor")
+    plugin = FakeVendorPlugin([NormalizedChassis(api_device_id="two", ip="192.0.2.73")])
+
+    broadcast = _realtime(monkeypatch, plugin)
+
+    broadcast.assert_called_once()
+    receivers = broadcast.call_args.kwargs["data"]["receivers"]
+    assert [receiver["api_device_id"] for receiver in receivers] == ["two"]
