@@ -10,20 +10,17 @@ from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.models.rf_coordination.rf_channel import RFChannel
-from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis, NormalizedUnit
+from micboard.services.core.hardware import NormalizedChannel, NormalizedUnit
 from micboard.services.monitoring.alerts import alert_manager
 from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestedChassis, IngestMode
+from micboard.services.sync.chassis_normalization import ChassisNormalizer
 from micboard.utils.exception_logging import sanitized_exception_info
 
 logger = logging.getLogger(__name__)
 
 
-class DeviceUpdatePlugin(Protocol):
+class DeviceUpdatePlugin(ChassisNormalizer, Protocol):
     """Manufacturer operations required by device persistence."""
-
-    def normalize_device(self, api_data: dict[str, Any]) -> NormalizedChassis | None:
-        """Normalize one raw device payload."""
-        raise NotImplementedError
 
     def get_device_channels(self, device_id: str) -> list[dict[str, Any]]:
         """Return raw channel payloads for one device."""
@@ -42,6 +39,7 @@ class DeviceUpdateResult:
     skipped: int = 0
     rejected: int = 0
     failed: int = 0
+    persisted_api_device_ids: tuple[str, ...] = ()
 
     @property
     def dropped(self) -> int:
@@ -65,34 +63,11 @@ class DeviceUpdateService:
 
         Realtime events are partial by default and therefore never mark devices absent
         from one event offline. A complete snapshot opts into that reconciliation with
-        `IngestMode.AUTHORITATIVE_SNAPSHOT`, unless a payload could not be normalized.
+        `IngestMode.AUTHORITATIVE_SNAPSHOT`, unless ingest could not read every device.
         """
-        payloads: list[NormalizedChassis] = []
-        normalization_failed = 0
-        for device_index, device_data in enumerate(api_data, start=1):
-            try:
-                payload = plugin.normalize_device(device_data)
-            except Exception as exc:
-                logger.exception(
-                    "Error normalizing vendor device at snapshot position %s",
-                    device_index,
-                    exc_info=sanitized_exception_info(exc),
-                )
-                payload = None
-            if payload is None:
-                normalization_failed += 1
-                continue
-            payloads.append(payload)
-
-        if normalization_failed and mode is IngestMode.AUTHORITATIVE_SNAPSHOT:
-            logger.warning(
-                "Skipped offline reconciliation for %s because the snapshot was incomplete",
-                manufacturer.code,
-            )
-            mode = IngestMode.PARTIAL_EVENT
-
         result = ChassisIngestService.ingest(
-            payloads,
+            api_data,
+            plugin=plugin,
             manufacturer=manufacturer,
             mode=mode,
             require_active=False,
@@ -103,7 +78,10 @@ class DeviceUpdateService:
             persisted=len(result.ingested),
             skipped=result.skipped,
             rejected=result.rejected,
-            failed=result.failed + normalization_failed,
+            failed=result.failed + result.unnormalizable,
+            persisted_api_device_ids=tuple(
+                entry.payload.api_device_id for entry in result.ingested
+            ),
         )
         if outcome.dropped:
             logger.warning(

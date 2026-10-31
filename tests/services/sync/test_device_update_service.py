@@ -68,7 +68,7 @@ def test_normalization_failure_redacts_raw_device_identifier_and_exception() -> 
     secret = "malformed-payload-secret"
     plugin = _plugin(ValueError(secret))
 
-    with patch("micboard.services.sync.device_update_service.logger") as logger:
+    with patch("micboard.services.sync.chassis_normalization.logger") as logger:
         updated = DeviceUpdateService.update_models_from_api_data(
             api_data=[{"id": "raw-device-3"}],
             manufacturer=ManufacturerFactory(),
@@ -230,11 +230,14 @@ def test_device_without_embedded_channels_uses_the_channel_endpoint() -> None:
     with patch(
         "micboard.services.sync.device_update_service.alert_manager.check_wireless_unit_alerts"
     ):
-        assert DeviceUpdateService.update_models_from_api_data(
-            api_data=[{"id": "detail-device"}],
-            manufacturer=manufacturer,
-            plugin=plugin,
-        ) == DeviceUpdateResult(persisted=1)
+        assert (
+            DeviceUpdateService.update_models_from_api_data(
+                api_data=[{"id": "detail-device"}],
+                manufacturer=manufacturer,
+                plugin=plugin,
+            ).persisted
+            == 1
+        )
 
     unit = WirelessUnit.objects.get(base_chassis__api_device_id="detail-device")
     assert unit.assigned_resource.channel_number == 3
