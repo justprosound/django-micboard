@@ -200,6 +200,8 @@ class ChassisIngestService:
         """Persist one payload, or say why it was not."""
         payload = with_known_address(payload, manufacturer, identity_index)
         named = named_chassis_ids(payload, manufacturer, identity_index)
+        if not payload.ip and len(named) > 1:
+            return _NotPersisted("rejected", named)
         if not payload.ip:
             logger.debug(
                 "Skipped chassis ingest for manufacturer ID %s: no address to create from",

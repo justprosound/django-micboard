@@ -487,3 +487,37 @@ def test_an_authoritative_snapshot_that_read_no_device_marks_nothing_offline() -
 
     chassis.refresh_from_db()
     assert (result.marked_offline, chassis.status) == (0, "online")
+
+
+def test_an_addressless_payload_naming_two_chassis_is_rejected_and_protects_both() -> None:
+    """An API id and a serial that name different chassis is a conflict, never a backfill."""
+    manufacturer = ManufacturerFactory(code="conflict-vendor")
+    by_api_id = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="device-a",
+        serial_number="serial-a",
+        ip="192.0.2.110",
+        status="online",
+    )
+    by_serial = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="device-b",
+        serial_number="serial-b",
+        ip="192.0.2.111",
+        status="online",
+    )
+    absent = WirelessChassisFactory(manufacturer=manufacturer, status="online", ip="192.0.2.112")
+
+    result = _ingest(
+        manufacturer,
+        NormalizedChassis(api_device_id="device-a", serial_number="serial-b"),
+        mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+    )
+
+    for chassis in (by_api_id, by_serial, absent):
+        chassis.refresh_from_db()
+    assert (result.rejected, result.failed, result.skipped, result.ingested) == (1, 0, 0, [])
+    assert (str(by_api_id.ip), str(by_serial.ip)) == ("192.0.2.110", "192.0.2.111")
+    assert WirelessChassis.objects.count() == 3
+    assert (by_api_id.status, by_serial.status) == ("online", "online")
+    assert absent.status == "offline"

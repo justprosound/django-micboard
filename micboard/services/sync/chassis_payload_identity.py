@@ -39,4 +39,12 @@ def with_known_address(
     known = identity_index.api_id(manufacturer.pk, payload.api_device_id)
     if known is None:
         return payload
+    # An address that belongs to the API id's chassis is not this payload's when its serial
+    # or MAC names another chassis: that is an identity conflict, not a missing address.
+    others = (
+        identity_index.serial(payload.serial_number) if payload.serial_number else None,
+        identity_index.mac(payload.mac_address) if payload.mac_address else None,
+    )
+    if any(other is not None and other.pk != known.pk for other in others):
+        return payload
     return payload.model_copy(update={"ip": str(known.ip)})
