@@ -16,9 +16,10 @@ from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
-from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
+from micboard.services.sync.chassis_ingest import IngestMode
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
+from tests.fake_vendor import ingest_payloads
 
 pytestmark = pytest.mark.django_db
 
@@ -40,7 +41,7 @@ def _ingest(
     mode: IngestMode = IngestMode.PARTIAL_EVENT,
     require_active: bool = True,
 ):
-    return ChassisIngestService.ingest(
+    return ingest_payloads(
         list(payloads),
         manufacturer=manufacturer,
         mode=mode,
@@ -336,7 +337,11 @@ def test_snapshot_reconciliation_continues_after_one_lifecycle_failure() -> None
             "micboard.services.sync.chassis_ingest.alert_manager.check_hardware_offline_alerts"
         ) as alerts,
     ):
-        _ingest(manufacturer, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
+        _ingest(
+            manufacturer,
+            _payload(api_device_id="live", serial_number="live", ip="192.0.2.199"),
+            mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+        )
 
     second.refresh_from_db()
     assert second.status == "offline"
@@ -447,7 +452,11 @@ def test_a_snapshot_alerts_only_for_chassis_it_marked_offline() -> None:
     with patch(
         "micboard.services.sync.chassis_ingest.alert_manager.check_hardware_offline_alerts"
     ) as alerts:
-        _ingest(manufacturer, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
+        _ingest(
+            manufacturer,
+            _payload(api_device_id="live", serial_number="live", ip="192.0.2.199"),
+            mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+        )
 
     alerts.assert_called_once()
     assert alerts.call_args.args == (unit,)
@@ -467,3 +476,48 @@ def test_ingest_counts_skipped_and_rejected_payloads() -> None:
     )
 
     assert (result.created, result.skipped, result.rejected, result.failed) == (1, 1, 1, 0)
+
+
+def test_an_authoritative_snapshot_that_read_no_device_marks_nothing_offline() -> None:
+    """An empty read cannot be told from a swallowed bad response, so it never reconciles."""
+    manufacturer = ManufacturerFactory(code="empty-read-vendor")
+    chassis = WirelessChassisFactory(manufacturer=manufacturer, status="online", ip="192.0.2.90")
+
+    result = _ingest(manufacturer, mode=IngestMode.AUTHORITATIVE_SNAPSHOT)
+
+    chassis.refresh_from_db()
+    assert (result.marked_offline, chassis.status) == (0, "online")
+
+
+def test_an_addressless_payload_naming_two_chassis_is_rejected_and_protects_both() -> None:
+    """An API id and a serial that name different chassis is a conflict, never a backfill."""
+    manufacturer = ManufacturerFactory(code="conflict-vendor")
+    by_api_id = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="device-a",
+        serial_number="serial-a",
+        ip="192.0.2.110",
+        status="online",
+    )
+    by_serial = WirelessChassisFactory(
+        manufacturer=manufacturer,
+        api_device_id="device-b",
+        serial_number="serial-b",
+        ip="192.0.2.111",
+        status="online",
+    )
+    absent = WirelessChassisFactory(manufacturer=manufacturer, status="online", ip="192.0.2.112")
+
+    result = _ingest(
+        manufacturer,
+        NormalizedChassis(api_device_id="device-a", serial_number="serial-b"),
+        mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
+    )
+
+    for chassis in (by_api_id, by_serial, absent):
+        chassis.refresh_from_db()
+    assert (result.rejected, result.failed, result.skipped, result.ingested) == (1, 0, 0, [])
+    assert (str(by_api_id.ip), str(by_serial.ip)) == ("192.0.2.110", "192.0.2.111")
+    assert WirelessChassis.objects.count() == 3
+    assert (by_api_id.status, by_serial.status) == ("online", "online")
+    assert absent.status == "offline"

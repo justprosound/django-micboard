@@ -9,10 +9,10 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.monitoring.alert import Alert
 from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.manufacturer.sync import ManufacturerSyncService
-from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
+from micboard.services.sync.chassis_ingest import IngestMode
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
-from tests.fake_vendor import FakeVendorPlugin, use_vendor
+from tests.fake_vendor import FakeVendorPlugin, ingest_payloads, use_vendor
 
 pytestmark = pytest.mark.django_db
 
@@ -23,7 +23,7 @@ def test_a_chassis_dropped_from_a_complete_snapshot_alerts_although_its_unit_sta
     watched: SimpleNamespace,
 ) -> None:
     """The offline alert must fire for a unit whose own status still says online."""
-    ChassisIngestService.ingest(
+    ingest_payloads(
         [PRESENT],
         manufacturer=watched.manufacturer,
         mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
@@ -45,7 +45,7 @@ def test_the_alert_and_the_log_carry_last_seen_and_last_online_times(
     assert last_seen is not None and last_online_at is not None
 
     with caplog.at_level("WARNING", logger="micboard.services.sync.chassis_ingest"):
-        ChassisIngestService.ingest(
+        ingest_payloads(
             [PRESENT],
             manufacturer=watched.manufacturer,
             mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
@@ -217,7 +217,7 @@ def test_chassis_outside_the_responding_statuses_are_untouched_and_not_alerted(
     """Only a chassis that was up can go offline; deliberate states are left alone."""
     WirelessChassis.objects.filter(pk=watched.chassis.pk).update(status=status)
 
-    ChassisIngestService.ingest(
+    ingest_payloads(
         [PRESENT],
         manufacturer=watched.manufacturer,
         mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
@@ -236,7 +236,7 @@ def test_a_dropped_chassis_without_units_goes_offline_with_its_log_line_and_no_a
     chassis = WirelessChassisFactory(manufacturer=manufacturer, status="online", ip="192.0.2.30")
 
     with caplog.at_level("WARNING", logger="micboard.services.sync.chassis_ingest"):
-        result = ChassisIngestService.ingest(
+        result = ingest_payloads(
             [PRESENT],
             manufacturer=manufacturer,
             mode=IngestMode.AUTHORITATIVE_SNAPSHOT,
@@ -263,7 +263,7 @@ def test_one_alert_budget_covers_every_chassis_a_run_takes_offline() -> None:
     with patch(
         "micboard.services.sync.chassis_ingest.alert_manager.check_hardware_offline_alerts"
     ) as alerts:
-        ChassisIngestService.ingest(
+        ingest_payloads(
             [PRESENT],
             manufacturer=manufacturer,
             mode=IngestMode.AUTHORITATIVE_SNAPSHOT,

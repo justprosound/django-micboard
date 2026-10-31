@@ -552,7 +552,7 @@ def test_poll_reports_unnormalizable_and_unaddressed_devices_as_skipped(
     assert result.success is False
     assert result.errors == [
         "1 device(s) were skipped for failing normalization.",
-        "1 device(s) were skipped for lacking an address.",
+        "1 device(s) were skipped without an address to create from.",
     ]
     assert WirelessChassis.objects.filter(api_device_id="complete").exists()
 
