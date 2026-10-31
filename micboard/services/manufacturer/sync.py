@@ -5,9 +5,8 @@ handling normalization, deduplication, chassis creation and updates.
 """
 
 import logging
-from collections.abc import Iterable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from micboard.services.common.base.plugin import build_manufacturer_plugin
 from micboard.services.core.hardware_lifecycle import RESPONDING_STATUSES
@@ -16,7 +15,6 @@ from micboard.services.sync.chassis_ingest import (
     ChassisIngestService,
     IngestMode,
 )
-from micboard.services.sync.device_update_service import DeviceUpdatePlugin
 from micboard.services.sync.polling_dtos import (
     ManufacturerPollLimits,
     ManufacturerSyncResult,
@@ -26,7 +24,6 @@ from micboard.utils.exception_logging import sanitized_exception_info
 
 if TYPE_CHECKING:
     from micboard.models.discovery.manufacturer import Manufacturer
-    from micboard.services.core.hardware import NormalizedChassis
 
 logger = logging.getLogger(__name__)
 
@@ -200,27 +197,18 @@ class ManufacturerSyncService:
                     inventory_complete=False,
                 )
 
-            normalized_devices, unnormalizable, unaddressed = (
-                ManufacturerSyncService._normalize_devices(inventory.devices, plugin)
-            )
-
-            if not normalized_devices:
+            if not inventory.devices:
+                # An empty read says nothing about the chassis it does not list.
                 return ManufacturerSyncService._ingest_outcome(
-                    None,
-                    examined=len(inventory.devices),
-                    unnormalizable=unnormalizable,
-                    unaddressed=unaddressed,
-                    device_limit=limits.max_devices,
+                    None, examined=0, device_limit=limits.max_devices
                 )
 
             ingest = ChassisIngestService.ingest(
-                normalized_devices,
+                inventory.devices,
+                plugin=plugin,
                 manufacturer=manufacturer,
                 mode=ManufacturerSyncService._ingest_mode(
-                    manufacturer,
-                    source_complete=source_complete,
-                    unnormalizable=unnormalizable,
-                    unaddressed=unaddressed,
+                    manufacturer, source_complete=source_complete
                 ),
                 require_active=not force,
             )
@@ -237,8 +225,6 @@ class ManufacturerSyncService:
             return ManufacturerSyncService._ingest_outcome(
                 ingest,
                 examined=len(inventory.devices),
-                unnormalizable=unnormalizable,
-                unaddressed=unaddressed,
                 device_limit=limits.max_devices,
             )
 
@@ -255,26 +241,19 @@ class ManufacturerSyncService:
             )
 
     @staticmethod
-    def _ingest_mode(
-        manufacturer: Manufacturer,
-        *,
-        source_complete: bool,
-        unnormalizable: int,
-        unaddressed: int,
-    ) -> IngestMode:
-        """Reconcile absent chassis only when the poll read the vendor's whole inventory.
+    def _ingest_mode(manufacturer: Manufacturer, *, source_complete: bool) -> IngestMode:
+        """Ask ingest to reconcile absent chassis only when the client read the whole inventory.
 
         A fetch that failed raised before this point, a truncated one was refused, and an
         empty one never reaches ingest. What is left is a complete inventory unless the
-        client dropped part of the response or a device was dropped before ingest: its
-        identity is unknown, so it might be the chassis that looks absent.
+        client dropped part of the response. Ingest itself withholds reconciliation when a
+        device could not be normalized or identified.
         """
-        if not source_complete or unnormalizable or unaddressed:
+        if not source_complete:
             logger.warning(
-                "Skipped offline reconciliation for manufacturer %s because the inventory "
-                "was not fully read (%d device(s) dropped before ingest)",
+                "Skipped offline reconciliation for manufacturer %s because the client "
+                "did not read the whole inventory",
                 manufacturer.pk,
-                unnormalizable + unaddressed,
             )
             return IngestMode.PARTIAL_EVENT
         return IngestMode.AUTHORITATIVE_SNAPSHOT
@@ -284,17 +263,15 @@ class ManufacturerSyncService:
         ingest: ChassisIngestResult | None,
         *,
         examined: int,
-        unnormalizable: int,
-        unaddressed: int,
         device_limit: int,
     ) -> ManufacturerSyncResult:
         """Report every examined device as persisted, skipped, rejected or failed."""
-        created = updated = failed = rejected = ingest_skipped = removed = 0
+        created = updated = failed = rejected = skipped = unnormalizable = removed = 0
         if ingest is not None:
             created, updated = ingest.created, ingest.updated
             removed = ingest.marked_offline
-            failed, rejected, ingest_skipped = ingest.failed, ingest.rejected, ingest.skipped
-        skipped = ingest_skipped + unnormalizable + unaddressed
+            failed, rejected, skipped = ingest.failed, ingest.rejected, ingest.skipped
+            unnormalizable = ingest.unnormalizable
         errors: list[str] = []
         if failed:
             errors.append(
@@ -304,39 +281,16 @@ class ManufacturerSyncService:
             errors.append(f"{rejected} device(s) were rejected for an identity conflict.")
         if unnormalizable:
             errors.append(f"{unnormalizable} device(s) were skipped for failing normalization.")
-        if unaddressed:
-            errors.append(f"{unaddressed} device(s) were skipped for lacking an address.")
-        if ingest_skipped:
-            errors.append(f"{ingest_skipped} device(s) were skipped during ingest.")
+        if skipped:
+            errors.append(f"{skipped} device(s) were skipped for lacking an address.")
         return ManufacturerSyncResult(
             success=not errors,
             errors=errors,
             devices_added=created,
             devices_updated=updated,
             devices_removed=removed,
-            devices_skipped=skipped,
+            devices_skipped=skipped + unnormalizable,
             devices_rejected=rejected,
             devices_examined=examined,
             device_limit=device_limit,
         )
-
-    @staticmethod
-    def _normalize_devices(
-        api_devices: Iterable[dict[str, Any]], plugin: DeviceUpdatePlugin
-    ) -> tuple[list[NormalizedChassis], int, int]:
-        """Normalize raw payloads, keeping addressed devices and counting both drop causes.
-
-        Returns the addressed devices, the count that failed normalization and the count
-        that normalized without an address.
-        """
-        normalized: list[NormalizedChassis] = []
-        unnormalizable = unaddressed = 0
-        for raw in api_devices:
-            payload = plugin.normalize_device(raw)
-            if payload is None:
-                unnormalizable += 1
-            elif not payload.ip:
-                unaddressed += 1
-            else:
-                normalized.append(payload)
-        return normalized, unnormalizable, unaddressed

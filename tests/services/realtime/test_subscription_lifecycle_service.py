@@ -88,27 +88,25 @@ def test_select_chassis_delegates_unscoped_fairness(monkeypatch) -> None:
 
 @pytest.mark.parametrize("transport", ["sse", "websocket"])
 @pytest.mark.parametrize(
-    ("normalized", "updated_count", "expect_update", "expect_broadcast"),
-    [
-        (None, 0, False, False),
-        (NormalizedChassis(api_device_id="one"), 0, True, False),
-        (NormalizedChassis(api_device_id="one"), 1, True, True),
-    ],
+    ("updated_count", "expect_broadcast"),
+    [(0, False), (1, True)],
 )
 def test_process_update_branches(
     monkeypatch,
     transport: RealtimeTransport,
-    normalized,
     updated_count,
-    expect_update,
     expect_broadcast,
 ) -> None:
     manufacturer = SimpleNamespace(pk=9)
     plugin = SimpleNamespace(
         manufacturer=manufacturer,
-        normalize_device=Mock(return_value=normalized),
     )
-    update = Mock(return_value=DeviceUpdateResult(persisted=updated_count))
+    update = Mock(
+        return_value=DeviceUpdateResult(
+            persisted=updated_count,
+            persisted_api_device_ids=("one",) * updated_count,
+        )
+    )
     broadcast = AsyncMock()
     monkeypatch.setattr(lifecycle_service, "sync_to_async", direct_sync_adapter)
     monkeypatch.setattr(
@@ -130,13 +128,11 @@ def test_process_update_branches(
         )
     )
 
-    assert update.call_count == int(expect_update)
-    if expect_update:
-        update.assert_called_once_with(
-            api_data=[{"raw": True}],
-            manufacturer=manufacturer,
-            plugin=plugin,
-        )
+    update.assert_called_once_with(
+        api_data=[{"raw": True}],
+        manufacturer=manufacturer,
+        plugin=plugin,
+    )
     assert broadcast.await_count == int(expect_broadcast)
     if expect_broadcast:
         broadcast.assert_awaited_once_with(
@@ -146,7 +142,7 @@ def test_process_update_branches(
         )
 
 
-@pytest.mark.parametrize("failure_stage", ["normalize", "persist", "broadcast"])
+@pytest.mark.parametrize("failure_stage", ["persist", "broadcast"])
 def test_process_update_contains_and_redacts_failures(
     monkeypatch,
     caplog,
@@ -154,15 +150,10 @@ def test_process_update_contains_and_redacts_failures(
 ) -> None:
     secret = f"private-{failure_stage}-detail"
     manufacturer = SimpleNamespace(pk=10)
-    plugin = SimpleNamespace(
-        manufacturer=manufacturer,
-        normalize_device=Mock(return_value=NormalizedChassis(api_device_id="one")),
-    )
-    update = Mock(return_value=DeviceUpdateResult(persisted=1))
+    plugin = SimpleNamespace(manufacturer=manufacturer)
+    update = Mock(return_value=DeviceUpdateResult(persisted=1, persisted_api_device_ids=("one",)))
     broadcast = AsyncMock()
-    if failure_stage == "normalize":
-        plugin.normalize_device.side_effect = RuntimeError(secret)
-    elif failure_stage == "persist":
+    if failure_stage == "persist":
         update.side_effect = RuntimeError(secret)
     else:
         broadcast.side_effect = RuntimeError(secret)

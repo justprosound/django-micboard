@@ -20,7 +20,8 @@ from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.maintenance.audit import AuditService
 from micboard.services.maintenance.logging_mode import LoggingModeService
-from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
+from micboard.services.sync.chassis_ingest import IngestMode
+from tests.fake_vendor import ingest_payloads
 
 
 def test_websocket_dispatch_awaits_async_callback() -> None:
@@ -61,7 +62,7 @@ def test_offline_chassis_checks_attached_wireless_units() -> None:
     with patch(
         "micboard.services.sync.chassis_ingest.alert_manager.check_hardware_offline_alerts"
     ) as check_alerts:
-        ChassisIngestService.ingest(
+        ingest_payloads(
             [],
             manufacturer=manufacturer,
             mode=IngestMode.AUTHORITATIVE_SNAPSHOT,

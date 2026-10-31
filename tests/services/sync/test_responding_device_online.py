@@ -7,11 +7,11 @@ import pytest
 from micboard.models.hardware.wireless_chassis import WirelessChassis
 from micboard.services.core.hardware import NormalizedChassis
 from micboard.services.core.hardware_lifecycle import HardwareLifecycleManager
-from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
+from micboard.services.sync.chassis_ingest import IngestMode
 from micboard.services.sync.device_update_service import DeviceUpdateService
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory
-from tests.fake_vendor import FakeVendorPlugin
+from tests.fake_vendor import FakeVendorPlugin, ingest_payloads
 
 pytestmark = pytest.mark.django_db
 
@@ -27,7 +27,7 @@ RESPONDING_OUTCOMES = [
 
 
 def _poll_duplicate(chassis: WirelessChassis) -> None:
-    ChassisIngestService.ingest(
+    ingest_payloads(
         [
             NormalizedChassis(
                 api_device_id=chassis.api_device_id,
@@ -41,7 +41,7 @@ def _poll_duplicate(chassis: WirelessChassis) -> None:
 
 
 def _poll_moved(chassis: WirelessChassis) -> None:
-    ChassisIngestService.ingest(
+    ingest_payloads(
         [
             NormalizedChassis(
                 api_device_id=chassis.api_device_id,

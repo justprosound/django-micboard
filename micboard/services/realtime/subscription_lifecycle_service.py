@@ -82,21 +82,11 @@ class RealtimeSubscriptionLifecycleService:
         data: dict[str, Any],
         transport: RealtimeTransport,
     ) -> None:
-        """Normalize, persist, and broadcast one transport-neutral realtime update."""
+        """Persist, via ingest, and broadcast one transport-neutral realtime update."""
         manufacturer: Any = getattr(plugin, "manufacturer", None)
         manufacturer_id = getattr(manufacturer, "pk", None)
         transport_label = _TRANSPORT_LABELS[transport]
         try:
-            device = plugin.normalize_device(data)
-            if device is None:
-                logger.debug(
-                    "Could not normalize %s data for manufacturer ID %s",
-                    transport_label,
-                    manufacturer_id,
-                )
-                return
-
-            api_device_id = device.api_device_id
             update = await sync_to_async(
                 DeviceUpdateService.update_models_from_api_data,
                 thread_sensitive=True,
@@ -115,7 +105,7 @@ class RealtimeSubscriptionLifecycleService:
                     update.failed,
                 )
             updated_count = update.persisted
-            if updated_count <= 0:
+            if updated_count <= 0 or not update.persisted_api_device_ids:
                 logger.debug(
                     "No persisted updates from %s for manufacturer ID %s",
                     transport_label,
@@ -131,7 +121,7 @@ class RealtimeSubscriptionLifecycleService:
             )
             await cls._broadcast_update_async(
                 manufacturer=manufacturer,
-                api_device_id=api_device_id,
+                api_device_id=update.persisted_api_device_ids[0],
                 transport=transport,
             )
         except Exception as exc:

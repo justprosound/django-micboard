@@ -16,9 +16,10 @@ from micboard.services.deduplication.identity_index import DeviceIdentityIndex
 from micboard.services.hardware.wireless_chassis_persistence_service import (
     WirelessChassisPersistenceService,
 )
-from micboard.services.sync.chassis_ingest import ChassisIngestService, IngestMode
+from micboard.services.sync.chassis_ingest import IngestMode
 from tests.factories.discovery import ManufacturerFactory
 from tests.factories.hardware import WirelessChassisFactory, WirelessUnitFactory
+from tests.fake_vendor import ingest_payloads
 
 pytestmark = pytest.mark.django_db
 
@@ -40,7 +41,7 @@ def _ingest(
     mode: IngestMode = IngestMode.PARTIAL_EVENT,
     require_active: bool = True,
 ):
-    return ChassisIngestService.ingest(
+    return ingest_payloads(
         list(payloads),
         manufacturer=manufacturer,
         mode=mode,

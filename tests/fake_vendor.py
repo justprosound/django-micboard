@@ -4,7 +4,13 @@ from collections.abc import Callable, Sequence
 
 import pytest
 
+from micboard.models.discovery.manufacturer import Manufacturer
 from micboard.services.core.hardware import NormalizedChannel, NormalizedChassis
+from micboard.services.sync.chassis_ingest import (
+    ChassisIngestResult,
+    ChassisIngestService,
+    IngestMode,
+)
 
 BUILD_PLUGIN = "micboard.services.manufacturer.sync.build_manufacturer_plugin"
 
@@ -48,3 +54,21 @@ class FakeVendorPlugin:
 def use_vendor(monkeypatch: pytest.MonkeyPatch, plugin: object) -> None:
     """Make the poll build `plugin` for every manufacturer."""
     monkeypatch.setattr(BUILD_PLUGIN, lambda _manufacturer: plugin)
+
+
+def ingest_payloads(
+    payloads: Sequence[NormalizedChassis | None],
+    *,
+    manufacturer: Manufacturer,
+    mode: IngestMode,
+    require_active: bool = True,
+) -> ChassisIngestResult:
+    """Ingest what a fake vendor reports, through the public ingest interface."""
+    plugin = FakeVendorPlugin(payloads)
+    return ChassisIngestService.ingest(
+        plugin.raw_devices,
+        plugin=plugin,
+        manufacturer=manufacturer,
+        mode=mode,
+        require_active=require_active,
+    )

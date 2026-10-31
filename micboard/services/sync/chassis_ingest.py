@@ -6,11 +6,11 @@ MAC, address or API id) is matched, moved or rejected the same way whichever pat
 """
 
 import logging
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from django.db import transaction
 
@@ -31,6 +31,8 @@ from micboard.services.hardware.wireless_chassis_persistence_service import (
 )
 from micboard.services.monitoring.alert_fanout_dtos import AlertFanoutBudget
 from micboard.services.monitoring.alerts import ChassisOfflineNotice, alert_manager
+from micboard.services.sync.chassis_normalization import ChassisNormalizer, normalize_batch
+from micboard.services.sync.chassis_payload_identity import named_chassis_ids, with_known_address
 from micboard.services.sync.discovery_trigger_service import coalesce_discovery_scheduling
 from micboard.utils.exception_logging import sanitized_exception_info
 from micboard.utils.mac_address import canonicalize_mac_address
@@ -75,13 +77,17 @@ class _NotPersisted:
 class ChassisIngestResult:
     """What one ingest persisted, skipped, rejected and failed.
 
-    `skipped` counts payloads with no address to create from; `rejected` counts payloads
-    refused for an identity conflict or because another manufacturer owns the chassis.
+    `unnormalizable` counts raw devices the plugin could not read; `skipped` counts payloads
+    with no address to create from, `unidentified` of them naming no chassis of this
+    manufacturer; `rejected` counts payloads refused for an identity conflict or because
+    another manufacturer owns the chassis.
     """
 
     ingested: list[IngestedChassis] = field(default_factory=list)
     failed: int = 0
+    unnormalizable: int = 0
     skipped: int = 0
+    unidentified: int = 0
     rejected: int = 0
     manufacturer_inactive: bool = False
     marked_offline: int = 0
@@ -103,22 +109,29 @@ class ChassisIngestService:
     @classmethod
     def ingest(
         cls,
-        payloads: Sequence[NormalizedChassis],
+        raw_devices: Iterable[Mapping[str, Any]],
         *,
+        plugin: ChassisNormalizer,
         manufacturer: Manufacturer,
         mode: IngestMode,
         require_active: bool = True,
     ) -> ChassisIngestResult:
-        """Persist payloads under the global identity lock and report each outcome.
+        """Normalize raw vendor payloads once, persist them and report each outcome.
 
-        One payload that cannot be persisted is counted in `failed` and does not stop the
-        rest. An authoritative snapshot only marks absent chassis offline when no payload
-        failed, and never marks a chassis that a skipped or rejected payload still names, so
-        neither a partial failure nor a refused payload reads as an outage.
+        Poll, realtime and API-server updates all enter here and differ only in `mode`.
+        An address-less payload takes the address of the chassis its API id names, or is
+        skipped. One payload that cannot be persisted is counted in `failed` and does not
+        stop the rest. An authoritative snapshot only marks absent chassis offline when
+        every device was read: none failed, none could not be normalized, and none was
+        skipped without naming a chassis, because such a device might be the one that
+        looks absent. It never marks a chassis that a skipped or rejected payload still
+        names, so neither a partial failure nor a refused payload reads as an outage.
         With `require_active`, a manufacturer deactivated before the lock was taken ingests
         nothing.
         """
-        result = ChassisIngestResult()
+        batch = normalize_batch(raw_devices, plugin)
+        payloads = batch.payloads
+        result = ChassisIngestResult(unnormalizable=batch.unnormalizable)
         protected_ids: set[int] = set()
         with DeviceIdentityMutationLockService.acquire(
             manufacturer=manufacturer
@@ -150,15 +163,20 @@ class ChassisIngestService:
                         continue
                     if entry.kind == "skipped":
                         result.skipped += 1
+                        if not entry.named_chassis_ids:
+                            result.unidentified += 1
                     else:
                         result.rejected += 1
                     protected_ids.update(entry.named_chassis_ids)
 
         if mode is IngestMode.AUTHORITATIVE_SNAPSHOT:
-            if result.failed:
+            unread = result.failed + result.unnormalizable + result.unidentified
+            if unread:
                 logger.warning(
-                    "Skipped offline reconciliation for %s because the snapshot was incomplete",
-                    manufacturer.code,
+                    "Skipped offline reconciliation for manufacturer %s because %d device(s) "
+                    "were not fully read",
+                    manufacturer.pk,
+                    unread,
                 )
             else:
                 result.marked_offline = cls._mark_absent_offline(
@@ -175,8 +193,8 @@ class ChassisIngestService:
         identity_index: DeviceIdentityIndex,
     ) -> IngestedChassis | _NotPersisted:
         """Persist one payload, or say why it was not."""
-        payload = cls._with_known_address(payload, manufacturer, identity_index)
-        named = cls._named_chassis_ids(payload, manufacturer, identity_index)
+        payload = with_known_address(payload, manufacturer, identity_index)
+        named = named_chassis_ids(payload, manufacturer, identity_index)
         if not payload.ip:
             logger.debug(
                 "Skipped chassis ingest for manufacturer ID %s: no address to create from",
@@ -232,39 +250,6 @@ class ChassisIngestService:
             )
             return IngestedChassis(payload, chassis, "created")
         return _NotPersisted("rejected", named)
-
-    @staticmethod
-    def _named_chassis_ids(
-        payload: NormalizedChassis,
-        manufacturer: Manufacturer,
-        identity_index: DeviceIdentityIndex,
-    ) -> frozenset[int]:
-        """Return the chassis of this manufacturer that any identity of the payload names."""
-        candidates = (
-            identity_index.serial(payload.serial_number) if payload.serial_number else None,
-            identity_index.mac(payload.mac_address) if payload.mac_address else None,
-            identity_index.ip(payload.ip) if payload.ip else None,
-            identity_index.api_id(manufacturer.pk, payload.api_device_id),
-        )
-        return frozenset(
-            chassis.pk
-            for chassis in candidates
-            if chassis is not None and chassis.manufacturer_id == manufacturer.pk
-        )
-
-    @staticmethod
-    def _with_known_address(
-        payload: NormalizedChassis,
-        manufacturer: Manufacturer,
-        identity_index: DeviceIdentityIndex,
-    ) -> NormalizedChassis:
-        """Give an address-less event the address of the chassis its API id already names."""
-        if payload.ip:
-            return payload
-        known = identity_index.api_id(manufacturer.pk, payload.api_device_id)
-        if known is None:
-            return payload
-        return payload.model_copy(update={"ip": str(known.ip)})
 
     @classmethod
     def _persist_move(
