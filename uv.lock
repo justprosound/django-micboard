@@ -150,7 +150,7 @@ wheels = [
 
 [[package]]
 name = "bump-my-version"
-version = "1.6.7"
+version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -163,9 +163,9 @@ dependencies = [
     { name = "tomlkit" },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2f/ea/5ce9d814fbd532d8a5d8344bff688170c031f16ef11370b14b42fd3f8e7f/bump_my_version-1.6.7.tar.gz", hash = "sha256:ca21d720a4d951eb26354c9b62776a5481468c2319bd253c3494faf489f49c34", size = 1161983, upload-time = "2026-10-25T20:21:34.979Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/29/08b45e8606c496fb2927d97610b1d9ac8c73242abb0d683416a2bd0dc1a2/bump_my_version-1.8.0.tar.gz", hash = "sha256:2b6aded7a523014a20b7e4612bb6f6e8e2fd8c7d8a96bba529a31e24423ef09d", size = 1174808, upload-time = "2026-11-01T12:08:52.702Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/50/b6/8a0bca33e613912312020e0a57a62e024a9fbc97a72dbc302fe7e3a6696c/bump_my_version-1.6.7-py3-none-any.whl", hash = "sha256:44e9f4fb733ff5d77f832249b7974d49a2f7acf3b566960265b5928788ab2f75", size = 68332, upload-time = "2026-10-25T20:21:33.587Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/18/534a80747329e3291ff7aa8b63eda1b372a01841c9f985e7503ccc8ccf3a/bump_my_version-1.8.0-py3-none-any.whl", hash = "sha256:9e6bc618e316cca864541b8c0b8e450b2b099e58e1f860cc6b3c3b2938eae190", size = 69772, upload-time = "2026-11-01T12:08:51.076Z" },
 ]
 
 [[package]]
@@ -1057,8 +1057,8 @@ provides-extras = ["standard", "tasks", "realtime", "shure", "api", "admin-ui", 
 
 [package.metadata.requires-dev]
 fuzz = [{ name = "atheris", specifier = ">=2.3.0" }]
-release = [{ name = "pypi-attestations", specifier = "==0.0.30" }]
-release-preparation = [{ name = "bump-my-version", specifier = "==1.6.7" }]
+release = [{ name = "pypi-attestations", specifier = "==0.0.31" }]
+release-preparation = [{ name = "bump-my-version", specifier = "==1.8.0" }]
 security = [{ name = "bandit", specifier = ">=1.7" }]
 
 [[package]]
@@ -2017,15 +2017,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pyasn1"
-version = "0.6.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/88/7e/3c0da41061a2021cac7cd524fd57092adbe5b515e8bf9005702e366802e2/pyasn1-0.6.5.tar.gz", hash = "sha256:6b11616a6bcf3a40e635f082bb232fa57b5e0dd7f517bd7ddd69ec3794508a47", size = 155152, upload-time = "2026-10-27T06:32:49.125Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/1f/3eefd5c84c35cae44549ce1c7f7e58f7945b34f5a6bce07a135438522073/pyasn1-0.6.5-py3-none-any.whl", hash = "sha256:4017b0fce125096b8573b39c989fdb1a4b19cf761e683398184550fea0e66587", size = 84807, upload-time = "2026-10-27T06:32:48.045Z" },
-]
-
-[[package]]
 name = "pycparser"
 version = "3.12"
 source = { registry = "https://pypi.org/simple" }
@@ -2161,21 +2152,20 @@ wheels = [
 
 [[package]]
 name = "pypi-attestations"
-version = "0.0.30"
+version = "0.0.31"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "packaging" },
-    { name = "pyasn1" },
     { name = "pydantic" },
     { name = "requests" },
     { name = "rfc3986" },
     { name = "sigstore" },
     { name = "sigstore-models" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/97/1e/eb8a0233cdcaf01acb18076ac8b8a057714177b3717baf26b78a11b8d929/pypi_attestations-0.0.30.tar.gz", hash = "sha256:14ff13c76bbef02a483c2b77532da02bfd746b5141b881f355e06b9807434423", size = 139108, upload-time = "2026-07-28T14:08:35.011Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/e2/61dacf2a7ae4cc5a3671f528a8e1d0a84b3ed032c1da5ebb3297f41d58b3/pypi_attestations-0.0.31.tar.gz", hash = "sha256:5a2473aca7d7f65caf2c3a985691c5cf9264a97fa68c98fbae6e96320bcc7c9a", size = 140027, upload-time = "2026-11-02T20:14:18.648Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/24/e59078318b5e2bca59be5a21957d70e082e6eb4f478adffe373f3b74daf4/pypi_attestations-0.0.30-py3-none-any.whl", hash = "sha256:b3a9c53f6cb89e5e7b5b70e6cfca97cfc66008c1ed54087355e06e40071cef21", size = 23015, upload-time = "2026-07-28T14:08:33.453Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/86/4dc8763dd3c29468417c7f16ca8758d51271419445d56809c860627697ee/pypi_attestations-0.0.31-py3-none-any.whl", hash = "sha256:c022f7bc771545463fdcbb019160b86b87a6048c9a9edb7d541824593d64a1c8", size = 22937, upload-time = "2026-11-02T20:14:17.241Z" },
 ]
 
 [[package]]
