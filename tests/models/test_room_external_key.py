@@ -71,3 +71,16 @@ def test_migration_keeps_a_database_default_for_external_room_id() -> None:
     field = state.apps.get_model("micboard", "Room")._meta.get_field("external_room_id")
 
     assert field.db_default == ""
+
+
+def test_previous_release_insert_gets_a_blank_external_room_id() -> None:
+    """An insert from the 0005 model, which omits the column, reads back as blank."""
+    building = BuildingFactory()
+    state = MigrationLoader(connection).project_state(
+        ("micboard", "0005_setting_setting_exactly_one_scope_and_more")
+    )
+    previous_room = state.apps.get_model("micboard", "Room")
+
+    inserted = previous_room.objects.create(building_id=building.pk, name="Previous release")
+
+    assert Room.objects.get(pk=inserted.pk).external_room_id == ""
