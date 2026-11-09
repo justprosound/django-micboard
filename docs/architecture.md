@@ -143,6 +143,22 @@ micboard/models/
   users/                # User profiles, permissions
 ```
 
+### Joining rooms to a host project
+
+A micboard `Room` carries an optional `external_room_id`: the key the host project uses for the
+same physical room. Micboard stores it as an opaque string with no foreign key, so the package
+stays independent of any host's room model and needs no `MICBOARD_*` setting for it. The host
+writes the key and does the join. A key is unique within a building when set, and many rooms may
+leave it blank. Micboard stores the key exactly as given, with no trimming or case folding, so the
+host normalises it before writing: `" ROOM-1"` and `"ROOM-1"` are different keys.
+
+```python
+from micboard.models.locations.structure import Room
+
+# Host project: find the micboard room for one of its own room keys
+room = Room.objects.get(building=building, external_room_id=str(host_room.pk))
+```
+
 ## Services & Business Logic
 
 Core services in `micboard/services/`:

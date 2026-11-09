@@ -96,6 +96,12 @@ _Avoid_: Zone, area
 A physical site with its own buildings and networks; Edge Listeners attach to a campus.
 _Avoid_: Site, venue (as the general term)
 
+**External Room ID**:
+The key a host project uses for the same physical room in its own room inventory, stored on a
+micboard Room so wireless state can be joined to the host's room data. Micboard treats it as an
+opaque string and never resolves it.
+_Avoid_: Room link, room FK (it is a plain key, not a database relation)
+
 **Edge Listener**:
 A micboard process deployed on a campus that observes isolated RF and media segments and sends
 normalized state to central over one outbound link.
