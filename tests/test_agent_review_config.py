@@ -20,4 +20,5 @@ HOST_ONLY = {
 
 @pytest.mark.unit
 def test_code_review_runs_on_the_host_only() -> None:
+    """A review reads this file to pick its reader, so the committed copy must be exactly the host-only schema."""
     assert json.loads((ROOT / "docs/agents/cross-model.json").read_text()) == HOST_ONLY
