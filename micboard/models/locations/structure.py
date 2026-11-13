@@ -108,11 +108,26 @@ class Room(models.Model):
     name = models.CharField(max_length=100, help_text="Name or number of the room")
     floor = models.CharField(max_length=50, blank=True, help_text="Floor information")
     description = models.TextField(blank=True, help_text="Detailed description of the room")
+    external_room_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        db_default="",
+        db_index=True,
+        help_text="Key of this room in the host project's own room inventory (optional)",
+    )
 
     class Meta:
         verbose_name = "Room"
         verbose_name_plural = "Rooms"
         unique_together: ClassVar[list[list[str]]] = [["building", "name"]]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(
+                fields=["building", "external_room_id"],
+                condition=~models.Q(external_room_id=""),
+                name="room_unique_external_room_id_per_building",
+            ),
+        ]
         ordering: ClassVar[list[str]] = ["building__name", "name"]
 
     def __str__(self) -> str:

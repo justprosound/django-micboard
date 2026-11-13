@@ -348,7 +348,7 @@ Represents a room within a building.
 
 Bases: `models.Model`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L122)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/models/locations/structure.py#L137)
 
 Represents a specific point of interest within a building and room.
 
