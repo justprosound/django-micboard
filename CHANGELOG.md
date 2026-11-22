@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.11.22.0] - 2026-11-22
+
+### Docs
+
+- Keep code review on the host: add `docs/agents/cross-model.json` with `"mode": "host-only"` and a test that pins it, so a review never sends a diff to an external reviewer without maintainer approval.
+
+### Tests
+
+- Pin the host-only review settings file to its exact schema.
+
 ## [2026.10.31.1] - 2026-10-31
 
 ### Changed
