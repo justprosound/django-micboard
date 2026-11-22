@@ -31,6 +31,7 @@
 | Domain glossary & ADRs | `docs/agents/domain.md` |
 | GitHub issue tracker conventions | `docs/agents/issue-tracker.md` |
 | Issue triage labels | `docs/agents/triage-labels.md` |
+| Code review reader settings | `docs/agents/cross-model.json` |
 
 ## Key Conventions
 - Organize code by domain under `micboard/{services,tasks,serializers,admin,api}/<domain>/` and keep files under ~400 lines.
@@ -44,3 +45,4 @@
 - Regenerate `docs/api/reference/` with `just docs-api` (`scripts/generate_api_docs.py`); do not edit generated reference files by hand or import Django during docs builds.
 - Add one `changelog.d/pr-<number>.md` fragment per pull request.
 - Format commit messages with Conventional Commits (`feat:`, `fix:`, etc.) and never include `Co-Authored-By` trailers.
+- Code review stays on the host unless the maintainers approve an external reviewer: keep `"mode": "host-only"` in `docs/agents/cross-model.json`, and never start an external review CLI or send a diff off the host without that approval.
