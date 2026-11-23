@@ -22,6 +22,17 @@
         "node-version:\\s*[\"']?(?<currentValue>\\d+)[\"']?\\s*#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>node)"
       ],
       "versioningTemplate": "node"
+    },
+    {
+      "description": "Update the hook repository revs in prek.toml. The pre-commit manager cannot parse prek.toml, and the github-tags datasource (unlike git-tags) carries release timestamps, so minimumReleaseAge applies. Hooks with repo = \"builtin\" have no rev and do not match.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)prek\\.toml$/"
+      ],
+      "matchStrings": [
+        "repo\\s*=\\s*\"https://github\\.com/(?<depName>[^\"\\s]+?)(?:\\.git)?\"\\s*\\n\\s*rev\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "github-tags"
     }
   ],
   "dependencyDashboard": true,
