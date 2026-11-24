@@ -3,7 +3,7 @@
 # The image carries the example project, not a production deployment of the app: the
 # reusable app itself is consumed as a dependency by host projects, which bring their own
 # settings and server.
-FROM python:3.15-slim-bookworm@sha256:948cabe5043f2d650d227a1b56bdba562f0224713f17e6e79b4b645ba154f941 AS base
+FROM python:3.15-slim-bookworm@sha256:498829c717b1e59fc42f0e7865eafe4e04ca0f70a3769d4ae70ba218df54507c AS base
 
 # uv is the only supported way to install dependencies in this project.
 # renovate: datasource=docker depName=ghcr.io/astral-sh/uv
