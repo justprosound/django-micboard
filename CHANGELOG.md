@@ -7,6 +7,16 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.11.26.0] - 2026-11-26
+
+### Changed
+
+- Let Renovate update the hook revs in `prek.toml` through a `github-tags` regex manager, so pinned prek hooks no longer drift from their upstream releases.
+
+### Docs
+
+- Reorganize the documentation into tutorials, how-to guides, reference and explanation pages, fold legacy pages into their current equivalents, and remove obsolete plans, generated stubs, and generic agent and prompt files that did not describe this project.
+
 ## [2026.11.22.0] - 2026-11-22
 
 ### Docs
