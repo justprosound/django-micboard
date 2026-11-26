@@ -8,9 +8,9 @@ on:
   # the pull request's code, it only calls the API for a pull request a bot opened from this
   # repository.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
+    # Auto-merge stays enabled across later pushes, so a push needs no new run.
     types:
       - opened
-      - synchronize
       - reopened
 
 permissions:
