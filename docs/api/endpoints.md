@@ -1,14 +1,9 @@
 ---
-title: "HTTP Endpoints"
+title: "HTTP endpoints"
+type: reference
+audience: developer
 ---
-django-micboard does not currently ship a general-purpose REST API. The reusable app exposes
-HTML/HTMX views, authenticated kiosk-support JSON responses, and the service layer documented
-below. A stable REST API remains tracked in
-[GitHub issue #74](https://github.com/justprosound/django-micboard/issues/74).
-
-## Host URL Configuration
-
-Mount the app's URL configuration in the host project:
+django-micboard ships HTML/HTMX pages and a read-only REST API. Mount both from the host project:
 
 ```python
 from django.urls import include, path
@@ -18,26 +13,42 @@ urlpatterns = [
 ]
 ```
 
-The concrete routes and names are defined in `micboard.urls`. Use Django's `reverse()` rather
-than hard-coding paths.
+Use Django's `reverse()` with the `micboard` namespace rather than hard-coding paths. The routes are defined in `micboard/urls.py`.
 
-## Service-Layer Queries
+## REST API v1
 
-Host-project views can build their own API using user-scoped model managers:
+Mounted at `api/v1/` under the include above, with the `micboard:api_v1` namespace. Every viewset is a Django REST Framework `ReadOnlyModelViewSet`: only `GET`, `HEAD` and `OPTIONS` are served. Every request must be authenticated, and the queryset is limited to rows the user may see (`micboard/services/shared/visibility.py::visible_to`). Serializers live in `micboard/serializers/v1/`; pagination and throttling come from the host project's DRF settings.
 
-```python
-from micboard.services.shared.visibility import visible_to
-from micboard.models.hardware.wireless_chassis import WirelessChassis
+| Path | Resource |
+| --- | --- |
+| `chassis/` | Wireless chassis |
+| `units/` | Wireless units |
+| `channels/` | RF channels |
+| `discovery/` | Discovered devices |
+| `monitoring/groups/` | Monitoring groups |
+| `monitoring/alerts/` | Alerts |
+| `settings/definitions/` | Setting definitions |
+| `settings/overrides/` | Stored setting values |
 
-chassis = visible_to(WirelessChassis, user=request.user).filter(
-    status__in=("online", "degraded", "provisioning"),
-)
-payload = list(chassis.values("id", "name", "status"))
-```
+Each collection has a detail route (`<id>/`) and the DRF API root lists them.
 
-Apply authentication, authorization, pagination, throttling, and serialization in the host
-project. Keep the authenticated `visible_to()` scope on every request-facing queryset.
+## Dashboard and HTMX pages
 
-## WebSocket API
+| Name | Path |
+| --- | --- |
+| `micboard:index`, `about` | `/`, `about/` |
+| `micboard:alerts`, `alert_rows`, `alert_detail`, `acknowledge_alert`, `resolve_alert` | `alerts/`, `alerts/rows/`, `alerts/<id>/`, `alerts/<id>/acknowledge/`, `alerts/<id>/resolve/` |
+| `micboard:charger_dashboard`, `charger_grid` | `chargers/`, `chargers/grid/` |
+| `micboard:all_buildings_view`, `single_building_view`, `rooms_in_building_view` | `buildings/`, `buildings/<id>/receivers/`, `buildings/<id>/rooms/` |
+| `micboard:all_rooms_view`, `room_view` | `rooms/`, `rooms/<id>/receivers/` |
+| `micboard:device_type_view`, `priority_view`, `performer_view` | `device-type/<role>/`, `priority/<priority>/`, `performers/<id>/` |
+| `micboard:assignments`, `assignment_rows`, `create_assignment`, `update_assignment`, `delete_assignment` | `assignments/`, `assignments/rows/`, `assignments/create/`, `assignments/<id>/update/`, `assignments/<id>/delete/` |
+| `micboard:settings_overview`, `settings_bulk_config`, `settings_manufacturer_config`, `settings_diff` | `settings/`, `settings/bulk/`, `settings/manufacturer/`, `settings-diff/` |
+| `micboard:display_wall_list`, `display_wall_detail`, `wall_section_list`, `kiosk_data`, `kiosk_content`, `kiosk_health` | `walls/`, `walls/<id>/`, `walls/<id>/sections/`, `walls/<id>/data/`, `walls/<id>/content/`, `walls/<id>/health/` |
+| `micboard:kiosk_display` | `kiosk/<kiosk_id>/` |
+
+Admin pages use the host project's `admin:` namespace.
+
+## WebSocket
 
 For authenticated real-time events, see the [WebSocket API](websocket.md).

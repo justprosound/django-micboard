@@ -17,6 +17,17 @@ export default defineConfig({
   base,
   // `site/` is the directory the CI documentation job validates and uploads.
   outDir: "./site",
+  // Pages that were merged into another keep their old URL. Pages with no successor are not
+  // listed: git history is their archive.
+  redirects: {
+    "/multitenancy-quickref": `${base}/multitenancy-setup/`,
+    "/design": `${base}/architecture/`,
+    "/development/architecture": `${base}/architecture/`,
+    "/guides/settings-system-summary": `${base}/guides/settings-management/`,
+    "/api/serializers": `${base}/api/endpoints/`,
+    "/api/views": `${base}/api/endpoints/`,
+    "/changelog": `${repository}/blob/main/CHANGELOG.md`,
+  },
   markdown: {
     processor: satteri({
       mdastPlugins: [docsLinks({ docsDir: "docs", base })],
@@ -44,86 +55,75 @@ export default defineConfig({
       routeMiddleware: "./src/routeData.ts",
       credits: false,
       social: [{ icon: "github", label: "GitHub", href: repository }],
+      // The four Diátaxis types. A page declares its type in frontmatter, and the sidebar
+      // lists it under the matching section.
       sidebar: [
+        { label: "Overview", link: "/" },
         {
-          label: "Getting Started",
+          label: "Tutorials",
+          items: ["quickstart"],
+        },
+        {
+          label: "How-to guides",
           items: [
-            { label: "Overview", link: "/" },
-            "quickstart",
-            "installation",
-            "configuration",
-          ],
-        },
-        {
-          label: "User Guide",
-          items: [{ autogenerate: { directory: "guides" } }],
-        },
-        {
-          label: "Deployment",
-          items: ["demo-deployment"],
-        },
-        {
-          label: "Multi-Tenancy",
-          items: ["multitenancy", "multitenancy-quickref"],
-        },
-        {
-          label: "Shure Integration",
-          items: [
-            "shure-integration",
-            "integration/discovery-workflow",
-            "integration/integration-references",
+            // Staff pages first, then developer pages.
+            "guides/admin-interface",
+            "guides/monitoring",
+            "guides/settings-admin-guide",
+            "guides/band-plan-auto-population",
+            "guides/resolve-regulatory-coverage",
+            "integration/review-discovery-queue",
             "guides/shure-troubleshooting",
+            "demo-deployment",
+            "installation",
+            "shure-integration",
+            "multitenancy-setup",
+            "guides/realtime-updates",
+            "guides/settings-integration",
+            "guides/performer-quickref",
+            "plugin-development",
+            "development",
+            "development/modern-tooling",
+            "development/dependency-management",
+            "agents/domain",
+            "agents/issue-tracker",
           ],
         },
         {
-          label: "API Reference",
+          label: "Reference",
           items: [
-            "api/models",
+            "guides/settings-quick-reference",
+            "configuration",
             "api/endpoints",
             "api/websocket",
             "api/management",
-            "api/serializers",
-            "api/views",
+            "api/models",
             {
               label: "Generated from source",
               items: [{ autogenerate: { directory: "api/reference" } }],
             },
-          ],
-        },
-        {
-          label: "Architecture & Development",
-          items: [
-            "architecture",
-            "design",
-            "development",
-            "development/architecture",
             "development/api-reference",
+            "integration/integration-references",
+            "guides/api-band-plan-detection",
+            "guides/settings-management",
             "development/context",
-            "development/tasks",
-            "development/modern-tooling",
-            "development/dependency-management",
-            "plugin-development",
+            "agents/triage-labels",
           ],
         },
         {
-          label: "Agent Guidance",
-          items: ["agents/domain", "agents/issue-tracker", "agents/triage-labels"],
-        },
-        {
-          label: "Architecture Decisions",
-          items: [{ autogenerate: { directory: "adr" } }],
-        },
-        {
-          label: "Product Requirements",
-          items: [{ autogenerate: { directory: "prd" } }],
-        },
-        {
-          label: "SRED 2026",
-          items: [{ autogenerate: { directory: "sred/2026" } }],
-        },
-        {
-          label: "About",
-          items: ["changelog", "changelog/breaking-changes-v2601"],
+          label: "Explanation",
+          items: [
+            "integration/discovery-workflow",
+            "guides/regulatory-coverage-monitoring",
+            "architecture",
+            "multitenancy",
+            "guides/performer-assignment-architecture",
+            "demo-deployment-design",
+            {
+              label: "Architecture decisions",
+              items: [{ autogenerate: { directory: "adr" } }],
+            },
+          ],
         },
       ],
     }),

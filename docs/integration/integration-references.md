@@ -1,5 +1,7 @@
 ---
 title: "Manufacturer integration reference"
+type: reference
+audience: developer
 ---
 django-micboard currently ships Shure System API and Sennheiser SSCv2 plugins. Both use the
 shared `httpx` transport, retry/circuit-breaker behavior, exception hierarchy, and cache-backed
@@ -58,6 +60,36 @@ The Sennheiser plugin targets SSCv2 over HTTPS with HTTP Basic authentication. I
 fixed to `api`; `SENNHEISER_API_PASSWORD` supplies the host-configured password. The initial
 subscription GET remains open as the SSE stream. Its same-origin `Content-Location` identifies the
 control resource, which is configured over a separate authenticated connection.
+
+## Plugin contract
+
+`BasePlugin` defines only `name`, `code`, and `get_devices()`. Runtime services require the fuller
+`ManufacturerPlugin` contract, which inherits from `BasePlugin`. A new integration should therefore
+subclass `ManufacturerPlugin`, not `BasePlugin` directly.
+
+The required methods are:
+
+| Member | Contract |
+| --- | --- |
+| `name` | Human-readable manufacturer name. |
+| `code` | Stable lower-snake-case identifier matching the integration directory and DB row. |
+| `get_devices()` | Return raw device mappings; return an empty list when the API has no devices. |
+| `get_device(device_id)` | Return one raw device mapping or `None`. |
+| `get_device_channels(device_id)` | Return raw channel mappings or an empty list. |
+| `get_client()` | Return the configured `BaseAPIClient` implementation. |
+| `normalize_device(api_data)` | Return a `NormalizedChassis`, or `None` when the payload is unusable. |
+| `is_healthy()` | Return current client health. |
+| `check_health()` | Return the shared health-response mapping. |
+| `add_discovery_ips(ips)` | Add validated manual-discovery addresses; report success. |
+| `get_discovery_ips()` | Return the current manual-discovery address list. |
+| `remove_discovery_ips(ips)` | Remove validated manual-discovery addresses; report success. |
+| `realtime_transport` | `"sse"`, `"websocket"`, or `None` when the integration has no stream. |
+| `subscribe_to_chassis(chassis, callback)` | Open this integration's stream for one chassis. |
+| `normalize_channels(api_channels)` | Return a `NormalizedChannel` for each mapping from `get_device_channels()`. |
+
+Every member above is abstract. Every persistence path reads `normalize_device()`, and
+`DeviceUpdateService` calls `normalize_channels()` for devices whose payload embeds no channels,
+so an integration cannot ship without either.
 
 ## Plugin loading
 
@@ -141,4 +173,4 @@ uv run --no-sync pytest tests/ -k "shure or sennheiser"
 - [Shure integration](../shure-integration.md)
 - [Shure troubleshooting](../guides/shure-troubleshooting.md)
 - [Discovery workflow](discovery-workflow.md)
-- [Architecture](../development/architecture.md)
+- [Architecture](../architecture.md)

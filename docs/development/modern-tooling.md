@@ -1,5 +1,7 @@
 ---
 title: "Development Tooling"
+type: how-to
+audience: developer
 ---
 django-micboard uses one reproducible toolchain: `uv` for dependency/environment management, `just` for repository recipes, and local pre-commit hooks that execute inside the uv-managed environment.
 

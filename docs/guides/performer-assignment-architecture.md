@@ -1,5 +1,7 @@
 ---
-title: "Performer Assignment Architecture"
+title: "Performer assignment architecture"
+type: explanation
+audience: developer
 ---
 ## Purpose
 
@@ -91,4 +93,4 @@ There is no aggregate `alert_enabled` service argument. Callers update only the 
 - Use canonical queryset helpers for access checks instead of duplicating tenant predicates.
 - Add access tests for different organizations, campuses, monitoring groups, and membership roles whenever assignment behavior changes.
 
-See the repository-root [Performer Quickref](performer-quickref.md) for current call examples.
+See [Manage performer assignments in code](performer-quickref.md) for current call examples.

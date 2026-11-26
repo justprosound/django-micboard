@@ -1,59 +1,21 @@
 ---
-title: "ADR-007: Introduce DRF API Layer with Versioning"
+title: "ADR-007: A versioned, read-only REST API"
+description: "Why the REST API is versioned by namespace and read-only."
+type: explanation
+audience: developer
 ---
-**Status:** Proposed
-**Date:** 2026-05-20
-**Deciders:** (to be assigned)
 
 ## Context
 
-django-micboard has no REST API. All user interaction goes through Django admin views (Django templates + HTMX). This means:
-
-- No programmatic access for external integrations (third-party tools, mobile apps, automation).
-- No documented API contract — all data access is admin-only.
-- No serialization layer — form classes in `micboard/forms/settings.py` (297 lines) serve as the closest equivalent, but are tightly coupled to template rendering.
-- Any future integration (e.g., a React frontend, mobile companion app, or external monitoring system) would require reverse-engineering the admin views.
-
-The lack of versioning means API-breaking changes cannot be communicated or migrated gracefully.
+All programmatic access used to mean reverse-engineering the admin views. Integrations need a documented contract that can change without breaking existing clients.
 
 ## Decision
 
-1. **Introduce Django REST Framework (DRF)** as the API framework (already indirectly depended-on via Django admin).
-2. **Create `micboard/api/v1/`** with submodules mirroring domain structure:
-   ```
-   micboard/api/
-     __init__.py
-     v1/
-       __init__.py
-       urls.py
-       serializers/
-         hardware.py
-         discovery.py
-         monitoring.py
-         settings.py
-       views/
-         chassis.py  (ViewSets)
-         units.py
-         channels.py
-         discovery.py
-         monitoring.py
-         settings.py
-       permissions.py
-       filters.py
-       pagination.py
-   ```
-3. **API v1 is read-only initially** — expose GET endpoints for hardware inventory, discovery status, monitoring state, and settings. This avoids needing write-side validation and conflict resolution upfront.
-4. **Future versions** (v2, etc.) get new `micboard/api/v2/` namespaces without breaking v1 consumers.
-5. **Admin views remain the primary UI.** The API is for programmatic consumption only.
-6. **Serializer classes replace the need for form classes** — migrate settings forms to DRF serializers over time.
+- Django REST Framework serves the API from `micboard/api/v1/`, with serializers in `micboard/serializers/v1/`.
+- Version 1 is read-only (`ReadOnlyModelViewSet`), authenticated, and scoped with `visible_to()`. This avoids write-side validation and conflict rules until they are needed.
+- A breaking change gets a new namespace (`micboard/api/v2/`) beside v1. Changes inside a version stay backward compatible.
+- The Django admin stays the primary UI. The API is for programmatic use.
 
 ## Consequences
 
-- **Positive:** External integrations become possible. API contract is documented via DRF's browsable API and schema generation. Domain-aligned serializers become the canonical data mapping layer, replacing ad-hoc form logic. Versioning ensures backward compatibility.
-- **Negative:** Adds a new surface to maintain. DRF serializers add another abstraction layer alongside existing forms. Read-only v1 limits utility until write endpoints are added.
-- **Migration:** (a) Add DRF to dependencies (check if already present), (b) implement v1 serializers for core models, (c) wire v1 URLs, (d) add GET endpoints for hardware and discovery domains. Do not deprecate admin views.
-
-## Compliance
-
-- New API versions must be backward-compatible within the same major version.
-- Breaking changes require a new version namespace (v2, v3, ...).
+Integrations get a stable surface and a tenant-safe default. The cost is another surface to maintain next to the admin forms. The routes are listed in [HTTP endpoints](../api/endpoints.md).

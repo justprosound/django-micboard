@@ -1,5 +1,8 @@
 ---
-title: "django-micboard - Domain Context"
+title: "Domain glossary"
+description: "The domain concepts django-micboard models, and where each lives in the code."
+type: reference
+audience: developer
 ---
 ## Purpose
 
@@ -10,14 +13,14 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 ### Hardware Inventory
 
 - **WirelessChassis** - A physical receiver/transmitter/transceiver unit (e.g., Shure ULX-D rack). Has a manufacturer, model, IP address, firmware version, band plan, and slot capacity. Each chassis hosts one or more RF channels.
-- **WirelessUnit** - An individual wireless device (mic transmitter, IEM receiver, or transceiver) associated with a chassis slot. Tracks battery level, audio level, RF level, signal quality, and connection status.
+- **WirelessUnit** - An individual wireless device (mic transmitter, IEM receiver, or transceiver) associated with a chassis slot. Tracks battery level and health (`battery_health` is `excellent`, `good`, `fair`, `poor`, `critical` or `unknown`; when the manufacturer reports none it is derived from the battery percentage), battery cycles and temperature, audio level, RF level, signal quality, and connection status.
 - **RFChannel** - A logical channel within a chassis representing a frequency slot. Links chassis to wireless units, tracks link direction (transmit/receive), signal metrics, and resource state.
 - **Charger / ChargerSlot** - Multi-bay charging stations. Each slot can hold a device and optionally be assigned to a performer.
 - **DisplayWall / WallSection** - Kiosk displays showing charger/performer status on wall-mounted screens.
 
 ### Discovery & Sync
 
-- **Manufacturer** - A supported hardware vendor (Shure, Sennheiser, Wisycom, etc.). Each has a plugin implementation.
+- **Manufacturer** - A supported hardware vendor. Shure and Sennheiser ship plugin implementations.
 - **DiscoveryCIDR / DiscoveryFQDN** - Network ranges and hosts where the system scans for devices.
 - **DiscoveredDevice** - A device found during network discovery but not yet adopted.
 - **DiscoveryQueue** - Pending adoption items: devices found during discovery awaiting user review.
@@ -62,7 +65,7 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 
 ## Architecture Patterns
 
-- **Django and HTMX UI** - Tenant-scoped Django views provide monitoring workflows; Django admin provides configuration and operator workflows. No REST API layer exists.
+- **Django and HTMX UI** - Tenant-scoped Django views provide monitoring workflows and Django admin provides configuration and operator workflows. A read-only REST API lives in `micboard/api/v1/` ([ADR-007](../adr/007-api-layer-introduction.md)).
 - **Service Layer** - Business logic lives in concern-named modules under `micboard/services/<domain>/`. Services orchestrate models, plugins, and external APIs.
 - **Plugin System** - Manufacturer integrations live in `micboard/integrations/<manufacturer>/` with a `plugin.py`, `client.py`, `discovery_client.py`, `normalizer.py` (the vendor's vocabulary for the shared `VendorDeviceNormalizer`), and optional `websocket.py`/`sse_client.py`.
 - **Background Tasks** - Discovery, polling, health checks, and WebSocket subscriptions run via native Huey tasks in `micboard/tasks/<domain>/`.
@@ -70,15 +73,6 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 - **Multi-Tenancy** - Row-level tenant isolation via `TenantOptimizedQuerySet`.
 - **Settings Resolution** - Each definition resolves only at its declared scope, then falls back to host configuration, package/definition defaults, and the caller default.
 - **Self-Contained Verification** - CI enforces coverage locally and publishes HTML/XML artifacts. External reporting services are optional and must not become required until the repository is explicitly onboarded.
-
-## Known Architectural Debt
-
-1. ~~**Service layer monoliths** - Oversized discovery and lifecycle services were split into domain-focused modules.~~
-2. ~~**Model embedded logic** - Model overrides were replaced by domain services and the documented lifecycle adapter contract (ADR-002).~~
-3. ~~**Admin dashboard monolith** - The former dashboard module was split into focused admin and view modules.~~
-4. ~~**Manufacturer plugin duplication** - Shared transport, resilience, health, rate-limit, registry, and exception seams are established; protocol-specific clients remain deliberately separate (ADR-004).~~
-5. ~~**Thin test coverage** - Branch coverage now exceeds 95%, with model factories plus service, integration, command, admin, and host-configuration contracts enforced in CI.~~
-6. ~~**Compat shim** - `micboard/manufacturers/` was a backward-compat shim. Now removed (ADR-008).~~
 
 ## Key File Locations
 
@@ -96,7 +90,6 @@ django-micboard is a Django-based wireless microphone fleet management system. I
 | Settings service | `micboard/services/settings/settings_service.py` |
 | DB settings models | `micboard/models/settings/registry.py` |
 | Scoped settings backend | `micboard/services/settings/registry.py` (internal to `SettingsService`) |
-| ~~Legacy compat shim~~ | ~~`micboard/manufacturers/`~~ (removed) |
 | Tests | `tests/` plus domain suites under `tests/services/`, `tests/models/`, `tests/admin/`, and `tests/tasks/` |
 | Fixtures | `micboard/fixtures/` |
 | Huey integration | `huey.contrib.djhuey` plus the project's `HUEY` setting |

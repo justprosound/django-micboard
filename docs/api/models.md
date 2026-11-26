@@ -1,5 +1,7 @@
 ---
-title: "Python API Reference"
+title: "Python API reference"
+type: reference
+audience: developer
 ---
 The pages under this section are generated from the Google-style docstrings in `micboard/`
 by `scripts/generate_api_docs.py`, which reads the source statically with
@@ -22,7 +24,7 @@ just docs-api
 
 ## Hand-authored references
 
-- [HTTP Endpoints](endpoints.md) — REST surface and current status
+- [HTTP endpoints](endpoints.md) — REST API v1 and dashboard routes
 - [WebSocket API](websocket.md) — message contract and authorization rules
 - [Python and integration reference](../development/api-reference.md) — the supported
   integration surface with worked examples

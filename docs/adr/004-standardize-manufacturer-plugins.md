@@ -1,100 +1,25 @@
 ---
-title: "ADR-004: Compose Manufacturer Plugins Around Shared Transport"
+title: "ADR-004: Manufacturer plugins share transport, not discovery"
+description: "How manufacturer integrations are structured and which code may name a vendor."
+type: explanation
+audience: developer
 ---
-**Status:** Implemented
-**Date:** 2026-05-20
-**Updated:** 2026-09-25
-**Deciders:** Project team
 
 ## Context
 
-Manufacturer integrations use a common directory shape, but their protocols are not interchangeable.
-Shure uses REST plus WebSocket; Sennheiser SSCv2 uses REST plus an HTTP Basic-authenticated SSE
-stream whose same-origin `Content-Location` is configured over a separate connection. Discovery
-resources and device families also differ by vendor, though the two shipped integrations spell
-their device payload fields the same way.
-
-Shared HTTPS validation, bounded response handling, retries, rate limits, circuit breaking, health
-tracking, plugin lookup, and the canonical exception hierarchy already live under
-`micboard/services/common/base/` and `micboard/exceptions.py`.
-
-A broad discovery or transformer inheritance tree would make protocol differences implicit and
-would have only two consumers. Similar filenames are not sufficient evidence for inheritance.
+Shure (REST plus WebSocket) and Sennheiser SSCv2 (REST plus an authenticated server-sent-event stream) have different protocols. Two consumers do not justify a broad inheritance tree, but safe transport, retries, rate limits and health tracking should not be copied per vendor.
 
 ## Decision
 
-1. Keep shared, verified transport and plugin contracts in `micboard/services/common/base/`; do
-   not create a second common hierarchy under integrations.
-2. Keep discovery, device endpoints, and streaming adapters manufacturer-local. Payload
-   normalization is shared: `services/common/base/device_normalizer.py` reads the field spellings
-   both shipped integrations use, and each integration supplies only its device-family vocabulary
-   as data (`integrations/<code>/normalizer.py`). A vendor whose payload shape differs implements
-   `normalize_device` and `normalize_channels` itself rather than bending the shared normalizer.
-3. Extract only proven pure helpers used by at least two live integrations.
-4. Keep `micboard.services.common.base.plugin` as the construction boundary — one
-   `build_manufacturer_plugin(manufacturer)` front door that resolves the class once, caches it,
-   and raises when no integration ships for the code — and manufacturer sync services as the
-   persistence and orchestration boundary.
-5. Contract-test each protocol against authoritative behavior, including authentication, bounded
-   payloads, origin validation, and connection lifecycle.
-6. Share the transport-neutral subscription lifecycle: `services/realtime/subscription_runner.py`
-   owns leasing, eligible inventory selection, connection tracking, and activation rechecks, and
-   `services/realtime/subscription_lifecycle_service.py` owns normalization, persistence, chassis
-   projection, and broadcast. Each integration declares its own `realtime_transport` and
-   implements `subscribe_to_chassis`, keeping connection setup, authentication, event framing, and
-   cleanup inside the integration package. No orchestration code names a vendor.
-7. Keep vendor client APIs limited to operations used by the production plugin contract. Do not
-   retain speculative enrichment endpoints or test-only forwarding methods.
-8. There are two polling surfaces, and they are not duplicates.
-   `ManufacturerSyncService` owns whole-manufacturer inventory synchronisation with its audit
-   row and broadcast; `services/sync/polling_api.py` owns the managed-device path, polling one
-   operator-registered chassis through its persisted `ManufacturerAPIServer` after an ownership
-   check. Neither may grow the other's responsibility.
-9. Outside `micboard/integrations/`, only these surfaces may name a vendor: the API-server
-   connection surface (`services/integrations/api_server_service.py`), the admin connection
-   checker, and the managed-device polling gate in `services/sync/polling_api.py`, which
-   admits only `ManufacturerAPIServer.Manufacturer.SHURE` because that is the sole API-server
-   protocol implemented. Every other module obtains its integration through
-   `build_manufacturer_plugin(manufacturer)` and branches on no vendor at all.
-10. Every path that persists vendor device data reads one typed shape: `NormalizedChassis`, with
-    its `NormalizedChannel` and `NormalizedUnit`, from `services/core/hardware.py`. No service
-    reads a vendor key or a normalized dictionary. `model` is the full model number the vendor
-    reports, and the chassis role comes from the device specification catalogue for that model,
-    never from matching words in free-text type strings.
-
-**Correction (2026-09-22):** clause 7 read as though only one polling module existed, while
-`services/sync/polling_api.py` had been polling managed devices alongside the synchronization
-service the whole time; clauses 8 and 9 record the boundary that actually holds. That module
-also imported `ShurePlugin` directly and pointed its docstring at `polling_service.py`, which
-no longer exists — it now builds through `build_manufacturer_plugin` like every other
-outbound path.
-
-**Correction (2026-09-25):** clause 2 kept transforms manufacturer-local, and the result was
-two transformer modules that were the same text apart from their device-family tables, emitting
-an untyped dictionary. Its seven readers each guessed the key names, and they disagreed: the poll
-path read `model` and `device_type`, which the transformers never emitted, so every polled chassis
-was written with an empty model and the default role. The realtime path wrote the family key
-(`ulxd`) as the model instead. Promotion read `serial_number` where the transformers emitted
-`serial`, so it never deduplicated by serial. Clause 2 now shares normalization, and clause 10
-names the one shape every reader uses. The vendor-local part that was actually different, the
-device-family vocabulary, stays with each integration.
+- Shared, verified transport and the plugin contract live in `micboard/services/common/base/`. Exceptions live in `micboard/exceptions.py` ([ADR-009](009-consolidate-exception-hierarchy.md)).
+- Discovery, device endpoints and streaming adapters stay manufacturer-local under `micboard/integrations/<code>/`. Extract a helper only when two live integrations need it.
+- Payload normalization is shared. `micboard/services/common/base/device_normalizer.py` reads the common field spellings, and each integration supplies its device-family vocabulary as data in `normalizer.py`. A vendor whose payload differs implements `normalize_device` and `normalize_channels` itself.
+- Every path that persists vendor data reads one typed shape: `NormalizedChassis`, `NormalizedChannel` and `NormalizedUnit` in `micboard/services/core/hardware.py`. No service reads a vendor key or a raw dictionary, and a chassis role comes from the device specification catalogue, not from matching words in a type string.
+- `build_manufacturer_plugin(manufacturer)` in `services/common/base/plugin.py` is the one way to obtain a plugin. Outside `micboard/integrations/`, only the API-server connection surface (`services/integrations/api_server_service.py`), the admin connection checker and the managed-device polling gate in `services/sync/polling_api.py` may name a vendor. That gate admits only Shure, the sole API-server protocol implemented.
+- The realtime lifecycle is shared. `services/realtime/subscription_runner.py` owns leasing, inventory selection and connection tracking. `subscription_lifecycle_service.py` owns normalization, persistence, chassis projection and broadcast. Each integration declares `realtime_transport` and implements `subscribe_to_chassis`.
+- There are two polling surfaces and neither absorbs the other: `ManufacturerSyncService` (`services/manufacturer/sync.py`) syncs a whole manufacturer, and `services/sync/polling_api.py` polls one operator-registered chassis.
+- Vendor clients expose only operations the plugin contract uses.
 
 ## Consequences
 
-- **Positive:** Shared safety fixes propagate while protocol behavior remains locally readable and
-  independently testable.
-- **Positive:** New integrations have one stable transport/plugin seam without inheriting unrelated
-  discovery or streaming assumptions.
-- **Negative:** Protocol adapters still require separate connection and cleanup tests.
-- **Migration:** No broad inheritance migration is planned. Shared lifecycle behavior has two
-  verified SSE/WebSocket consumers; protocol mechanics remain local.
-
-## Compliance
-
-- New manufacturer plugins reuse the shared transport and exception contracts.
-- Protocol-specific code has fixture or mock-transport tests for authentication, response bounds,
-  and streaming lifecycle.
-- Integration clients do not own persistence, tenant scope, or domain orchestration.
-- Services read `NormalizedChassis` fields, never raw or normalized dictionary keys.
-- Test-only and unverified vendor API methods are removed rather than retained as compatibility
-  surfaces.
+Safety fixes in the shared transport reach every vendor while protocol behavior stays readable next to its protocol. Each protocol still needs its own tests for authentication, bounded payloads, origin validation and connection lifecycle.

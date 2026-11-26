@@ -323,7 +323,7 @@ def walk_modules(module: griffe.Module) -> Iterator[griffe.Module]:
 def render_page(page: Page, package: griffe.Module) -> str:
     """Render one complete reference page."""
     blocks = [
-        f'---\ntitle: "{page.title}"\n---',
+        f'---\ntitle: "{page.title}"\ntype: reference\naudience: developer\n---',
         GENERATED_MARKER,
         page.description,
     ]
