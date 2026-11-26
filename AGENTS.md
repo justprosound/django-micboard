@@ -35,7 +35,7 @@
 
 ## Key Conventions
 - Organize code by domain under `micboard/{services,tasks,serializers,admin,api}/<domain>/` and keep files under ~400 lines.
-- Isolate business logic in the Service Layer (`DefaultsService`, `UpsertService`, `BulkPersistService`); keep views, admin, tasks, and serializers as thin wrappers.
+- Isolate business logic in the Service Layer; keep views, admin, tasks, and serializers as thin wrappers. Pick the smallest service shape that fits: a plain service method or `update_or_create` for ordinary create and update, and a split into mapping, change detection and persistence (or `bulk_create(update_conflicts=True, ...)` behind one service) only for batch syncs from external records. Add no base class without a real caller.
 - Pass data across layers with Pydantic v2 DTOs inheriting from `PydanticBaseDTO` and mapped via `DTOMapper`.
 - Annotate all public functions, methods, services, and DTOs with type hints.
 - Use native Huey (`huey.contrib.djhuey`) for background tasks and `httpx` for HTTP requests (`Celery`, `django-q2`, and `requests` are deprecated).
