@@ -28,7 +28,7 @@ Run `just` to display the canonical list.
 
 | Recipe | Purpose |
 | --- | --- |
-| `just install` | Sync the locked environment with all extras and install the pre-commit hook |
+| `just install` | Sync the locked Python and Node environments and install the pre-commit hook |
 | `just lint` | Check Ruff formatting, Ruff rules, and mypy |
 | `just prek` | Run every configured hook against the repository |
 | `just test` | Run the pytest suite |
@@ -42,6 +42,9 @@ Run `just` to display the canonical list.
 | `just example` | Start the root `manage.py` example project |
 | `just wheel` | Build source/wheel artifacts and validate the installed package contents |
 | `just type-check` | Run mypy for `micboard` |
+| `just changelog-check` | Validate the per-pull-request release-note fragments in `changelog.d/` |
+| `just docs-frontmatter` | Repair missing documentation frontmatter in place |
+| `just deps-upgrade` | Upgrade both lockfiles, then run lint and tests |
 
 Examples:
 
@@ -75,10 +78,14 @@ The checked-in configuration is the source of truth. Current hooks cover:
 - trailing whitespace and final newlines
 - YAML, JSON, and TOML syntax
 - merge-conflict markers and Python debug statements
+- `django-upgrade` for Django 5.2
 - Ruff lint/format checks
 - mypy
 - Django migration drift
 - generated migration integrity
+- changelog fragment validation
+- documentation frontmatter
+- generated API reference freshness
 
 Run all hooks:
 
@@ -89,7 +96,7 @@ just prek
 Run one hook:
 
 ```bash
-uv run --no-sync prek run ruff-check --all-files
+uv run --no-sync prek run ruff --all-files
 ```
 
 The repository does not configure a commit-message hook. Commit messages still follow the Conventional Commits format documented in `CONTRIBUTING.md`.
