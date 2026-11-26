@@ -1,9 +1,12 @@
 ---
-title: "Multi-Tenancy & MSP Support"
+title: "Multi-tenancy and MSP support"
+description: "Deployment modes, the tenant model, and how visibility is decided."
+type: explanation
+audience: developer
 ---
-Django Micboard provides optional multi-tenancy support for Managed Service Providers (MSP) and multi-campus deployments through the `micboard.multitenancy` module.
+django-micboard supports optional multi-tenancy for managed service providers (MSPs) and multi-campus deployments through the `micboard.multitenancy` module. To turn it on, see [Enable multi-tenancy](multitenancy-setup.md).
 
-## Overview
+## Deployment modes
 
 Three deployment modes are supported:
 
@@ -11,105 +14,12 @@ Three deployment modes are supported:
 2. **Multi-Site** - Basic site-level filtering using Django's sites framework
 3. **MSP Mode** - Full organization and campus hierarchy with strict isolation
 
-## Quick Start
 
-### Single-Site (Default)
-
-No configuration needed. Works out of the box.
-
-```python
-# settings.py
-MICBOARD_MULTI_SITE_MODE = False
-MICBOARD_MSP_ENABLED = False
-```
-
-### Multi-Site Mode
-
-Enable Django's sites framework for basic site filtering:
-
-```python
-# settings.py
-INSTALLED_APPS = [
-    'django.contrib.sites',
-    'micboard',
-    # ... other apps
-]
-
-SITE_ID = 1
-MICBOARD_MULTI_SITE_MODE = True
-```
-
-```bash
-uv run --no-sync python manage.py migrate
-```
-
-### MSP Mode (Full Multi-Tenancy)
-
-Enable organization and campus models:
-
-```python
-# settings.py
-INSTALLED_APPS = [
-    'django.contrib.sites',
-    'micboard',
-    'micboard.multitenancy',  # Add this
-    # ... other apps
-]
-
-SITE_ID = 1
-MICBOARD_MULTI_SITE_MODE = True
-MICBOARD_MSP_ENABLED = True
-MICBOARD_SITE_ISOLATION = 'organization'
-
-MIDDLEWARE = [
-    # ... existing middleware
-    'micboard.multitenancy.middleware.TenantMiddleware',  # Add after auth
-]
-```
-
-```bash
-uv run --no-sync python manage.py migrate
-```
-
-## Configuration
-
-### Settings Reference
-
-Configure the required values explicitly in the host settings module:
-
-```python
-# Enable/disable features
-MICBOARD_MULTI_SITE_MODE = False
-MICBOARD_MSP_ENABLED = False
-MICBOARD_SITE_ISOLATION = 'none'  # 'none', 'site', 'organization', 'campus'
-
-# Cross-org access
-MICBOARD_ALLOW_CROSS_ORG_VIEW = True  # Superusers see all orgs
-MICBOARD_ALLOW_ORG_SWITCHING = True   # Users can switch between orgs
-
-# Optional: Subdomain routing
-MICBOARD_SUBDOMAIN_ROUTING = False
-MICBOARD_ROOT_DOMAIN = 'micboard.example.com'
-```
-
-## Models
+## Tenant models
 
 ### Organization
 
 Top-level tenant entity for MSP deployments.
-
-```python
-from micboard.multitenancy.models import Organization
-
-# Create organization
-org = Organization.objects.create(
-    name="University A",
-    slug="university-a",
-    site_id=1,
-    subscription_tier='enterprise',
-    max_devices=500
-)
-```
 
 **Fields:**
 - `name` - Organization name (unique)
@@ -127,42 +37,16 @@ org = Organization.objects.create(
 
 Sub-organization unit for multi-campus deployments.
 
-```python
-from micboard.multitenancy.models import Campus
-
-# Create campus
-campus = Campus.objects.create(
-    organization=org,
-    name="North Campus",
-    slug="north",
-    address="123 University Ave",
-    city="Boston",
-    state="MA",
-    timezone='America/New_York'
-)
-```
-
 ### OrganizationMembership
 
 User access to organizations with role-based permissions.
-
-```python
-from micboard.multitenancy.models import OrganizationMembership
-
-# Add user to organization
-membership = OrganizationMembership.objects.create(
-    user=user,
-    organization=org,
-    role='admin',  # 'viewer', 'operator', 'admin', 'owner'
-    campus=campus,  # Optional: limit to specific campus
-)
-```
 
 **Roles:**
 - `viewer` - Read-only access
 - `operator` - Can modify device assignments
 - `admin` - Full access except billing
 - `owner` - Full access including billing
+
 
 ## Service Layer Integration
 
@@ -252,6 +136,7 @@ queryset = MyModel.objects.for_memberships([(organization_id, None)])
 organization and campus identifiers it is given. Both fail closed for a model without an
 ownership path. Neither decides what a user may see; use `visible_to` for that.
 
+
 ## Middleware
 
 ### TenantMiddleware
@@ -284,166 +169,6 @@ def switch_org(request, org_id):
     return redirect('dashboard')
 ```
 
-## View Integration
-
-Apply tenant filtering in your views by accessing the organization attached to the request:
-
-```python
-from micboard.services.shared.visibility import visible_to
-from django.http import JsonResponse
-from django.views import View
-from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-class ReceiverListAPIView(View):
-    def get(self, request):
-        chassis = visible_to(WirelessChassis, user=request.user).filter(
-    status__in=("online", "degraded", "provisioning"),
-)
-
-        # Return as JSON
-        return JsonResponse({
-            "chassis": list(chassis.values())
-        })
-```
-
-## Migration Guide
-
-### From Single-Site to Multi-Site
-
-1. Enable multi-site mode in settings
-2. Run migrations
-3. All buildings assigned to default site (SITE_ID=1)
-4. No code changes needed
-
-```bash
-# settings.py: Set MICBOARD_MULTI_SITE_MODE = True
-uv run --no-sync python manage.py migrate
-```
-
-### From Multi-Site to MSP
-
-1. Enable MSP mode in settings
-2. Run multitenancy migrations
-3. Create default organization and campus
-4. Assign buildings to organization/campus
-5. Create user memberships
-
-```bash
-# settings.py: Set MICBOARD_MSP_ENABLED = True
-uv run --no-sync python manage.py migrate
-uv run --no-sync python manage.py shell
-```
-
-```python
-# In shell
-from micboard.multitenancy.models import Organization, Campus
-from micboard.models.locations.structure import Building
-
-# Create default org/campus
-org = Organization.objects.create(
-    name='Default Organization',
-    slug='default',
-    site_id=1
-)
-campus = Campus.objects.create(
-    organization=org,
-    name='Main Campus',
-    slug='main'
-)
-
-# Update buildings
-Building.objects.all().update(
-    organization_id=org.pk,
-    campus_id=campus.pk,
-)
-```
-
-## Use Cases
-
-### Large Enterprise (Single Org, Multi-Campus)
-
-```python
-# settings.py
-MICBOARD_MSP_ENABLED = True
-MICBOARD_SITE_ISOLATION = 'campus'
-MICBOARD_ALLOW_ORG_SWITCHING = False  # Single org
-
-# Users have campus-specific access
-membership = OrganizationMembership.objects.create(
-    user=av_tech,
-    organization=university,
-    campus=north_campus,  # Limited to North Campus only
-    role='operator'
-)
-```
-
-### MSP (Multiple Orgs)
-
-```python
-# settings.py
-MICBOARD_MSP_ENABLED = True
-MICBOARD_SITE_ISOLATION = 'organization'
-MICBOARD_ALLOW_CROSS_ORG_VIEW = False  # Strict isolation
-MICBOARD_SUBDOMAIN_ROUTING = True
-
-# Each customer is separate org
-church_a = Organization.objects.create(name='Church A', slug='church-a', site_id=1)
-church_b = Organization.objects.create(name='Church B', slug='church-b', site_id=1)
-
-# Users belong to their org only
-OrganizationMembership.objects.create(user=tech1, organization=church_a, role='admin')
-OrganizationMembership.objects.create(user=tech2, organization=church_b, role='admin')
-
-# Subdomain routing: church-a.micboard.example.com → Church A
-```
-
-### Small Single-Site
-
-```python
-# settings.py
-MICBOARD_MULTI_SITE_MODE = False
-MICBOARD_MSP_ENABLED = False
-
-# All features disabled, zero overhead
-# Uses existing monitoring group filtering
-```
-
-## Testing
-
-Test tenant isolation:
-
-```python
-from micboard.services.shared.visibility import visible_to
-from django.test import TestCase
-from micboard.multitenancy.models import Organization, Campus
-from micboard.models.hardware.wireless_chassis import WirelessChassis
-
-class TenantIsolationTest(TestCase):
-    def test_organization_isolation(self):
-        org1 = Organization.objects.create(name='Org 1', slug='org1', site_id=1)
-        org2 = Organization.objects.create(name='Org 2', slug='org2', site_id=1)
-
-        # Create devices in each org
-        # ... create buildings, locations, receivers
-
-        # Verify isolation through users with memberships in each organization
-        org1_chassis = visible_to(WirelessChassis, user=org1_user)
-        org2_chassis = visible_to(WirelessChassis, user=org2_user)
-
-        self.assertEqual(org1_chassis.count(), 5)
-        self.assertEqual(org2_chassis.count(), 3)
-
-        # Verify no cross-contamination
-        self.assertNotIn(org2_chassis[0], org1_chassis)
-```
-
-## Performance Considerations
-
-- **Indexes**: Added on `organization_id`, `campus_id`, and `site_id`
-- **Query optimization**: Filters applied at database level
-- **Single-site overhead**: Zero - features disabled via settings checks
-- **Multi-site overhead**: Minimal - single JOIN added to queries
-- **MSP overhead**: Moderate - additional JOINs for org/campus filtering
 
 ## Security
 
@@ -452,43 +177,10 @@ class TenantIsolationTest(TestCase):
 - **Session hijacking**: Organization and campus IDs from the session or a profile are honoured only while an active membership covers them
 - **Subdomain routing**: Requires proper DNS and SSL configuration
 
-## Troubleshooting
 
-### Buildings have no organization
+## Where to look in the code
 
-```python
-# Assign buildings to default org
-from micboard.multitenancy.models import Organization
-org = Organization.objects.first()
-Building.objects.filter(organization_id__isnull=True).update(organization_id=org.pk)
-```
-
-### User can't see devices
-
-Check organization membership:
-
-```python
-from micboard.multitenancy.models import OrganizationMembership
-memberships = OrganizationMembership.objects.filter(user=user, is_active=True)
-print(f"User has {memberships.count()} active memberships")
-```
-
-### Queries returning empty
-
-Verify feature flags:
-
-```python
-from micboard.services.settings.settings_service import settings as micboard_settings
-
-print(f"Multi-site: {micboard_settings.multi_site_mode}")
-print(f"MSP: {micboard_settings.msp_enabled}")
-```
-
-## API Reference
-
-See `micboard.multitenancy` module for complete API documentation:
-
-- `models.py` - Organization, Campus, OrganizationMembership
-- `micboard.models.base_managers` - TenantOptimizedQuerySet
-- `middleware.py` - TenantMiddleware
-- `admin.py` - Django admin interfaces
+- `micboard/multitenancy/models.py`: `Organization`, `Campus`, `OrganizationMembership`
+- `micboard/models/base_managers.py`: `TenantOptimizedQuerySet`
+- `micboard/multitenancy/middleware.py`: `TenantMiddleware`
+- `micboard/services/shared/visibility.py`: `visible_to` and `restrict_to_tenant_boundary`

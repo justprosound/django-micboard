@@ -1,45 +1,15 @@
 ---
-title: "Monitoring Devices"
+title: "Monitor devices"
+type: how-to
+audience: staff
 ---
-Learn how to monitor your Shure wireless microphone system with django-micboard.
+Operate and check live monitoring of a running django-micboard deployment: polling, subscription supervisors, health checks, and the read-only REST API.
 
-## Device Status Overview
+## What is monitored
 
-Django Micboard provides real-time monitoring of:
+Each polled chassis and wireless unit records battery level and health, RF level, audio level, status, and last-seen time. Open the Django admin at `/admin/` for the inventory, or the dashboard pages mounted from `micboard.urls`. Pages refresh by HTTP polling by default. WebSocket push is opt-in: see [Real-time updates](realtime-updates.md).
 
-- **Battery Levels** - Current charge percentage and status
-- **RF Signal Strength** - Signal quality and interference indicators
-- **Audio Levels** - Input/output levels and peak indicators
-- **Device Status** - Online/offline state and connection health
-- **Location Tracking** - Device location and assignment status
-
-## Admin Interface
-
-Access the monitoring interface at `/admin/` in your Django application.
-
-### Device List View
-
-The main device list shows all discovered devices with key metrics:
-
-- Device name and model
-- Current battery level (with color coding)
-- RF signal strength
-- Online status
-- Last update time
-- Assigned user/location
-
-### Real-time Updates
-
-Device status updates automatically via WebSocket connections:
-
-- Battery levels refresh every 30 seconds
-- RF signals update continuously
-- Status changes appear immediately
-- Connection health is monitored
-
-## Management Commands
-
-### Device Polling
+## Poll devices
 
 Run a one-shot poll directly or enqueue it through native Huey:
 
@@ -51,7 +21,7 @@ uv run --no-sync python manage.py poll_devices --manufacturer shure
 uv run --no-sync python manage.py poll_devices --manufacturer shure --async
 ```
 
-Use your deployment scheduler to enqueue the one-shot command at the required interval.
+Use your deployment scheduler to enqueue the one-shot command at the required interval. Polling refuses an inactive manufacturer. To poll one anyway as an operator, add `--force`; the override is preserved when the command enqueues Huey work.
 
 After a manufacturer poll, Micboard evaluates alerts for active assigned wireless units in primary
 key order. `MICBOARD_POLL_ALERT_MAX_UNITS` limits each scan (default: 100, hard maximum: 500).
@@ -80,11 +50,9 @@ Hosts that schedule through native Huey should explicitly enqueue the registered
 `start_realtime_subscriptions` entrypoint once per manufacturer. Multi-process
 deployments require a process-shared Django cache for the singleton lease. A stopped or crashed
 supervisor may take up to 60 seconds to become eligible for restart. See
-[Real-time Updates](realtime-updates.md#running-subscription-supervisors) for limits and settings.
+[Real-time Updates](realtime-updates.md#run-subscription-supervisors) for limits and settings.
 
-### Health Monitoring
-
-Monitor connection health and detect issues:
+## Check connection health
 
 ```bash
 # Check all connections
@@ -94,31 +62,11 @@ uv run --no-sync python manage.py realtime_status
 uv run --no-sync python manage.py realtime_status --manufacturer shure
 ```
 
-## Alerts and Notifications
+## Alerts
 
-### Battery Alerts
+After every manufacturer poll, alerts are evaluated for active assigned units. The thresholds that trigger them, such as `battery_low_level`, are [settings](settings-management.md). Per-assignment alert switches (`alert_on_battery_low`, `alert_on_signal_loss`, `alert_on_audio_low`, `alert_on_hardware_offline`) are set when you create or update an assignment.
 
-Configure alerts for low battery conditions:
-
-- Set threshold levels (default: 20%)
-- Enable/disable per device or globally
-- Email notifications (planned)
-- Admin interface warnings
-
-### RF Signal Alerts
-
-Monitor signal quality:
-
-- Low signal strength warnings
-- Interference detection
-- Channel conflicts
-- Automatic channel scanning
-
-## Device Assignment
-
-### User Assignments
-
-Assign devices to specific users:
+## Assign a unit to a performer
 
 ```python
 from micboard.services.core.performer_assignment import PerformerAssignmentService
@@ -136,7 +84,7 @@ assignment = PerformerAssignmentService.create_assignment(
 )
 ```
 
-### Location Tracking
+## Read locations
 
 Read locations through the authenticated monitoring scope. Create, update, and assign locations
 through the permission-checked Django admin:
@@ -162,10 +110,7 @@ uv run --no-sync python manage.py realtime_status --manufacturer shure
 uv run --no-sync python manage.py diagnostic_api_health_check
 ```
 
-**Check device logs:**
-- Review Django admin logs
-- Check Shure System API logs
-- Verify network connectivity
+**Check the manufacturer side:** confirm the Shure System API is reachable from the host. See [Shure troubleshooting](shure-troubleshooting.md).
 
 ### WebSocket Issues
 
@@ -188,45 +133,17 @@ uv run --no-sync python manage.py shell -c "from channels.layers import get_chan
 uv run --no-sync python manage.py poll_devices --manufacturer shure
 ```
 
-**Database optimization:**
-- Ensure proper indexing on device models
-- Monitor query performance
-- Check connection pooling
 
-## Advanced Monitoring
+## Read monitoring state over HTTP
 
-### Custom Dashboards
+The read-only REST API under `api/v1/` (relative to where you mount `micboard.urls`) exposes `chassis`, `units`, `channels`, `discovery`, `monitoring/groups`, `monitoring/alerts`, `settings/definitions` and `settings/overrides`. It requires an authenticated user and returns only rows that user may see. See [HTTP endpoints](../api/endpoints.md).
 
-Create custom monitoring views:
-
-- Filter by location or user
-- Sort by battery level or signal strength
-- Export device reports
-- Historical trend analysis
-
-### API Integration
-
-Use the REST API for custom monitoring:
-
-```python
-# Get device status
-GET /api/v1/devices/
-
-# Get battery levels
-GET /api/v1/devices/?battery_level__lt=20
-
-# Real-time updates via WebSocket
-ws://your-server/ws
-```
-
-### Health Checks
-
-Implement health check endpoints:
+## Summarize connection health in code
 
 ```python
 from micboard.services.realtime.health_service import RealtimeConnectionHealthService
 
-# Return one bounded, typed status aggregate.
+# Returns one bounded, typed status aggregate.
 summary = RealtimeConnectionHealthService.summarize()
 print(f"Active real-time connections: {summary.connected}")
 ```

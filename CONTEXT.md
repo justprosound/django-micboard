@@ -17,154 +17,64 @@ A field device carried by a performer (bodypack, handheld, or IEM pack) that con
 channel on a wireless chassis.
 _Avoid_: Transmitter (ambiguous with the chassis role), mic, beltpack
 
-**RF Distribution Unit**:
-Rack infrastructure that moves RF between antennas and wireless chassis without being an RF
-endpoint itself; its direction is either combiner or splitter.
-_Avoid_: Antenna distribution (implies splitting only), antenna splitter, combiner (as the
-general term)
+**RF Channel**:
+One frequency slot on a wireless chassis. Frequency coordination happens here, and a wireless
+unit takes its regulatory status from the channel it is assigned to.
+_Avoid_: Slot (reserved for charger slots), channel (without "RF" when a chassis is meant)
 
-**Combiner**:
-An RF Distribution Unit that merges several transmitter outputs onto one antenna.
-_Avoid_: Antenna combiner, multicoupler
+**Charger**:
+A multi-bay charging station. Each charger slot can hold a unit and optionally be assigned to a
+performer.
 
-**Splitter**:
-An RF Distribution Unit that feeds one antenna's signal to several receivers.
-_Avoid_: Antenna distribution, active antenna splitter
-
-**Distribution Port**:
-One input or output on an RF Distribution Unit, optionally linked to the wireless chassis it
-feeds or is fed by.
-_Avoid_: Channel (reserved for RF channels on a chassis)
-
-**Managed** (RF Distribution Unit):
-An RF Distribution Unit that exposes a network interface micboard can read; an unmanaged unit
-is tracked for inventory and topology only.
-_Avoid_: Active (an active splitter can still be unmanaged)
+**Display Wall**:
+A physical display or kiosk showing live performer, RF and battery status for a location.
 
 ### Vendor support
 
-**Device Manager**:
-Vendor software or hardware that sits between micboard and a vendor's devices and serves their
-state on their behalf, such as Shure System API or Wisycom Manager.
-_Avoid_: API server, gateway, controller
+**Manufacturer**:
+A supported hardware vendor. Shure and Sennheiser ship integrations, each a plugin under
+`micboard/integrations/<code>/`.
+_Avoid_: Vendor (in model and code names), brand
 
-**Inventory-only**:
-A manufacturer with no integration, whose devices are recorded by hand and never polled; they
-appear in inventory and RF topology but are shown as not monitored.
-_Avoid_: Unsupported, manual vendor, passive vendor
+**Manufacturer API Server**:
+A persisted connection to a vendor-side service that serves device state on behalf of the
+devices, such as the Shure System API. Hostnames it may contact are limited by
+`MICBOARD_API_SERVER_ALLOWED_HOSTS`.
+_Avoid_: Gateway, controller
 
-**Verified Vendor**:
-A vendor whose integration is tested against captured fixtures recorded from real hardware.
-_Avoid_: Supported, certified
+### Discovery
 
-**Unverified Vendor**:
-A vendor whose integration is built from published documentation and hand-written fixtures,
-with no capture from real hardware yet.
-_Avoid_: Experimental, beta
+**Discovered Device**:
+A device found by network or API discovery that is not yet part of inventory.
 
-**Captured Fixture**:
-A scrubbed recording of real device traffic for one scenario, committed as test data.
-_Avoid_: Cassette, snapshot, recording (for the committed file)
+**Discovery Queue**:
+Staging rows for discovered devices that need an operator's decision before import. See
+[Device discovery workflow](docs/integration/discovery-workflow.md).
 
-**Hand-written Fixture**:
-Test data written from vendor documentation rather than recorded from a device.
-_Avoid_: Mock, fake (as the general term)
+### Tenancy and monitoring
 
-### Deployment and tenancy
-
-**Cell**:
-One micboard deployment pinned to a jurisdiction, with its own database and storage.
-_Avoid_: Region (reserved for the tenancy level), instance
-
-**Portal**:
-A Django Site: a hostname with its own branding through which users reach micboard.
-_Avoid_: Site (ambiguous), tenant
-
-**Provider Organization**:
-An organization that manages other organizations as an MSP.
-_Avoid_: Reseller, parent tenant
-
-**Customer Organization**:
-An organization whose equipment is monitored, optionally under a provider.
-_Avoid_: Client, sub-tenant
-
-**Region**:
-An optional, nestable grouping of campuses within a customer organization.
-_Avoid_: Zone, area
+**Organization**:
+The tenant that owns equipment in MSP mode. An organization has campuses and members with a role
+(`viewer`, `operator`, `admin` or `owner`).
+_Avoid_: Client, account
 
 **Campus**:
-A physical site with its own buildings and networks; Edge Listeners attach to a campus.
-_Avoid_: Site, venue (as the general term)
+A physical site of an organization, with its own buildings.
+_Avoid_: Site (reserved for Django's sites framework), venue
 
-**Edge Listener**:
-A micboard process deployed on a campus that observes isolated RF and media segments and sends
-normalized state to central over one outbound link.
-_Avoid_: Agent, satellite, probe, collector (as the general term)
+**Monitoring Group**:
+A named set of users with locations and channels they monitor together. Monitoring groups narrow
+what viewers and operators see; they never widen a tenant.
+_Avoid_: Team
 
-**Segment Collector**:
-The part of an Edge Listener that observes exactly one isolated network segment from its own
-network namespace.
-_Avoid_: Sniffer, bridge
-
-### Events and performers
+### Performers
 
 **Performer**:
-A person who wears or uses wireless equipment during an event.
+A person who wears or uses wireless equipment. Performers are domain records, never login
+identities.
 _Avoid_: Talent, user
 
-**Event**:
-A scheduled occasion at a location, with a time window and a crew, during which assignments
-apply.
-_Avoid_: Show, gig, booking
-
 **Assignment**:
-The link between a performer and a wireless unit for a half-open time window.
+The link between a performer, a wireless unit and a monitoring group, with a priority and
+per-condition alert preferences. Deactivating it keeps the row and its history.
 _Avoid_: Mapping, allocation
-
-**Handoff**:
-Moving a wireless unit from one performer to another by closing one assignment window and opening
-the next.
-_Avoid_: Swap (reserved for replacing a pack), reassignment
-
-**Meter Freshness**:
-How recently a channel produced a meter sample, tracked separately from connection liveness.
-_Avoid_: Online, connected
-
-### Media networks
-
-**Media Endpoint**:
-A device on a Dante, AES67, or ST 2110 network that sends or receives media flows.
-_Avoid_: Node (ambiguous with NMOS nodes), device (as the general term)
-
-**Media Flow**:
-One announced stream of audio or video from a sender, identified by its SDP or NMOS
-description.
-_Avoid_: Stream (as the general term), channel
-
-**Flow Leg**:
-One receiver's subscription to a media flow.
-_Avoid_: Route, patch
-
-**PTP Domain**:
-A set of devices sharing one Precision Time Protocol clock hierarchy.
-_Avoid_: Clock group, sync domain
-
-**Grandmaster**:
-The clock a PTP domain currently follows as its time reference.
-_Avoid_: Master clock, leader
-
-**Dante Domain**:
-A Dante network area defined by Dante's own management, as distinct from a PTP domain.
-_Avoid_: Dante network (as the general term)
-
-**Flow Probe**:
-An opt-in observer that joins an audio flow to measure packet loss, never a video flow.
-_Avoid_: Sniffer, tap
-
-**Probe Clock**:
-An opt-in PTP follower run by micboard to measure clock offset.
-_Avoid_: Slave clock, reference clock
-
-**Expected Flow**:
-A media flow an operator declares must be present, whose absence raises an alert.
-_Avoid_: Required stream

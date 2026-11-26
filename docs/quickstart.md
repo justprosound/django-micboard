@@ -1,5 +1,7 @@
 ---
 title: "Quick Start Guide"
+type: tutorial
+audience: developer
 ---
 Get django-micboard up and running with your Shure wireless microphone system in minutes.
 
@@ -116,7 +118,7 @@ Add your Shure device IPs to the discovery list:
 
 ```bash
 # Add discovery IPs
-uv run --no-sync python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
+uv run --no-sync python manage.py discovery_add_devices --ips 192.0.2.100,192.0.2.101
 
 # Or configure candidates at /admin/micboard/discovereddevice/
 ```
@@ -144,118 +146,25 @@ uv run --no-sync python manage.py runserver
 
 Visit `http://localhost:8000/admin/` to see your devices!
 
-## Real-time Updates
+## Check the installation
 
-Polling and subscription tasks feed real-time updates for:
+1. Run Django's checks:
 
-- Battery levels
-- RF signal strength
-- Audio levels
-- Device status changes
+   ```bash
+   uv run --no-sync python manage.py check
+   ```
 
-## Next Steps
+2. Sign in to the Django admin and open the Micboard models.
+3. Check connection status:
 
-- Manage assignments and devices in the admin: [guides/admin-interface.md](guides/admin-interface.md)
-- Configure monitoring and alerts: [guides/monitoring.md](guides/monitoring.md)
-- Enable real-time updates: [guides/realtime-updates.md](guides/realtime-updates.md)
-- Explore the API: [api/endpoints.md](api/endpoints.md)
+   ```bash
+   uv run --no-sync python manage.py realtime_status --verbose
+   ```
 
-## Troubleshooting
+## Next steps
 
-**Can't connect to Shure API?**
-- Verify API credentials in settings
-- Check network connectivity to Shure system
-- Ensure System API is enabled on Shure device
-
-**No devices discovered?**
-- Add device IPs to discovery list
-- Check device network configuration
-- Verify Shure devices are powered on
-
-**WebSocket not working?**
-- Install Redis and configure CHANNEL_LAYERS
-- Check ASGI configuration
-- Verify Django Channels is installed
-
-## Testing the Installation
-
-1. Check Django configuration:
-```bash
-uv run --no-sync python manage.py check
-```
-
-2. Sign in to Django admin and inspect the registered Micboard models.
-
-3. Check real-time connection status:
-```bash
-uv run --no-sync python manage.py realtime_status --verbose
-```
-
-## Real-Time Features
-
-The system now supports real-time updates via WebSocket (Shure) and SSE (Sennheiser):
-
-- **Explicit Subscription**: Run `realtime_subscribe` as a foreground process, or explicitly
-  enqueue its registered native Huey entrypoint. The integration declares its own transport, so
-  there is one command for both
-- **Independent Polling**: Queued polling never starts or multiplies subscription supervisors
-- **Singleton Safety**: Multi-process deployments use a shared Django cache lease; restart after a
-  stop or crash can take up to 60 seconds
-- **Connection Monitoring**: Use `uv run --no-sync python manage.py realtime_status` to check connection health
-- **Admin Interface**: Monitor connections in Django Admin under "Real-Time Connections"
-- **Health Monitoring**: Automatic cleanup of stale connections and error recovery
-
-```bash
-uv run --no-sync python manage.py realtime_subscribe --manufacturer shure
-uv run --no-sync python manage.py realtime_subscribe --manufacturer sennheiser
-```
-
-### Connection States
-- `connecting` - Establishing connection
-- `connected` - Active real-time updates
-- `disconnected` - Temporarily offline
-- `error` - Connection failed
-- `stopped` - Intentionally stopped
-
-## Troubleshooting
-
-**Problem**: No devices showing
-- Run `uv run --no-sync python manage.py diagnostic_api_health_check`
-- Verify devices are powered on and connected
-- Check network connectivity
-
-**Problem**: WebSocket not connecting
-- Ensure an ASGI server is running in production
-- Check browser console for errors
-- Verify WebSocket URL: `ws://localhost:8000/ws`
-
-**Problem**: SSL certificate errors
-- Install the issuing CA in the host trust store, or set `SSL_CERT_FILE`/`SSL_CERT_DIR` for the
-  Django and Huey processes. Certificate verification cannot be disabled.
-
-**Problem**: Polling not updating
-- Check the Huey consumer and deployment scheduler are running
-- Look for errors in console output
-- Verify API credentials if required
-
-## Next Steps
-
-1. Configure groups in Django Admin
-2. Set up systemd services for production
-3. Configure Redis for production WebSocket support
-4. Customize templates and styling
-5. Set up logging and monitoring
-
-## Production Checklist
-
-- [ ] Redis configured for Channels
-- [ ] PostgreSQL database configured (`DEBUG=False` rejects other engines)
-- [ ] Huey consumer and scheduled polling trigger
-- [ ] systemd service for Daphne
-- [ ] Nginx/Apache reverse proxy
-- [ ] SSL certificates
-- [ ] Log rotation
-- [ ] Monitoring alerts
-- [ ] Backup strategy
-
-For full documentation, see README.md
+- [Manage assignments and devices in the admin](guides/admin-interface.md)
+- [Monitor devices](guides/monitoring.md)
+- [Set up real-time updates](guides/realtime-updates.md)
+- [HTTP endpoints](api/endpoints.md)
+- [Shure troubleshooting](guides/shure-troubleshooting.md) if the API connection or discovery does not work

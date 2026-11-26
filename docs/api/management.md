@@ -1,5 +1,7 @@
 ---
-title: "Management Commands"
+title: "Management commands"
+type: reference
+audience: developer
 ---
 Management commands are thin wrappers around the service layer: they parse arguments, call a
 service, and report results. Business logic lives in `micboard/services/`, so a command can be

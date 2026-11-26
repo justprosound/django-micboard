@@ -1,17 +1,18 @@
 ---
-title: "Integrating Micboard Settings"
+title: "Read and write settings in code"
+description: "Read scoped settings, write them through the persistence service, add a new definition, and test it."
+type: how-to
+audience: developer
 ---
-Use the canonical `SettingsService` singleton for every runtime read:
+Resolution rules and module ownership are in [Settings management](settings-management.md).
+
+## Read a setting
+
+Use the `SettingsService` singleton for every runtime read and pass the scope your workflow already owns:
 
 ```python
 from micboard.services.settings.settings_service import settings as micboard_settings
-```
 
-## Scoped configurable values
-
-Pass the scope already owned by the workflow. Do not rediscover tenant context inside the settings layer.
-
-```python
 poll_interval = micboard_settings.get(
     "polling_interval_seconds",
     300,
@@ -21,11 +22,7 @@ poll_interval = micboard_settings.get(
 )
 ```
 
-The most specific stored value wins. If no stored value matches, resolution continues through host `MICBOARD_CONFIG`, package defaults, the registered definition default, and the explicit default.
-
-## Deployment controls
-
-Process safety, transport bounds, and tenancy feature flags use `MICBOARD_*` Django settings:
+Deployment controls and feature flags are host-owned:
 
 ```python
 max_devices = micboard_settings.get("MICBOARD_REALTIME_MAX_DEVICES", 128)
@@ -33,41 +30,32 @@ if micboard_settings.msp_enabled:
     ...
 ```
 
-These values are deliberately host-owned. Database settings cannot override them.
+Prefer one read per workflow and pass the resolved value down when processing a batch. Do not read settings in a row loop.
 
-## Typed writes
+## Write a setting
 
-Views, forms, and commands must delegate writes to `SettingsPersistenceService`. Build the DTO accepted by the service and pass the authenticated actor plus explicit scope. The service validates authorization, definition type, serialized value, and scope before upsert, then invalidates caches.
+Views, forms and commands send a validated DTO to `micboard.services.settings.persistence_service.SettingsPersistenceService` with the acting user and explicit scope. Never import `SettingsRegistry` in runtime code, call `Setting.objects.update_or_create(...)` outside that service, or read `settings.MICBOARD_*` directly.
 
-Never:
+## Add a setting
 
-- import `SettingsRegistry` from its internal module in runtime code;
-- call `Setting.objects.update_or_create(...)` outside the settings persistence service;
-- add a wrapper, alias, or re-export for a removed settings API;
-- read `settings.MICBOARD_*` or `getattr(settings, "MICBOARD_*", ...)` directly.
+1. Add the definition to `micboard/management/commands/init_settings.py`.
+2. Choose the narrowest valid scope and a serialized default that matches the declared type.
+3. Read it through `micboard_settings.get(...)` with explicit scope objects.
+4. Add tests for resolution, scope isolation, authorization and redaction.
+5. Initialize definitions with `uv run --no-sync python manage.py init_settings` (`--reset` replaces existing definitions, so use it only in a controlled environment).
 
-## Performance
+## Test it
 
-Resolution is cached per definition and exact scope. Prefer one service read per logical workflow and pass the resolved value down when processing a batch. Database-backed settings should not be loaded in a row loop.
-
-## Testing an integration
-
-Cover:
-
-1. the explicit default;
-2. definition and `MICBOARD_CONFIG` fallback;
-3. global-to-specific database precedence;
-4. isolation from a different organization/site/manufacturer;
-5. immutable host precedence for `MICBOARD_*` controls;
-6. persistence authorization and automatic cache invalidation.
-
-Run:
+Cover the explicit default, the definition and `MICBOARD_CONFIG` fallback, scope precedence and isolation, host precedence for `MICBOARD_*` controls, and persistence authorization:
 
 ```bash
 uv run --no-sync pytest tests/test_settings.py tests/test_settings_service.py \
   tests/services/settings tests/test_settings_architecture.py
-uv run --no-sync ruff check micboard/services/settings tests/services/settings
-uv run --no-sync python -m mypy micboard/services/settings
 ```
 
-See [Settings Management](settings-management.md) and [ADR-005: Unify Settings Proxy](../adr/005-unify-settings-proxy.md) for the complete contract.
+## Troubleshoot
+
+- **Unexpected deployment value:** inspect the matching Django `MICBOARD_*` setting.
+- **Unexpected configurable value:** verify the scope objects passed and the stored row at the definition's scope.
+- **Stale value after a supported write:** supported writes invalidate caches, so treat this as a persistence-service defect.
+- **Value hidden in the UI:** review the presentation allowlist and the definition's sensitivity.

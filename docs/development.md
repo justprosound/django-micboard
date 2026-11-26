@@ -1,5 +1,7 @@
 ---
 title: "Developer guide"
+type: how-to
+audience: developer
 ---
 This guide covers the supported repository workflow. Architecture decisions live in
 `docs/adr/`; domain language and boundaries live in `CONTEXT.md`.
@@ -166,6 +168,8 @@ security, native Huey, and test boundaries.
 just docs        # build the site into site/
 just serve-docs  # serve it on http://localhost:9000 with hot reload
 ```
+
+Every page declares `title`, `type` and `audience` in its frontmatter, and the build fails without them. `type` is one of `tutorial`, `how-to`, `reference` or `explanation` (a page is exactly one; split a page that needs two). `audience` is `staff` (people who run and use a deployment), `developer` (people who integrate or change the code) or `both`. Add the page to the matching section of the sidebar in `astro.config.mjs`. Delete a page when the behavior it describes is gone; git history is the archive, and work in progress belongs in issues and pull requests.
 
 Add a module to `PAGES` in `scripts/generate_api_docs.py` when a new public surface should
 appear in the API reference, then run `just docs-api` to regenerate the committed Markdown.

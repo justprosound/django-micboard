@@ -1,5 +1,7 @@
 ---
 title: "Shure System API Integration"
+type: how-to
+audience: developer
 ---
 django-micboard connects to Shure System API over authenticated HTTPS. It can synchronize
 discovery IPs, poll device state, and subscribe to manufacturer WebSocket updates.
@@ -73,7 +75,7 @@ management command:
 ```bash
 uv run --no-sync python manage.py discovery_add_devices \
   --manufacturer shure \
-  --ips 192.168.1.100,192.168.1.101
+  --ips 192.0.2.100,192.0.2.101
 ```
 
 To push the configured discovery inventory to System API and pull results back:
@@ -149,33 +151,9 @@ include:
 - `SHURE_API_CIRCUIT_FAILURE_THRESHOLD`
 - `SHURE_API_CIRCUIT_RECOVERY_TIMEOUT`
 
-## Troubleshooting
+## Troubleshoot
 
-### Authentication failures
-
-- Confirm `MICBOARD_CONFIG["SHURE_API_SHARED_KEY"]` resolves to a non-empty value.
-- Confirm the key belongs to the configured System API endpoint.
-- Do not log, display, or commit the key.
-
-### Certificate failures
-
-- Keep the `https://` URL; cleartext manufacturer endpoints are rejected.
-- Install the issuing CA or configure `SSL_CERT_FILE`/`SSL_CERT_DIR`.
-- Restart both Django and Huey after changing process environment variables.
-
-### No discovery results
-
-- Confirm the `shure` manufacturer is active.
-- Confirm candidate IPs exist in `/admin/micboard/discovereddevice/`.
-- Run `sync_discovery` without scan flags first, then inspect command output and logs.
-- Check routing and firewall access from the application host to System API.
-
-### Queued poll does not run
-
-- Confirm `huey.contrib.djhuey` is installed and in `INSTALLED_APPS`.
-- Confirm `settings.HUEY` is a dictionary.
-- Confirm the Huey consumer is running and can reach its Redis backend.
-- Run the synchronous polling command to separate queue problems from API problems.
+See [Shure troubleshooting](guides/shure-troubleshooting.md) for authentication, certificate, discovery and queued-poll problems.
 
 ## Security checklist
 

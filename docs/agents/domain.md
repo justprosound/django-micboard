@@ -1,5 +1,7 @@
 ---
 title: "Domain Docs"
+type: how-to
+audience: developer
 ---
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 

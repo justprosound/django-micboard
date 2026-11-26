@@ -1,5 +1,7 @@
 ---
-title: "Performer Assignment Quick Reference"
+title: "Manage performer assignments in code"
+type: how-to
+audience: developer
 ---
 Performers are the people using wireless units. They are separate from Django users, who are the operators managing those assignments.
 

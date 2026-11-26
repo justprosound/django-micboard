@@ -1,77 +1,42 @@
 ---
 title: "Django Micboard"
+type: explanation
+audience: both
 ---
 > **Real-time wireless microphone monitoring for Django**
 
-Django Micboard is a Django application for real-time monitoring and management of **Shure wireless microphone systems**. It provides a modern web interface for tracking microphone status, battery levels, RF signals, and audio levels across your wireless systems.
+django-micboard is a reusable Django app for real-time monitoring and management of wireless microphone and RF systems from several manufacturers. It tracks device status, battery levels, RF signals and audio levels across your wireless systems.
 
-**Version**: 26.01.27.0 (CalVer: `YY.MM.0D.MICRO`)
 **License**: AGPL-3.0-or-later
 **Python**: 3.14+
 **Django**: 5.2 through 6.0
 
 ## Features
 
-- 🎤 **Real-time Monitoring** - Live updates via WebSocket for battery, RF levels, and audio
-- 🔌 **Shure System API Integration** - Full support for Shure wireless microphone systems
-- 👥 **User Assignments** - Assign devices to users with location tracking
-- 🚨 **Smart Alerts** - Configurable notifications for battery and RF issues
-- 📊 **Admin Dashboard** - Visual oversight of devices and system health
-- 🔒 **Transport Hardening** - TLS-only authenticated manufacturer connections
-- 🧪 **Pre-production Beta** - Django 5.2 through 6.0 compatible
+- **Real-time monitoring**: battery, RF and audio levels, polled over HTTP with optional WebSocket push
+- **Manufacturer integrations**: Shure System API and Sennheiser SSCv2, with a plugin contract for more
+- **Performer assignments**: tie wireless units to performers and monitoring groups
+- **Alerts**: battery, signal, audio and offline conditions
+- **Admin and dashboards**: Django admin plus tenant-aware dashboards and kiosk walls
+- **Multi-tenancy**: optional site, organization and campus isolation
+- **Transport hardening**: TLS-only, authenticated manufacturer connections
 
-## Quick Start
+## Get started
 
-All installation and environment management uses [`uv`](https://github.com/astral-sh/uv).
+Add the package to an existing uv-managed Django project with `uv add "django-micboard[standard,realtime,shure]"`, then follow the [Quick start](quickstart.md).
 
-```bash
-# Add django-micboard to an existing uv-managed Django project
-uv add "django-micboard[standard,realtime,shure]"
-```
+## Supported systems
 
-```python
-# Add to Django settings
-import os
-
-INSTALLED_APPS = [
-    # ... other apps
-    "channels",
-    "huey.contrib.djhuey",
-    "micboard",
-]
-
-# Configure Shure API
-MICBOARD_CONFIG = {
-    "SHURE_API_BASE_URL": "https://your-shure-system.local:10000",
-    "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
-}
-
-MICBOARD_API_SERVER_ALLOWED_HOSTS = ["your-shure-system.local"]
-```
-
-```bash
-# Run migrations
-uv run --no-sync python manage.py migrate
-
-# Start monitoring
-uv run --no-sync python manage.py poll_devices
-```
-
-
-## Supported Systems
-
-- **Shure UHF-R, QLX-D, ULX-D, Axient Digital (AD), PSM1000 series**
-- **Plugin architecture** for additional manufacturers
+Shure (System API) and Sennheiser (SSCv2) integrations ship today. Other manufacturers are added as plugins ([Manufacturer plugin development](plugin-development.md)).
 
 ## Documentation
 
-- [Quick Start Guide](quickstart.md) - Get up and running quickly
-- [Configuration](configuration.md) - All configuration options
-- [Multitenancy](multitenancy.md) - Tenant-aware setup and behavior
-- [Shure Integration](shure-integration.md) - Shure System API setup and usage
-- [API Reference](api/endpoints.md) - REST and WebSocket endpoints
-- [Architecture](development/architecture.md) - System design overview
-- [Plugin Development](plugin-development.md) - Add a manufacturer using the live plugin contract
+The documentation is organized by what you need:
+
+- **Tutorials** teach by doing: start with the [Quick start](quickstart.md).
+- **How-to guides** solve a specific task, such as [Installation](installation.md), [Enable multi-tenancy](multitenancy-setup.md) or [Shure integration](shure-integration.md).
+- **Reference** states facts: [Configuration](configuration.md), [HTTP endpoints](api/endpoints.md) and the [generated Python API](api/models.md).
+- **Explanation** covers the why: [Architecture](architecture.md), [Multi-tenancy](multitenancy.md) and the architecture decisions.
 
 ## Requirements
 

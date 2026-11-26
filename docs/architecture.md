@@ -1,5 +1,8 @@
 ---
-title: "Django Micboard - Architecture & Developer Guide"
+title: "Architecture"
+description: "How django-micboard is structured: settings, plugins, tenancy, models, services and runtime processes."
+type: explanation
+audience: developer
 ---
 ## Core Architecture
 
@@ -24,19 +27,13 @@ if micboard_settings.msp_enabled:
     print("MSP mode is enabled")
 
 # Settings from MICBOARD_CONFIG dict
-timeout = micboard_settings.get("SHURE_API_TIMEOUT", default=10)
+max_devices = micboard_settings.get("MICBOARD_REALTIME_MAX_DEVICES", 128)
 
 # Direct property access
 allowed = micboard_settings.allow_cross_org_view
 ```
 
-**Resolution Order** (`services/settings/settings_service.py`):
-1. Immutable Django host setting for `MICBOARD_*` deployment controls
-2. Scoped database setting (organization, site, or manufacturer)
-3. Host `MICBOARD_CONFIG` dictionary
-4. App default
-5. Registered definition default
-6. Caller-provided default
+Resolution order is described in [Settings management](guides/settings-management.md).
 
 ### 2. Plugin Architecture (Manufacturer-Agnostic)
 
@@ -161,47 +158,23 @@ Core services in `micboard/services/`:
 - `monitoring/alerts.py`: Alert management
 - `core/performer_assignment.py`: Performer assignment
 
-## Testing
+## Runtime processes and real-time state
 
-Run the full test suite:
+A production deployment runs these cooperating processes:
 
-```bash
-uv run --no-sync pytest  # All tests
-uv run --no-sync pytest tests/test_chargers.py  # Specific test file
-uv run --no-sync pytest -m unit  # Unit tests only
-uv run --no-sync pytest -m integration  # Integration tests
-uv run --no-sync pytest --cov=micboard  # With coverage
-```
+- the Django web application, plus an ASGI server if WebSocket push is enabled ([Set up real-time updates](guides/realtime-updates.md));
+- a native Huey consumer for queued polls;
+- a scheduler that invokes `poll_devices --async` at the interval you choose, because polling never starts subscription supervisors;
+- one `realtime_subscribe` supervisor per manufacturer, when streaming is wanted;
+- a shared cache and channel layer (for example Redis) so leases and fan-out work across processes, and a database.
 
-**Test markers** (see pyproject.toml):
-- `unit`: Fast, isolated tests
-- `integration`: Slower, external dependencies
-- `e2e`: Full workflow tests
-- `slow`: Long-running tests
-- `plugin`: Plugin-specific tests
-- `django_db`: Requires database
+Each streaming session is tracked in a `RealTimeConnection` row (`micboard/models/realtime/connection.py`) with a status of `connecting`, `connected`, `disconnected`, `error` or `stopped`. `realtime_status` and the admin read those rows.
 
-## Best Practices for Contributors
-
-1. **Always use `SettingsService`** for settings reads and the persistence service for writes
-2. **Extend base classes** for models, views, services
-3. **Add type hints** for all public functions
-4. **Document scope requirements** (tenant, site, org)
-5. **Test multi-tenant behavior** in integration tests
-6. **Avoid hard-coded manufacturer names** – use plugins
-7. **Don't modify migrations** – create new ones only if schema changes
-
-## Release Checklist
-
-- [ ] All tests pass: `uv run --no-sync pytest --cov=micboard --cov-branch --cov-fail-under=95`
-- [ ] Ruff checks: `uv run --no-sync ruff check .`
-- [ ] Prek hooks: `uv run --no-sync prek run --all-files`
-- [ ] No tracked dev artifacts (db.sqlite3, .env, egg-info)
-- [ ] Pull-request changelog fragment added under `changelog.d/`
-- [ ] Version number updated in `pyproject.toml` (`micboard.__version__` reads package metadata)
+Browser pages poll over HTTP by default and the WebSocket consumer broadcasts `device_update`, `device_status_update` and `api_health_update` events to authenticated clients ([WebSocket API](api/websocket.md)).
 
 ## Further Reading
 
-- [Settings Management](guides/settings-management.md)
-- [Plugin System](plugin-development.md)
-- [Contributing](https://github.com/justprosound/django-micboard/blob/main/CONTRIBUTING.md)
+- [Settings management](guides/settings-management.md)
+- [Manufacturer plugin development](plugin-development.md)
+- [Developer guide](development.md)
+- [Architecture decisions](adr/002-extract-model-business-logic.md)

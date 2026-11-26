@@ -1,5 +1,7 @@
 ---
 title: "Micboard Configuration"
+type: reference
+audience: developer
 ---
 To use `django-micboard` in your project, you need to configure your project's `settings.py` file.
 
@@ -273,64 +275,19 @@ LOGGING = {
 }
 ```
 
-## Management Commands
+## Management commands
 
-The app provides several management commands for device management and monitoring:
+Commands are listed in the [management commands reference](api/management.md). Day-to-day use is in [Monitor devices](guides/monitoring.md).
 
-```bash
-# Poll devices from manufacturers
-uv run --no-sync python manage.py poll_devices
+## Realtime supervisor settings
 
-# Poll one active manufacturer, or explicitly override inactivity for an operator-run poll
-uv run --no-sync python manage.py poll_devices --manufacturer shure
-uv run --no-sync python manage.py poll_devices --manufacturer shure --force
+Subscription supervisors share a renewable singleton lease in the Django cache named by `MICBOARD_REALTIME_CACHE_ALIAS` (default `"default"`), which must be process-shared when more than one process runs. How to run them is in [Set up real-time updates](guides/realtime-updates.md#run-subscription-supervisors).
 
-# Sync discovery results
-uv run --no-sync python manage.py sync_discovery
+| Setting | Default | Hard maximum | Bounds |
+| --- | --- | --- | --- |
+| `MICBOARD_REALTIME_MAX_DEVICES` | 64 | 256 | Devices in one inventory window |
+| `MICBOARD_REALTIME_MAX_CONCURRENCY` | 16 | 64 | Simultaneous device subscriptions and worker tasks |
+| `MICBOARD_REALTIME_ROTATION_SECONDS` | 300 | 3,600 | One long-lived connection's turn |
+| `MICBOARD_REALTIME_RECONNECT_DELAY_SECONDS` | 1 | 60 | Pause between inventory rounds |
 
-# Add Shure device IPs manually (comma-separated)
-uv run --no-sync python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
-
-# Subscribe to real-time status
-uv run --no-sync python manage.py realtime_status
-
-# Realtime subscriptions (the integration decides WebSocket or SSE)
-uv run --no-sync python manage.py realtime_subscribe --manufacturer shure
-```
-
-See [API Reference](api/management.md) for detailed command documentation.
-
-### Realtime subscription supervisors
-
-The realtime task entrypoint and management command share a cache-backed singleton
-lease. Production deployments with multiple Huey processes must configure a process-shared Django
-cache and may select it with `MICBOARD_REALTIME_CACHE_ALIAS` (default: `"default"`). Local-memory
-caches only deduplicate workers inside one process.
-
-The management commands run in the foreground. Queue-managed deployments should explicitly
-enqueue the registered native Huey task entrypoint once. Manufacturer polling never starts or
-enqueues a realtime supervisor.
-
-`MICBOARD_REALTIME_MAX_DEVICES` (default: 64, hard maximum: 256) bounds each inventory window.
-Micboard stores a circular primary-key cursor in the selected shared cache, so later rounds in the
-same supervisor—and later restarts—continue through eligible inventory instead of repeatedly
-selecting the first rows.
-`MICBOARD_REALTIME_MAX_CONCURRENCY` (default: 16, hard maximum: 64) bounds simultaneous device
-subscriptions and worker tasks. `MICBOARD_REALTIME_ROTATION_SECONDS` (default: 300, hard maximum:
-3,600) limits each long-lived connection's turn before the worker advances to the next selected
-device. `MICBOARD_REALTIME_RECONNECT_DELAY_SECONDS` (default: 1, hard maximum: 60) controls the
-pause between repeated inventory rounds. A single-device diagnostic selection bypasses the shared
-inventory cursor. After each round, a long-lived supervisor reloads the next eligible bounded
-window from the database, so inventory and eligibility changes take effect during the same worker
-lifetime rather than waiting for a restart.
-
-Queued polling, API-health, discovery, and realtime work revalidates `Manufacturer.is_active`
-immediately before outbound vendor access. SSE and WebSocket supervisors also revalidate before
-each subscription and inventory reload, ending the live supervisor after deactivation. The
-`poll_devices --force` operator override is the only polling exception; it is preserved when the
-command enqueues native Huey work. Without `--force`, a specific inactive `--manufacturer` is
-rejected just like an inactive manufacturer in an all-manufacturer run.
-
-Leases are renewed while a supervisor runs and expire within 60 seconds after it stops. They are
-not explicitly deleted because Django's generic cache API cannot atomically delete only the
-current owner's token.
+Leases are renewed while a supervisor runs and expire within 60 seconds after it stops. Queued polling, API-health, discovery and realtime work revalidates `Manufacturer.is_active` immediately before outbound vendor access, and supervisors revalidate before each subscription and inventory reload.

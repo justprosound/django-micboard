@@ -1,5 +1,7 @@
 ---
 title: "WebSocket API"
+type: reference
+audience: developer
 ---
 Django Micboard provides real-time updates via WebSocket connections.
 
@@ -78,6 +80,10 @@ treat a partial batch as a complete fleet replacement. Device and chunk counts a
   "channel_id": 5
 }
 ```
+
+### Pong
+
+Send `{"command": "ping"}` to receive `{"type": "pong"}`. Each connection has an inbound command allowance (`MICBOARD_WEBSOCKET_COMMANDS_PER_MINUTE`, default 60), and a connection that exceeds it is closed with code `4429`. Oversized or non-object commands are rejected.
 
 ### Status
 ```json

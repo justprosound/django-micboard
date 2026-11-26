@@ -1,5 +1,7 @@
 ---
 title: "Installation Guide"
+type: how-to
+audience: developer
 ---
 > All environments and dependencies must be managed with [`uv`](https://github.com/astral-sh/uv).
 
@@ -159,7 +161,7 @@ MICBOARD_CONFIG = {
         "MICBOARD_SHURE_API_BASE_URL", "https://your-shure-system.local:10000"
     ),
     "SHURE_API_SHARED_KEY": os.environ.get("MICBOARD_SHURE_API_SHARED_KEY"),
-    "SHURE_API_TIMEOUT": int(os.environ.get("MICBOARD_SHURE_API_TIMEOUT", "30")),
+    "SHURE_API_TIMEOUT": 30,
 }
 
 # Exact hostnames that credential-bearing Manufacturer API Server checks may contact.
@@ -528,7 +530,7 @@ docker run -p 8000:8000 micboard
 uv run --no-sync python manage.py sync_discovery --manufacturer shure --scan-cidrs
 
 # Or add specific devices
-uv run --no-sync python manage.py discovery_add_devices --ips 192.168.1.100,192.168.1.101
+uv run --no-sync python manage.py discovery_add_devices --ips 192.0.2.100,192.0.2.101
 ```
 
 ### Start Monitoring

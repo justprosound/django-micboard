@@ -1,5 +1,7 @@
 ---
 title: "Shure troubleshooting"
+type: how-to
+audience: staff
 ---
 Use these checks to separate configuration, transport, discovery, polling, and queue failures.
 Run project commands through the locked uv environment.
@@ -64,7 +66,7 @@ Confirm an active manufacturer with code `shure` exists. Add bounded candidates 
 ```bash
 uv run --no-sync python manage.py discovery_add_devices \
   --manufacturer shure \
-  --ips 192.168.1.100,192.168.1.101
+  --ips 192.0.2.100,192.0.2.101
 ```
 
 Inspect candidates without exposing credentials:
