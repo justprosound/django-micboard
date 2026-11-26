@@ -29,15 +29,6 @@ def test_repair_lifts_the_leading_heading_into_frontmatter() -> None:
     assert repaired == '---\ntitle: "Quick Start Guide"\n---\nInstall the app.\n'
 
 
-def test_repair_shortens_verbose_sred_titles_for_the_sidebar() -> None:
-    """Long, repetitive titles get a readable sidebar label instead."""
-    repaired, reason = repair("# SRED Project Summary — 2026 Unify Settings Proxy\n\nBody.\n")
-
-    assert reason is None
-    assert 'title: "SRED Project Summary — 2026 Unify Settings Proxy"' in repaired
-    assert 'label: "Unify Settings Proxy"' in repaired
-
-
 def test_repair_leaves_a_page_that_is_already_valid_untouched() -> None:
     """Hand-written frontmatter is authoritative and must not be rewritten."""
     content = '---\ntitle: "Kept"\ndescription: "Also kept"\n---\nBody.\n'

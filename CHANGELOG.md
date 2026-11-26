@@ -1209,7 +1209,7 @@ ce575a9 - refactor(release-prep): standardize configuration, improve docs, expan
 c21977a - chore: finalize production release preparation (bandwith)
 334b4f7 - docs: add Phase 4.2 completion summary (bandwith)
 3605b56 - refactor: extract common HTTP client to eliminate duplication (bandwith)
-edb45e3 - docs: consolidate documentation and update Docker for GT live testing (bandwith)
+edb45e3 - docs: consolidate documentation and update Docker for live testing (bandwith)
 e65cd4e - cleanup: remove temporary files and consolidate documentation (bandwith)
 ee4a09c - docs: add Phase 3 completion summary and developer quick reference (bandwith)
 cb23ff7 - refactor: integrate lifecycle manager into polling services (Phase 3) (bandwith)

@@ -41,7 +41,7 @@ Architecture & Future-Proofing Notes:
       have a single direction or multiple? If patterns don't fit, it's a signal to
       revisit the architecture rather than patch with new roles.
       Combiners and splitters are the first such case: they are RF Distribution Units,
-      a separate model, not a chassis role (docs/adr/014-rf-distribution-units-are-not-chassis.md).
+      a separate model, not a chassis role (tracked in issue #572).
 """
 
 from typing import Any, ClassVar
