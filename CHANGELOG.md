@@ -7,6 +7,12 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.11.26.1] - 2026-11-26
+
+### Docs
+
+- Describe the service layer in `AGENTS.md` as a choice of shape (a plain service method for ordinary create and update, a split service only for batch syncs) instead of one mandated trio of classes.
+
 ## [2026.11.26.0] - 2026-11-26
 
 ### Changed
