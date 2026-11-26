@@ -19,10 +19,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = ROOT / "docs"
 
-# Sidebar labels are derived from the page title so long, repetitive titles stay
-# readable in the navigation without hand-maintaining a label per page.
-LABEL_PREFIXES = ("SRED Project Summary — 2026 ", "SRED Project Index — ")
-
 
 @dataclass(frozen=True)
 class Problem:
@@ -91,20 +87,9 @@ def quote(value: str) -> str:
     return f'"{escaped}"'
 
 
-def sidebar_label(title: str) -> str | None:
-    """Return a shortened sidebar label for verbose, prefixed page titles."""
-    for prefix in LABEL_PREFIXES:
-        if title.startswith(prefix):
-            return title.removeprefix(prefix).strip()
-    return None
-
-
 def build_frontmatter(title: str, existing: str = "") -> str:
     """Return a frontmatter block declaring ``title``, keeping any existing fields."""
     lines = [f"title: {quote(title)}"]
-    label = sidebar_label(title)
-    if label and "sidebar" not in (parse_frontmatter(existing) or {}):
-        lines += ["sidebar:", f"  label: {quote(label)}"]
     kept = existing.strip("\n")
     if kept:
         lines.append(kept)
