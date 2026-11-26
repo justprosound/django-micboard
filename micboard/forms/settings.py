@@ -210,9 +210,8 @@ class BulkSettingConfigForm(forms.Form):
         elif scope == SettingDefinition.SCOPE_SITE:
             if not cleaned_data.get("site"):
                 raise ValidationError("Site is required for site-scoped settings")
-        elif scope == SettingDefinition.SCOPE_MANUFACTURER:
-            if not cleaned_data.get("manufacturer"):
-                raise ValidationError("Manufacturer is required for manufacturer-scoped settings")
+        elif scope == SettingDefinition.SCOPE_MANUFACTURER and not cleaned_data.get("manufacturer"):
+            raise ValidationError("Manufacturer is required for manufacturer-scoped settings")
 
         organization = cleaned_data.get("organization")
         site = cleaned_data.get("site")
