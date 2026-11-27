@@ -221,3 +221,16 @@ def test_plugin_context_manager_closes_shure_client() -> None:
     with plugin:
         pass
     plugin._client.close.assert_called_once_with()
+
+
+def test_plugin_context_manager_closes_sennheiser_client() -> None:
+    """Leaving the plugin context releases the system client's HTTP pool."""
+    from unittest.mock import MagicMock
+
+    from micboard.integrations.sennheiser.plugin import SennheiserPlugin
+
+    plugin = SennheiserPlugin.__new__(SennheiserPlugin)  # the constructor needs credentials
+    plugin.client = MagicMock()
+    with plugin:
+        pass
+    plugin.client.close.assert_called_once_with()
