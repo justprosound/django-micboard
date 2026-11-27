@@ -196,7 +196,7 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
                     b"event: open\n"
                     b'data: {"sessionUUID": "session-123"}\n\n'
                     b"event: message\n"
-                    b'data: {"state": "online"}\n'
+                    b'data: {"state": "online"}\n\n'
                     b"data: not-json\n\n"
                 ),
             )
@@ -298,7 +298,7 @@ def test_sse_event_dispatch_rejects_oversized_payload_before_json_decode(caplog)
     with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
         asyncio.run(
             sennheiser_sse_module._dispatch_sse_event(
-                b'data: {"secret":"vendor-payload"}',
+                b'{"secret":"vendor-payload"}',
                 callback=callback,
                 max_event_bytes=8,
             )
@@ -345,3 +345,24 @@ def test_sennheiser_sse_missing_content_location_propagates_failure(monkeypatch)
 
     with pytest.raises(SennheiserAPIError, match="omitted Content-Location"):
         asyncio.run(sennheiser_sse_module.connect_and_subscribe(client, "device-1", AsyncMock()))
+
+
+def test_sse_consumer_accepts_unspaced_and_multiline_data() -> None:
+    """`data:` needs no space, and an event's data lines are joined before JSON decoding."""
+    received: list[dict] = []
+
+    async def callback(data: dict) -> None:
+        received.append(data)
+
+    class StreamResponse:
+        async def aiter_bytes(self, chunk_size: int):
+            yield b'data:{"a":1}\n\ndata: {"b":\ndata: 2}\n\n'
+
+    asyncio.run(
+        sennheiser_sse_module._consume_sse_messages(
+            StreamResponse(),  # type: ignore[arg-type]
+            callback=callback,
+        )
+    )
+
+    assert received == [{"a": 1}, {"b": 2}]

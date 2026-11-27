@@ -105,6 +105,9 @@ async def _consume_sse_messages(
     """Dispatch message events while ignoring SSCv2 open and close metadata."""
     limits = SSEStreamLimits.from_settings()
     event_type = "message"
+    data_lines: list[bytes] = []
+    data_size = 0
+    oversized = False
     async for line in _iter_bounded_sse_lines(
         response,
         max_line_bytes=limits.max_line_bytes,
@@ -115,14 +118,45 @@ async def _consume_sse_messages(
                 break
             continue
         if not line:
+            # A blank line ends the event; its data lines are joined with "\n".
+            if oversized:
+                logger.warning("Discarded SSE event data that exceeded the byte limit")
+            elif data_lines and event_type in {"", "message"}:
+                await _dispatch_sse_event(
+                    b"\n".join(data_lines),
+                    callback=callback,
+                    max_event_bytes=limits.max_event_bytes,
+                )
+            oversized = False
             event_type = "message"
+            data_lines = []
+            data_size = 0
             continue
-        if event_type in {"", "message"}:
-            await _dispatch_sse_event(
-                line,
-                callback=callback,
-                max_event_bytes=limits.max_event_bytes,
-            )
+        if line.startswith(b"data:"):
+            data = line[6:] if line.startswith(b"data: ") else line[5:]
+            data_size += len(data) + 1
+            if not oversized:
+                data_lines.append(data)
+                oversized = data_size - 1 > limits.max_event_bytes
+                if oversized:
+                    data_lines = []
+
+
+async def _dispatch_sse_event(
+    event_data: bytes,
+    *,
+    callback: Callable[[dict[str, Any]], Awaitable[None]],
+    max_event_bytes: int,
+) -> None:
+    """Decode and dispatch one bounded SSE event whose data lines are already joined."""
+    if len(event_data) > max_event_bytes:
+        logger.warning("Discarded SSE event data that exceeded the byte limit")
+        return
+    try:
+        data = json.loads(event_data)
+        await callback(data)
+    except json.JSONDecodeError, UnicodeDecodeError:
+        logger.debug("Invalid JSON in SSE event data")
 
 
 def _subscription_control_url(*, base_url: str, content_location: str | None) -> str:
@@ -189,24 +223,3 @@ async def _iter_bounded_sse_lines(
     elif line_buffer:
         line = bytes(line_buffer)
         yield line[:-1] if line.endswith(b"\r") else line
-
-
-async def _dispatch_sse_event(
-    line: bytes,
-    *,
-    callback: Callable[[dict[str, Any]], Awaitable[None]],
-    max_event_bytes: int,
-) -> None:
-    """Decode and dispatch one bounded single-line SSE data event."""
-    if not line.startswith(b"data: "):
-        return
-
-    event_data = line[6:]
-    if len(event_data) > max_event_bytes:
-        logger.warning("Discarded SSE event data that exceeded the byte limit")
-        return
-    try:
-        data = json.loads(event_data)
-        await callback(data)
-    except json.JSONDecodeError, UnicodeDecodeError:
-        logger.debug("Invalid JSON in SSE event data")
