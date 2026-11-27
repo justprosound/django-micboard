@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from micboard.models.device_specs import get_device_spec
+from micboard.models.hardware.wireless_chassis import WirelessChassis
+from micboard.models.hardware.wireless_unit import WirelessUnit
 from micboard.services.core.hardware import (
     UNKNOWN_BYTE_LEVEL,
     NormalizedChannel,
@@ -23,6 +25,7 @@ from micboard.utils.exception_logging import sanitized_exception_info
 logger = logging.getLogger(__name__)
 
 UNKNOWN_FAMILY = "unknown"
+_MAX_POSITIVE_INTEGER = 2_147_483_647  # PostgreSQL integer maximum
 
 
 def _first(payload: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
@@ -37,6 +40,25 @@ def _first(payload: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
 def _text(value: Any) -> str:
     """Render an optional scalar as stripped text, treating null as empty."""
     return "" if value is None else str(value).strip()
+
+
+def _fit(model: Any, field: str, value: Any) -> str:
+    """Truncate text to the column's length, so one odd device cannot fail its save."""
+    return _text(value)[: model._meta.get_field(field).max_length]
+
+
+def _unsigned(value: Any, default: int | None) -> Any:
+    """Return a value a PositiveIntegerField can store, else ``default``.
+
+    A null stays ``default`` too. Non-numeric values pass through for the DTO to reject.
+    """
+    if value is None:
+        return default
+    try:
+        number = int(value)
+    except TypeError, ValueError:
+        return value
+    return number if 0 <= number <= _MAX_POSITIVE_INTEGER else default
 
 
 def _format_runtime(minutes: Any) -> str:
@@ -83,20 +105,30 @@ class VendorDeviceNormalizer:
             if not isinstance(channels, list):
                 raise TypeError("Device channels must be a list")
 
-            model = _text(_first(api_data, "model_name", "modelName"))
+            model = _fit(WirelessChassis, "model", _first(api_data, "model_name", "modelName"))
             return NormalizedChassis(
                 api_device_id=api_device_id,
                 ip=_text(_first(api_data, "ip", "ip_address", "ipAddress")),
-                serial_number=_text(_first(api_data, "serial_number", "serialNumber")),
+                serial_number=_fit(
+                    WirelessChassis,
+                    "serial_number",
+                    _first(api_data, "serial_number", "serialNumber"),
+                ),
                 mac_address=_first(api_data, "mac_address", "macAddress", default=""),
-                name=(
-                    _text(_first(api_data, "name", "device_name", "deviceName"))
+                name=_fit(
+                    WirelessChassis,
+                    "name",
+                    _first(api_data, "name", "device_name", "deviceName")
                     or model
-                    or self._family_label(api_data)
+                    or self._family_label(api_data),
                 ),
                 model=model,
                 role=self._role(model),
-                firmware_version=_text(_first(api_data, "firmware_version", "firmwareVersion")),
+                firmware_version=_fit(
+                    WirelessChassis,
+                    "firmware_version",
+                    _first(api_data, "firmware_version", "firmwareVersion"),
+                ),
                 channels=self.normalize_channels(channels),
             )
         except Exception as exc:
@@ -139,30 +171,40 @@ class VendorDeviceNormalizer:
         """Normalize one linked unit, or return None when its values are unusable."""
         try:
             return NormalizedUnit(
-                slot=_first(unit_data, "slot", default=channel_number),
-                battery=_first(
-                    unit_data, "battery_bars", "batteryBars", default=UNKNOWN_BYTE_LEVEL
+                slot=_unsigned(_first(unit_data, "slot", default=channel_number), None),
+                battery=_unsigned(
+                    _first(unit_data, "battery_bars", "batteryBars"), UNKNOWN_BYTE_LEVEL
                 ),
-                battery_charge=_first(unit_data, "battery_charge", "batteryCharge"),
-                battery_type=_text(_first(unit_data, "battery_type", "batteryType")),
+                battery_charge=_unsigned(
+                    _first(unit_data, "battery_charge", "batteryCharge"), None
+                ),
+                battery_type=_fit(
+                    WirelessUnit, "battery_type", _first(unit_data, "battery_type", "batteryType")
+                ),
                 runtime=_format_runtime(
                     _first(unit_data, "battery_runtime_minutes", "batteryRuntimeMinutes")
                 ),
-                battery_health=_text(_first(unit_data, "battery_health", "batteryHealth")),
-                battery_cycles=_first(unit_data, "battery_cycles", "batteryCycles"),
+                battery_health=_fit(
+                    WirelessUnit,
+                    "battery_health",
+                    _first(unit_data, "battery_health", "batteryHealth"),
+                ),
+                battery_cycles=_unsigned(
+                    _first(unit_data, "battery_cycles", "batteryCycles"), None
+                ),
                 battery_temperature_c=_first(
                     unit_data, "battery_temperature_c", "batteryTemperatureC"
                 ),
                 audio_level=_first(unit_data, "audio_level", "audioLevel", default=0),
                 rf_level=_first(unit_data, "rf_level", "rfLevel", default=0),
-                frequency=_text(unit_data.get("frequency")),
-                antenna=_text(unit_data.get("antenna")),
+                frequency=_fit(WirelessUnit, "frequency", unit_data.get("frequency")),
+                antenna=_fit(WirelessUnit, "antenna", unit_data.get("antenna")),
                 tx_offset=_first(unit_data, "tx_offset", "txOffset", default=UNKNOWN_BYTE_LEVEL),
-                quality=_first(
-                    unit_data, "audio_quality", "audioQuality", default=UNKNOWN_BYTE_LEVEL
+                quality=_unsigned(
+                    _first(unit_data, "audio_quality", "audioQuality"), UNKNOWN_BYTE_LEVEL
                 ),
-                status=_text(unit_data.get("status")),
-                name=_text(_first(unit_data, "name", "deviceName")),
+                status=_fit(WirelessUnit, "status", unit_data.get("status")),
+                name=_fit(WirelessUnit, "name", _first(unit_data, "name", "deviceName")),
             )
         except Exception as exc:
             logger.exception(

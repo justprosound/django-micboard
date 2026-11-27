@@ -237,3 +237,23 @@ def test_device_https_url_rejects_non_ip_hosts_without_echoing_input() -> None:
         build_device_https_url(ip_address="private-hostname.example", port=443)
 
     assert "private-hostname" not in str(error.value)
+
+
+def test_normalizer_bounds_values_the_database_columns_reject() -> None:
+    from micboard.services.common.base.device_normalizer import VendorDeviceNormalizer
+    from micboard.services.core.hardware import UNKNOWN_BYTE_LEVEL
+
+    normalizer = VendorDeviceNormalizer("acme", {}, {})
+    chassis = normalizer.normalize_device(
+        {
+            "id": "dev-1",
+            "model_name": "M" * 60,
+            "channels": [{"channel": 1, "tx": {"battery_bars": -1, "battery_cycles": -1}}],
+        }
+    )
+
+    assert chassis is not None
+    assert len(chassis.model) == 50
+    unit = chassis.channels[0].unit
+    assert unit is not None
+    assert (unit.battery, unit.battery_cycles) == (UNKNOWN_BYTE_LEVEL, None)
