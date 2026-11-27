@@ -26,31 +26,29 @@ from tests.factories.monitoring import (
 from tests.factories.multitenancy import OrganizationFactory
 
 
-def _device_payload(*, device_id: str, ip: str, battery: int) -> list[dict[str, object]]:
+def _device_payload(*, device_id: str, ip: str, battery: int) -> dict[str, object]:
     """Return one representative Shure device snapshot with embedded channel telemetry."""
-    return [
-        {
-            "id": device_id,
-            "ipAddress": ip,
-            "type": "ULX-D",
-            "modelName": "ULXD4Q",
-            "deviceName": "Main rack receiver",
-            "firmwareVersion": "2.8.1",
-            "channels": [
-                {
-                    "channelNumber": 1,
-                    "transmitter": {
-                        "slot": 1,
-                        "name": "Lead vocal",
-                        "batteryBars": battery,
-                        "rfLevel": -42,
-                        "audioLevel": -12,
-                        "status": "online",
-                    },
-                }
-            ],
-        }
-    ]
+    return {
+        "id": device_id,
+        "ipAddress": ip,
+        "type": "ULX-D",
+        "modelName": "ULXD4Q",
+        "deviceName": "Main rack receiver",
+        "firmwareVersion": "2.8.1",
+        "channels": [
+            {
+                "channelNumber": 1,
+                "transmitter": {
+                    "slot": 1,
+                    "name": "Lead vocal",
+                    "batteryBars": battery,
+                    "rfLevel": -42,
+                    "audioLevel": -12,
+                    "status": "online",
+                },
+            }
+        ],
+    }
 
 
 @pytest.mark.django_db(transaction=True)
@@ -169,7 +167,7 @@ def test_native_huey_poll_persists_scoped_update_and_dispatches_one_alert() -> N
         battery=10,
     )
     client_context = MagicMock()
-    client_context.__enter__.return_value.devices.get_devices.side_effect = [
+    client_context.__enter__.return_value.devices.get_device.side_effect = [
         healthy,
         qualifying,
         qualifying,

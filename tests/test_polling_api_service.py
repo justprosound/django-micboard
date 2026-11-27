@@ -51,7 +51,7 @@ def test_managed_poll_skips_unsupported_owned_server_without_transport() -> None
 
     with (
         patch.object(APIServerPollingService, "_server_owns_chassis", return_value=True),
-        patch.object(APIServerConnectionService, "fetch_server_devices") as fetch_devices,
+        patch.object(APIServerConnectionService, "fetch_server_device") as fetch_devices,
     ):
         assert APIServerPollingService.poll_managed_device(server=server, chassis=chassis) == 0
 
@@ -71,7 +71,7 @@ def test_managed_poll_records_bounded_transport_failure() -> None:
         patch.object(APIServerPollingService, "_server_owns_chassis", return_value=True),
         patch.object(
             APIServerConnectionService,
-            "fetch_server_devices",
+            "fetch_server_device",
             side_effect=RuntimeError("private credential detail"),
         ),
         pytest.raises(ServiceError) as exc_info,
@@ -103,7 +103,7 @@ def test_managed_poll_preserves_canonical_transport_error_metadata() -> None:
         patch.object(APIServerPollingService, "_server_owns_chassis", return_value=True),
         patch.object(
             APIServerConnectionService,
-            "fetch_server_devices",
+            "fetch_server_device",
             side_effect=failure,
         ),
         pytest.raises(APIError) as exc_info,
@@ -132,7 +132,7 @@ def test_managed_poll_rejects_ambiguous_location_name_before_transport() -> None
     )
 
     with (
-        patch.object(APIServerConnectionService, "fetch_server_devices") as fetch_devices,
+        patch.object(APIServerConnectionService, "fetch_server_device") as fetch_devices,
         pytest.raises(PermissionDenied, match="does not own"),
     ):
         APIServerPollingService.poll_managed_device(server=server, chassis=chassis)
@@ -147,7 +147,7 @@ def test_managed_poll_rejects_blank_device_identity_before_transport() -> None:
 
     with (
         patch.object(APIServerPollingService, "_server_owns_chassis", return_value=True),
-        patch.object(APIServerConnectionService, "fetch_server_devices") as fetch_devices,
+        patch.object(APIServerConnectionService, "fetch_server_device") as fetch_devices,
         pytest.raises(PermissionDenied, match="does not own"),
     ):
         APIServerPollingService.poll_managed_device(server=server, chassis=chassis)

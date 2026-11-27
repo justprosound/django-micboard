@@ -66,6 +66,20 @@ class APIServerConnectionService:
         )
 
     @classmethod
+    def fetch_server_device(
+        cls,
+        server: ManufacturerAPIServer,
+        device_id: str,
+    ) -> dict[str, Any] | None:
+        """Fetch one Shure device from a persisted server, scoped to that row."""
+        cls.validate_destination(server.base_url)
+
+        from micboard.integrations.shure.client import ShureSystemAPIClient
+
+        with ShureSystemAPIClient(base_url=server.base_url, shared_key=server.shared_key) as client:
+            return client.devices.get_device(device_id)
+
+    @classmethod
     def test_connection(cls, server: ManufacturerAPIServer) -> None:
         """Test one server using only that row's destination and credential."""
         if server.manufacturer != ManufacturerAPIServer.Manufacturer.SHURE:
