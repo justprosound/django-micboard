@@ -16,14 +16,12 @@ def _disable_rate_limit_waits(monkeypatch) -> None:
     disable_rate_limit_waits(monkeypatch)
 
 
-@pytest.mark.parametrize(
-    ("client_class", "error_class", "prefix"),
-    [
-        (ShureDiscoveryClient, ShureAPIError, "/api/v1/config/discovery/ips"),
-        (SennheiserDiscoveryClient, SennheiserAPIError, "/api/config/discovery/ips"),
-    ],
-)
-def test_discovery_clients_validate_and_parse_lists(client_class, error_class, prefix: str) -> None:
+def test_sennheiser_discovery_validates_and_parses_lists() -> None:
+    client_class, error_class, prefix = (
+        SennheiserDiscoveryClient,
+        SennheiserAPIError,
+        "/api/config/discovery/ips",
+    )
     api = vendor_api(
         None,
         {"ips": ["192.0.2.1"]},
@@ -45,7 +43,7 @@ def test_shure_discovery_add_and_remove_cover_fallbacks() -> None:
     api = vendor_api(
         {"ips": ["192.0.2.1"]},
         None,
-        ShureAPIError("existing unavailable"),
+        {"ips": []},
         None,
         ShureAPIError("patch unsupported"),
         None,
@@ -71,8 +69,16 @@ def test_shure_discovery_add_and_remove_cover_fallbacks() -> None:
     )
     assert not failing.add_discovery_ips(["192.0.2.4"])
 
-    unexpected_existing = ShureDiscoveryClient(vendor_api("unexpected", None))
-    assert unexpected_existing.add_discovery_ips(["192.0.2.5"])
+
+@pytest.mark.parametrize("unreadable", [ShureAPIError("get failed"), "unexpected", {"ips": "bad"}])
+def test_shure_discovery_add_never_replaces_an_unread_list(unreadable) -> None:
+    """A PUT replaces the list, so a failed or malformed GET must not be followed by one."""
+    api = vendor_api(unreadable, None)
+
+    assert not ShureDiscoveryClient(api).add_discovery_ips(["192.0.2.5"])
+    api._make_request.assert_called_once_with("GET", "/api/v1/config/discovery/ips")
+    with pytest.raises(ShureAPIError):
+        ShureDiscoveryClient(vendor_api(unreadable)).get_discovery_ips()
 
 
 def test_shure_discovery_rejects_an_oversized_merged_remote_list(monkeypatch) -> None:
