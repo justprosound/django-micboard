@@ -9,7 +9,7 @@ import logging
 import time
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from django.utils import timezone
 
@@ -17,7 +17,8 @@ import httpx
 
 from micboard.models.audit.activity_log import ActivityLog
 from micboard.models.rf_coordination.compliance import FrequencyBand, RegulatoryDomain
-from micboard.services.common.base.resilience import create_resilient_session
+from micboard.services.common.base.bounded_transport import BoundedHTTPTransport
+from micboard.services.common.network_limits import HTTPClientLimits
 from micboard.services.maintenance.audit import AuditService
 from micboard.utils.exception_logging import sanitized_exception_info
 
@@ -77,8 +78,7 @@ class EFISImportService:
 
         # Certificate verification is mandatory. Private CAs are supplied through
         # SSL_CERT_FILE or SSL_CERT_DIR, both honored by httpx.
-        session = create_resilient_session(max_retries=3)
-        session.headers.update({"Accept": "application/json"})
+        session = httpx.Client(follow_redirects=True, headers={"Accept": "application/json"})
 
         domains_updated = 0
         bands_created = 0
@@ -234,21 +234,34 @@ class EFISImportService:
         params: dict[str, int | str | None] | None = None,
     ) -> dict[str, Any]:
         url = f"{cls.EFIS_URL}{path}"
-        max_retries = 3
+        max_attempts = 3
         backoff_factor = 0.5
-        attempt = 0
-        while True:
+
+        def oversized(method: str) -> NoReturn:
+            raise RuntimeError("EFIS response exceeded the size limit; details redacted.")
+
+        transport = BoundedHTTPTransport(
+            client=session, limits=HTTPClientLimits.from_settings(), oversized_response=oversized
+        )
+        for attempt in range(1, max_attempts + 1):
             try:
-                response = session.get(url, params=params, timeout=cls.REQUEST_TIMEOUT_SECONDS)
+                response = transport.send(
+                    "GET", url, params=params, timeout=cls.REQUEST_TIMEOUT_SECONDS
+                )
                 response.raise_for_status()
                 return response.json()  # type: ignore[no-any-return]
             except (httpx.RequestError, httpx.HTTPStatusError) as exc:
-                if attempt >= max_retries - 1:
+                if isinstance(exc, httpx.HTTPStatusError):
+                    status = exc.response.status_code
+                    transient = status == 429 or status >= 500
+                else:
+                    transient = isinstance(exc, httpx.ConnectError | httpx.TimeoutException)
+                if not transient or attempt == max_attempts:
                     raise RuntimeError(
                         f"EFIS request failed ({type(exc).__name__}); details redacted."
                     ) from exc
-                attempt += 1
                 time.sleep(backoff_factor * (2**attempt))
+        raise AssertionError("unreachable")  # pragma: no cover
 
     @classmethod
     def _matches_wireless_application(

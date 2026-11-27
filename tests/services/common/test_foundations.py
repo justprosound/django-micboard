@@ -7,7 +7,6 @@ import pytest
 
 from micboard.services.common.base import plugin as plugin_module
 from micboard.services.common.base import rate_limiter as limiter_module
-from micboard.services.common.base import resilience as resilience_module
 from micboard.services.common.base.client import BaseAPIClient
 from micboard.services.common.base.plugin import BasePlugin, ManufacturerPlugin
 from micboard.services.common.base.utils import (
@@ -60,31 +59,6 @@ class PreferredPlugin(ManufacturerPlugin):
 
     def remove_discovery_ips(self, ips):
         return True
-
-
-def test_resilient_session_configures_pool_and_retry_transport(monkeypatch) -> None:
-    client_factory = Mock(return_value=Mock())
-    limits_factory = Mock(return_value="limits")
-    transport_factory = Mock(return_value="transport")
-    monkeypatch.setattr(resilience_module.httpx, "Client", client_factory)
-    monkeypatch.setattr(resilience_module.httpx, "Limits", limits_factory)
-    monkeypatch.setattr(resilience_module.httpx, "HTTPTransport", transport_factory)
-
-    result = resilience_module.create_resilient_session(
-        max_retries=4,
-        pool_connections=7,
-        pool_maxsize=11,
-        follow_redirects=False,
-    )
-
-    assert result is client_factory.return_value
-    limits_factory.assert_called_once_with(max_connections=11, max_keepalive_connections=7)
-    transport_factory.assert_called_once_with(retries=4)
-    client_factory.assert_called_once_with(
-        follow_redirects=False,
-        limits="limits",
-        transport="transport",
-    )
 
 
 def test_rate_limiter_sleeps_only_inside_window(monkeypatch) -> None:

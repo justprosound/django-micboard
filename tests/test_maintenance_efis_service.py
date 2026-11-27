@@ -31,7 +31,7 @@ def test_efis_last_import_and_staleness(monkeypatch) -> None:
 
 def test_efis_import_success_skips_aggregate_regions_and_counts_bands(monkeypatch) -> None:
     session = MagicMock(spec=httpx.Client)
-    monkeypatch.setattr(efis_module, "create_resilient_session", Mock(return_value=session))
+    monkeypatch.setattr(efis_module.httpx, "Client", Mock(return_value=session))
     activity_create = Mock()
     monkeypatch.setattr(efis_module.AuditService, "log_activity", activity_create)
     monkeypatch.setattr(EFISImportService, "_fetch_wireless_term_ids", Mock(return_value={1}))
@@ -71,7 +71,7 @@ def test_efis_import_success_skips_aggregate_regions_and_counts_bands(monkeypatc
 
 def test_efis_import_records_failure_and_closes_session(monkeypatch) -> None:
     session = MagicMock(spec=httpx.Client)
-    monkeypatch.setattr(efis_module, "create_resilient_session", Mock(return_value=session))
+    monkeypatch.setattr(efis_module.httpx, "Client", Mock(return_value=session))
     activity_create = Mock()
     monkeypatch.setattr(efis_module.AuditService, "log_activity", activity_create)
     monkeypatch.setattr(
@@ -133,23 +133,59 @@ def test_efis_payload_helpers_and_band_sync(monkeypatch) -> None:
     assert update_band.call_args_list[0].kwargs["start_frequency_mhz"] == 470.0
 
 
-def test_efis_request_retries_then_returns_and_raises(monkeypatch) -> None:
-    request = httpx.Request("GET", "https://efis.test")
-    good_response = Mock()
-    good_response.raise_for_status.return_value = None
-    good_response.json.return_value = {"ok": True}
-    session = Mock()
-    session.get.side_effect = [httpx.ConnectError("down", request=request), good_response]
+def _efis_client(*responses: httpx.Response | Exception) -> tuple[httpx.Client, list[int]]:
+    queue = list(responses)
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        item = queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    return httpx.Client(transport=httpx.MockTransport(handler)), calls
+
+
+def test_efis_request_retries_transient_errors_only(monkeypatch) -> None:
     sleep = Mock()
     monkeypatch.setattr(efis_module.time, "sleep", sleep)
-    assert EFISImportService._request_json(session=session, path="/test") == {"ok": True}
-    sleep.assert_called_once_with(1.0)
+    request = httpx.Request("GET", "https://efis.test")
 
-    session.get.side_effect = [httpx.ConnectError("down", request=request)] * 3
+    client, calls = _efis_client(
+        httpx.ConnectError("down", request=request),
+        httpx.Response(503),
+        httpx.Response(200, json={"ok": True}),
+    )
+    assert EFISImportService._request_json(session=client, path="/test") == {"ok": True}
+    assert len(calls) == 3
+
+    client, calls = _efis_client(httpx.Response(404), httpx.Response(200, json={}))
     with pytest.raises(RuntimeError, match="EFIS request failed") as exc_info:
-        EFISImportService._request_json(session=session, path="/test", params={"id": 1})
-    assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
-    assert "down" not in str(exc_info.value)
+        EFISImportService._request_json(session=client, path="/test")
+    assert isinstance(exc_info.value.__cause__, httpx.HTTPStatusError)
+    assert len(calls) == 1
+
+    client, calls = _efis_client(*[httpx.ConnectError("down", request=request)] * 3)
+    with pytest.raises(RuntimeError, match="EFIS request failed"):
+        EFISImportService._request_json(session=client, path="/test")
+    assert len(calls) == 3
+
+
+def test_efis_request_rejects_oversized_body(monkeypatch) -> None:
+    monkeypatch.setattr(
+        efis_module.HTTPClientLimits,
+        "from_settings",
+        Mock(
+            return_value=efis_module.HTTPClientLimits(
+                max_retry_delay_seconds=1, max_response_bytes=10
+            )
+        ),
+    )
+    client, calls = _efis_client(httpx.Response(200, content=b"x" * 11))
+    with pytest.raises(RuntimeError, match="size limit"):
+        EFISImportService._request_json(session=client, path="/test")
+    assert len(calls) == 1
 
 
 def test_efis_value_helpers_cover_fallbacks_and_deduplication() -> None:

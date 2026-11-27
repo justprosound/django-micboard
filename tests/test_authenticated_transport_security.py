@@ -15,7 +15,6 @@ from micboard.integrations.sennheiser.client import SennheiserSystemAPIClient
 from micboard.integrations.sennheiser.exceptions import SennheiserAPIError
 from micboard.integrations.shure.client import ShureSystemAPIClient
 from micboard.services.common.base import client as base_client_module
-from micboard.services.common.base import resilience
 from micboard.services.settings.settings_service import settings as app_settings
 
 
@@ -94,22 +93,11 @@ def test_shure_client_rejects_cleartext_websocket_url(monkeypatch) -> None:
         ShureSystemAPIClient(base_url="https://shure.test")
 
 
-def test_resilient_session_uses_httpx_certificate_verification_defaults(monkeypatch) -> None:
-    """Shared pooled sessions cannot accept or forward a verification override."""
-    client_factory = MagicMock(return_value=MagicMock(spec=httpx.Client))
-    monkeypatch.setattr(resilience.httpx, "Client", client_factory)
-
-    session = resilience.create_resilient_session(max_retries=2)
-
-    assert session is client_factory.return_value
-    assert "verify" not in client_factory.call_args.kwargs
-
-
 def test_efis_import_uses_verified_shared_session(monkeypatch) -> None:
     """EFIS imports cannot pass a certificate-verification override to the session."""
     session = MagicMock(spec=httpx.Client)
-    session_factory = MagicMock(return_value=session)
-    monkeypatch.setattr(efis_import_module, "create_resilient_session", session_factory)
+    client_factory = MagicMock(return_value=session)
+    monkeypatch.setattr(efis_import_module.httpx, "Client", client_factory)
     monkeypatch.setattr(efis_import_module.AuditService, "log_activity", MagicMock())
     monkeypatch.setattr(
         efis_import_module.EFISImportService,
@@ -125,8 +113,7 @@ def test_efis_import_uses_verified_shared_session(monkeypatch) -> None:
     result = efis_import_module.EFISImportService.run_import()
 
     assert result["success"] is True
-    session_factory.assert_called_once_with(max_retries=3)
-    assert "verify" not in session_factory.call_args.kwargs
+    assert "verify" not in client_factory.call_args.kwargs
     session.close.assert_called_once_with()
 
 
