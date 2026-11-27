@@ -56,6 +56,13 @@ class APIServerPollingService:
 
         try:
             device = APIServerConnectionService.fetch_server_device(server, target_device_id)
+            # The response is untrusted: ingest it only if it is the chassis we asked for.
+            if (
+                device
+                and str(device.get("id") or device.get("api_device_id") or "").strip()
+                != target_device_id
+            ):
+                device = None
 
             from micboard.services.sync.device_update_service import DeviceUpdateService
 
