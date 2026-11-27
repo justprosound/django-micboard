@@ -7,6 +7,20 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.11.27.0] - 2026-11-27
+
+### Added
+
+- `Room.external_room_id`: an optional, opaque key a host project can store for the same physical room in its own inventory, so it can join micboard's wireless state to its room data. It is blank by default, indexed, and unique within a building when set. Micboard stores it exactly as given. New migration `0006_room_external_room_id` adds the column with a database default, so workers on the previous release can still insert rooms during a rolling deploy.
+
+### Changed
+
+- CI on pushes to `main` skips the package, security, zizmor, fuzz and demo-image jobs, which only re-check files the pull request already passed. Scorecard runs weekly, and the bot auto-merge workflow runs only when a bot pull request opens or reopens.
+
+### Docs
+
+- Point the chassis docstring at the open RF distribution unit issue, remove the unused SR&ED sidebar-label logic from the frontmatter check, and reword one changelog line.
+
 ## [2026.11.26.1] - 2026-11-26
 
 ### Docs
