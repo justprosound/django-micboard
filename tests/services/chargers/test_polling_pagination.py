@@ -72,11 +72,11 @@ def test_inventory_fingerprint_uses_only_bounded_consumed_identity_fields() -> N
         "device_type": " charger ",
         "name": "display names are not inventory identity",
     }
-    first = [{**common, "api_device_id": f" {'a' * 254}ignored-tail"}]
+    first = [{**common, "id": f" {'a' * 254}ignored-tail"}]
     second = [
         {
             **common,
-            "api_device_id": f"{'a' * 254} different-tail",
+            "id": f"{'a' * 254} different-tail",
             "model": "SBC250",
             "device_type": "charger",
             "name": "changed display name",
@@ -91,8 +91,8 @@ def test_inventory_fingerprint_uses_only_bounded_consumed_identity_fields() -> N
 
 def test_inventory_fingerprint_changes_with_normalized_identity_order() -> None:
     first = [
-        {"api_device_id": "charger-a", "model": "SBC250"},
-        {"api_device_id": "charger-b", "device_type": "SBC850"},
+        {"id": "charger-a", "model": "SBC250"},
+        {"id": "charger-b", "device_type": "SBC850"},
     ]
     reordered = list(reversed(first))
 
@@ -112,7 +112,7 @@ def test_inventory_above_fingerprint_ceiling_preserves_last_complete_snapshot() 
     )
     plugin = _plugin(
         [
-            {"api_device_id": f"receiver-{index}", "model": "AD4Q"}
+            {"id": f"receiver-{index}", "model": "AD4Q"}
             for index in range(HARD_MAX_CHARGER_INVENTORY_SIZE + 1)
         ]
     )
@@ -137,9 +137,9 @@ def test_repeated_poll_reaches_station_behind_ordinary_inventory_prefix() -> Non
     previous_snapshot = [{"id": "previous-complete-snapshot"}]
     backend, values = _cache_backend({public_key: previous_snapshot})
     inventory = [
-        {"api_device_id": "receiver-1", "model": "AD4Q"},
-        {"api_device_id": "receiver-2", "model": "ULXD4Q"},
-        {"api_device_id": "charger-1", "model": "SBC250"},
+        {"id": "receiver-1", "model": "AD4Q"},
+        {"id": "receiver-2", "model": "ULXD4Q"},
+        {"id": "charger-1", "model": "SBC250"},
     ]
     plugin = _plugin(inventory)
 
@@ -175,9 +175,9 @@ def test_channel_failure_in_any_page_preserves_last_complete_snapshot() -> None:
     previous_snapshot = [{"id": "previous-complete-snapshot"}]
     backend, values = _cache_backend({public_key: previous_snapshot})
     inventory = [
-        {"api_device_id": "charger-failed", "model": "SBC250"},
-        {"api_device_id": "charger-good", "model": "SBC250"},
-        {"api_device_id": "charger-tail", "model": "SBC250"},
+        {"id": "charger-failed", "model": "SBC250"},
+        {"id": "charger-good", "model": "SBC250"},
+        {"id": "charger-tail", "model": "SBC250"},
     ]
     plugin = _plugin(inventory)
     plugin.get_device_channels.side_effect = [RuntimeError("private channel failure"), [], []]
@@ -203,10 +203,10 @@ def test_cursor_accumulates_in_inventory_order_and_deduplicates_across_pages() -
     backend, values = _cache_backend()
     plugin = _plugin(
         [
-            {"api_device_id": "charger-z", "model": "SBC250"},
-            {"api_device_id": "receiver", "model": "AD4Q"},
-            {"api_device_id": "charger-a", "model": "SBC850"},
-            {"api_device_id": " charger-z ", "model": "SBC250"},
+            {"id": "charger-z", "model": "SBC250"},
+            {"id": "receiver", "model": "AD4Q"},
+            {"id": "charger-a", "model": "SBC850"},
+            {"id": " charger-z ", "model": "SBC250"},
         ]
     )
 
@@ -230,19 +230,19 @@ def test_changed_inventory_size_restarts_cycle_without_stale_stations() -> None:
     backend, values = _cache_backend({public_key: previous_snapshot})
     plugin = _plugin(
         [
-            {"api_device_id": "stale-charger", "model": "SBC250"},
-            {"api_device_id": "receiver-1", "model": "AD4Q"},
-            {"api_device_id": "receiver-2", "model": "AD4Q"},
-            {"api_device_id": "later-charger", "model": "SBC850"},
+            {"id": "stale-charger", "model": "SBC250"},
+            {"id": "receiver-1", "model": "AD4Q"},
+            {"id": "receiver-2", "model": "AD4Q"},
+            {"id": "later-charger", "model": "SBC850"},
         ]
     )
 
     with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
-            {"api_device_id": "replacement-charger", "model": "SBC250"},
-            {"api_device_id": "receiver", "model": "AD4Q"},
-            {"api_device_id": "tail-charger", "model": "SBC850"},
+            {"id": "replacement-charger", "model": "SBC250"},
+            {"id": "receiver", "model": "AD4Q"},
+            {"id": "tail-charger", "model": "SBC850"},
         ]
         restarted = ChargerPollingService.poll(manufacturer)
 
@@ -269,18 +269,18 @@ def test_same_length_inventory_reorder_restarts_without_hybrid_station_order() -
     backend, values = _cache_backend()
     plugin = _plugin(
         [
-            {"api_device_id": "charger-a", "model": "SBC250"},
-            {"api_device_id": "charger-b", "model": "SBC250"},
-            {"api_device_id": "charger-c", "model": "SBC250"},
+            {"id": "charger-a", "model": "SBC250"},
+            {"id": "charger-b", "model": "SBC250"},
+            {"id": "charger-c", "model": "SBC250"},
         ]
     )
 
     with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
-            {"api_device_id": "charger-c", "model": "SBC250"},
-            {"api_device_id": "charger-b", "model": "SBC250"},
-            {"api_device_id": "charger-a", "model": "SBC250"},
+            {"id": "charger-c", "model": "SBC250"},
+            {"id": "charger-b", "model": "SBC250"},
+            {"id": "charger-a", "model": "SBC250"},
         ]
 
         restarted = ChargerPollingService.poll(manufacturer)
@@ -308,18 +308,18 @@ def test_same_length_identity_change_discards_stale_accumulated_station() -> Non
     backend, values = _cache_backend()
     plugin = _plugin(
         [
-            {"api_device_id": "stale-charger", "model": "SBC250"},
-            {"api_device_id": "receiver", "model": "AD4Q"},
-            {"api_device_id": "tail-charger", "model": "SBC850"},
+            {"id": "stale-charger", "model": "SBC250"},
+            {"id": "receiver", "model": "AD4Q"},
+            {"id": "tail-charger", "model": "SBC850"},
         ]
     )
 
     with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
         plugin.get_devices.return_value = [
-            {"api_device_id": "replacement-charger", "model": "SBC250"},
-            {"api_device_id": "receiver", "model": "AD4Q"},
-            {"api_device_id": "tail-charger", "model": "SBC850"},
+            {"id": "replacement-charger", "model": "SBC250"},
+            {"id": "receiver", "model": "AD4Q"},
+            {"id": "tail-charger", "model": "SBC850"},
         ]
 
         ChargerPollingService.poll(manufacturer)
@@ -350,9 +350,9 @@ def test_invalid_cursor_restarts_first_page_and_preserves_public_snapshot() -> N
         }
     )
     inventory = [
-        {"api_device_id": "receiver-1", "model": "AD4Q"},
-        {"api_device_id": "receiver-2", "model": "AD4Q"},
-        {"api_device_id": "charger-1", "model": "SBC250"},
+        {"id": "receiver-1", "model": "AD4Q"},
+        {"id": "receiver-2", "model": "AD4Q"},
+        {"id": "charger-1", "model": "SBC250"},
     ]
     plugin = _plugin(inventory)
 
@@ -381,9 +381,9 @@ def test_missing_or_invalid_cursor_fingerprint_restarts_first_page(
     manufacturer = _manufacturer()
     cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     inventory = [
-        {"api_device_id": "receiver-1", "model": "AD4Q"},
-        {"api_device_id": "receiver-2", "model": "AD4Q"},
-        {"api_device_id": "charger-1", "model": "SBC250"},
+        {"id": "receiver-1", "model": "AD4Q"},
+        {"id": "receiver-2", "model": "AD4Q"},
+        {"id": "charger-1", "model": "SBC250"},
     ]
     cached_cursor: dict[str, object] = {
         "next_offset": 2,
@@ -417,9 +417,9 @@ def test_partial_poll_contains_cursor_read_and_write_failures(caplog) -> None:
     backend.set.side_effect = RuntimeError(secret)
     plugin = _plugin(
         [
-            {"api_device_id": "receiver-1", "model": "AD4Q"},
-            {"api_device_id": "receiver-2", "model": "AD4Q"},
-            {"api_device_id": "charger-1", "model": "SBC250"},
+            {"id": "receiver-1", "model": "AD4Q"},
+            {"id": "receiver-2", "model": "AD4Q"},
+            {"id": "charger-1", "model": "SBC250"},
         ]
     )
 
@@ -443,7 +443,7 @@ def test_complete_poll_contains_snapshot_write_and_cursor_delete_failures(caplog
     backend.get.return_value = None
     backend.set.side_effect = RuntimeError(secret)
     backend.delete.side_effect = RuntimeError(secret)
-    plugin = _plugin([{"api_device_id": "charger-1", "model": "SBC250"}])
+    plugin = _plugin([{"id": "charger-1", "model": "SBC250"}])
 
     with (
         _plugin_patch(plugin),
@@ -476,7 +476,7 @@ def test_truncated_one_shot_inventory_preserves_complete_public_snapshot() -> No
         nonlocal consumed
         for index in range(3):
             consumed += 1
-            yield {"api_device_id": f"charger-{index}", "model": "SBC250"}
+            yield {"id": f"charger-{index}", "model": "SBC250"}
 
     plugin = _plugin(inventory())
     with _plugin_patch(plugin), patched_cache_backend(backend):
@@ -494,9 +494,9 @@ def test_cursor_stations_are_rebounded_in_stable_order_when_limit_shrinks() -> N
     manufacturer = _manufacturer()
     cursor_key = ChargerPollingCacheAdapter.cursor_key(manufacturer)
     inventory = [
-        {"api_device_id": "first", "model": "SBC250"},
-        {"api_device_id": "second", "model": "SBC850"},
-        {"api_device_id": "receiver", "model": "AD4Q"},
+        {"id": "first", "model": "SBC250"},
+        {"id": "second", "model": "SBC850"},
+        {"id": "receiver", "model": "AD4Q"},
     ]
     backend, values = _cache_backend(
         {
@@ -533,9 +533,7 @@ def test_station_cap_retains_same_exact_vendor_order_prefix_across_cycles() -> N
     """A complete snapshot remains stable instead of rotating partial station cohorts."""
     manufacturer = _manufacturer()
     backend, values = _cache_backend()
-    plugin = _plugin(
-        [{"api_device_id": f"charger-{index}", "model": "SBC250"} for index in range(4)]
-    )
+    plugin = _plugin([{"id": f"charger-{index}", "model": "SBC250"} for index in range(4)])
 
     with _plugin_patch(plugin), patched_cache_backend(backend):
         ChargerPollingService.poll(manufacturer)
@@ -568,9 +566,9 @@ def test_cursor_retains_snapshot_truncation_flags_until_cycle_completion() -> No
     backend, values = _cache_backend()
     plugin = _plugin(
         [
-            {"api_device_id": "charger-0", "model": "SBC250"},
-            {"api_device_id": "charger-1", "model": "SBC850"},
-            {"api_device_id": "receiver", "model": "AD4Q"},
+            {"id": "charger-0", "model": "SBC250"},
+            {"id": "charger-1", "model": "SBC850"},
+            {"id": "receiver", "model": "AD4Q"},
         ]
     )
     plugin.get_device_channels.return_value = [

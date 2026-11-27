@@ -84,7 +84,7 @@ class ChargerPollingService:
             if not cls._is_station(raw_device):
                 continue
 
-            device_id = cls._bounded_text(raw_device.get("api_device_id"), 255)
+            device_id = cls._bounded_text(raw_device.get("id"), 255)
             if not device_id:
                 failed_count += 1
                 continue
@@ -258,7 +258,7 @@ class ChargerPollingService:
         digest.update(str(len(items)).encode("ascii"))
         for item in items:
             digest.update(b"\x00M" if isinstance(item, Mapping) else b"\x00X")
-            for field_name in ("api_device_id", "model", "device_type"):
+            for field_name in ("id", "model", "device_type"):
                 raw_value = item.get(field_name) if isinstance(item, Mapping) else None
                 value = cls._bounded_text(raw_value, 255)
                 encoded = value.encode("utf-8")
@@ -271,7 +271,7 @@ class ChargerPollingService:
         """Copy only fields consumed by polling from already bounded inventory rows."""
         return [
             {
-                "api_device_id": item.get("api_device_id"),
+                "id": item.get("id"),
                 "model": item.get("model"),
                 "device_type": item.get("device_type"),
                 "name": item.get("name"),
@@ -299,7 +299,7 @@ class ChargerPollingService:
 
     @classmethod
     def _is_station(cls, device: Mapping[str, Any]) -> bool:
-        device_id = device.get("api_device_id")
+        device_id = device.get("id")
         model = cls._bounded_text(device.get("model"), 255)
         device_type = cls._bounded_text(device.get("device_type"), 255)
         return (

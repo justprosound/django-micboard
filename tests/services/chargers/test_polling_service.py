@@ -17,14 +17,14 @@ def _manufacturer() -> SimpleNamespace:
 def test_poll_maps_supported_stations_and_checks_health_once() -> None:
     plugin = Mock()
     plugin.get_devices.return_value = [
-        {"api_device_id": "station-1", "model": "SBC250"},
+        {"id": "station-1", "model": "SBC250"},
         {
-            "api_device_id": "station-2",
+            "id": "station-2",
             "device_type": "MXWNCS4",
             "name": "Green Room Charger",
         },
-        {"api_device_id": "receiver-1", "model": "AD4Q"},
-        {"api_device_id": 99, "model": "SBC850"},
+        {"id": "receiver-1", "model": "AD4Q"},
+        {"id": 99, "model": "SBC850"},
     ]
     plugin.get_device_channels.side_effect = [
         [
@@ -95,7 +95,7 @@ def test_poll_bounds_vendor_inventory_stations_and_slots() -> None:
         nonlocal consumed_devices
         for index in range(4):
             consumed_devices += 1
-            yield {"api_device_id": f"station-{index}", "model": "SBC250"}
+            yield {"id": f"station-{index}", "model": "SBC250"}
 
     def channels(_device_id: str):
         nonlocal consumed_slots
@@ -131,7 +131,7 @@ def test_poll_contains_channel_and_health_secrets_without_publishing_partial_sna
     plugin = Mock()
     plugin.get_devices.return_value = [
         {
-            "api_device_id": "station-3",
+            "id": "station-3",
             "device_type": "SBC220",
             "name": "Wardrobe\nInjected",
         }
@@ -158,9 +158,9 @@ def test_poll_contains_channel_and_health_secrets_without_publishing_partial_sna
 def test_poll_deduplicates_station_ids_before_channel_requests() -> None:
     plugin = Mock()
     plugin.get_devices.return_value = [
-        {"api_device_id": "station-1", "model": "SBC250"},
-        {"api_device_id": " station-1 ", "model": "SBC250"},
-        {"api_device_id": "station-2", "model": "SBC250"},
+        {"id": "station-1", "model": "SBC250"},
+        {"id": " station-1 ", "model": "SBC250"},
+        {"id": "station-2", "model": "SBC250"},
     ]
     plugin.get_device_channels.return_value = []
     plugin.get_client.return_value.is_healthy.return_value = True
@@ -182,9 +182,9 @@ def test_poll_deduplicates_station_ids_before_channel_requests() -> None:
 def test_poll_fails_safe_for_invalid_station_ids_and_numeric_fields() -> None:
     plugin = Mock()
     plugin.get_devices.return_value = [
-        {"api_device_id": "\n" * 300 + "hidden-id", "model": "SBC250"},
-        {"api_device_id": "malformed-model", "model": ["SBC250"]},
-        {"api_device_id": "station-1", "model": "SBC250", "name": "\n" * 300 + "hidden"},
+        {"id": "\n" * 300 + "hidden-id", "model": "SBC250"},
+        {"id": "malformed-model", "model": ["SBC250"]},
+        {"id": "station-1", "model": "SBC250", "name": "\n" * 300 + "hidden"},
     ]
     plugin.get_device_channels.return_value = [
         {"channel": True, "tx": {"battery_percentage": object()}},
