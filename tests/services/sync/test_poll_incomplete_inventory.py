@@ -22,6 +22,10 @@ class _ClientBackedVendor:
         self.get_devices = get_devices
 
     @staticmethod
+    def close() -> None:
+        """A plugin handle the sync releases; this stub holds no client."""
+
+    @staticmethod
     def normalize_device(raw: dict[str, object]) -> NormalizedChassis:
         return NormalizedChassis(
             api_device_id=str(raw["id"]), ip=str(raw["ipAddress"]), serial_number="present-1"

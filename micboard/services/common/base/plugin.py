@@ -1,6 +1,6 @@
 import importlib
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -117,6 +117,17 @@ class BasePlugin(ABC):
 
 class ManufacturerPlugin(BasePlugin):
     """Extended plugin interface specifically for manufacturer hardware integrations."""
+
+    def close(self) -> None:
+        """Release the plugin's HTTP client; a plugin that holds none keeps this no-op."""
+
+    def __enter__(self) -> Self:
+        """Enter the context manager."""
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        """Close the plugin on leaving the context."""
+        self.close()
 
     @property
     @abstractmethod
