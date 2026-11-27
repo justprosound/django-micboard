@@ -29,6 +29,7 @@ def test_efis_last_import_and_staleness(monkeypatch) -> None:
     assert EFISImportService.is_outdated(days_threshold=30) is True
 
 
+@pytest.mark.django_db
 def test_efis_import_success_skips_aggregate_regions_and_counts_bands(monkeypatch) -> None:
     session = MagicMock(spec=httpx.Client)
     monkeypatch.setattr(efis_module.httpx, "Client", Mock(return_value=session))
@@ -92,6 +93,7 @@ def test_efis_import_records_failure_and_closes_session(monkeypatch) -> None:
     session.close.assert_called_once_with()
 
 
+@pytest.mark.django_db
 def test_efis_payload_helpers_and_band_sync(monkeypatch) -> None:
     response = Mock()
     response.json.return_value = {"regions": [{"id": 1}]}
@@ -121,16 +123,30 @@ def test_efis_payload_helpers_and_band_sync(monkeypatch) -> None:
             {"applications": applications, "low": 480_000_000, "high": 488_000_000},
         ]
     }
-    update_band = Mock(side_effect=[(object(), True), (object(), False)])
-    monkeypatch.setattr(efis_module.FrequencyBand.objects, "update_or_create", update_band)
+    domain = efis_module.RegulatoryDomain.objects.create(code="GB", name="United Kingdom")
+    stale = efis_module.FrequencyBand.objects.create(
+        regulatory_domain=domain,
+        name="PMSE (EFIS)",
+        start_frequency_mhz=470.0,
+        end_frequency_mhz=790.0,
+    )
+    manual = efis_module.FrequencyBand.objects.create(
+        regulatory_domain=domain,
+        name="Manual entry",
+        start_frequency_mhz=500.0,
+        end_frequency_mhz=510.0,
+    )
     assert EFISImportService._sync_region_application_bands(
         session=Mock(),
-        domain=object(),  # type: ignore[arg-type]
+        domain=domain,
         region_id=1,
         region_name="Region",
         wireless_term_ids={1},
-    ) == (1, 1)
-    assert update_band.call_args_list[0].kwargs["start_frequency_mhz"] == 470.0
+    ) == (2, 0)
+    starts = set(domain.frequency_bands.values_list("start_frequency_mhz", flat=True))
+    assert starts == {470.0, 480.0, 500.0}
+    assert not efis_module.FrequencyBand.objects.filter(pk=stale.pk).exists()
+    assert efis_module.FrequencyBand.objects.filter(pk=manual.pk).exists()
 
 
 def _efis_client(*responses: httpx.Response | Exception) -> tuple[httpx.Client, list[int]]:
