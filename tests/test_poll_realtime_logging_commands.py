@@ -67,11 +67,17 @@ def test_poll_handle_sync_async_and_errors(monkeypatch) -> None:
     command._enqueue_manufacturer.assert_called_once_with(manufacturer, force=False)
 
     command._get_manufacturers.side_effect = CommandError("bad manufacturer")
-    command.handle(manufacturer=None, **{"async": False}, force=False)
-    assert "bad manufacturer" in errors.getvalue()
+    with pytest.raises(CommandError, match="bad manufacturer"):
+        command.handle(manufacturer=None, **{"async": False}, force=False)
     command._get_manufacturers.side_effect = RuntimeError("database down")
-    command.handle(manufacturer=None, **{"async": False}, force=False)
+    with pytest.raises(CommandError):
+        command.handle(manufacturer=None, **{"async": False}, force=False)
     assert "unexpected error" in errors.getvalue().lower()
+
+    command._get_manufacturers.side_effect = None
+    command._poll_manufacturer.return_value = False
+    with pytest.raises(CommandError, match="shure"):
+        command.handle(manufacturer=None, **{"async": False}, force=False)
 
 
 def test_poll_enqueue_and_sync_result_paths(monkeypatch) -> None:

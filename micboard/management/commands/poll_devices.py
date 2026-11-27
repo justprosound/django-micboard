@@ -62,15 +62,22 @@ class Command(BaseCommand):
                     f"Starting device polling for {len(manufacturers)} manufacturer(s)..."
                 )
             )
-            for manufacturer in manufacturers:
-                if use_async:
+            failed = [
+                manufacturer.code
+                for manufacturer in manufacturers
+                if not (
                     self._enqueue_manufacturer(manufacturer, force=force)
-                else:
-                    self._poll_manufacturer(manufacturer, force=force)
+                    if use_async
+                    else self._poll_manufacturer(manufacturer, force=force)
+                )
+            ]
+            if failed:
+                # A non-zero exit lets cron or a scheduler see the failure.
+                raise CommandError(f"Polling failed for: {', '.join(failed)}")
 
             self.stdout.write(self.style.SUCCESS("Device polling command completed."))
-        except CommandError as e:
-            self.stderr.write(self.style.ERROR(str(e)))
+        except CommandError:
+            raise
         except Exception as exc:
             logger.exception(
                 "Unexpected error in poll_devices command",
@@ -81,6 +88,7 @@ class Command(BaseCommand):
                     f"An unexpected error occurred ({type(exc).__name__}); details redacted."
                 )
             )
+            raise CommandError("Unexpected error in poll_devices") from None
 
     @staticmethod
     def _get_manufacturers(manufacturer_code: str | None, *, force: bool) -> Any:
@@ -100,15 +108,15 @@ class Command(BaseCommand):
         )
         return list(queryset)
 
-    def _enqueue_manufacturer(self, manufacturer: Any, *, force: bool = False) -> None:
-        """Queue one manufacturer poll while preserving an explicit force override."""
+    def _enqueue_manufacturer(self, manufacturer: Any, *, force: bool = False) -> bool:
+        """Queue one manufacturer poll, preserving an explicit force override; True on success."""
         from micboard.utils.dependencies import enqueue_huey_task, huey_is_configured
 
         if not huey_is_configured():
             self.stderr.write(
                 self.style.ERROR("Native Huey is unavailable or unconfigured. Cannot run async.")
             )
-            return
+            return False
 
         try:
             from micboard.tasks.sync.polling import poll_manufacturer_devices
@@ -117,6 +125,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(f"Enqueued async polling task for {manufacturer.name}")
             )
+            return True
         except Exception as exc:
             logger.exception(
                 "Failed to enqueue polling for %s",
@@ -128,13 +137,14 @@ class Command(BaseCommand):
                     f"Failed to enqueue async task ({type(exc).__name__}); details redacted."
                 )
             )
+            return False
 
     def _poll_manufacturer(
         self,
         manufacturer: Any,
         *,
         force: bool = False,
-    ) -> None:
+    ) -> bool:
         self.stdout.write(f"Polling {manufacturer.name} ({manufacturer.code})...")
         try:
             result = ManufacturerSyncService.sync_devices_for_manufacturer(
@@ -157,13 +167,14 @@ class Command(BaseCommand):
                         f"{len(result.errors)} error(s); details in the log."
                     )
                 )
-                return
+                return False
             summary = (
                 f"Success: {result.devices_added} created, "
                 f"{result.devices_updated} updated, "
                 f"{result.devices_examined} examined"
             )
             self.stdout.write(self.style.SUCCESS(f"[{manufacturer.code}] {summary}"))
+            return True
         except Exception as exc:
             logger.exception(
                 "Error polling %s",
@@ -175,3 +186,4 @@ class Command(BaseCommand):
                     f"Error polling {manufacturer.name} ({type(exc).__name__}); details redacted."
                 )
             )
+            return False
