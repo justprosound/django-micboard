@@ -198,7 +198,10 @@ class EFISImportService:
         updated = 0
         written_pks: list[int] = []
 
-        for app_range in payload.get("applicationRanges", []):
+        if "applicationRanges" not in payload:
+            raise ValueError("EFIS applications answer lacks applicationRanges")
+
+        for app_range in payload["applicationRanges"]:
             applications: Sequence[dict[str, Any]] = app_range.get("applications", [])
             matching = [
                 app
@@ -217,6 +220,8 @@ class EFISImportService:
                 regulatory_domain=domain,
                 start_frequency_mhz=start_mhz,
                 end_frequency_mhz=end_mhz,
+                # Match only EFIS-owned rows so a manual band with the same range is kept.
+                name__endswith="(EFIS)",
                 defaults={
                     "name": band_name,
                     "band_type": "allowed",

@@ -1,5 +1,6 @@
 """Behavior and failure-path coverage for the EFIS import service."""
 
+import gzip
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
@@ -251,3 +252,67 @@ def test_efis_value_helpers_cover_fallbacks_and_deduplication() -> None:
     assert EFISImportService._normalize_country_code("") == ""
     assert EFISImportService._normalize_country_code(" gb ") == "GB"
     assert EFISImportService._normalize_country_code("GBR") == ""
+
+
+@pytest.mark.django_db
+def test_efis_missing_ranges_key_raises_and_keeps_bands(monkeypatch) -> None:
+    monkeypatch.setattr(EFISImportService, "_request_json", Mock(return_value={}))
+    domain = efis_module.RegulatoryDomain.objects.create(code="GB", name="United Kingdom")
+    band = efis_module.FrequencyBand.objects.create(
+        regulatory_domain=domain,
+        name="PMSE (EFIS)",
+        start_frequency_mhz=470.0,
+        end_frequency_mhz=790.0,
+    )
+
+    with pytest.raises(ValueError, match="applicationRanges"):
+        EFISImportService._sync_region_application_bands(
+            session=Mock(), domain=domain, region_id=1, region_name="Region", wireless_term_ids={1}
+        )
+    assert efis_module.FrequencyBand.objects.filter(pk=band.pk).exists()
+
+
+@pytest.mark.django_db
+def test_efis_import_keeps_manual_band_with_same_range(monkeypatch) -> None:
+    monkeypatch.setattr(
+        EFISImportService,
+        "_request_json",
+        Mock(
+            return_value={
+                "applicationRanges": [
+                    {
+                        "low": 470_000_000,
+                        "high": 790_000_000,
+                        "applications": [{"applicationTerm": {"id": 1, "name": "PMSE"}}],
+                    }
+                ]
+            }
+        ),
+    )
+    domain = efis_module.RegulatoryDomain.objects.create(code="GB", name="United Kingdom")
+    manual = efis_module.FrequencyBand.objects.create(
+        regulatory_domain=domain,
+        name="Manual entry",
+        band_type="restricted",
+        start_frequency_mhz=470.0,
+        end_frequency_mhz=790.0,
+    )
+
+    assert EFISImportService._sync_region_application_bands(
+        session=Mock(), domain=domain, region_id=1, region_name="Region", wireless_term_ids={1}
+    ) == (1, 0)
+    manual.refresh_from_db()
+    assert (manual.name, manual.band_type) == ("Manual entry", "restricted")
+    assert domain.frequency_bands.filter(name__endswith="(EFIS)").count() == 1
+
+
+def test_efis_request_decodes_gzip_body_once() -> None:
+    body = gzip.compress(b'{"ok": true}')
+    client, _ = _efis_client(
+        httpx.Response(
+            200,
+            content=body,
+            headers={"Content-Encoding": "gzip", "Content-Length": str(len(body))},
+        )
+    )
+    assert EFISImportService._request_json(session=client, path="/test") == {"ok": True}
