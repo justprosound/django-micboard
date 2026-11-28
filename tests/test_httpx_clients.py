@@ -262,7 +262,7 @@ def test_sse_line_reader_discards_chunked_newline_free_overflow(caplog) -> None:
     with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
         lines = asyncio.run(collect_lines())
 
-    assert lines == [b"data: {}", b"tail"]
+    assert lines == [None, b"data: {}", b"tail"]
     assert "exceeded the byte limit" in caplog.text
 
 
@@ -287,7 +287,7 @@ def test_sse_line_reader_discards_newline_free_overflow_at_eof(caplog) -> None:
     with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
         lines = asyncio.run(collect_lines())
 
-    assert lines == []
+    assert lines == [None]
     assert "exceeded the byte limit" in caplog.text
 
 
@@ -376,3 +376,31 @@ def test_sse_consumer_discards_multiline_event_over_the_event_budget(monkeypatch
 
     assert received == [{"b": 2}]
     assert "exceeded the byte limit" in caplog.text
+
+
+def test_sse_consumer_discards_whole_event_when_one_line_exceeds_the_line_limit(
+    monkeypatch,
+) -> None:
+    """An over-long line drops its entire event, not just the line; the next event flows."""
+    monkeypatch.setattr(
+        sennheiser_sse_module.SSEStreamLimits,
+        "from_settings",
+        lambda: sennheiser_sse_module.SSEStreamLimits(max_line_bytes=16, max_event_bytes=64),
+    )
+    received: list[dict] = []
+
+    async def callback(data: dict) -> None:
+        received.append(data)
+
+    class StreamResponse:
+        async def aiter_bytes(self, chunk_size: int):
+            yield b'data: {"a":1,\ndata: "pad":"' + b"x" * 40 + b'"}\ndata: }\n\ndata: {"b":2}\n\n'
+
+    asyncio.run(
+        sennheiser_sse_module._consume_sse_messages(
+            StreamResponse(),  # type: ignore[arg-type]
+            callback=callback,
+        )
+    )
+
+    assert received == [{"b": 2}]

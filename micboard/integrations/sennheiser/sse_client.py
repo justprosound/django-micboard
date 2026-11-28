@@ -112,6 +112,9 @@ async def _consume_sse_messages(
         response,
         max_line_bytes=limits.max_line_bytes,
     ):
+        if line is None:
+            oversized = True
+            continue
         if line.startswith(b"event:"):
             event_type = line[6:].strip().decode("ascii", errors="ignore")
             if event_type == "close":
@@ -131,14 +134,11 @@ async def _consume_sse_messages(
             data_lines = []
             data_size = 0
             continue
-        if line.startswith(b"data:"):
+        if line.startswith(b"data:") and not oversized:
             data = line[6:] if line.startswith(b"data: ") else line[5:]
             data_size += len(data) + 1
-            if not oversized:
-                data_lines.append(data)
-                oversized = data_size - 1 > limits.max_event_bytes
-                if oversized:
-                    data_lines = []
+            data_lines.append(data)
+            oversized = data_size - 1 > limits.max_event_bytes
 
 
 async def _dispatch_sse_event(
@@ -186,8 +186,11 @@ async def _iter_bounded_sse_lines(
     response: httpx.Response,
     *,
     max_line_bytes: int,
-) -> AsyncIterator[bytes]:
-    """Yield SSE lines without retaining an over-limit vendor-controlled line."""
+) -> AsyncIterator[bytes | None]:
+    """Yield SSE lines without retaining an over-limit vendor-controlled line.
+
+    An over-limit line is yielded as ``None`` so the caller can discard its whole event.
+    """
     line_buffer = bytearray()
     discarding_line = False
 
@@ -207,6 +210,7 @@ async def _iter_bounded_sse_lines(
 
             if discarding_line:
                 logger.warning("Discarded SSE line that exceeded the byte limit")
+                yield None
             else:
                 line = bytes(line_buffer)
                 yield line[:-1] if line.endswith(b"\r") else line
@@ -215,6 +219,7 @@ async def _iter_bounded_sse_lines(
 
     if discarding_line:
         logger.warning("Discarded SSE line that exceeded the byte limit")
+        yield None
     elif line_buffer:
         line = bytes(line_buffer)
         yield line[:-1] if line.endswith(b"\r") else line
