@@ -196,7 +196,7 @@ def test_sennheiser_sse_stream_uses_async_httpx(monkeypatch, caplog) -> None:
                     b"event: open\n"
                     b'data: {"sessionUUID": "session-123"}\n\n'
                     b"event: message\n"
-                    b'data: {"state": "online"}\n'
+                    b'data: {"state": "online"}\n\n'
                     b"data: not-json\n\n"
                 ),
             )
@@ -262,7 +262,7 @@ def test_sse_line_reader_discards_chunked_newline_free_overflow(caplog) -> None:
     with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
         lines = asyncio.run(collect_lines())
 
-    assert lines == [b"data: {}", b"tail"]
+    assert lines == [None, b"data: {}", b"tail"]
     assert "exceeded the byte limit" in caplog.text
 
 
@@ -287,25 +287,7 @@ def test_sse_line_reader_discards_newline_free_overflow_at_eof(caplog) -> None:
     with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
         lines = asyncio.run(collect_lines())
 
-    assert lines == []
-    assert "exceeded the byte limit" in caplog.text
-
-
-def test_sse_event_dispatch_rejects_oversized_payload_before_json_decode(caplog) -> None:
-    """The event budget applies independently inside an accepted bounded line."""
-    callback = AsyncMock()
-
-    with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
-        asyncio.run(
-            sennheiser_sse_module._dispatch_sse_event(
-                b'data: {"secret":"vendor-payload"}',
-                callback=callback,
-                max_event_bytes=8,
-            )
-        )
-
-    callback.assert_not_awaited()
-    assert "vendor-payload" not in caplog.text
+    assert lines == [None]
     assert "exceeded the byte limit" in caplog.text
 
 
@@ -345,3 +327,80 @@ def test_sennheiser_sse_missing_content_location_propagates_failure(monkeypatch)
 
     with pytest.raises(SennheiserAPIError, match="omitted Content-Location"):
         asyncio.run(sennheiser_sse_module.connect_and_subscribe(client, "device-1", AsyncMock()))
+
+
+def test_sse_consumer_accepts_unspaced_and_multiline_data() -> None:
+    """`data:` needs no space, and an event's data lines are joined before JSON decoding."""
+    received: list[dict] = []
+
+    async def callback(data: dict) -> None:
+        received.append(data)
+
+    class StreamResponse:
+        async def aiter_bytes(self, chunk_size: int):
+            yield b'data:{"a":1}\n\ndata: {"b":\ndata: 2}\n\n'
+
+    asyncio.run(
+        sennheiser_sse_module._consume_sse_messages(
+            StreamResponse(),  # type: ignore[arg-type]
+            callback=callback,
+        )
+    )
+
+    assert received == [{"a": 1}, {"b": 2}]
+
+
+def test_sse_consumer_discards_multiline_event_over_the_event_budget(monkeypatch, caplog) -> None:
+    """Data lines that add up past the event budget are dropped, and the next event still flows."""
+    monkeypatch.setattr(
+        sennheiser_sse_module.SSEStreamLimits,
+        "from_settings",
+        lambda: sennheiser_sse_module.SSEStreamLimits(max_line_bytes=64, max_event_bytes=10),
+    )
+    received: list[dict] = []
+
+    async def callback(data: dict) -> None:
+        received.append(data)
+
+    class StreamResponse:
+        async def aiter_bytes(self, chunk_size: int):
+            yield b'data: {"a":\ndata: "xxxxxxxx"}\ndata: more\n\ndata: {"b":2}\n\n'
+
+    with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
+        asyncio.run(
+            sennheiser_sse_module._consume_sse_messages(
+                StreamResponse(),  # type: ignore[arg-type]
+                callback=callback,
+            )
+        )
+
+    assert received == [{"b": 2}]
+    assert "exceeded the byte limit" in caplog.text
+
+
+def test_sse_consumer_discards_whole_event_when_one_line_exceeds_the_line_limit(
+    monkeypatch,
+) -> None:
+    """An over-long line drops its entire event, not just the line; the next event flows."""
+    monkeypatch.setattr(
+        sennheiser_sse_module.SSEStreamLimits,
+        "from_settings",
+        lambda: sennheiser_sse_module.SSEStreamLimits(max_line_bytes=16, max_event_bytes=64),
+    )
+    received: list[dict] = []
+
+    async def callback(data: dict) -> None:
+        received.append(data)
+
+    class StreamResponse:
+        async def aiter_bytes(self, chunk_size: int):
+            yield b'data: {"a":1,\ndata: "pad":"' + b"x" * 40 + b'"}\ndata: }\n\ndata: {"b":2}\n\n'
+
+    asyncio.run(
+        sennheiser_sse_module._consume_sse_messages(
+            StreamResponse(),  # type: ignore[arg-type]
+            callback=callback,
+        )
+    )
+
+    assert received == [{"b": 2}]
