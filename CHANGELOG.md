@@ -7,6 +7,22 @@ and this project adheres to [Calendar Versioning](https://calver.org/).
 
 ## [Unreleased]
 
+## [2026.11.28.0] - 2026-11-28
+
+### Fixed
+
+- The EFIS import rejects responses over the configured size limit and retries only connect errors, timeouts, 429 and 5xx, so a 404 fails at once.
+
+- A failed or malformed read of the Shure discovery list no longer makes adding discovery IPs replace the list with only the new addresses. The read now raises, so discovery syncs treat the remote list as incomplete.
+
+- `poll_devices` exits non-zero when a manufacturer is unknown, a poll fails or enqueueing fails.
+
+- A device with an over-long model, name, firmware or status string, or a negative battery, quality or slot value, no longer fails to save and blocks offline detection for its manufacturer. Text is truncated to the column length and out-of-range numbers fall back to the unknown level.
+
+### Docs
+
+- Folded the Copilot instructions into `AGENTS.md` and removed the Copilot-only instruction files.
+
 ## [2026.11.27.0] - 2026-11-27
 
 ### Added
