@@ -291,24 +291,6 @@ def test_sse_line_reader_discards_newline_free_overflow_at_eof(caplog) -> None:
     assert "exceeded the byte limit" in caplog.text
 
 
-def test_sse_event_dispatch_rejects_oversized_payload_before_json_decode(caplog) -> None:
-    """The event budget applies independently inside an accepted bounded line."""
-    callback = AsyncMock()
-
-    with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
-        asyncio.run(
-            sennheiser_sse_module._dispatch_sse_event(
-                b'{"secret":"vendor-payload"}',
-                callback=callback,
-                max_event_bytes=8,
-            )
-        )
-
-    callback.assert_not_awaited()
-    assert "vendor-payload" not in caplog.text
-    assert "exceeded the byte limit" in caplog.text
-
-
 def test_sennheiser_sse_missing_content_location_propagates_failure(monkeypatch) -> None:
     """A malformed stream handshake must leave connection tracking as failed."""
 

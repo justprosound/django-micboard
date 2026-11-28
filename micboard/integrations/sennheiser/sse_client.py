@@ -125,7 +125,6 @@ async def _consume_sse_messages(
                 await _dispatch_sse_event(
                     b"\n".join(data_lines),
                     callback=callback,
-                    max_event_bytes=limits.max_event_bytes,
                 )
             oversized = False
             event_type = "message"
@@ -146,12 +145,8 @@ async def _dispatch_sse_event(
     event_data: bytes,
     *,
     callback: Callable[[dict[str, Any]], Awaitable[None]],
-    max_event_bytes: int,
 ) -> None:
-    """Decode and dispatch one bounded SSE event whose data lines are already joined."""
-    if len(event_data) > max_event_bytes:
-        logger.warning("Discarded SSE event data that exceeded the byte limit")
-        return
+    """Decode and dispatch one SSE event whose data lines are already joined and bounded."""
     try:
         data = json.loads(event_data)
         await callback(data)
