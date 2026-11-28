@@ -55,18 +55,16 @@ class APIServerPollingService:
             return 0
 
         try:
-            api_devices = APIServerConnectionService.fetch_server_devices(server) or []
-            target_devices = [
-                device
-                for device in api_devices
-                if str(device.get("id") or device.get("api_device_id") or "").strip()
-                == target_device_id
-            ]
+            device = APIServerConnectionService.fetch_server_device(server, target_device_id)
+            # The response is untrusted: ingest it only if it is the chassis we asked for.
+            # Compare the same `id` key the normalizer ingests under.
+            if device and str(device.get("id") or "").strip() != target_device_id:
+                device = None
 
             from micboard.services.sync.device_update_service import DeviceUpdateService
 
             update = DeviceUpdateService.update_models_from_api_data(
-                api_data=target_devices[:1],
+                api_data=[device] if device else [],
                 manufacturer=chassis.manufacturer,
                 plugin=build_manufacturer_plugin(chassis.manufacturer),
             )
