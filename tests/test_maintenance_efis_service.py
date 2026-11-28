@@ -149,6 +149,26 @@ def test_efis_payload_helpers_and_band_sync(monkeypatch) -> None:
     assert efis_module.FrequencyBand.objects.filter(pk=manual.pk).exists()
 
 
+@pytest.mark.django_db
+def test_efis_empty_answer_keeps_existing_bands(monkeypatch) -> None:
+    """An answer listing no ranges is a bad response and must not delete a region's bands."""
+    monkeypatch.setattr(
+        EFISImportService, "_request_json", Mock(return_value={"applicationRanges": []})
+    )
+    domain = efis_module.RegulatoryDomain.objects.create(code="GB", name="United Kingdom")
+    band = efis_module.FrequencyBand.objects.create(
+        regulatory_domain=domain,
+        name="PMSE (EFIS)",
+        start_frequency_mhz=470.0,
+        end_frequency_mhz=790.0,
+    )
+
+    assert EFISImportService._sync_region_application_bands(
+        session=Mock(), domain=domain, region_id=1, region_name="Region", wireless_term_ids={1}
+    ) == (0, 0)
+    assert efis_module.FrequencyBand.objects.filter(pk=band.pk).exists()
+
+
 def _efis_client(*responses: httpx.Response | Exception) -> tuple[httpx.Client, list[int]]:
     queue = list(responses)
     calls: list[int] = []

@@ -232,9 +232,11 @@ class EFISImportService:
                 updated += 1
 
         # EFIS-sourced bands (named "... (EFIS)") that this answer no longer lists are stale.
-        FrequencyBand.objects.filter(regulatory_domain=domain, name__endswith="(EFIS)").exclude(
-            pk__in=written_pks
-        ).delete()
+        # An answer that lists nothing is treated as a bad response, not as "all bands removed".
+        if written_pks:
+            FrequencyBand.objects.filter(regulatory_domain=domain, name__endswith="(EFIS)").exclude(
+                pk__in=written_pks
+            ).delete()
 
         return created, updated
 
