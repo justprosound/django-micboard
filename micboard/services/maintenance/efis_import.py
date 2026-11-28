@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any, NoReturn, cast
 
+from django.db import transaction
 from django.utils import timezone
 
 import httpx
@@ -92,22 +93,27 @@ class EFISImportService:
                 if region.get("regionCode") in cls._EXCLUDED_REGION_CODES:
                     continue
 
-                domain, _ = RegulatoryDomain.objects.update_or_create(
-                    code=region.get("regionCode", "").upper(),
-                    defaults={
-                        "name": region.get("name", "Unknown Region"),
-                        "description": "Imported from CEPT EFIS applications API",
-                        "country_code": cls._normalize_country_code(region.get("regionCode", "")),
-                    },
-                )
+                # One region commits or rolls back as a whole, so a failure leaves earlier
+                # regions fully imported and this one untouched.
+                with transaction.atomic():
+                    domain, _ = RegulatoryDomain.objects.update_or_create(
+                        code=region.get("regionCode", "").upper(),
+                        defaults={
+                            "name": region.get("name", "Unknown Region"),
+                            "description": "Imported from CEPT EFIS applications API",
+                            "country_code": cls._normalize_country_code(
+                                region.get("regionCode", "")
+                            ),
+                        },
+                    )
 
-                created, updated = cls._sync_region_application_bands(
-                    session=session,
-                    domain=domain,
-                    region_id=region.get("id"),
-                    region_name=region.get("name", ""),
-                    wireless_term_ids=wireless_term_ids,
-                )
+                    created, updated = cls._sync_region_application_bands(
+                        session=session,
+                        domain=domain,
+                        region_id=region.get("id"),
+                        region_name=region.get("name", ""),
+                        wireless_term_ids=wireless_term_ids,
+                    )
 
                 domains_updated += 1
                 bands_created += created
@@ -190,8 +196,12 @@ class EFISImportService:
 
         created = 0
         updated = 0
+        written_pks: list[int] = []
 
-        for app_range in payload.get("applicationRanges", []):
+        if "applicationRanges" not in payload:
+            raise ValueError("EFIS applications answer lacks applicationRanges")
+
+        for app_range in payload["applicationRanges"]:
             applications: Sequence[dict[str, Any]] = app_range.get("applications", [])
             matching = [
                 app
@@ -206,10 +216,12 @@ class EFISImportService:
             band_name = cls._build_band_name(matching)
             description = cls._build_description(region_name=region_name, applications=matching)
 
-            _, was_created = FrequencyBand.objects.update_or_create(
+            band, was_created = FrequencyBand.objects.update_or_create(
                 regulatory_domain=domain,
                 start_frequency_mhz=start_mhz,
                 end_frequency_mhz=end_mhz,
+                # Match only EFIS-owned rows so a manual band with the same range is kept.
+                name__endswith="(EFIS)",
                 defaults={
                     "name": band_name,
                     "band_type": "allowed",
@@ -218,10 +230,18 @@ class EFISImportService:
                 },
             )
 
+            written_pks.append(band.pk)
             if was_created:
                 created += 1
             else:
                 updated += 1
+
+        # EFIS-sourced bands (named "... (EFIS)") that this answer no longer lists are stale.
+        # An answer that lists nothing is treated as a bad response, not as "all bands removed".
+        if written_pks:
+            FrequencyBand.objects.filter(regulatory_domain=domain, name__endswith="(EFIS)").exclude(
+                pk__in=written_pks
+            ).delete()
 
         return created, updated
 

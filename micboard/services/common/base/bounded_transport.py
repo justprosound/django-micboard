@@ -42,9 +42,13 @@ class BoundedHTTPTransport:
                 self._enforce_size(bytes_read, method=method)
                 chunks.append(chunk)
 
+            # The body is already decoded, so the wire encoding and length no longer apply.
+            headers = httpx.Headers(response.headers)
+            headers.pop("Content-Encoding", None)
+            headers.pop("Content-Length", None)
             return httpx.Response(
                 status_code=response.status_code,
-                headers=response.headers,
+                headers=headers,
                 content=b"".join(chunks),
                 request=response.request,
                 extensions=response.extensions,
