@@ -208,3 +208,29 @@ def test_factory_registry_supports_host_profiles(settings_module: str, script: s
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_plugin_context_manager_closes_shure_client() -> None:
+    """Leaving the plugin context releases the client's HTTP pool."""
+    from unittest.mock import MagicMock
+
+    from micboard.integrations.shure.plugin import ShurePlugin
+
+    plugin = ShurePlugin(None)
+    plugin._client = MagicMock()
+    with plugin:
+        pass
+    plugin._client.close.assert_called_once_with()
+
+
+def test_plugin_context_manager_closes_sennheiser_client() -> None:
+    """Leaving the plugin context releases the system client's HTTP pool."""
+    from unittest.mock import MagicMock
+
+    from micboard.integrations.sennheiser.plugin import SennheiserPlugin
+
+    plugin = SennheiserPlugin.__new__(SennheiserPlugin)  # the constructor needs credentials
+    plugin.client = MagicMock()
+    with plugin:
+        pass
+    plugin.client.close.assert_called_once_with()

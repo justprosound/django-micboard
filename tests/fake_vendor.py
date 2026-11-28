@@ -32,6 +32,9 @@ class FakeVendorPlugin:
         """The raw inventory the vendor reports."""
         return [{"index": index} for index in range(len(self.payloads))]
 
+    def close(self) -> None:
+        """Mirror a plugin's client release; the fake holds none."""
+
     def get_devices(self) -> list[dict[str, int]]:
         """Return the raw inventory, after the optional vendor-side effect."""
         if self.before_get_devices is not None:

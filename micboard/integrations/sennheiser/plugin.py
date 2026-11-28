@@ -35,6 +35,10 @@ class SennheiserPlugin(ManufacturerPlugin):
         super().__init__(manufacturer)
         self.client: SennheiserSystemAPIClient = SennheiserSystemAPIClient()
 
+    def close(self) -> None:
+        """Close the system client's HTTP pool."""
+        self.client.close()
+
     def get_devices(self) -> list[dict[str, Any]]:
         """Get list of all devices from Sennheiser SSCv2 API."""
         return self.client.devices.get_devices()

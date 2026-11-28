@@ -80,7 +80,10 @@ def check_manufacturer_api_health(manufacturer_id: int) -> None:
 
     try:
         plugin = build_manufacturer_plugin(manufacturer)
-        health_status: object = plugin.get_client().check_health()
+        try:
+            health_status: object = plugin.get_client().check_health()
+        finally:
+            plugin.close()
     except Exception as exc:
         logger.exception(
             "Error checking API health for manufacturer ID %s",

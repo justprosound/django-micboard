@@ -44,6 +44,11 @@ class ShurePlugin(ManufacturerPlugin):
             self._client = ShureSystemAPIClient()
         return self._client
 
+    def close(self) -> None:
+        """Close the lazily built client, if one was created."""
+        if self._client is not None:
+            self._client.close()
+
     def get_devices(self) -> list[dict[str, Any]]:
         """Get list of all devices from Shure System API."""
         return self.get_client().devices.get_devices()

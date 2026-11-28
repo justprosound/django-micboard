@@ -239,6 +239,8 @@ class ManufacturerSyncService:
                 errors=[f"Device synchronization failed ({type(exc).__name__}); details redacted."],
                 device_limit=limits.max_devices,
             )
+        finally:
+            plugin.close()
 
     @staticmethod
     def _ingest_mode(manufacturer: Manufacturer, *, source_complete: bool) -> IngestMode:

@@ -39,8 +39,15 @@ class ChargerPollingService:
     @classmethod
     def poll(cls, manufacturer: Any) -> ChargerPollResult:
         """Poll supported stations without unbounded inventory or channel work."""
-        limits = cls.limits()
         plugin = build_manufacturer_plugin(manufacturer)
+        try:
+            return cls._poll(manufacturer, plugin)
+        finally:
+            plugin.close()
+
+    @classmethod
+    def _poll(cls, manufacturer: Any, plugin: Any) -> ChargerPollResult:
+        limits = cls.limits()
         cursor = ChargerPollingCacheAdapter.read_cursor(manufacturer)
         inventory_page = cls._inventory_page(
             plugin.get_devices(),
