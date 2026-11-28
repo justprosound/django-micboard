@@ -8,7 +8,7 @@ are written by the realtime and managed-device paths, not by this one.
 from io import StringIO
 from unittest.mock import Mock
 
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
 
 import pytest
 
@@ -140,7 +140,8 @@ def test_a_failed_poll_is_reported_as_an_error_not_a_success(
     )
     out, err = StringIO(), StringIO()
 
-    call_command("poll_devices", "--manufacturer", "vendor", stdout=out, stderr=err)
+    with pytest.raises(CommandError):
+        call_command("poll_devices", "--manufacturer", "vendor", stdout=out, stderr=err)
 
     assert "Success" not in out.getvalue()
     assert "vendor" in err.getvalue()
@@ -165,6 +166,7 @@ def test_a_failed_poll_does_not_leak_its_error_detail_to_the_operator(
     )
     err = StringIO()
 
-    call_command("poll_devices", "--manufacturer", "vendor", stdout=StringIO(), stderr=err)
+    with pytest.raises(CommandError):
+        call_command("poll_devices", "--manufacturer", "vendor", stdout=StringIO(), stderr=err)
 
     assert secret not in err.getvalue()
