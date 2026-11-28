@@ -1127,7 +1127,7 @@ payload carries no model name.
 
 ### `VendorDeviceNormalizer`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L53)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L75)
 
 Normalize one integration's device and channel payloads.
 
@@ -1139,7 +1139,7 @@ Normalize one integration's device and channel payloads.
 
 #### `normalize_device(api_data: Mapping[str, Any]) -> NormalizedChassis | None`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L69)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L91)
 
 Normalize one device payload, or return None when it is unusable.
 
@@ -1149,7 +1149,7 @@ serial numbers.
 
 #### `normalize_channels(api_channels: Iterable[Mapping[str, Any]]) -> list[NormalizedChannel]`
 
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L110)
+[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/device_normalizer.py#L142)
 
 Normalize the channel list a device embeds or a channel endpoint returns.
 
