@@ -366,3 +366,31 @@ def test_sse_consumer_accepts_unspaced_and_multiline_data() -> None:
     )
 
     assert received == [{"a": 1}, {"b": 2}]
+
+
+def test_sse_consumer_discards_multiline_event_over_the_event_budget(monkeypatch, caplog) -> None:
+    """Data lines that add up past the event budget are dropped, and the next event still flows."""
+    monkeypatch.setattr(
+        sennheiser_sse_module.SSEStreamLimits,
+        "from_settings",
+        lambda: sennheiser_sse_module.SSEStreamLimits(max_line_bytes=64, max_event_bytes=10),
+    )
+    received: list[dict] = []
+
+    async def callback(data: dict) -> None:
+        received.append(data)
+
+    class StreamResponse:
+        async def aiter_bytes(self, chunk_size: int):
+            yield b'data: {"a":\ndata: "xxxxxxxx"}\ndata: more\n\ndata: {"b":2}\n\n'
+
+    with caplog.at_level(logging.WARNING, logger=sennheiser_sse_module.__name__):
+        asyncio.run(
+            sennheiser_sse_module._consume_sse_messages(
+                StreamResponse(),  # type: ignore[arg-type]
+                callback=callback,
+            )
+        )
+
+    assert received == [{"b": 2}]
+    assert "exceeded the byte limit" in caplog.text
