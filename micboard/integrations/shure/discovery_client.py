@@ -38,22 +38,8 @@ class ShureDiscoveryClient:
             if not valid_ips:
                 logger.warning("No valid IPs provided to add_discovery_ips")
                 return False
-            # Retrieve existing discovery IPs
-            existing = []
-            try:
-                # Shure API uses /api/v1/ base path in this deployment
-                res = self.api_client._make_request("GET", "/api/v1/config/discovery/ips")
-                if res and isinstance(res, dict):
-                    remote_ips = res.get("ips", [])
-                    if (
-                        not isinstance(remote_ips, list)
-                        or len(remote_ips) > MAX_DISCOVERY_CANDIDATES
-                    ):
-                        logger.warning("Existing discovery response was invalid or oversized")
-                        return False
-                    existing = validate_ipv4_list(remote_ips, "existing_discovery_ips")
-            except ShureAPIError:
-                logger.debug("No existing discovery IPs returned; starting fresh")
+            # A failed or unreadable GET must abort: the PUT replaces the whole list.
+            existing = validate_ipv4_list(self._read_discovery_ips(), "existing_discovery_ips")
 
             combined = list(dict.fromkeys(list(existing) + list(valid_ips)))
             if len(combined) > MAX_DISCOVERY_CANDIDATES:
@@ -72,33 +58,26 @@ class ShureDiscoveryClient:
             )
             return False
 
+    def _read_discovery_ips(self) -> list[str]:
+        """Return the remote list; raise ShureAPIError if it cannot be read as one."""
+        res = self.api_client._make_request("GET", "/api/v1/config/discovery/ips")
+        ips = res.get("ips") if isinstance(res, dict) else None
+        if (
+            not isinstance(ips, list)
+            or len(ips) > MAX_DISCOVERY_CANDIDATES
+            or not all(isinstance(ip, str) for ip in ips)
+        ):
+            raise ShureAPIError("Discovery list response was unreadable")
+        return ips
+
     @rate_limit(calls_per_second=1.0)
     def get_discovery_ips(self) -> list[str]:
         """Retrieve the current manual discovery IPs from Shure System API.
 
-        Returns a list of IP address strings.
+        Raises ShureAPIError when the list cannot be read, so callers never
+        mistake a failed read for an empty list.
         """
-        try:
-            res = self.api_client._make_request("GET", "/api/v1/config/discovery/ips")
-            if res and isinstance(res, dict):
-                ips_from_response = res.get("ips", [])
-                if isinstance(ips_from_response, list) and all(
-                    isinstance(ip, str) for ip in ips_from_response
-                ):
-                    return ips_from_response
-                else:
-                    logger.warning(
-                        "Unexpected type for 'ips' in discovery response: %s",
-                        type(ips_from_response),
-                    )
-                    return []
-            return []
-        except ShureAPIError as exc:
-            logger.error(
-                "Failed to fetch discovery IPs",
-                exc_info=sanitized_exception_info(exc),
-            )
-            return []
+        return self._read_discovery_ips()
 
     @rate_limit(calls_per_second=1.0)
     def remove_discovery_ips(self, ips: list[str]) -> bool:
