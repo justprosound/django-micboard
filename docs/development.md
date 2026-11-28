@@ -72,7 +72,7 @@ django-micboard/
 - Use native Huey through `huey.contrib.djhuey`; do not introduce another task queue.
 - Update call sites directly when moving APIs; do not add compatibility re-export modules.
 
-Review `.github/copilot-instructions.md` before changing architecture.
+Review `AGENTS.md` before changing architecture.
 
 ## Testing
 
