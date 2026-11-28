@@ -246,3 +246,13 @@ def test_non_iterable_inventory_caches_an_empty_snapshot() -> None:
     assert result.scanned_count == 0
     assert result.cached_count == 0
     cache_set.assert_called_once_with("charger_data_shure", [], timeout=60)
+
+
+def test_slot_snapshot_reads_transmitter_key() -> None:
+    """A channel that names its unit `transmitter` is read like one that names it `tx`."""
+    snapshot = ChargerPollingService._slot_snapshot(
+        {"channel": 2, "transmitter": {"name": "Lav", "battery_percentage": 80}}
+    )
+
+    assert snapshot is not None
+    assert (snapshot.mic_name, snapshot.battery_level) == ("Lav", 80)

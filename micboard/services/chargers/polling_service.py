@@ -310,7 +310,10 @@ class ChargerPollingService:
 
     @classmethod
     def _slot_snapshot(cls, channel: Mapping[str, Any]) -> ChargerSlotSnapshot | None:
+        # The device normalizer accepts either key, so a charger payload may use either.
         tx_data = channel.get("tx")
+        if not isinstance(tx_data, Mapping):
+            tx_data = channel.get("transmitter")
         if not isinstance(tx_data, Mapping):
             return None
         return ChargerSlotSnapshot(
