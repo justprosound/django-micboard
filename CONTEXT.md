@@ -62,6 +62,12 @@ _Avoid_: Client, account
 A physical site of an organization, with its own buildings.
 _Avoid_: Site (reserved for Django's sites framework), venue
 
+**External Room ID**:
+The key a host project uses for the same physical room in its own room inventory, stored on a
+micboard Room so wireless state can be joined to the host's room data. Micboard treats it as an
+opaque string and never resolves it.
+_Avoid_: Room link, room FK (it is a plain key, not a database relation)
+
 **Monitoring Group**:
 A named set of users with locations and channels they monitor together. Monitoring groups narrow
 what viewers and operators see; they never widen a tenant.
