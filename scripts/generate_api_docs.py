@@ -87,7 +87,6 @@ PAGES: tuple[Page, ...] = (
             "micboard.services.common.base.plugin",
             "micboard.services.common.base.device_normalizer",
             "micboard.services.common.base.client",
-            "micboard.services.common.base.resilience",
             "micboard.services.common.base.rate_limiter",
             "micboard.services.common.base.circuit_breaker",
         ),

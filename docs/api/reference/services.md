@@ -1232,19 +1232,6 @@ Probe the health check endpoint and return a standardized status response.
 
 Close the underlying HTTP connection pool.
 
-## `micboard.services.common.base.resilience`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/resilience.py)
-
-### `create_resilient_session(max_retries: int = 3, pool_connections: int = 10, pool_maxsize: int = 20, follow_redirects: bool = True) -> httpx.Client`
-
-[Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/resilience.py#L4)
-
-Create an HTTPX client with bounded connection retries and pooling.
-
-HTTP status retries belong in the calling service because only that layer
-knows whether a request is safe to replay and how to interpret Retry-After.
-
 ## `micboard.services.common.base.rate_limiter`
 
 [Source](https://github.com/justprosound/django-micboard/blob/main/micboard/services/common/base/rate_limiter.py)
